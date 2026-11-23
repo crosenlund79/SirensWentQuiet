@@ -549,6 +549,9 @@ func apply_expedition_report(result: Dictionary) -> Dictionary:
 		if typeof(items) != TYPE_DICTIONARY:
 			continue
 		for id in items:
+			# Unlimited resources: rounds spent on the trip cost nothing (lost tools still go).
+			if key == "consumed" and cheats.get("unlimited", false):
+				continue
 			var n := mini(Inventory.to_count(items[id]), inventory.count(id))
 			if n > 0 and inventory.remove(id, n):
 				out[key][str(id)] = int(out[key].get(str(id), 0)) + n
