@@ -1,5 +1,7 @@
 extends Control
-## SIRENS WENT QUIET - version selection screen for Experiment 001.
+## Visual Experiments: the Experiment 001 version selection screen, reached
+## from the main menu. Owner: U. Esc or Back returns to the main menu; each
+## demo's Esc still returns here.
 
 const VERSIONS := [
 	{"key": "A", "title": "True 3D Voxels", "blurb": "Volumetric walls you can chew holes through, voxel by voxel.", "scene": "res://src/voxel/voxel_demo.tscn"},
@@ -87,10 +89,13 @@ void fragment() {
 """
 
 var _buttons: Array[Button] = []
+var _back: Button
 
 
 func _ready() -> void:
+	get_tree().paused = false
 	Input.set_custom_mouse_cursor(null)
+	Sfx.attach(self)
 	_build()
 	if not _buttons.is_empty():
 		for b in _buttons:
@@ -109,7 +114,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_3, KEY_C:
 				launch(2)
 			KEY_ESCAPE:
-				get_tree().quit()
+				get_viewport().set_input_as_handled()
+				back_to_menu()
+
+
+func back_to_menu() -> void:
+	get_tree().change_scene_to_file(GameLaunch.MENU_SCENE)
 
 
 func launch(index: int) -> void:
@@ -136,22 +146,27 @@ func _build() -> void:
 	col.custom_minimum_size = Vector2(720, 0)
 	center.add_child(col)
 
-	var title := Label.new()
-	title.text = "S I R E N S   W E N T   Q U I E T"
+	theme = UiTheme.theme()
+	var eyebrow := UiTheme.make_label("SIRENS WENT QUIET", 13, UiTheme.TEXT_DIM)
+	eyebrow.add_theme_font_override("font", UiTheme.tracked_font(4))
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(eyebrow)
+	var title := UiTheme.make_label("VISUAL EXPERIMENTS · EXPERIMENT 001", 34, UiTheme.TEXT)
+	title.name = "Title"
+	title.add_theme_font_override("font", UiTheme.tracked_font(4))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 46)
-	title.add_theme_color_override("font_color", Color(0.92, 0.89, 0.84))
-	title.add_theme_color_override("font_shadow_color", Color(0.45, 0.05, 0.05, 0.6))
-	title.add_theme_constant_override("shadow_offset_x", 0)
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
 	title.add_theme_constant_override("shadow_offset_y", 3)
-	title.add_theme_constant_override("shadow_outline_size", 10)
+	title.add_theme_constant_override("shadow_outline_size", 8)
 	col.add_child(title)
+	var rule := ColorRect.new()
+	rule.color = UiTheme.ACCENT
+	rule.custom_minimum_size = Vector2(64, 2)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(rule)
 
-	var sub := Label.new()
-	sub.text = "Visual Technology Experiment 001  ·  three ways to build a destructible house"
+	var sub := UiTheme.make_label("Three ways to build a destructible house. The survival game grew out of version A.", UiTheme.FONT_BODY - 1, UiTheme.TEXT_DIM)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 16)
-	sub.add_theme_color_override("font_color", Color(0.62, 0.6, 0.58))
 	col.add_child(sub)
 
 	var gap := Control.new()
@@ -162,13 +177,24 @@ func _build() -> void:
 		col.add_child(_version_button(i))
 
 	var gap2 := Control.new()
-	gap2.custom_minimum_size = Vector2(0, 18)
+	gap2.custom_minimum_size = Vector2(0, 10)
 	col.add_child(gap2)
-	var foot := Label.new()
-	foot.text = "Press 1 / 2 / 3 or click to launch   ·   Esc inside a version returns here   ·   Esc here quits"
-	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	foot.add_theme_font_size_override("font_size", 13)
-	foot.add_theme_color_override("font_color", Color(0.5, 0.49, 0.48))
+	var back := UiTheme.make_button("Back")
+	back.name = "Back"
+	back.custom_minimum_size = Vector2(200, UiTheme.BUTTON_HEIGHT)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(back_to_menu)
+	col.add_child(back)
+	_back = back
+	var gap3 := Control.new()
+	gap3.custom_minimum_size = Vector2(0, 6)
+	col.add_child(gap3)
+	var foot := HBoxContainer.new()
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	foot.add_theme_constant_override("separation", 22)
+	foot.add_child(UiTheme.make_key_hint("1 / 2 / 3", "Launch", UiTheme.FONT_SMALL, UiTheme.TEXT_FAINT))
+	foot.add_child(UiTheme.make_key_hint("Esc", "In a version: back here", UiTheme.FONT_SMALL, UiTheme.TEXT_FAINT))
+	foot.add_child(UiTheme.make_key_hint("Esc", "Here: main menu", UiTheme.FONT_SMALL, UiTheme.TEXT_FAINT))
 	col.add_child(foot)
 
 
@@ -180,26 +206,13 @@ func _version_button(i: int) -> Button:
 	b.focus_mode = Control.FOCUS_ALL
 	b.disabled = not available
 	b.pressed.connect(launch.bind(i))
-	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		var sb := StyleBoxFlat.new()
-		sb.set_corner_radius_all(3)
-		sb.set_border_width_all(1)
-		match state:
-			"normal":
-				sb.bg_color = Color(0.06, 0.06, 0.07, 0.72)
-				sb.border_color = Color(1, 1, 1, 0.1)
-			"hover", "focus":
-				sb.bg_color = Color(0.12, 0.09, 0.08, 0.85)
-				sb.border_color = Color(0.85, 0.35, 0.28, 0.7)
-				if state == "focus":
-					sb.draw_center = false
-			"pressed":
-				sb.bg_color = Color(0.2, 0.08, 0.07, 0.9)
-				sb.border_color = Color(1, 0.45, 0.35, 0.9)
-			"disabled":
-				sb.bg_color = Color(0.05, 0.05, 0.05, 0.5)
-				sb.border_color = Color(1, 1, 1, 0.04)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	for state in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+		var sb := UiTheme.button_style(state)
+		if state == "normal":
+			sb.bg_color = Color(UiTheme.BG, 0.72)
 		b.add_theme_stylebox_override(state, sb)
+	UiTheme.wire_sounds(b)
 
 	var row := HBoxContainer.new()
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -212,7 +225,7 @@ func _version_button(i: int) -> Button:
 	var key := Label.new()
 	key.text = v["key"]
 	key.add_theme_font_size_override("font_size", 38)
-	key.add_theme_color_override("font_color", Color(0.86, 0.32, 0.26) if available else Color(0.35, 0.33, 0.32))
+	key.add_theme_color_override("font_color", UiTheme.ACCENT if available else UiTheme.TEXT_FAINT)
 	key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	key.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(key)
@@ -224,13 +237,13 @@ func _version_button(i: int) -> Button:
 	var t := Label.new()
 	t.text = v["title"] + ("" if available else "   (not built)")
 	t.add_theme_font_size_override("font_size", 22)
-	t.add_theme_color_override("font_color", Color(0.93, 0.91, 0.87) if available else Color(0.45, 0.44, 0.43))
+	t.add_theme_color_override("font_color", UiTheme.TEXT if available else UiTheme.TEXT_FAINT)
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texts.add_child(t)
 	var d := Label.new()
 	d.text = v["blurb"]
 	d.add_theme_font_size_override("font_size", 14)
-	d.add_theme_color_override("font_color", Color(0.62, 0.6, 0.57))
+	d.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
 	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texts.add_child(d)
 	_buttons.append(b)

@@ -1,51 +1,51 @@
 class_name ConfirmDialog
-extends CanvasLayer
-## Yes/no question (SPEC §7.8). Owner: U. Foundation stub.
+extends UiModal
+## Yes/no question (SPEC §7.8). Owner: U.
+##   dialog.ask("This will overwrite your current survival run.", "Start over", "Cancel")
+##   var yes: bool = await dialog.answered
+## Esc answers no. Keyboard focus starts on the safe ("no") choice.
+## inform() is a one-button notice that answers true.
 
 signal answered(yes: bool)
 
-var is_open := false
-var _panel: PanelContainer
-var _box: VBoxContainer
+
+func _init() -> void:
+	super()
+	layer = 85
 
 
-func _ready() -> void:
-	layer = 70
-	process_mode = Node.PROCESS_MODE_ALWAYS
-	visible = false
+func ask(text: String, yes_text := "Yes", no_text := "Cancel", title := "") -> void:
+	var box := _begin(title if title != "" else "Are you sure?", 460)
+	box.add_child(UiTheme.make_caption(text, 424, UiTheme.TEXT))
+	box.add_child(UiTheme.make_spacer(6))
+	var no := UiTheme.make_button(no_text)
+	no.name = "No"
+	no.pressed.connect(_answer.bind(false))
+	var yes := UiTheme.make_button(yes_text)
+	yes.name = "Yes"
+	yes.pressed.connect(_answer.bind(true))
+	box.add_child(_button_row([no, yes]))
+	_show(no)
 
 
-func _begin(title: String) -> void:
-	if _panel != null:
-		_panel.queue_free()
-	_panel = UiTheme.make_panel()
-	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	add_child(_panel)
-	_box = VBoxContainer.new()
-	_panel.add_child(_box)
-	_box.add_child(UiTheme.make_title(title))
-	visible = true
-	is_open = true
+## A notice with a single button (answers true).
+func inform(text: String, ok_text := "OK", title := "Notice") -> void:
+	var box := _begin(title, 460)
+	box.add_child(UiTheme.make_caption(text, 424, UiTheme.TEXT))
+	box.add_child(UiTheme.make_spacer(6))
+	var ok := UiTheme.make_button(ok_text)
+	ok.name = "Yes"
+	ok.pressed.connect(_answer.bind(true))
+	box.add_child(_button_row([ok]))
+	_show(ok)
 
 
-func _button(text: String, cb: Callable) -> Button:
-	var b := UiTheme.make_button(text)
-	b.pressed.connect(cb)
-	_box.add_child(b)
-	return b
+func _answer(yes: bool) -> void:
+	if not is_open:
+		return
+	close()
+	answered.emit(yes)
 
 
-func close() -> void:
-	visible = false
-	is_open = false
-
-
-func ask(text: String, yes_text := "Yes", no_text := "Cancel") -> void:
-	_begin("Are you sure?")
-	_box.add_child(UiTheme.make_label(text))
-	_button(yes_text, func():
-		close()
-		answered.emit(true))
-	_button(no_text, func():
-		close()
-		answered.emit(false))
+func _on_cancel() -> void:
+	_answer(false)
