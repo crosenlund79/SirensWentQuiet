@@ -56,7 +56,7 @@ New:
 | `pause` | Esc | pause menu / close panel |
 | `dev_menu` | F10 | developer (cheat) menu |
 
-Number keys 1–7 select pieces in build mode; BuildMode reads them as raw keys, with no actions.
+Number keys 1–9 select pieces and tools in build mode (1 wall, 2 barricade, 3 door, 4 doorway, 5 crate, 6 collector, 7 repair, 8 metal sheathing, 9 demolish); BuildMode reads them as raw keys, with no actions.
 
 ## 4. Physics layers
 
