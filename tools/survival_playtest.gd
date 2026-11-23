@@ -310,19 +310,56 @@ func _clear_shot(target: Vector2) -> bool:
 	return hit.distance_to(from) >= from.distance_to(to) - 0.45
 
 
+## Opens the developer menu with F10, scrolls the button into view with the
+## mouse wheel, clicks it and closes the menu again. Returns the button text.
 func _dev_click(pattern: String) -> String:
 	var dev: Node = _ui().dev_menu
 	if not dev.visible:
 		await _tap(KEY_F10)
-	var t := await _click_button(dev, pattern)
+		await _wait(0.3)
+	var bs := _buttons(dev, pattern)
+	var t := ""
+	if not bs.is_empty():
+		await _scroll_into_view(bs[0])
+		t = bs[0].text
+		await _click_control(bs[0])
 	await _tap(KEY_F10)
 	return t
+
+
+func _scroll_into_view(c: Control) -> void:
+	var sc: ScrollContainer = null
+	var p := c.get_parent()
+	while p != null:
+		if p is ScrollContainer:
+			sc = p
+			break
+		p = p.get_parent()
+	if sc == null:
+		return
+	for i in 60:
+		var r := Rect2(sc.get_global_transform_with_canvas().origin, sc.size)
+		var cr := Rect2(c.get_global_transform_with_canvas().origin, c.size)
+		if r.encloses(cr):
+			return
+		var at := r.get_center()
+		_move_mouse(at)
+		var w := _to_window(at)
+		for pressed in [true, false]:
+			var e := InputEventMouseButton.new()
+			e.button_index = MOUSE_BUTTON_WHEEL_DOWN if cr.position.y > r.position.y else MOUSE_BUTTON_WHEEL_UP
+			e.pressed = pressed
+			e.factor = 1.0
+			e.position = w
+			e.global_position = w
+			Input.parse_input_event(e)
+		await _frames(2)
 
 
 func _cheat_on(which: String, why: String) -> void:
 	if _state().cheats.get(which, false):
 		return
-	var t := await _dev_click(which if which != "unlimited" else "unlimited|infinite")
+	var t := await _dev_click("^Invulnerable" if which == "invulnerable" else "^Unlimited")
 	if not _state().cheats.get(which, false):
 		_state().cheats[which] = true
 		_note("cheat '%s' switched on through the debug API (no dev-menu button): %s" % [which, why])
@@ -383,6 +420,23 @@ func _settle_meshes(limit := 10.0) -> void:
 			return
 		await _frames(3)
 		t += 3 * DT
+
+
+## Dev menu: "Night 20:00", "×10" until dark, "×1". Falls back to dev_skip_to.
+func _to_night() -> String:
+	var a := await _dev_click("^Night 20")
+	var b := await _dev_click("^×10$")
+	var t := 0.0
+	while _state().night_amount() < 0.95 and t < 30.0:
+		await _wait(0.5)
+		t += 0.5
+	var c := await _dev_click("^×1$")
+	if a == "" or b == "" or _state().night_amount() < 0.9:
+		g.dev_skip_to(21.25)
+		g.dev_set_time_scale(1.0)
+		_note("dev menu night buttons not found; used dev_skip_to(21.25)")
+		return "dev_skip_to(21.25)"
+	return "clicked '%s', '%s', '%s'" % [a, b, c]
 
 
 func _wait_modal(want: String, limit: float) -> bool:
@@ -454,6 +508,7 @@ func _run() -> void:
 	print("SURVIVAL PLAYTEST part %d (out: %s)" % [_part, _out])
 	if _part == 1:
 		SaveGame.delete_save()
+		GameLaunch.seed = 1123        # deterministic run (expedition rolls, stragglers)
 		await _part1()
 	else:
 		await _part2()
@@ -494,7 +549,9 @@ func _part1() -> void:
 	while g.debug_modal() == "intro" and t < 40.0:
 		await _wait(0.5)
 		t += 0.5
-		if t > 12.0 and int(t * 2) % 10 == 0:
+		if is_equal_approx(t, 2.5):
+			await _shot("01b_intro.png")
+		if t > 14.0 and int(t * 2) % 10 == 0:
 			await _tap(KEY_SPACE)
 	var bed: Vector3 = _world().bed_position()
 	var near_bed := _pos().distance_to(Vector2(bed.x, bed.z)) < 2.2
@@ -532,30 +589,66 @@ func _part1() -> void:
 	await _wait(0.5)
 	_step("4 enter the fog at the edge (E)", at_edge and prompt != "" and g.debug_modal() == "expedition", "prompt '%s', modal '%s'" % [prompt, g.debug_modal()])
 
-	# 5. Select an expedition and resolve an event (clicks on the screen's buttons).
+	# 5. Select an expedition and resolve an event (clicks on the screen's buttons, keys 1-3).
 	var before := _state().inventory.counts.duplicate()
 	var t_before := _state().total_minutes
 	var clicks := []
-	if g.debug_modal() == "expedition":
-		await _shot("06_expedition_selection.png")
+	var answered := ""
+	var scr: Node = _ui().expedition
+	var shots_done := {}
+	var names := {"list": "06_expedition_selection.png", "gear": "06b_expedition_gear.png", "confirm": "06c_expedition_confirm.png",
+		"event": "06d_expedition_event.png", "outcome": "06e_expedition_outcome.png", "report": "06f_expedition_report.png"}
+	t = 0.0
+	while g.debug_modal() == "expedition" and t < 120.0:
+		var st := str(scr.get("step"))
+		if names.has(st) and not shots_done.has(st):
+			shots_done[st] = true
+			await _shot(names[st])
+		var pb = scr.get("primary_button")
+		match st:
+			"list":
+				if str(scr.get("selected")) == "" and scr.get("destination_buttons") is Dictionary:
+					for id in scr.destination_buttons:
+						if scr.available(id).get("ok", false):
+							clicks.append(id)
+							await _click_control(scr.destination_buttons[id])
+							break
+				elif pb is Button and _shown(pb):
+					clicks.append(pb.text)
+					await _click_control(pb)
+			"event":
+				var opts: Array = scr.get("option_buttons") if scr.get("option_buttons") != null else []
+				for i in opts.size():
+					var b: Button = opts[i]
+					if is_instance_valid(b) and not b.disabled:
+						answered = b.text
+						if i < 3:
+							await _tap(KEY_1 + i)          # the option's number key
+						else:
+							await _click_control(b)
+						break
+			"gear", "confirm", "outcome", "report":
+				if pb is Button and _shown(pb) and not pb.disabled:
+					clicks.append(pb.text)
+					await _click_control(pb)
+		await _wait(0.4)
+		t += 0.4
+	if scr.get("step") == null and g.debug_modal() == "expedition":
+		# the foundation stub screen: click through its buttons
 		for i in 14:
 			if g.debug_modal() != "expedition":
 				break
-			var b := await _click_button(_ui().expedition, "", BACK)
-			if b == "":
-				await _wait(0.5)
-				continue
-			clicks.append(b)
+			var b := await _click_button(scr, "", BACK)
+			if b != "":
+				clicks.append(b)
 			await _wait(0.6)
-			if i == 1:
-				await _shot("06b_expedition_event.png")
 	var exp: Dictionary = g.last_expedition
 	var res: Dictionary = exp.get("result", {})
-	_step("5a select an expedition", not res.is_empty(), "clicked %s" % [clicks])
-	if res.get("events", []).is_empty() and clicks.size() <= 1:
+	_step("5a select an expedition", not res.is_empty(), "%s; clicked %s" % [res.get("name", "?"), clicks])
+	if scr.get("step") == null:
 		_skip("5b resolve an event", "the expedition screen offered no event (foundation stub)")
 	else:
-		_step("5b resolve an event", not res.get("events", []).is_empty() or clicks.size() > 1, "events %s" % [res.get("events", [])])
+		_step("5b resolve an event", answered != "" and not res.get("events", []).is_empty(), "answered '%s' with its number key; events %s" % [answered.replace("\n", " "), res.get("events", [])])
 
 	# 6. Return with usable resources; time advanced exactly once.
 	var gained := []
@@ -571,10 +664,26 @@ func _part1() -> void:
 	var w0 := _state().hydration
 	await _tap(KEY_I)
 	await _wait(0.3)
-	var ate := await _click_button(_ui().inventory, "eat|" + Items.name_of("canned_food") + "|" + Items.name_of("snacks"), BACK)
-	await _wait(0.2)
-	var drank := await _click_button(_ui().inventory, "drink|" + Items.name_of("water"), BACK)
-	await _wait(0.2)
+	var inv_panel: Node = _ui().inventory
+	var ate := ""
+	var drank := ""
+	if inv_panel.has_method("use_button"):
+		for id in ["canned_food", "snacks"]:
+			var b: Button = inv_panel.use_button(id)
+			if b != null and _shown(b) and not b.disabled and ate == "":
+				ate = "Use " + Items.name_of(id)
+				await _click_control(b)
+		await _wait(0.3)
+		var wb: Button = inv_panel.use_button("water")
+		if wb != null and _shown(wb) and not wb.disabled:
+			drank = "Use " + Items.name_of("water")
+			await _click_control(wb)
+	else:
+		ate = await _click_button(inv_panel, "eat|" + Items.name_of("canned_food") + "|" + Items.name_of("snacks"), BACK)
+		await _wait(0.2)
+		drank = await _click_button(inv_panel, "drink|" + Items.name_of("water"), BACK)
+	await _wait(0.3)
+	await _shot("03b_inventory_used.png")
 	await _tap(KEY_I)
 	await _wait(0.2)
 	_step("7 eat and drink", _state().hunger > h0 and _state().hydration > w0,
@@ -614,15 +723,10 @@ func _part1() -> void:
 		_step("8 build or repair a barricade or wall", built != "" and not g.build.active,
 			"%s; materials %d → %d; objects %s → %s" % [built if built != "" else "nothing placed", m0, _materials(), o0, _object_counts()])
 
-	# 9. Advance into night (F10 menu opened by key; the skip itself via the dev API).
-	await _tap(KEY_F10)
-	var dev_open: bool = _ui().dev_menu.visible
-	await _tap(KEY_F10)
-	g.dev_skip_to(21.25)
-	await _wait(0.5)
-	_note("step 9 used dev_skip_to(21.25) (time skip; the F10 menu was opened and closed with the key)")
+	# 9. Advance into night (dev menu: Night 20:00, then ×10 until dark, then ×1).
+	var how := await _to_night()
 	await _shot("08_night_house.png")
-	_step("9 advance into night", _state().night_amount() > 0.9 and dev_open, "Day %d %s, night %.2f" % [_state().day(), _state().clock_text(), _state().night_amount()])
+	_step("9 advance into night", _state().night_amount() > 0.9, "%s → Day %d %s, night %.2f" % [how, _state().day(), _state().clock_text(), _state().night_amount()])
 
 	# 10. Sleep where safe (walk to the bed, E, click a sleep option).
 	var to_bed := await _walk(LIVING_TO_BED)
@@ -644,13 +748,12 @@ func _part1() -> void:
 
 	# 11. Trigger and survive an invasion (dev menu button; shoot with the mouse).
 	if _state().night_amount() < 0.9:
-		g.dev_skip_to(21.5)
-		_note("step 11 used dev_skip_to(21.5) to fight at night")
+		_note("step 11 back to night: " + await _to_night())
 	await _walk(BED_TO_YARD)
 	await _walk_to(FRONT_YARD)
 	g.debug_set_spawn_gap(Vector2(3.0, 5.0))
 	_note("step 11 shortened the invasion spawn gaps to 3-5 s (debug API) to keep the run short")
-	var trig := await _dev_click("invasion")
+	var trig := await _dev_click("^Next invasion|invasion")
 	if not g.debug_director().active:
 		g.dev_trigger_invasion()
 		_note("step 11 triggered the invasion through the dev API (no dev-menu button matched)")
@@ -706,7 +809,7 @@ func _part1() -> void:
 				break
 		await _tap(KEY_ESCAPE)
 	if repaired == "":
-		var b := await _dev_click("repair")
+		var b := await _dev_click("^Repair house|repair")
 		if b != "":
 			repaired = "dev menu '%s' (build-mode repair not reachable yet)" % b
 		else:
@@ -729,13 +832,14 @@ func _part1() -> void:
 	# Cheats off before saving, so part 2 starts from a clean slate.
 	for c in ["invulnerable", "unlimited"]:
 		if _state().cheats.get(c, false):
-			await _dev_click(c if c != "unlimited" else "unlimited|infinite")
+			await _dev_click("^Invulnerable" if c == "invulnerable" else "^Unlimited")
 			if _state().cheats.get(c, false):
 				_state().cheats[c] = false
 	await _tap(KEY_ESCAPE)
 	await _wait(0.3)
 	var paused: bool = g.debug_modal() == "pause"
-	var saved_click := await _click_button(_ui().pause_menu, "^save")
+	await _shot("12_pause_menu.png")
+	var saved_click := await _click_button(_ui().pause_menu, "^save$")
 	await _wait(0.3)
 	var info := SaveGame.info()
 	var snap: Dictionary = JSON.parse_string(JSON.stringify(_snapshot()))
@@ -800,10 +904,10 @@ func _part2() -> void:
 		"inventory %s, Day %d %s (saved %s), health %d hunger %d hydration %d energy %d, player %s" % ["same" if inv_same else str(_state().inventory.counts),
 		_state().day(), _state().clock_text(), want["clock"], _state().health, _state().hunger, _state().hydration, _state().energy, "same place" if pos_same else str(_pos())])
 	# 3. Cheat controls through the dev menu.
-	var inv_btn := await _dev_click("invulnerable")
+	var inv_btn := await _dev_click("^Invulnerable")
 	var invuln: bool = _state().cheats.get("invulnerable", false)
 	var h0 := _state().health
-	var spawn_btn := await _dev_click("spawn")
+	var spawn_btn := await _dev_click("^Spawn 1|spawn")
 	if _threats() == 0:
 		g.dev_spawn(1)
 		_note("P2.3 spawned the psycho through the dev API (no dev-menu spawn button)")
@@ -821,7 +925,7 @@ func _part2() -> void:
 		t += 0.2
 	_step("P2.4a invulnerable cheat", inv_btn != "" and invuln and hits >= 8 and hp_min >= h0 - 0.01,
 		"clicked '%s' → %s; clicked '%s'; psycho in reach for %.1f s, health %d → min %d" % [inv_btn, invuln, spawn_btn, hits * 0.2, h0, hp_min])
-	var unl_btn := await _dev_click("unlimited|infinite")
+	var unl_btn := await _dev_click("^Unlimited")
 	var ammo0 := _state().inventory.count("ammo")
 	var shots0: int = g.shots_fired
 	await _fight(20.0)
@@ -830,8 +934,8 @@ func _part2() -> void:
 		await _wait(0.25)
 	_step("P2.4b unlimited cheat", unl_btn != "" and _state().cheats.get("unlimited", false) and _state().inventory.count("ammo") == ammo0 and g.shots_fired > shots0,
 		"clicked '%s'; %d shots, ammo %d → %d; psychos left %d" % [unl_btn, g.shots_fired - shots0, ammo0, _state().inventory.count("ammo"), _threats()])
-	await _dev_click("invulnerable")
-	await _dev_click("unlimited|infinite")
+	await _dev_click("^Invulnerable")
+	await _dev_click("^Unlimited")
 	_step("P2.4c cheats switch off again", not _state().cheats.get("invulnerable", true) and not _state().cheats.get("unlimited", true), str(_state().cheats))
 	# 4. Audio override fallback.
 	var resolver: GDScript = load("res://src/common/asset_resolver.gd")
