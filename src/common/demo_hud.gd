@@ -153,7 +153,7 @@ func _build() -> void:
 	_stats = _label("", 13, Color(0.75, 0.78, 0.75))
 	_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_stats.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_stats.offset_left = -420
+	_stats.offset_left = -760
 	_stats.offset_right = -20
 	_stats.offset_top = 16
 	root.add_child(_stats)
