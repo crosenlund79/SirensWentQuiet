@@ -48,6 +48,7 @@ func cleanup() -> void:
 		Input.action_release(a)
 	AssetResolver.set_override_root("")
 	Engine.time_scale = 1.0
+	tree.paused = false
 	for n in _nodes:
 		if is_instance_valid(n):
 			n.queue_free()

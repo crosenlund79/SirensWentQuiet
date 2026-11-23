@@ -48,3 +48,11 @@ func test_round_trip() -> void:
 	check_eq(t.clock_text(), s.clock_text(), "clock")
 	check_eq(t.inventory.count("scrap"), 3, "inventory")
 	check(GameState.from_dict({"bogus": 1}) == null, "invalid dict rejected")
+
+
+func test_unlimited_cheat_makes_expedition_consumption_free() -> void:
+	var s := GameState.new_run(7)
+	s.cheats["unlimited"] = true
+	s.apply_expedition({"id": "u1", "minutes": 60, "consumed": {"ammo": 3}, "gained": {"water": 1}})
+	check_eq(s.inventory.count("ammo"), 9, "rounds used on the trip are free with unlimited resources")
+	check_eq(s.inventory.count("water"), 5, "loot still arrives")
