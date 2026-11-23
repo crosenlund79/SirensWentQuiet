@@ -59,6 +59,7 @@ var _last_health := -1.0
 var _flash_tween: Tween
 var _mode_tween: Tween
 var _banner_t := 0.0
+var _pending := []
 
 
 func _init() -> void:
@@ -69,7 +70,11 @@ func _init() -> void:
 func _ready() -> void:
 	_build()
 	set_prompt("")
+	set_mode(mode)
 	_refresh(true)
+	for t in _pending:
+		toast(t[0], t[1])
+	_pending.clear()
 
 
 func setup(s: GameState) -> void:
@@ -112,7 +117,10 @@ func set_prompt(text: String) -> void:
 ## Stacked toast; kind is info | good | warn | bad. A repeat of the newest
 ## toast refreshes it and counts (×2, ×3) instead of stacking.
 func toast(text: String, kind := "info") -> void:
-	if _toasts == null or text == "":
+	if text == "":
+		return
+	if _toasts == null:
+		_pending.append([text, kind])
 		return
 	var col: Color = UiTheme.KIND_COLORS.get(kind, UiTheme.TEXT)
 	var n := _toasts.get_child_count()
@@ -130,10 +138,14 @@ func toast(text: String, kind := "info") -> void:
 		old.queue_free()
 	var card := PanelContainer.new()
 	var sb := UiTheme.card_style()
-	sb.bg_color = Color(0.03, 0.032, 0.04, 0.72)
-	sb.border_color = Color(col, 0.9)
+	sb.bg_color = Color(0.03, 0.032, 0.04, 0.74)
+	sb.border_color = Color(col, 0.95)
+	sb.set_border_width_all(0)
 	sb.border_width_left = 3
+	sb.corner_radius_top_left = 0
+	sb.corner_radius_bottom_left = 0
 	sb.content_margin_left = 12
+	sb.content_margin_right = 14
 	sb.content_margin_top = 6
 	sb.content_margin_bottom = 6
 	card.add_theme_stylebox_override("panel", sb)
@@ -634,10 +646,16 @@ func _build() -> void:
 		var keys := UiTheme.make_key_hint(h[0], "")
 		hgrid.add_child(keys)
 		hgrid.add_child(UiTheme.make_hud_label(h[1], UiTheme.FONT_SMALL + 1, UiTheme.TEXT))
-	_help_hint = UiTheme.make_key_hint("H", "Controls", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
-	(_help_hint.get_node("Text") as Label).add_theme_constant_override("outline_size", 3)
-	(_help_hint.get_node("Text") as Label).add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
-	_help_hint.modulate.a = 0.8
+	var hint_card := UiTheme.make_card()
+	var hsb := UiTheme.card_style()
+	hsb.content_margin_left = 7
+	hsb.content_margin_right = 9
+	hsb.content_margin_top = 4
+	hsb.content_margin_bottom = 4
+	hint_card.add_theme_stylebox_override("panel", hsb)
+	hint_card.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	hint_card.add_child(UiTheme.make_key_hint("H", "Controls", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM))
+	_help_hint = hint_card
 	_bottom_left.add_child(_help_hint)
 	_fps = UiTheme.make_hud_label("", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
 	_fps.name = "Fps"

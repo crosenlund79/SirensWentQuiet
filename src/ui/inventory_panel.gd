@@ -28,36 +28,42 @@ func open(s: GameState) -> void:
 	state = s
 	_rows.clear()
 	_bars.clear()
-	var box := _begin("Supplies", 740)
+	var box := _begin("Supplies", 1040)
 	# current needs, so the effect of eating is visible
 	var needs := GridContainer.new()
 	needs.columns = 4
-	needs.add_theme_constant_override("h_separation", 18)
+	needs.add_theme_constant_override("h_separation", 34)
 	for k in [["health", "health"], ["food", "hunger"], ["water", "hydration"], ["energy", "energy"]]:
 		var bar := UiTheme.make_stat_bar(k[0])
-		bar.custom_minimum_size.x = 158
+		bar.custom_minimum_size.x = 226
 		needs.add_child(bar)
 		_bars[k[1]] = bar
 	box.add_child(needs)
-	box.add_child(UiTheme.make_spacer(2))
+	box.add_child(UiTheme.make_spacer(4))
 
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 500)
-	scroll.follow_focus = true
-	box.add_child(scroll)
-	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 6)
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(list)
+	# two columns: what you consume on the left, what you build with on the right
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 34)
+	box.add_child(cols)
+	var lists := {}
+	for side in ["left", "right"]:
+		var list := VBoxContainer.new()
+		list.add_theme_constant_override("separation", 7)
+		list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		list.custom_minimum_size.x = 485
+		cols.add_child(list)
+		lists[side] = list
 	for g in GROUPS:
+		var list: VBoxContainer = lists["right" if g[0] in ["material", "tool"] else "left"]
+		if list.get_child_count() > 0:
+			list.add_child(UiTheme.make_spacer(4))
 		list.add_child(UiTheme.make_section(g[1]))
 		for id in Items.ids(g[0]):
 			list.add_child(_item_row(id))
 		if g[0] == "material":
 			_crates = UiTheme.make_caption("", 0, UiTheme.TEXT_FAINT)
 			list.add_child(_crates)
-		list.add_child(UiTheme.make_spacer(4))
+	box.add_child(UiTheme.make_spacer(2))
 
 	_feedback = UiTheme.make_label("", UiTheme.FONT_BODY - 1, UiTheme.GOOD)
 	_feedback.name = "Feedback"
@@ -83,15 +89,19 @@ func _item_row(id: String) -> Control:
 	texts.add_theme_constant_override("separation", 0)
 	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(texts)
-	texts.add_child(UiTheme.make_label(d.get("name", id), UiTheme.FONT_BODY))
-	var desc: String = d.get("desc", "")
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 10)
+	texts.add_child(name_row)
+	name_row.add_child(UiTheme.make_label(d.get("name", id), UiTheme.FONT_BODY))
 	var fx := _effect_text(d)
 	if fx != "":
-		desc += "  ·  " + fx
-	texts.add_child(UiTheme.make_caption(desc, 0, UiTheme.TEXT_DIM))
+		var fl := UiTheme.make_label(fx, UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
+		fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		name_row.add_child(fl)
+	texts.add_child(UiTheme.make_caption(d.get("desc", ""), 300, UiTheme.TEXT_DIM))
 	var count := UiTheme.make_label("", UiTheme.FONT_LARGE)
 	count.name = "Count"
-	count.custom_minimum_size.x = 96
+	count.custom_minimum_size.x = 70
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(count)
@@ -99,13 +109,13 @@ func _item_row(id: String) -> Control:
 	if Items.is_consumable(id):
 		use = UiTheme.make_button("Use")
 		use.name = "Use"
-		use.custom_minimum_size.x = 86
+		use.custom_minimum_size.x = 80
 		use.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		use.pressed.connect(use_item.bind(id))
 		row.add_child(use)
 	else:
 		var gap := Control.new()
-		gap.custom_minimum_size.x = 86
+		gap.custom_minimum_size.x = 80
 		row.add_child(gap)
 	_rows[id] = {"row": row, "count": count, "use": use}
 	return row
@@ -119,7 +129,7 @@ static func _effect_text(d: Dictionary) -> String:
 		parts.append("water +%d" % int(d["hydration"]))
 	if d.has("health"):
 		parts.append("health +%d" % int(d["health"]))
-	return ", ".join(parts)
+	return " · ".join(parts)
 
 
 ## Uses one unit of `id` (the Use button). Returns the feedback text.

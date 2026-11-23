@@ -292,10 +292,14 @@ func _build() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(scroll)
+	var pad := MarginContainer.new()
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pad.add_theme_constant_override("margin_right", 12)
+	scroll.add_child(pad)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 7)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(box)
+	pad.add_child(box)
 
 	box.add_child(UiTheme.make_section("Cheats"))
 	for k in [["invulnerable", "Invulnerable"], ["unlimited", "Unlimited resources"]]:
@@ -353,7 +357,7 @@ func _build() -> void:
 		["Spawn 1 psycho", spawn.bind(1)], ["Spawn 3 psychos", spawn.bind(3)],
 	]))
 
-	_status = UiTheme.make_caption("", WIDTH - 40, UiTheme.GOOD)
+	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
 	box.add_child(_status)
 
@@ -365,7 +369,7 @@ func _build() -> void:
 	_inspect.scroll_active = false
 	_inspect.selection_enabled = true
 	_inspect.focus_mode = Control.FOCUS_NONE
-	_inspect.custom_minimum_size.x = WIDTH - 40
+	_inspect.custom_minimum_size.x = WIDTH - 52
 	_inspect.add_theme_font_size_override("normal_font_size", 12)
 	_inspect.add_theme_color_override("default_color", UiTheme.TEXT)
 	box.add_child(_inspect)

@@ -44,14 +44,16 @@ float trees(vec2 p, float seed, float scale, float base) {
 	float trunk = step(abs(fx), 0.018) * step(p.y, th * 0.7);
 	vec2 q = vec2(fx / scale, p.y - th * 0.72);
 	float crown = length(q * vec2(1.0, 1.25)) - th * 0.36 * (0.55 + 0.7 * fbm(vec2(x * 7.0, p.y * 40.0)));
-	return max(trunk, step(crown, 0.0) * step(0.5, fbm(vec2(x * 13.0, p.y * 70.0)) + 0.18));
+	float twigs = step(0.56, fbm(vec2(x * 31.0, p.y * 140.0)) + 0.1 * smoothstep(0.0, -0.02, crown));
+	float limbs = step(abs(fx + (p.y - th * 0.55) * 1.6 * sign(fx + 0.001)), 0.012) * step(th * 0.45, p.y) * step(p.y, th * 0.95);
+	return max(max(trunk, limbs), step(crown, 0.0) * twigs);
 }
 
 void fragment() {
 	vec2 uv = UV;
 	float t = TIME + t_offset;
 	vec2 p = vec2(uv.x * aspect, 1.0 - uv.y);
-	vec3 fog = vec3(0.25, 0.26, 0.28);
+	vec3 fog = vec3(0.27, 0.28, 0.3);
 	vec3 ink = vec3(0.022, 0.024, 0.03);
 	// sky: dark above, thick grey haze toward the street
 	vec3 col = mix(fog * 1.05, vec3(0.03, 0.035, 0.05), smoothstep(0.18, 0.95, p.y));
@@ -62,18 +64,21 @@ void fragment() {
 
 	// far row of houses, almost swallowed
 	float far = 0.3 + houses(p.x * 7.0 + 3.0, 1.0, 0.045, 0.1);
-	if (p.y < far) { col = mix(ink, fog, 0.78); }
+	if (p.y < far) { col = mix(ink, fog, 0.87); }
 	col = mix(col, fog * 1.02, smoothstep(0.45, 0.9, fbm(vec2(p.x * 2.0 - t * 0.008, p.y * 6.0))) * smoothstep(0.42, 0.22, p.y) * 0.6);
 
 	// middle row: houses and bare trees, one window still lit
 	float mid = 0.19 + houses(p.x * 4.2 + 11.0, 5.0, 0.07, 0.14);
 	float tr = trees(vec2(p.x, p.y - 0.19), 9.0, 9.0, 0.14);
-	if (p.y < mid || tr > 0.5) { col = mix(ink, fog, 0.5); }
+	if (p.y < mid || tr > 0.5) { col = mix(ink, fog, 0.62); }
 	vec2 w = vec2(aspect * 0.44, 0.215);
 	if (abs(p.x - w.x) < 0.0045 && abs(p.y - w.y) < 0.007 && p.y < mid) {
-		col = mix(vec3(0.62, 0.42, 0.2), fog * 0.6, 0.45) * (0.85 + 0.15 * sin(t * 7.0) * sin(t * 2.3));
+		col = mix(vec3(0.7, 0.46, 0.2), fog * 0.6, 0.3) * (0.85 + 0.15 * sin(t * 7.0) * sin(t * 2.3));
 	}
 	col = mix(col, fog, smoothstep(0.4, 0.85, fbm(vec2(p.x * 2.6 + t * 0.014, p.y * 7.0 + 3.0))) * smoothstep(0.34, 0.1, p.y) * 0.65);
+	// fog banks drifting across the rooftops
+	float bank = fbm(vec2(p.x * 1.3 + t * 0.022, p.y * 3.2 - t * 0.005) + vec2(fbm(p * 2.0 + t * 0.01), 0.0) * 0.6);
+	col = mix(col, fog * 1.12, smoothstep(0.42, 0.8, bank) * smoothstep(0.6, 0.16, p.y) * 0.7);
 
 	// near: kerb, fence, poles and wires, the siren mast
 	float near_ground = 0.11;
@@ -100,7 +105,7 @@ void fragment() {
 	float siren = max(max(max(mast, housing), max(cap, max(horn_l, horn_r))), max(max(platform, rail), max(arm, cable)));
 	float near_ink = max(max(fence, pole), siren);
 	col = mix(col, mix(ink, fog, 0.1), clamp(wires, 0.0, 1.0) * 0.85);
-	if (near_ink > 0.5) { col = mix(ink, fog, 0.1 + 0.18 * smoothstep(0.5, 0.95, p.y)); }
+	if (near_ink > 0.5) { col = mix(ink, fog, 0.14 + 0.2 * smoothstep(0.5, 0.95, p.y)); }
 	// street
 	if (p.y < near_ground) {
 		col = mix(vec3(0.05, 0.052, 0.058), fog * 0.75, smoothstep(0.0, near_ground, p.y) * 0.6);
@@ -109,8 +114,8 @@ void fragment() {
 	// thick ground fog rolling slowly across the street
 	float gf = fbm(vec2(p.x * 1.8 + t * 0.025, p.y * 5.0 - t * 0.004));
 	float gf2 = fbm(vec2(p.x * 3.5 - t * 0.017, p.y * 9.0 + 7.0));
-	float dens = smoothstep(0.5, 0.02, p.y) * (0.45 + 0.55 * gf) + smoothstep(0.28, 0.0, p.y) * 0.25 * gf2;
-	col = mix(col, fog * (0.95 + 0.2 * gf2), clamp(dens, 0.0, 0.88));
+	float dens = smoothstep(0.58, 0.02, p.y) * (0.38 + 0.62 * gf) + smoothstep(0.3, 0.0, p.y) * 0.3 * gf2;
+	col = mix(col, fog * (0.92 + 0.28 * gf2), clamp(dens, 0.0, 0.9));
 	// darker on the left, where the menu sits; vignette; grain
 	col *= mix(0.4, 1.0, smoothstep(0.05, 0.62, uv.x));
 	col *= smoothstep(1.25, 0.35, length((uv - vec2(0.55, 0.5)) * vec2(1.1, 1.3)));

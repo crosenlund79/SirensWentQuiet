@@ -178,7 +178,7 @@ func test_inventory_use_consumes_one_and_closes_on_keys() -> void:
 	inv.use_button("canned_food").pressed.emit()
 	check_eq(state.inventory.count("canned_food"), before - 1, "Use consumes exactly one")
 	check(state.hunger > 40.0, "and feeds")
-	check(U.all_label_text(inv).contains("Canned food"), "feedback text shown")
+	check(U.all_label_text(inv).contains("Canned food:"), "feedback text shown")
 	check_eq(inv.count_text("canned_food"), str(before - 1), "count refreshed")
 	state.inventory.remove("snacks", state.inventory.count("snacks"))
 	await frames(1)
