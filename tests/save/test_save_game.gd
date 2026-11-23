@@ -26,6 +26,7 @@ func _done() -> void:
 	SaveGame.delete_save()
 	SaveGame.path_override = ""
 	SaveGame.fault_injection = ""
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))   # only if empty
 
 
 func _data(tag: String, blob_bytes := 4096) -> Dictionary:
