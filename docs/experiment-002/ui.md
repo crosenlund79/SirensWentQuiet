@@ -137,7 +137,7 @@ Use `UiTheme`; don't style controls by hand. The look:
   - Panel titles use `make_title` (amber, 22). Sections use `make_section` (dim, 12, with a hairline).
   - Body text is 16, captions 14, hints 13.
 - **Spacing:** panel content margin `PAD` = 18, row gap `GAP` = 10, buttons `BUTTON_HEIGHT` = 38, corner radius 3–4.
-- **Buttons:** one style. Hover and focus draw a 3 px amber stripe on the left plus an amber border. Disabled buttons are faint. `make_button(text, caption)` puts a dim caption on the right: a cost, a time, or the reason the button is disabled. Always give the reason.
+- **Buttons:** one style. Hover and focus draw a 3 px amber stripe on the left plus an amber border. Disabled buttons are faint. Buttons in vertical menus are left-aligned (`UiModal._menu_button`). Sliders have a neutral fill, and the focused or hovered slider turns amber. `make_button(text, caption)` puts a dim caption on the right: a cost, a time, or the reason the button is disabled. Always give the reason.
 - **Motion:** panels fade in over `FADE_IN` (0.16 s) with a 10 px rise, and fade out over `FADE_OUT` (0.12 s). Toasts fade in over 0.15 s and out over 0.4 s.
 - **Sound:**
   - `make_button` / `make_toggle` play `ui/hover` and `ui/click`.
