@@ -273,6 +273,13 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	if lighting != null:
 		lighting.night_materials.append(glass_mat)
 		lighting.set_practicals_enabled(false)     # the grid is down
+	# Integration: mesh props share the voxel cutaway (same uniforms, same 0.1 m quantisation).
+	if not voxel_furniture:
+		for m in PropMaterials.cut_materials():
+			m.set_shader_parameter("grid_origin", grid.origin)
+			m.set_shader_parameter("voxel_size", grid.vs)
+			if not cut_materials.has(m):
+				cut_materials.append(m)
 	chunks = VoxelWorld.new()
 	chunks.name = "VoxelWorld"
 	chunks.setup(grid, surface_mat, glass_mat)
