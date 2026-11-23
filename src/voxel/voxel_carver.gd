@@ -46,7 +46,15 @@ static func _remove(g: VoxelGrid, i: int, ch: Dictionary) -> void:
 ## as rings: paint/siding edge, insulation and studs, then the far skin. Harder materials resist
 ## (smaller effective radius); FOUNDATION never goes. Glass touched by the
 ## carve shatters as a whole pane.
-static func carve_sphere(g: VoxelGrid, center: Vector3, radius: float, seed: int, dir := Vector3.ZERO, stretch := 1.0) -> Dictionary:
+##
+## `quantum` > 1 (the survival game's coarser damage, see
+## docs/experiment-002/VOXEL_RESOLUTION.md) carves whole aligned blocks of
+## quantum³ voxels inside the same 0.1 m storage: the same crater rule is
+## evaluated once per block centre, and a block that falls loses all its
+## carvable voxels together.
+static func carve_sphere(g: VoxelGrid, center: Vector3, radius: float, seed: int, dir := Vector3.ZERO, stretch := 1.0, quantum := 1) -> Dictionary:
+	if quantum > 1:
+		return _carve_blocks(g, center, radius, seed, dir, stretch, quantum)
 	var ch := empty_change()
 	var r_max := radius * 1.25 * maxf(stretch, 1.0)
 	var has_dir := dir.length() > 0.01
@@ -79,6 +87,63 @@ static func carve_sphere(g: VoxelGrid, center: Vector3, radius: float, seed: int
 	if glass_hit >= 0:
 		merge(ch, shatter_glass(g, glass_hit))
 	crumble(g, ch, lo - Vector3i.ONE, hi + Vector3i.ONE)
+	return ch
+
+
+static func _carve_blocks(g: VoxelGrid, center: Vector3, radius: float, seed: int, dir: Vector3, stretch: float, q: int) -> Dictionary:
+	var ch := empty_change()
+	var r_max := radius * 1.25 * maxf(stretch, 1.0) + g.vs * q * 0.5
+	var has_dir := dir.length() > 0.01
+	var inv_s := 1.0 / maxf(stretch, 0.01)
+	var lo := g.cell_of(center - Vector3.ONE * r_max).clamp(Vector3i.ONE, Vector3i(g.sx - 2, g.sy - 2, g.sz - 2))
+	var hi := (g.cell_of(center + Vector3.ONE * r_max) + Vector3i.ONE).clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
+	var b0 := Vector3i(lo.x / q, lo.y / q, lo.z / q)
+	var b1 := Vector3i((hi.x - 1) / q, (hi.y - 1) / q, (hi.z - 1) / q)
+	var flags := VoxelMat.FLAGS
+	var hard := VoxelMat.HARDNESS
+	var glass_hit := -1
+	var half := (float(q) * 0.5)
+	for by in range(b0.y, b1.y + 1):
+		for bz in range(b0.z, b1.z + 1):
+			for bx in range(b0.x, b1.x + 1):
+				# carvable voxels of this block and their mean hardness
+				var cells := PackedInt32Array()
+				var h_sum := 0.0
+				var glass_i := -1
+				for y in range(by * q, by * q + q):
+					for z in range(bz * q, bz * q + q):
+						for x in range(bx * q, bx * q + q):
+							if not g.is_inner(x, y, z):
+								continue
+							var i := g.idx(x, y, z)
+							var m := g.mat[i]
+							if m == 0 or (flags[m] & VoxelMat.F_HARD) != 0:
+								continue
+							if (flags[m] & VoxelMat.F_GLASS) != 0:
+								glass_i = i
+								continue
+							cells.append(i)
+							h_sum += hard[m]
+				if cells.is_empty() and glass_i < 0:
+					continue
+				var bc := g.origin + (Vector3(bx * q, by * q, bz * q) + Vector3.ONE * half) * g.vs
+				var rel := bc - center
+				var n := VoxelArt.hash3(bx, by, bz, seed)
+				var hm := h_sum / maxf(1.0, cells.size())
+				var thr := radius * (0.78 + 0.44 * n) * (1.0 - hm * 0.45)
+				if has_dir:
+					var along := rel.dot(dir)
+					var depth := clampf((along + radius * 0.5) / (radius * stretch * 1.5), 0.0, 1.0)
+					thr *= 1.1 - 0.3 * depth
+					rel += dir * (along * inv_s - along)
+				if rel.length() < thr:
+					if glass_i >= 0:
+						glass_hit = glass_i
+					for i in cells:
+						_remove(g, i, ch)
+	if glass_hit >= 0:
+		merge(ch, shatter_glass(g, glass_hit))
+	crumble(g, ch, lo - Vector3i.ONE * q, hi + Vector3i.ONE * q)
 	return ch
 
 

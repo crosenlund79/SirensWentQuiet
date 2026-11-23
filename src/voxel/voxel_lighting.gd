@@ -106,6 +106,18 @@ func _ready() -> void:
 	_apply(0.0)
 
 
+## Survival (no grid power): the house fixtures stay dark. The demo keeps them.
+func set_practicals_enabled(on: bool) -> void:
+	for i in practicals.size():
+		var o := practicals[i]
+		var l: Dictionary = HousePlan.LIGHTS[i]
+		var k: Array = KINDS.get(l["kind"], KINDS["ceiling"])
+		o.set_meta("night_energy", k[0] if (on and l["night_on"]) else 0.0)
+	if not on:
+		_flicker = null
+	_apply(night_amount)
+
+
 func set_night(on: bool, instant := false) -> void:
 	night = on
 	if _tween != null and _tween.is_valid():

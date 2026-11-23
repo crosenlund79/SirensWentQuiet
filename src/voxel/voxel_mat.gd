@@ -27,6 +27,7 @@ const GLASS := 13         ## window panes
 const SILL := 14          ## protruding sills (decor, no collision)
 const BASEBOARD := 15     ## skirting boards (decor, no collision)
 const THRESHOLD := 16     ## door thresholds in the floor
+const METAL_SHEET := 17   ## survival upgrade: hard sheet-metal skin on a wall (structural)
 # --- furniture and props (low pieces; tall versions add TALL) -------------------
 const WOOD := 32
 const FABRIC := 33
@@ -67,10 +68,11 @@ static func _make_flags() -> PackedByteArray:
 	for id in [FOUNDATION, SCREED, FLOOR, RUG, THRESHOLD]:
 		f[id] = F_SOLID
 	f[FOUNDATION] |= F_HARD
-	for id in [PLINTH, SIDING, STUD, INSULATION, DRYWALL, WALL_TILE, TRIM, FRAME]:
+	for id in [PLINTH, SIDING, STUD, INSULATION, DRYWALL, WALL_TILE, TRIM, FRAME, METAL_SHEET]:
 		f[id] = F_SOLID | F_STRUCT
 	f[WALL_TILE] |= F_GLOSSY
 	f[FRAME] |= F_GLOSSY
+	f[METAL_SHEET] |= F_GLOSSY
 	f[GLASS] = F_SOLID | F_GLASS
 	f[SILL] = F_SOLID
 	f[BASEBOARD] = F_SOLID
@@ -113,6 +115,7 @@ static func _make_hardness() -> PackedFloat32Array:
 	h[TRIM] = 0.15
 	h[FRAME] = 0.2
 	h[THRESHOLD] = 0.4
+	h[METAL_SHEET] = 0.92
 	for id in [METAL, STONE, PAINTED]:
 		h[id] = 0.35
 		h[id + TALL] = 0.35
@@ -126,7 +129,7 @@ static func _make_impact() -> PackedByteArray:
 		FOUNDATION: Impact.CONCRETE, SCREED: Impact.CONCRETE, FLOOR: Impact.WOOD, RUG: Impact.FABRIC,
 		PLINTH: Impact.CONCRETE, SIDING: Impact.WOOD, STUD: Impact.WOOD, INSULATION: Impact.FLUFF,
 		DRYWALL: Impact.PLASTER, WALL_TILE: Impact.CERAMIC, TRIM: Impact.WOOD, FRAME: Impact.METAL,
-		GLASS: Impact.GLASS, SILL: Impact.WOOD, BASEBOARD: Impact.WOOD, THRESHOLD: Impact.WOOD,
+		GLASS: Impact.GLASS, SILL: Impact.WOOD, BASEBOARD: Impact.WOOD, THRESHOLD: Impact.WOOD, METAL_SHEET: Impact.METAL,
 		WOOD: Impact.WOOD, FABRIC: Impact.FABRIC, METAL: Impact.METAL, CERAMIC: Impact.CERAMIC,
 		PLASTIC: Impact.DUST, GLOW: Impact.GLASS, FOAM: Impact.FLUFF, LEAF: Impact.PLANT,
 		SCREEN: Impact.GLASS, PAPER: Impact.PAPER, STONE: Impact.CONCRETE, BARK: Impact.WOOD,

@@ -83,6 +83,8 @@ func clear_index(i: int) -> void:
 	if mat[i] != 0:
 		solid_count -= 1
 	mat[i] = 0
+	col[i] = 0
+	pcol[i] = 0
 	pmask[i] = 0
 
 

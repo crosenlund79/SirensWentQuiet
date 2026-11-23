@@ -14,6 +14,9 @@ const ROOF_ORIGIN := Vector3(-0.65, 2.5, -0.65)
 static var _ground_tex: ImageTexture
 
 var demo: Node
+## false: no voxel props (the survival world places PropKit meshes and their
+## collision itself); ground, grass tufts and the roof stay.
+var voxel_props := true
 var roof: MeshInstance3D
 var roof_mat: ShaderMaterial
 var prop_mat: ShaderMaterial
@@ -25,8 +28,9 @@ func _ready() -> void:
 	_rng.seed = 4242
 	_build_ground()
 	prop_mat = demo._surface_material(Vector3.ZERO, VS, true)
-	for p in HousePlan.PROPS:
-		_build_prop(p)
+	if voxel_props:
+		for p in HousePlan.PROPS:
+			_build_prop(p)
 	_build_tufts()
 	_build_roof()
 

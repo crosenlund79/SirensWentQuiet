@@ -13,6 +13,11 @@ extends RefCounted
 const VS := 0.1
 const ORIGIN := Vector3(-0.45, -0.4, -0.45)
 const SIZE := Vector3i(149, 31, 99)
+## Survival game: the grid covers the whole lot (SPEC §5 LOT, Rect2(-4.5, -3.5, 23, 16))
+## so walls can be built anywhere on it. Same 0.1 m lattice as ORIGIN (voxel
+## centres on multiples of 0.1 m), so the house builds identically.
+const LOT_ORIGIN := Vector3(-4.75, -0.4, -3.75)
+const LOT_SIZE := Vector3i(232, 31, 162)
 const FOUNDATION_ROW := 1
 const SCREED_ROW := 2
 const FLOOR_ROW := 3          ## floor finish, top face at height 0
@@ -38,8 +43,8 @@ const ROOM_FLOOR := {
 const RUG_ART := {"rug_living": "rug_living", "rug_bed": "rug_bed", "bath_mat": "rug_bath"}
 
 
-static func create_grid() -> VoxelGrid:
-	var g := VoxelGrid.new(SIZE, VS, ORIGIN)
+static func create_grid(lot := false) -> VoxelGrid:
+	var g := VoxelGrid.new(LOT_SIZE if lot else SIZE, VS, LOT_ORIGIN if lot else ORIGIN)
 	g.cap_row = TOP_ROW
 	g.cap_color = VoxelArt.pal(VoxelArt.Slot.CAP)
 	return g
@@ -54,14 +59,17 @@ static func column_plan(g: VoxelGrid, x: int, z: int) -> Vector2:
 	return Vector2(g.origin.x + (x + 0.5) * g.vs, g.origin.z + (z + 0.5) * g.vs)
 
 
-static func build(g: VoxelGrid) -> void:
+## `furniture` = false builds the structure only (floors, rugs, walls, openings,
+## trim): the survival game draws furniture as meshes (PropKit) instead.
+static func build(g: VoxelGrid, furniture := true) -> void:
 	_floors(g)
 	_rugs(g)
 	_interior_walls(g)
 	_exterior_walls(g)
 	_openings(g)
 	_baseboards(g)
-	VoxelFurniture.build_all(g)
+	if furniture:
+		VoxelFurniture.build_all(g)
 
 
 # --- floors ------------------------------------------------------------------------
