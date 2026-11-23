@@ -163,13 +163,13 @@ def _cracked(cv, y0, y1, exterior, w=L):
     for (a, b) in faces:
         x = r.random() * 30
         while x < w:
-            rx = 3 + r.random() * 6
+            rx = 4 + r.random() * 7
             yc = b if b == y1 else a
             m = cv.mask().ellipse(x, yc, rx, dry_h * (0.6 + 0.4 * r.random()), wobble=1.0, rot=r.random() * 20).arr * inside
             cv.paint(dilate(m, 0.7 * cv.ss, True) * inside, INK, 0.9)
             cv.paint(m, mix(RAW_DK, CORE, 0.5))
             cv.paint(erode_safe(m, 1.2 * cv.ss) , mix(CAVITY, CORE, 0.3))
-            x += 26 + r.random() * 46
+            x += 16 + r.random() * 30
     if exterior:
         x = r.random() * 40
         while x < w:
@@ -178,21 +178,22 @@ def _cracked(cv, y0, y1, exterior, w=L):
             cv.paint(m, mix(RAW_DK, CAVITY, 0.3))
             x += 40 + r.random() * 60
     # splits along the plate grain, fresh raw wood showing
-    for _ in range(int(w / 22)):
+    for _ in range(int(w / 11)):
         x = r.random() * w
         y = y0 + clad_h + 3 + r.random() * (T - clad_h - dry_h - 6)
-        _split(cv, x, y, 10 + r.random() * 22, r.normal(0, 0.08) + (math.pi if r.random() < 0.5 else 0), 0.8, r)
+        _split(cv, x, y, 14 + r.random() * 30, r.normal(0, 0.08) + (math.pi if r.random() < 0.5 else 0),
+               1.0 + r.random() * 0.8, r)
     # hairline cross cracks (ink only)
-    for _ in range(int(w / 36)):
+    for _ in range(int(w / 20)):
         x = r.random() * w
         pts = [(x, y0 + 1)]
         yy = y0 + 1
         while yy < y1 - 1:
             yy += 2.5
             pts.append((pts[-1][0] + r.normal(0, 1.2), yy))
-        cv.paint(cv.mask().line(pts, 0.45), INK, 0.8)
+        cv.paint(cv.mask().line(pts, 0.7), INK, 0.9)
     # a few splinters poking into the margins
-    for _ in range(int(w / 60)):
+    for _ in range(int(w / 30)):
         x = r.random() * w
         if r.random() < 0.5:
             _splinter(cv, x, y1 - 0.5, math.pi / 2 + r.normal(0, 0.5), 3 + r.random() * 3, 0.9, r)

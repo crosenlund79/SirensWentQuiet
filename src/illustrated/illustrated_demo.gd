@@ -6,6 +6,7 @@ extends Node2D
 ## debug API (plan meters). Extra user args for screenshots:
 ##   --scenario=overview|damage|breach|enemies|shooting|collapse
 ##   --slowmo-at=SECONDS   fire one shot then slow time to 3 % (catches the flash)
+##   --view=METERS         screenshot close-ups: camera width in meters (gameplay: 12-34)
 ##   --override-root=DIR   look for creator art in DIR/graphics/illustrated/ instead
 ##                         of custom/ (demonstrates replacement without touching custom/)
 
@@ -52,6 +53,7 @@ var _scenario := ""
 var _slowmo_at := -1.0
 var _start_ms := 0
 var _cam_focus = null          ## scenarios may pin the camera to a plan point
+var _view_override := -1.0
 var _rng := RandomNumberGenerator.new()
 var _variant_flip := false
 
@@ -64,6 +66,8 @@ func _ready() -> void:
 			_scenario = a.trim_prefix("--scenario=")
 		elif a.begins_with("--slowmo-at="):
 			_slowmo_at = float(a.trim_prefix("--slowmo-at="))
+		elif a.begins_with("--view="):
+			_view_override = float(a.trim_prefix("--view="))
 		elif a.begins_with("--override-root="):
 			AssetResolver.set_override_root(a.trim_prefix("--override-root="))
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -330,6 +334,13 @@ func _place_enemy(p: Vector2, face: float, frozen := true) -> Node:
 func _setup_scenario() -> void:
 	spawner.enabled = false
 	player.use_mouse = false
+	_apply_scenario()
+	if _view_override > 0.0:
+		_view_target = _view_override
+		_view_m = _view_override
+
+
+func _apply_scenario() -> void:
 	match _scenario:
 		"overview":
 			_view_target = 30.0
@@ -345,8 +356,8 @@ func _setup_scenario() -> void:
 		"damage":
 			_view_target = 12.0
 			_view_m = 12.0
-			_cam_focus = Vector2(10.2, 8.4)
-			player.global_position = Art.w(Vector2(9.6, 7.0))
+			_cam_focus = Vector2(9.6, 8.3)
+			player.global_position = Art.w(Vector2(9.2, 7.2))
 			player.aim_point = Art.w(Vector2(11.5, 9.0))
 			_damage("south", 7.5, 2)       # window: glass shattered
 			_damage("south", 8.5, 99)      # removed
@@ -371,9 +382,9 @@ func _setup_scenario() -> void:
 		"enemies":
 			_view_target = 14.0
 			_view_m = 14.0
-			_cam_focus = Vector2(6.2, 7.4)
-			player.global_position = Art.w(Vector2(6.6, 7.6))
-			player.aim_point = Art.w(Vector2(4.5, 9.4))
+			_cam_focus = Vector2(5.6, 7.6)
+			player.global_position = Art.w(Vector2(4.5, 8.15))
+			player.aim_point = Art.w(Vector2(4.5, 9.6))
 			_place_enemy(Vector2(4.5, 9.6), -PI * 0.5 + 0.3, true)
 			_place_enemy(Vector2(2.4, 10.6), -0.9, true)
 			_place_enemy(Vector2(8.2, 10.4), -PI * 0.6, true)
