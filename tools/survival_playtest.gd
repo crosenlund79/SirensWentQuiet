@@ -28,6 +28,7 @@ const LIVING_TO_YARD := [Vector2(4.5, 8.3), Vector2(4.5, 9.7), Vector2(4.5, 10.8
 const FOG_EDGE := Vector2(4.5, 12.25)
 const FRONT_YARD := Vector2(9.0, 10.8)
 const WALL_SPOT := Vector2(9.0, 9.0)            ## solid south wall between the window and the utility room
+const SHOOT_SPOT := Vector2(10.4, 11.0)         ## where the player shoots it from
 
 var _part := 1
 var _out := ""
@@ -352,7 +353,7 @@ func _fight(limit: float, shot_name := "") -> float:
 			elif not fire and held:
 				_mouse_button(sp, false)
 				held = false
-		if _state().inventory.count("ammo") == 0 and _threats() > 0:
+		if _state().inventory.count("ammo") == 0 and _threats() > 0 and not _state().cheats.get("unlimited", false):
 			if held:
 				_mouse_button(_screen_of(e), false)
 				held = false
@@ -366,6 +367,22 @@ func _fight(limit: float, shot_name := "") -> float:
 	if not shot_taken:
 		await _shot(shot_name)
 	return t
+
+
+## Chunk meshes rebuild under a per-frame budget: wait for the queue to drain
+## before a screenshot (reads VoxelWorld's queue when it has one).
+func _settle_meshes(limit := 10.0) -> void:
+	var t := 0.0
+	await _wait(0.3)
+	while t < limit:
+		var q = _world().chunks.get("_dirty") if _world().chunks != null else null
+		if typeof(q) != TYPE_DICTIONARY:
+			await _wait(2.0)
+			return
+		if (q as Dictionary).is_empty():
+			return
+		await _frames(3)
+		t += 3 * DT
 
 
 func _wait_modal(want: String, limit: float) -> bool:
@@ -412,7 +429,8 @@ func _object_positions() -> Array:
 	for n in _world().interactables():
 		if is_instance_valid(n) and n is Node3D:
 			var q: Vector3 = n.global_position
-			out.append("%s@%.2f,%.2f" % [str(n.get("kind")) if n.get("kind") != null else n.name, q.x, q.z])
+			var kind: String = str(n.get("kind")) if n.get("kind") != null else (n.get_script().resource_path.get_file().get_basename() if n.get_script() != null else n.get_class())
+			out.append("%s@%.2f,%.2f" % [kind, q.x, q.z])
 	out.sort()
 	return out
 
@@ -658,7 +676,7 @@ func _part1() -> void:
 	var dmg0: Dictionary = _world().damage_summary()
 	var shot_wall := 0
 	if int(dmg0.get("missing_voxels", 0)) < 400:
-		await _walk_to(Vector2(WALL_SPOT.x, 10.4))
+		await _walk_to(SHOOT_SPOT)              # beside, not in front of, the hole-to-be
 		if _state().inventory.count("ammo") < 6:
 			await _cheat_on("unlimited", "rounds to shoot a wall for the damage check")
 		var aim := _screen_of(WALL_SPOT, 1.0)
@@ -668,6 +686,8 @@ func _part1() -> void:
 			await _wait(0.25)
 			shot_wall += 1
 	var dmg1: Dictionary = _world().damage_summary()
+	await _wait(1.5)                            # debris settles
+	await _settle_meshes()
 	await _shot("10_damaged_house.png")
 	_step("12a observe structural damage", int(dmg1.get("missing_voxels", 0)) > 0 or int(dmg1.get("damaged_objects", 0)) > 0,
 		"after the invasion %s, after %d wall shots %s" % [dmg0, shot_wall, dmg1])
@@ -693,7 +713,7 @@ func _part1() -> void:
 			g.dev_repair_house()
 			repaired = "dev_repair_house through the debug API"
 		_note("step 12 repaired with: " + repaired)
-	await _wait(0.5)
+	await _settle_meshes()
 	var dmg2: Dictionary = _world().damage_summary()
 	await _shot("11_repaired_house.png")
 	_step("12b repair or rebuild", int(dmg2.get("missing_voxels", 0)) < int(dmg1.get("missing_voxels", 0)), "%s: %s → %s" % [repaired, dmg1, dmg2])
@@ -702,7 +722,7 @@ func _part1() -> void:
 	await _fight(60.0)
 	# Leave some visible damage for part 2 to verify.
 	if int(_world().damage_summary().get("missing_voxels", 0)) == 0:
-		await _walk_to(Vector2(WALL_SPOT.x, 10.4))
+		await _walk_to(SHOOT_SPOT)
 		for i in 3:
 			await _click(_screen_of(WALL_SPOT, 1.0) + Vector2(i * 10.0, 0))
 			await _wait(0.25)
@@ -738,10 +758,12 @@ func _part1() -> void:
 	_step("13b quit to the main menu", at_menu, "clicked '%s'" % left)
 	_finish()
 	if at_menu:
-		var q := await _click_button(current_scene, "^quit")
-		if q != "":
-			print("      clicked '%s' (the application quits)" % q)
+		var quit_buttons := _buttons(current_scene, "^quit")
+		if not quit_buttons.is_empty():
+			print("      clicking '%s' on the main menu: the application quits" % quit_buttons[0].text)
+			await _click_control(quit_buttons[0])
 			await _wait(1.0)
+			print("      FAIL-NOTE: still running after Quit")
 
 
 func _part2() -> void:
