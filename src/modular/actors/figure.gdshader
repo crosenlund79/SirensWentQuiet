@@ -33,9 +33,9 @@ void fragment() {
 	if (L == 7) { rough = 0.35; metal = 0.6; }
 	else if (L == 19) { rough = 0.25; }
 	else if (L == 21) { rough = 0.1; }
-	ALBEDO = mix(c, vec3(1.0, 0.96, 0.92), flash * 0.55);
+	ALBEDO = mix(c, vec3(1.0, 0.9, 0.85), flash * 0.35);
 	ROUGHNESS = rough;
 	METALLIC = metal;
 	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	EMISSION = rim_color.rgb * f * rim + vec3(1.0, 0.92, 0.85) * flash * 1.2;
+	EMISSION = rim_color.rgb * f * rim + vec3(1.0, 0.85, 0.75) * flash * 0.45;
 }

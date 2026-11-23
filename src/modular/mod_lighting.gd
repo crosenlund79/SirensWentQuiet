@@ -15,21 +15,22 @@ var blend := 0.0                   ## 0 day .. 1 night (eased)
 var lamps: Array[GeometryInstance3D] = []   ## meshes with glowing shades
 
 var _lights: Array[Dictionary] = []
+var _vignette: ShaderMaterial
 var _time := 0.0
 
 const DAY := {
-	"sun_color": Color(1.0, 0.92, 0.82), "sun_energy": 1.25, "sun_rot": Vector3(-32, -45, 0),
-	"sky_top": Color(0.46, 0.5, 0.55), "sky_horizon": Color(0.66, 0.66, 0.64),
-	"ambient": Color(0.62, 0.66, 0.72), "ambient_energy": 0.75,
-	"fog": Color(0.58, 0.6, 0.62), "exposure": 1.0, "glow": 0.35, "saturation": 0.88,
-	"vol_fog": 0.0,
+	"sun_color": Color(1.0, 0.86, 0.72), "sun_energy": 0.95, "sun_rot": Vector3(-26, -58, 0),
+	"sky_top": Color(0.42, 0.46, 0.52), "sky_horizon": Color(0.62, 0.63, 0.63),
+	"ambient": Color(0.56, 0.62, 0.72), "ambient_energy": 0.82,
+	"fog": Color(0.5, 0.54, 0.58), "exposure": 1.05, "glow": 0.3, "saturation": 0.82,
+	"vol_fog": 0.0, "vignette": 0.42,
 }
 const NIGHT := {
 	"sun_color": Color(0.55, 0.66, 1.0), "sun_energy": 0.42, "sun_rot": Vector3(-48, 30, 0),
 	"sky_top": Color(0.02, 0.03, 0.06), "sky_horizon": Color(0.05, 0.065, 0.11),
 	"ambient": Color(0.2, 0.26, 0.42), "ambient_energy": 0.55,
 	"fog": Color(0.03, 0.04, 0.07), "exposure": 1.35, "glow": 0.7, "saturation": 0.95,
-	"vol_fog": 0.012,
+	"vol_fog": 0.012, "vignette": 0.6,
 }
 
 
@@ -63,8 +64,8 @@ func _ready() -> void:
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_depth_begin = 24.0
-	env.fog_depth_end = 70.0
+	env.fog_depth_begin = 20.0
+	env.fog_depth_end = 62.0
 	env.fog_depth_curve = 1.6
 	env.fog_density = 1.0
 	env.fog_sky_affect = 0.0
@@ -72,7 +73,7 @@ func _ready() -> void:
 	env.volumetric_fog_length = 40.0
 	env.volumetric_fog_anisotropy = 0.5
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.06
+	env.adjustment_contrast = 1.1
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -80,7 +81,7 @@ func _ready() -> void:
 	sun = DirectionalLight3D.new()
 	sun.shadow_enabled = true
 	sun.light_angular_distance = 0.0
-	sun.shadow_blur = 2.2
+	sun.shadow_blur = 3.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 48.0
 	sun.shadow_bias = 0.04
@@ -89,7 +90,35 @@ func _ready() -> void:
 
 	for l in HousePlan.LIGHTS:
 		_add_practical(l)
+	_add_vignette()
 	_apply(0.0)
+
+
+## Screen-space finish: soft vignette, slight cool tint in the corners and a
+## faint grain, so the frame reads as quiet and uneasy rather than clinical.
+func _add_vignette() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+	var rect := ColorRect.new()
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """
+shader_type canvas_item;
+uniform float strength = 0.4;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	vec2 q = (UV - 0.5) * vec2(1.6, 1.0);
+	float v = smoothstep(0.35, 1.05, length(q));
+	float g = (hash(FRAGCOORD.xy + fract(TIME) * 61.0) - 0.5) * 0.035;
+	COLOR = vec4(vec3(0.02, 0.025, 0.04) + g, v * strength + abs(g));
+}
+"""
+	_vignette = ShaderMaterial.new()
+	_vignette.shader = sh
+	rect.material = _vignette
+	layer.add_child(rect)
 
 
 func _add_practical(l: Dictionary) -> void:
@@ -198,6 +227,8 @@ func _apply(t: float) -> void:
 	env.volumetric_fog_density = lerpf(DAY.vol_fog, NIGHT.vol_fog, e)
 	env.volumetric_fog_enabled = e > 0.01
 	env.volumetric_fog_albedo = Color(0.6, 0.65, 0.8)
+	if _vignette != null:
+		_vignette.set_shader_parameter("strength", lerpf(DAY.vignette, NIGHT.vignette, e))
 	for d in _lights:
 		var o: OmniLight3D = d["light"]
 		var on: bool = d["on"]

@@ -165,8 +165,8 @@ static func _flash_star() -> ArrayMesh:
 		for k in 6:
 			var ang0 := TAU * k / 6.0
 			var ang1 := TAU * (k + 1) / 6.0
-			var r0 := 0.16 if k % 2 == 0 else 0.07
-			var r1 := 0.16 if (k + 1) % 2 == 0 else 0.07
+			var r0 := 0.3 if k % 2 == 0 else 0.09
+			var r1 := 0.3 if (k + 1) % 2 == 0 else 0.09
 			var c := a.cross(b)
 			st.set_color(core)
 			st.add_vertex(Vector3.ZERO)

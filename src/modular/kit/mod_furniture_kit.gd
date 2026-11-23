@@ -738,18 +738,50 @@ static func _path(mm: ModMesh, w: float, d: float, h: float, rng: RandomNumberGe
 
 
 static func _road(mm: ModMesh, w: float, d: float, h: float, rng: RandomNumberGenerator) -> void:
-	# visually extends far beyond the yard so it never just ends on screen
+	# The plan strip is the near lane; the street continues beyond the yard
+	# (two lanes, far curb, sidewalk, a dead hedge) so it never just ends.
 	var ext := 40.0
+	var x0 := -w * 0.5 - ext
+	var x1 := w * 0.5 + ext
+	var z0 := -d * 0.5
+	var z1 := z0 + 5.6
 	mm.set_mat(M.L_ASPHALT)
-	mm.quad(Vector3(-w * 0.5 - ext, 0.012, -d * 0.5), Vector3(w * 0.5 + ext, 0.012, -d * 0.5), Vector3(w * 0.5 + ext, 0.012, d * 0.5 + 4.0), Vector3(-w * 0.5 - ext, 0.012, d * 0.5 + 4.0), Vector3.UP)
-	# curb and a faded edge line
+	mm.quad(Vector3(x0, 0.012, z0), Vector3(x1, 0.012, z0), Vector3(x1, 0.012, z1), Vector3(x0, 0.012, z1), Vector3.UP)
+	# curbs
 	mm.set_mat(M.L_CONCRETE_PLAIN, Color(0.72, 0.71, 0.68))
-	mm.box(Vector3(-w * 0.5 - ext, 0.0, -d * 0.5 - 0.16), Vector3(w * 0.5 + ext, 0.07, -d * 0.5 + 0.0), ["-y"])
+	mm.box(Vector3(x0, 0.0, z0 - 0.16), Vector3(x1, 0.07, z0), ["-y"])
+	mm.box(Vector3(x0, 0.0, z1), Vector3(x1, 0.09, z1 + 0.16), ["-y"])
+	# far sidewalk slabs
+	var x := x0
+	while x < x1:
+		mm.set_mat(M.L_CONCRETE_PLAIN, Color(0.66, 0.65, 0.62).darkened(rng.randf_range(0.0, 0.1)))
+		mm.box(Vector3(x + 0.02, 0.0, z1 + 0.16), Vector3(x + 1.48, 0.06, z1 + 1.6), ["-y"])
+		x += 1.5
+	# faded centre line
 	mm.set_mat(M.L_ROAD_PAINT, Color(0.85, 0.8, 0.6))
-	var x := -w * 0.5 - ext
-	while x < w * 0.5 + ext:
-		mm.quad(Vector3(x, 0.015, d * 0.5 + 1.85), Vector3(x + 2.0, 0.015, d * 0.5 + 1.85), Vector3(x + 2.0, 0.015, d * 0.5 + 1.97), Vector3(x, 0.015, d * 0.5 + 1.97), Vector3.UP)
+	x = x0
+	var zc := z0 + 2.8
+	while x < x1:
+		mm.quad(Vector3(x, 0.016, zc - 0.06), Vector3(x + 2.0, 0.016, zc - 0.06), Vector3(x + 2.0, 0.016, zc + 0.06), Vector3(x, 0.016, zc + 0.06), Vector3.UP)
 		x += 4.0
+	# manhole and leaves drifted against the curbs
+	mm.set_mat(M.L_METAL, Color(0.2, 0.2, 0.2))
+	mm.cylinder(Vector3(3.0, 0.0, zc + 1.2), 0.32, 0.32, 0.018, 12)
+	for i in 120:
+		mm.set_mat(M.L_PLAIN, Color(0.5, 0.34, 0.18).darkened(rng.randf_range(0.0, 0.45)))
+		var near := rng.randf() < 0.5
+		var c := Vector3(rng.randf_range(x0 * 0.5, x1 * 0.5), 0.02, (z0 + rng.randf_range(0.0, 0.45)) if near else (z1 - rng.randf_range(0.0, 0.4)))
+		var a := rng.randf() * TAU
+		var s := rng.randf_range(0.04, 0.08)
+		mm.poly(PackedVector3Array([c + Vector3(cos(a), 0, sin(a)) * s, c + Vector3(cos(a + 1.7), 0, sin(a + 1.7)) * s * 0.5, c - Vector3(cos(a), 0, sin(a)) * s, c + Vector3(cos(a - 1.7), 0, sin(a - 1.7)) * s * 0.5]), Vector3.UP)
+	# a dead hedge across the street
+	x = x0
+	var zh := z1 + 2.1
+	while x < x1:
+		var hw := rng.randf_range(0.7, 1.3)
+		mm.set_mat(M.L_PLAIN, Color(0.32, 0.3, 0.22).lerp(Color(0.42, 0.33, 0.22), rng.randf()))
+		mm.blob(Vector3(x + hw * 0.5, rng.randf_range(0.35, 0.55), zh + rng.randf_range(-0.15, 0.15)), Vector3(hw * 0.62, rng.randf_range(0.45, 0.7), 0.55), 3, 7)
+		x += hw * 0.8
 
 
 static func _driveway(mm: ModMesh, w: float, d: float, h: float, rng: RandomNumberGenerator) -> void:
@@ -897,11 +929,12 @@ static func _streetlight_dead(mm: ModMesh, w: float, d: float, h: float, rng: Ra
 	mm.xf = mm.xf * Transform3D(Basis(Vector3.RIGHT, 0.06) * Basis(Vector3.BACK, -0.03), Vector3.ZERO)
 	mm.set_mat(M.L_CONCRETE_PLAIN, Color(0.6, 0.6, 0.58))
 	mm.cylinder(Vector3.ZERO, 0.16, 0.14, 0.3, 8)
-	mm.set_mat(M.L_METAL, Color(0.36, 0.38, 0.4))
+	mm.set_mat(M.L_METAL, Color(0.6, 0.62, 0.62))
 	mm.cylinder(Vector3(0, 0.3, 0), 0.08, 0.05, h - 0.3, 8)
-	mm.tube(Vector3(0, h - 0.1, 0), Vector3(0, h + 0.15, 1.1), 0.035, 0.03, 6)
-	mm.set_mat(M.L_METAL, Color(0.28, 0.3, 0.32))
-	_cbox(mm, Vector3(-0.14, h + 0.05, 0.95), Vector3(0.14, h + 0.2, 1.55), 0.03)
-	mm.set_mat(M.L_SCREEN, Color(0.15, 0.16, 0.15))
-	mm.box(Vector3(-0.11, h + 0.04, 1.0), Vector3(0.11, h + 0.05, 1.5))
+	mm.tube(Vector3(0, h - 0.15, 0), Vector3(0, h + 0.1, 0.5), 0.04, 0.035, 6)
+	mm.tube(Vector3(0, h + 0.1, 0.5), Vector3(0, h + 0.14, 1.0), 0.035, 0.03, 6)
+	mm.set_mat(M.L_METAL, Color(0.52, 0.54, 0.55))
+	mm.blob(Vector3(0, h + 0.12, 1.25), Vector3(0.16, 0.07, 0.32), 3, 8)
+	mm.set_mat(M.L_SCREEN, Color(0.2, 0.22, 0.2))
+	mm.blob(Vector3(0, h + 0.08, 1.27), Vector3(0.11, 0.03, 0.22), 2, 8)
 	mm.xf = keep

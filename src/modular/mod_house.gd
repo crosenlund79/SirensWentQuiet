@@ -367,12 +367,12 @@ func _build_dressing() -> void:
 	for p in HousePlan.PROPS:
 		if p["type"] in ["road", "path", "driveway", "deck", "step", "car"]:
 			blocked.append((p["rect"] as Rect2).grow(0.2))
-	blocked.append(Rect2(-50, 13.3, 120, 10))
+	blocked.append(Rect2(-50, 13.3, 120, 7.6))
 	var xforms: Array[Transform3D] = []
 	var tries := 0
-	while xforms.size() < 900 and tries < 6000:
+	while xforms.size() < 1300 and tries < 9000:
 		tries += 1
-		var p := Vector2(rng.randf_range(-16, 30), rng.randf_range(-13, 13.4))
+		var p := Vector2(rng.randf_range(-18, 32), rng.randf_range(-14, 26))
 		var ok := true
 		for r in blocked:
 			if r.has_point(p):
