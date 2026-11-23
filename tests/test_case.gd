@@ -46,6 +46,8 @@ func seconds(s: float) -> void:
 func cleanup() -> void:
 	for a in ["move_up", "move_down", "move_left", "move_right", "fire"]:
 		Input.action_release(a)
+	AssetResolver.set_override_root("")
+	Engine.time_scale = 1.0
 	for n in _nodes:
 		if is_instance_valid(n):
 			n.queue_free()
