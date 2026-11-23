@@ -19,6 +19,16 @@ var _fall_axis := Vector3.RIGHT
 var _swing_pending := 0.0
 var _swing_kind := ""
 var _swing_target := Vector2.ZERO
+var _tight_time := 0.0
+var _unstick_cd := 0.0
+var _best_d := INF
+
+## Voxel holes open cell by cell, so a body can sit in a half-open gap where
+## the shared brain's path is OPEN but not yet walkable and it oscillates
+## instead of reporting "stuck". After this long without getting closer to the
+## player we swing at the nearest remaining wall cell within reach (same
+## reach and rhythm as the brain's own wall swings).
+const TIGHT_UNSTICK := 2.5
 
 
 func setup(nav: GridNav, target: Node3D, look: int) -> void:
@@ -100,6 +110,7 @@ func _physics_process(delta: float) -> void:
 	if face.length() > 0.01:
 		var yaw := atan2(-face.x, -face.y)
 		rig.rotation.y = lerp_angle(rig.rotation.y, yaw, 1.0 - exp(-delta * 6.0))
+	_unstick(delta, me, r)
 	if r["swing"] != "":
 		rig.swing = 1.0
 		_swing_kind = r["swing"]
@@ -115,3 +126,24 @@ func _physics_process(delta: float) -> void:
 	rig.swing = maxf(rig.swing - delta / 0.5, 0.0)
 	rig.speed = Vector2(velocity.x, velocity.z).length() if _stagger <= 0.0 else 0.0
 	rig.animate(delta)
+
+
+func _unstick(delta: float, me: Vector2, r: Dictionary) -> void:
+	var nav := brain.nav
+	var d := me.distance_to(Vector2(player.global_position.x, player.global_position.z))
+	_unstick_cd = maxf(_unstick_cd - delta, 0.0)
+	if r["swing"] != "" or d < _best_d - 0.3 or d <= Tuning.ENEMY_ATTACK_RANGE + 0.2:
+		_best_d = minf(_best_d, d) if r["swing"] == "" else d
+		_tight_time = 0.0
+		return
+	_tight_time += delta
+	if _tight_time < TIGHT_UNSTICK or _unstick_cd > 0.0:
+		return
+	var w := nav.nearest_raw_wall(nav.cell_of(me), me, 3)
+	if w.x >= 0 and me.distance_to(nav.center_of(w)) <= PursuitBrain.REACH + 0.25:
+		r["swing"] = "wall"
+		r["target"] = nav.center_of(w)
+		_unstick_cd = Tuning.ENEMY_ATTACK_INTERVAL
+	else:
+		_best_d = d
+		_tight_time = 0.0

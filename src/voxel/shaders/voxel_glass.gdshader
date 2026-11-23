@@ -22,7 +22,7 @@ void fragment() {
 		discard;
 	}
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	ALBEDO = COLOR.rgb * 0.55;
+	ALBEDO = pow(COLOR.rgb, vec3(2.2)) * 0.55;
 	ROUGHNESS = 0.08;
 	METALLIC = 0.0;
 	SPECULAR = 0.9;

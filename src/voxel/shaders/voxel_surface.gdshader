@@ -14,7 +14,7 @@ uniform vec3 cut_dir = vec3(0.0, 0.83, 0.56);
 uniform float cut_radius = 2.0;
 uniform float cut_floor = 0.25;
 uniform float cut_near = 0.45;
-uniform vec3 section_color : source_color = vec3(0.05, 0.045, 0.04);
+uniform vec3 section_color : source_color = vec3(0.16, 0.145, 0.13);
 uniform float night = 0.0;
 uniform vec3 glow_color : source_color = vec3(1.0, 0.72, 0.42);
 uniform float glow_energy = 2.4;
@@ -29,6 +29,10 @@ float hash13(vec3 p) {
 	p = fract(p * 0.1031);
 	p += dot(p, p.zyx + 31.32);
 	return fract((p.x + p.y) * p.z);
+}
+
+vec3 to_linear(vec3 c) {
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
 }
 
 void vertex() {
@@ -57,19 +61,20 @@ void fragment() {
 		float t = dot(rel, cut_dir);
 		if (t > cut_near && wc.y > cut_floor) {
 			float d = length(rel - cut_dir * t);
-			if (d < cut_radius - 0.45 * h) {
+			if (d < cut_radius - 0.15 * h) {
 				discard;
 			}
 		}
 	}
 	if (!FRONT_FACING) {
 		// Looking into a cut-away voxel: flat dark section fill.
+		// (reads like the dark wall caps: a clean architectural cut)
 		ALBEDO = section_color;
 		ROUGHNESS = 1.0;
 		SPECULAR = 0.0;
-		NORMAL = vec3(0.0, 0.0, 1.0);
+		NORMAL = (VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
 	} else {
-		vec3 c = COLOR.rgb;
+		vec3 c = to_linear(COLOR.rgb);
 		// Soft bevel on each voxel face, faded out when voxels get small on screen.
 		vec3 f = fract(q);
 		vec3 an = abs(v_nrm);

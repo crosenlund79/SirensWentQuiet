@@ -19,6 +19,8 @@ const FURNITURE_CARVE := 0.17
 const BITE_RADIUS := 0.2
 const CUT_RADIUS := 2.1
 
+static var _pristine: VoxelGrid
+
 var hud: DemoHud
 var grid: VoxelGrid
 var world: VoxelWorld
@@ -45,6 +47,7 @@ var _cut_origin := Vector3(0, -100, 0)
 var _cut_dir := Vector3.UP
 var _cut_on := true
 var _build_ms := 0.0
+var mouse_aim := true
 
 
 func _ready() -> void:
@@ -63,8 +66,11 @@ func _ready() -> void:
 	lighting.night_materials.append(glass_mat)
 
 	var t0 := Time.get_ticks_usec()
-	grid = VoxelHouse.create_grid()
-	VoxelHouse.build(grid)
+	# The intact house is built once per run and copied on reset (R).
+	if _pristine == null:
+		_pristine = VoxelHouse.create_grid()
+		VoxelHouse.build(_pristine)
+	grid = _pristine.copy()
 	world = VoxelWorld.new()
 	world.name = "VoxelWorld"
 	world.setup(grid, surface_mat, glass_mat)
@@ -97,6 +103,7 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 	camera.snap()
+	yard.update_roof(player.global_position, 0.0, true)
 
 	_bullet_skip.resize(256)
 	for i in 256:
@@ -107,7 +114,9 @@ func _ready() -> void:
 		if a.begins_with("--scenario="):
 			_scenario = a.trim_prefix("--scenario=")
 	if _scenario != "":
+		mouse_aim = false
 		VoxelScenarios.setup(self, _scenario)
+		yard.update_roof(player.global_position, 0.0, true)
 
 
 func _surface_material(origin: Vector3, vs: float, model_space := false) -> ShaderMaterial:
@@ -211,11 +220,11 @@ func is_cut(c: Vector3i) -> bool:
 	var t := rel.dot(_cut_dir)
 	if t <= 0.45 or p.y <= 0.45:
 		return false
-	return (rel - _cut_dir * t).length() < _cut_radius() - 0.22
+	return (rel - _cut_dir * t).length() < _cut_radius() - 0.15
 
 
 func _update_aim() -> void:
-	if not is_inside_tree() or camera == null:
+	if not is_inside_tree() or camera == null or not mouse_aim:
 		return
 	var mp := get_viewport().get_mouse_position()
 	var from := camera.project_ray_origin(mp)
@@ -327,9 +336,19 @@ func spawn_enemy(p: Vector2) -> VoxelEnemy:
 
 
 func _on_wall_swing(e: VoxelEnemy, target: Vector2) -> void:
+	# Aim the bite at a voxel that still blocks the target nav cell (so a
+	# passage opens), else at a random height 0.2-1.5 m (SPEC).
 	var h := _rng.randf_range(0.2, 1.5)
+	var aim := target
+	var to_t := target - e.plan_pos()
+	var along := Vector2(0, 1) if absf(to_t.x) > absf(to_t.y) else Vector2(1, 0)
+	var blockers := _blockers(target, along)
+	if not blockers.is_empty():
+		var b: Vector3 = blockers[_rng.randi() % blockers.size()]
+		h = clampf(b.y, 0.2, 1.55)
+		aim = Vector2(b.x, b.z)
 	var from := Vector3(e.global_position.x, h, e.global_position.z)
-	var to := Vector3(target.x + _rng.randf_range(-0.18, 0.18), h, target.y + _rng.randf_range(-0.18, 0.18))
+	var to := Vector3(aim.x + _rng.randf_range(-0.08, 0.08), h, aim.y + _rng.randf_range(-0.08, 0.08))
 	var dir := (to - from).normalized()
 	var vh := grid.raycast(from, dir, from.distance_to(to) + 0.4, _bullet_skip)
 	var center := to
@@ -346,6 +365,22 @@ func _on_wall_swing(e: VoxelEnemy, target: Vector2) -> void:
 	fx.impact(VoxelMat.IMPACT[m], center - dir * 0.1, n, dir, ch)
 	if e.global_position.distance_to(player.global_position) < 6.0:
 		camera.nudge(0.35)
+
+
+## Centres of structural voxels (0.15-1.6 m) still blocking the body-wide
+## passage through nav cell `target`: the cell plus one cell either side
+## along the wall (`along`), i.e. the 3 cells a body needs.
+func _blockers(target: Vector2, along: Vector2) -> Array:
+	var out := []
+	var half := Vector2.ONE * GridNav.CELL * 0.5 + along * GridNav.CELL
+	var xr := grid.centre_range(0, target.x - half.x, target.x + half.x)
+	var zr := grid.centre_range(2, target.y - half.y, target.y + half.y)
+	for y in range(VoxelHouse.NAV_ROW_LO, VoxelHouse.NAV_ROW_HI + 1):
+		for z in range(zr.x, zr.y):
+			for x in range(xr.x, xr.y):
+				if VoxelMat.is_struct(grid.get_mat(x, y, z)):
+					out.append(grid.center(Vector3i(x, y, z)))
+	return out
 
 
 func _on_player_swing(_e: VoxelEnemy) -> void:

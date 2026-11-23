@@ -60,6 +60,7 @@ func _ready() -> void:
 	# Debris: lit vertex-coloured cubes.
 	var dm := StandardMaterial3D.new()
 	dm.vertex_color_use_as_albedo = true
+	dm.vertex_color_is_srgb = true
 	dm.roughness = 0.85
 	var box := BoxMesh.new()
 	box.size = Vector3.ONE * 0.1
@@ -214,7 +215,7 @@ func impact(kind: int, pos: Vector3, normal: Vector3, dir: Vector3, change: Dict
 	var colors: PackedInt32Array = change.get("colors", PackedInt32Array())
 	var mats: PackedByteArray = change.get("mats", PackedByteArray())
 	# Voxel chunks flying out of the hole, in the removed voxels' own colours.
-	var cap := 30
+	var cap := 18
 	var stride := maxi(1, cells.size() / cap)
 	var k := 0
 	while k < cells.size():
@@ -222,9 +223,10 @@ func impact(kind: int, pos: Vector3, normal: Vector3, dir: Vector3, change: Dict
 		var p := grid.center(c)
 		var m := mats[k]
 		var glass := (VoxelMat.FLAGS[m] & VoxelMat.F_GLASS) != 0
-		var out := (n * _rng.randf_range(1.2, 3.6) + Vector3(_rng.randf_range(-1.2, 1.2), _rng.randf_range(0.2, 2.4), _rng.randf_range(-1.2, 1.2)))
+		# Chips pop out of the surface and mostly drop at the foot of the wall.
+		var out := n * _rng.randf_range(0.3, 1.5) + Vector3(_rng.randf_range(-0.6, 0.6), _rng.randf_range(0.1, 1.3), _rng.randf_range(-0.6, 0.6))
 		if glass:
-			out = (-n * _rng.randf_range(0.5, 2.0) + n * _rng.randf_range(0.0, 3.0) + Vector3(_rng.randf_range(-1.5, 1.5), _rng.randf_range(0.0, 1.5), _rng.randf_range(-1.5, 1.5)))
+			out = n * _rng.randf_range(-0.8, 1.6) + Vector3(_rng.randf_range(-0.8, 0.8), _rng.randf_range(0.0, 1.0), _rng.randf_range(-0.8, 0.8))
 		var col := VoxelArt.to_color(colors[k])
 		var imp: int = VoxelMat.IMPACT[m]
 		var shape := Vector3.ONE
@@ -239,7 +241,7 @@ func impact(kind: int, pos: Vector3, normal: Vector3, dir: Vector3, change: Dict
 			size = _rng.randf_range(0.4, 0.8)
 			out *= 0.45
 		debris(p, out, col, size, shape)
-		k += stride if not glass else maxi(1, cells.size() / 45)
+		k += stride if not glass else maxi(1, cells.size() / 36)
 	# Dust and sparks by material.
 	var base_col := VoxelArt.to_color(colors[0]) if colors.size() > 0 else Color(0.5, 0.48, 0.44)
 	match kind:

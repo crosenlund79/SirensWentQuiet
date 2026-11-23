@@ -123,7 +123,7 @@ func animate(delta: float) -> void:
 	else:
 		head.rotation = Vector3(0.05, 0, 0)
 		if aiming:
-			arm_l.rotation = Vector3(1.15 + aim_pitch * 0.8, 0, -0.55)
+			arm_l.rotation = Vector3(1.2 + aim_pitch * 0.8, 0, 0.5)
 			arm_r.rotation = Vector3(PI * 0.5 + aim_pitch + recoil * 0.35, 0, 0)
 		else:
 			arm_l.rotation = Vector3(-s * 0.45 * amp, 0, -0.06)

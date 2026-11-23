@@ -17,11 +17,15 @@ float bayer4(vec2 p) {
 	return (float(m[y * 4 + x]) + 0.5) / 16.0;
 }
 
+vec3 to_linear(vec3 c) {
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
 void fragment() {
 	if (fade < 0.999 && bayer4(FRAGCOORD.xy) > fade) {
 		discard;
 	}
-	vec3 c = mix(COLOR.rgb, vec3(1.0, 0.97, 0.92), flash);
+	vec3 c = mix(to_linear(COLOR.rgb), vec3(1.0, 0.97, 0.92), flash);
 	ALBEDO = c;
 	AO = COLOR.a;
 	AO_LIGHT_AFFECT = 0.4;

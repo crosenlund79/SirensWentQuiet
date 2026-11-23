@@ -38,6 +38,19 @@ func _init(size: Vector3i, voxel_size: float, min_corner: Vector3) -> void:
 	pmask.resize(n)
 
 
+## Independent copy (packed arrays are copy-on-write, so this is cheap).
+func copy() -> VoxelGrid:
+	var g := VoxelGrid.new(Vector3i(sx, sy, sz), vs, origin)
+	g.mat = mat.duplicate()
+	g.col = col.duplicate()
+	g.pcol = pcol.duplicate()
+	g.pmask = pmask.duplicate()
+	g.solid_count = solid_count
+	g.cap_row = cap_row
+	g.cap_color = cap_color
+	return g
+
+
 func idx(x: int, y: int, z: int) -> int:
 	return (y * sz + z) * sx + x
 

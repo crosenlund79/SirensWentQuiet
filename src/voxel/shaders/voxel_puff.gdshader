@@ -10,9 +10,13 @@ void vertex() {
 	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
 }
 
+vec3 to_linear(vec3 c) {
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
 void fragment() {
 	vec4 t = texture(tex, UV);
-	ALBEDO = COLOR.rgb;
+	ALBEDO = to_linear(COLOR.rgb);
 	ALPHA = t.a * COLOR.a;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;

@@ -92,8 +92,8 @@ func _ground_image() -> Image:
 					c = VoxelArt.mix(c, 0xb8a868, 0.55)
 				# skid marks swerving toward the car
 				var sk := absf(ly - 0.45 - sin(p.x * 0.35) * 0.2)
-				if p.x > 6.0 and p.x < 17.0 and (absf(sk) < 0.06 or absf(sk - 0.25) < 0.06):
-					c = VoxelArt.scale(c, 0.6)
+				if p.x > 6.0 and p.x < 17.0 and (absf(sk) < 0.05 or absf(sk - 0.25) < 0.05) and VoxelArt.hash3(i, j, 1) > 0.25:
+					c = VoxelArt.scale(c, 0.78)
 			elif walk.has_point(p):
 				c = VoxelArt.sample("paving", i, j)
 			elif drive.has_point(p) or path.has_point(p):
@@ -173,58 +173,79 @@ static func _e(m: int, c: int) -> int:
 
 
 func _car(r: Rect2, h: float) -> Array:
+	# An abandoned family sedan, nose to the north: rounded body, hood and boot,
+	# glasshouse with pillars, a flat front tyre, one side window smashed.
 	var g := _grid(Vector3(r.size.x, h + 0.1, r.size.y))
 	var W := r.size.x
 	var L := r.size.y
-	var paint := 0x5d6b6e
+	var paint := 0x6a3a35
+	var glass := 0x1c2428
+	var trim := 0x2a2b2d
+	var axles := [0.82, L - 0.86]
 	_fill(g, func(p: Vector3, x: int, y: int, z: int) -> int:
 		var cx := absf(p.x - W * 0.5)
-		# wheels: two axles, the front-left tyre flat
-		for axle in [0.78, L - 0.8]:
-			var dz: float = p.z - axle
-			var wr := 0.33
+		var half := W * 0.5 - 0.04
+		# wheels
+		for axle in axles:
 			var flat: bool = axle < 1.0 and p.x < W * 0.5
-			var cy := 0.3 if not flat else 0.24
-			if cx > W * 0.5 - 0.26 and cx <= W * 0.5 - 0.02 and Vector2(dz, (p.y - cy) * (1.0 if not flat else 1.4)).length() < wr:
-				if Vector2(dz, p.y - cy).length() < 0.15 and cx > W * 0.5 - 0.1:
-					return _e(VoxelMat.METAL, 0x9a9d9f)
-				return _e(VoxelMat.RUBBER, 0x18191a)
-		var body_lo := 0.25
-		var body_hi := 0.82
-		var nose := clampf(p.z / 0.35, 0.0, 1.0)
-		var tail := clampf((L - p.z) / 0.3, 0.0, 1.0)
-		if p.y > body_lo and p.y < body_hi - 0.12 * (1.0 - nose) and cx < W * 0.5 - 0.02 and p.z > 0.03 and p.z < L - 0.03:
-			# wheel arches
-			for axle in [0.78, L - 0.8]:
-				if Vector2(p.z - axle, p.y - 0.3).length() < 0.42 and cx > W * 0.5 - 0.3:
-					return -1
-			if p.z < 0.12 and p.y > 0.55 and p.y < 0.68 and cx > W * 0.5 - 0.45:
-				return _e(VoxelMat.GLOW, 0xd8d2b8)    # headlights (dead)
-			if p.z > L - 0.12 and p.y > 0.55 and p.y < 0.68 and cx > W * 0.5 - 0.4:
-				return _e(VoxelMat.PAINTED, 0x6a1c18)
-			if p.y < 0.35:
-				return _e(VoxelMat.PAINTED, 0x2a2c2e)
-			var dirt := VoxelArt.hash3(x / 2, y, z / 2, 5) * clampf((0.6 - p.y) * 2.0, 0.0, 1.0)
-			return _e(VoxelMat.PAINTED, VoxelArt.mix(VoxelArt.jitter(paint, x, y, z, 0.03), 0x5a4a3a, dirt * 0.5))
-		# cabin
-		var c0 := 1.25
-		var c1 := 3.35
-		var top := h - 0.02
-		if p.y >= body_hi - 0.12 and p.y < top and cx < W * 0.5 - 0.1:
-			var k := (p.y - (body_hi - 0.12)) / (top - (body_hi - 0.12))
-			var zf := lerpf(c0 - 0.35, c0 + 0.25, k)
-			var zb := lerpf(c1 + 0.3, c1 - 0.15, k)
-			if p.z > zf and p.z < zb and cx < W * 0.5 - 0.1 - k * 0.12:
-				if p.y > top - 0.1:
-					return _e(VoxelMat.PAINTED, VoxelArt.jitter(paint, x, y, z, 0.03))
-				var pillar := absf(p.z - (c0 + c1) * 0.5) < 0.06 or p.z < zf + 0.1 or p.z > zb - 0.1
-				if pillar and p.y > body_hi:
-					return _e(VoxelMat.PAINTED, VoxelArt.scale(paint, 0.85))
-				# rear side window smashed
-				if p.x > W * 0.5 and p.z > (c0 + c1) * 0.5 and VoxelArt.hash3(x, y, z, 2) > 0.45:
-					return -1
-				return _e(VoxelMat.SCREEN, 0x1d2629)
-		return -1)
+			var wy := 0.31 if not flat else 0.24
+			var dz: float = p.z - axle
+			var dy := (p.y - wy) * (1.0 if not flat else 1.35)
+			if cx > half - 0.24 and cx <= half and Vector2(dz, dy).length() < 0.32:
+				if Vector2(dz, p.y - wy).length() < 0.14 and cx > half - 0.08:
+					return _e(VoxelMat.METAL, 0x8e9193)
+				return _e(VoxelMat.RUBBER, 0x161718)
+		if p.y < 0.2:
+			return -1
+		# plan outline with rounded corners
+		var rz := minf(p.z, L - p.z)
+		var corner := 0.32
+		if rz < corner and cx > half - corner and Vector2(corner - rz, cx - (half - corner)).length() > corner:
+			return -1
+		if cx > half or p.z < 0.04 or p.z > L - 0.04:
+			return -1
+		# wheel arches
+		for axle in axles:
+			if Vector2(p.z - axle, p.y - 0.31).length() < 0.42 and cx > half - 0.3:
+				return -1
+		# lower body: hood (front), boot (rear), sills
+		var top := 0.8
+		if p.z < 1.3:
+			top = 0.72 + 0.1 * (p.z / 1.3)
+		elif p.z > L - 0.9:
+			top = 0.86 - 0.08 * ((p.z - (L - 0.9)) / 0.9)
+		if p.y < top:
+			if p.y < 0.4 and (p.z < 0.14 or p.z > L - 0.14):
+				return _e(VoxelMat.PLASTIC, trim)          # bumpers
+			if p.z < 0.12 and p.y > 0.5 and p.y < 0.64 and cx > half - 0.42 and cx < half - 0.06:
+				return _e(VoxelMat.GLOW, 0xc9c6b4)         # headlights (dead)
+			if p.z > L - 0.12 and p.y > 0.52 and p.y < 0.68 and cx > half - 0.4 and cx < half - 0.06:
+				return _e(VoxelMat.PAINTED, 0x7a1d18)      # tail lights
+			if p.y < 0.3:
+				return _e(VoxelMat.PLASTIC, trim)
+			var dirt := VoxelArt.hash3(x / 2, y, z / 2, 5) * clampf((0.62 - p.y) * 2.5, 0.0, 1.0)
+			var c := VoxelArt.mix(VoxelArt.jitter(paint, x, y, z, 0.035), 0x55473a, dirt * 0.6)
+			if absf(p.z - 2.45) < 0.03 and cx > half - 0.06 and p.y > 0.4:
+				c = VoxelArt.scale(c, 0.7)                  # door seam
+			return _e(VoxelMat.PAINTED, c)
+		# glasshouse
+		var z0 := 1.3
+		var z1 := L - 0.9
+		var k := clampf((p.y - top) / (h - 0.02 - top), 0.0, 1.0)
+		var zf := lerpf(z0, 1.95, k)
+		var zb := lerpf(z1, 3.25, k)
+		var inset := 0.12 + 0.12 * k
+		if p.y >= h - 0.02 or p.z < zf or p.z > zb or cx > half - inset:
+			return -1
+		if p.y > h - 0.12:
+			return _e(VoxelMat.PAINTED, VoxelArt.jitter(paint, x, y, z, 0.03))  # roof
+		var pillar := p.z < zf + 0.09 or p.z > zb - 0.1 or absf(p.z - 2.5) < 0.05
+		if pillar:
+			return _e(VoxelMat.PAINTED, VoxelArt.scale(paint, 0.8))
+		if p.x > W * 0.5 and p.z > 2.55 and VoxelArt.hash3(x, y, z, 2) > 0.4:
+			return -1                                       # smashed rear side window
+		return _e(VoxelMat.SCREEN, glass)
+	)
 	return [g, Vector3(r.position.x, GROUND_Y, r.position.y)]
 
 
@@ -417,12 +438,12 @@ func _roof_box(g: VoxelGrid, pos: Vector3, size: Vector3, m: int, c: int) -> voi
 
 
 ## Roof dissolves voxel by voxel while the player is inside the footprint.
-func update_roof(player_pos: Vector3, delta: float) -> void:
+func update_roof(player_pos: Vector3, delta: float, instant := false) -> void:
 	if roof == null:
 		return
 	var inside := HousePlan.FOOTPRINT.grow(0.4).has_point(Vector2(player_pos.x, player_pos.z))
 	var goal := 0.0 if inside else 1.0
-	_roof_fade = move_toward(_roof_fade, goal, delta / 0.45)
+	_roof_fade = goal if instant else move_toward(_roof_fade, goal, minf(delta, 0.05) / 0.35)
 	roof_mat.set_shader_parameter("fade", _roof_fade)
 	roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if _roof_fade > 0.0 else GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 
