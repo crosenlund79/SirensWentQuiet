@@ -14,7 +14,7 @@ const FADE_TIME := 1.2
 
 var world: HouseWorld
 var player: Node3D
-var enemies: Array[VoxelEnemy] = []
+var enemies: Array = []                 ## VoxelEnemy (may hold one freed this frame)
 var rng := RandomNumberGenerator.new()
 var _count := 0
 var _markers := {}                      ## fog point -> Node3D the retreaters walk to
@@ -43,8 +43,9 @@ func spawn(at: Vector2, hp := Tuning.ENEMY_HP, speed := 1.0, invader := false) -
 	return e
 
 
-static func is_threat(e: VoxelEnemy) -> bool:
-	return is_instance_valid(e) and e.alive and not e.has_meta("retreat")
+## Untyped on purpose: the list can hold a psycho freed this frame.
+static func is_threat(e) -> bool:
+	return is_instance_valid(e) and e is VoxelEnemy and e.alive and not e.has_meta("retreat")
 
 
 ## Living psychos that are still a threat (not dead, not retreating).

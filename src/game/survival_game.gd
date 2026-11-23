@@ -603,6 +603,8 @@ func _set_modal(m: String, paused: bool) -> void:
 	if is_inside_tree():
 		get_tree().paused = paused
 	_update_cursor()
+	if _ok:
+		_update_prompt()      # hides the prompt now: _process doesn't run while paused
 
 
 func _update_cursor() -> void:

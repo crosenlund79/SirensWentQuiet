@@ -495,8 +495,25 @@ func test_bed_prompt_and_panels() -> void:
 	check_eq(g.last_toast, "Game saved.", "Save from the pause menu")
 	g.debug_ui().pause_menu.main_menu_requested.emit()
 	check_eq(g.left_to, GameLaunch.MENU_SCENE, "Main Menu leaves")
+	g.debug_close()                  # (stay_in_scene: still here) resume
+	check_eq(g.debug_modal(), "", "resumed")
+	g.debug_open("inventory")
+	check_eq(g.debug_prompt(), "", "no prompt while a panel is open")
+	g.debug_close()
 	await _tap("dev_menu")
 	check(g.debug_ui().dev_menu.visible, "F10 opens the dev menu")
 	g.debug_teleport_player(Vector2(4.5, 12.2))
 	await frames(3)
 	check(g.debug_prompt() != "", "a prompt at the fog edge (%s)" % g.debug_prompt())
+
+
+func test_a_freed_psycho_in_the_roster_is_not_an_error() -> void:
+	var g: Node = await _boot()
+	var e: Node = g.debug_spawn_enemy(Vector2(-6.0, -5.0), true)
+	await frames(1)
+	e.free()                         # as after a corpse's queue_free, before the roster prunes
+	check_eq(g.debug_living_enemies(), 0, "living() skips it")
+	check_eq(g.debug_roster().invaders_alive(), 0, "invaders_alive() skips it")
+	check_eq(g.debug_enemy_positions().size(), 0, "positions() skips it")
+	check_eq(g.can_save(), "", "and saving is allowed")
+	await frames(2)
