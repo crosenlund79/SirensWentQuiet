@@ -17,5 +17,9 @@ static func ui(_name: String) -> void:
 	pass
 
 
+static func music(_name: String) -> void:
+	pass
+
+
 static func names() -> PackedStringArray:
 	return PackedStringArray()

@@ -272,6 +272,7 @@ class_name Sfx                         # static
 static func attach(root: Node) -> void # where players are created (scene root)
 static func play(name: String, at: Variant = null, volume_db := 0.0) -> void  # Vector3 = positional
 static func ui(name: String) -> void   # UI bus
+static func music(name: String) -> void  # Music bus, looped; "" stops (crossfade)
 static func names() -> PackedStringArray
 class_name Ambience extends Node       # wind / night loops, distant noises in the fog
 func set_night_amount(t: float) -> void ; func set_tension(t: float) -> void
@@ -357,7 +358,7 @@ Stats, inventory and cheats are edited directly on `GameState`. The menu shows a
 - the dev API (§7.8)
 - a `debug_*` set for tests and the playtest
 
-`GameLaunch` (static, `src/game/game_launch.gd`): `static var mode := "new"` (`"new"` | `"continue"`).
+`GameLaunch` (static, `src/game/game_launch.gd`): `static var mode := "new"` (`"new"` | `"continue"`), and `static var notice := ""`: a one-shot message for the main menu (e.g. "The save could not be loaded: ..."), which the menu shows and clears.
 
 ## 8. Visual and UX direction
 
