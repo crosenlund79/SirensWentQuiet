@@ -359,8 +359,8 @@ static func _bush(mm: PropMesh, w: float, d: float, h: float, rng: RandomNumberG
 			var l := rng.randf_range(0.05, 0.09)
 			mm.sheet(PackedVector3Array([c - dir * l * 0.5, c + side * l * 0.25, c + dir * l * 0.5, c - side * l * 0.25]))
 	# a mat of dead growth at the crown
-	mm.set_mat(M.L_FOLIAGE, Color(0.36, 0.32, 0.22), 0.1)
-	for k in 3:
-		var c := Vector3(rng.randf_range(-rx, rx) * 0.3, 0.07, rng.randf_range(-rz, rz) * 0.3)
-		mm.blob(c, Vector3(rx * rng.randf_range(0.25, 0.4), minf(0.1, h * 0.15), rz * rng.randf_range(0.25, 0.4)), 2, 7)
+	for k in 4:
+		mm.set_mat(M.L_FOLIAGE, Color(0.33, 0.3, 0.21).darkened(rng.randf_range(0.0, 0.2)), 0.1)
+		var c := Vector3(rng.randf_range(-rx, rx) * 0.35, 0.03, rng.randf_range(-rz, rz) * 0.35)
+		mm.blob(c, Vector3(rx * rng.randf_range(0.15, 0.26), minf(0.05, h * 0.08), rz * rng.randf_range(0.15, 0.26)), 3, 8)
 	_leaves(mm, rng, 12, Vector2(-rx, -rz), Vector2(rx, rz), 0.004)

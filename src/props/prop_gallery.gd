@@ -11,6 +11,10 @@ extends Node3D
 ##   --focus=<type>     centre on the first piece of that type (implies close unless --view)
 ##   --nolabels         hide the type labels
 ##   --dist=<m>         override the camera distance
+##   --house            the hybrid look in place: the foundation HouseWorld (Version A's
+##                      voxel house) with its voxel furniture swapped for PropKit pieces,
+##                      doors in the doorways, barricaded windows, survival props
+##   --look=x,z         (house) where the camera looks (default the living room)
 ## Example: tools/capture.sh res://src/props/prop_gallery.tscn /tmp/g.png 6 --group=survival --night
 
 const PITCH := -56.0
@@ -55,6 +59,8 @@ var camera: Camera3D
 var placed := {}           # type -> Node3D (first instance)
 var group_centre := {}     # group -> Vector3
 var lights: Array[Node3D] = []
+var world: HouseWorld
+var view_target := Vector3(5.5, 0.0, 6.5)
 
 
 func _ready() -> void:
@@ -80,8 +86,16 @@ func _ready() -> void:
 	for o in lighting.practicals:
 		o.set_meta("night_energy", 0.0)
 	lighting.set_amount(1.0 if night else 0.0)
-	_ground()
-	_layout(labels)
+	if "--house" in args:
+		for a in args:
+			if a.begins_with("--look="):
+				var p := a.trim_prefix("--look=").split(",")
+				view_target = Vector3(float(p[0]), 0.0, float(p[1]))
+		_house()
+		group = "house"
+	else:
+		_ground()
+		_layout(labels)
 	var lit := night or "--lit" in args
 	for n in lights:
 		PropKit.set_lit(n, 1.0 if lit else 0.0)
@@ -99,6 +113,8 @@ func _ready() -> void:
 			view = "close"
 	elif group_centre.has(group):
 		target = group_centre[group]
+	elif world != null:
+		target = view_target
 	if view == "close":
 		d = 6.5
 		pitch = -38.0
@@ -242,3 +258,86 @@ func _layout(labels: bool) -> void:
 			(c as Node3D).position.z -= z * 0.5
 	for g in group_centre:
 		group_centre[g].z -= z * 0.5
+
+
+func _process(delta: float) -> void:
+	if world != null and camera != null:
+		world.update_view(view_target, camera, delta)
+
+
+# --- house mode ---------------------------------------------------------------------
+
+## Version A's house from the foundation HouseWorld (public API only, plus a
+## read of its voxel grid to take the voxel furniture out), dressed with
+## PropKit: the plan furniture, doors in the five doorways, barricaded living
+## room windows, a crate, a rain collector, bushes, a candle and a lantern.
+func _house() -> void:
+	world = HouseWorld.new()
+	world.name = "HouseWorld"
+	world.setup(lighting)
+	add_child(world)
+	world.build_new()
+	# Swap the voxel furniture and fixtures (material ids 32..77) for meshes.
+	var g := world.grid
+	for i in g.mat.size():
+		var m := g.mat[i]
+		if m >= 32 and m <= 77:
+			g.clear_index(i)
+	world.chunks.build_all()
+	for m in PropMaterials.cut_materials():
+		world.cut_materials.append(m)
+	for f in HousePlan.FURNITURE:
+		if f["type"] == "rug":
+			continue    # the voxel floor keeps its rugs
+		_put(f["type"], f["rect"], f["height"], f["facing"], {"seed": hash(f["id"])})
+	# doors: [centre x, centre z, facing, wall thickness, opts, open]
+	var doors := [
+		[4.5, 9.0, "S", 0.3, {"seed": 1}, 0.0],
+		[14.0, 6.5, "E", 0.3, {"seed": 2, "style": "plank"}, 0.55],
+		[2.5, 4.0, "S", 0.2, {"seed": 3}, -0.85],
+		[6.5, 4.0, "S", 0.2, {"seed": 4, "damage": 0.6}, 0.0],
+		[10.0, 7.5, "W", 0.2, {"seed": 5}, 0.9],
+	]
+	for dd in doors:
+		var o: Dictionary = (dd[4] as Dictionary).duplicate()
+		o["facing"] = dd[2]
+		var size := Vector3(1.0, 2.1, dd[3])
+		var n := PropKit.make("door", size, o)
+		n.position = Vector3(dd[0], 0, dd[1])
+		PropKit.set_door_open(n, dd[5])
+		add_child(n)
+	# the living room's west window, boarded from inside (planks toward the outside)
+	for z in [6.5, 7.5]:
+		var b := PropKit.make("barricade", Vector3(0.2, 2.0, 1.0), {"facing": "W", "seed": int(z * 10), "damage": 0.4 if z == 7.5 else 0.0})
+		b.position = Vector3(0.26, 0, z)
+		add_child(b)
+	var extra := [
+		["crate", Rect2(11.7, 5.9, 0.9, 0.6), 0.6, "W", {}],
+		["crate", Rect2(12.0, 7.05, 0.6, 0.6), 0.5, "N", {"seed": 3}],
+		["rain_collector", Rect2(15.1, 3.0, 1.0, 1.0), 1.6, "W", {}],
+		["bush", Rect2(-1.8, 2.0, 1.2, 1.0), 0.9, "N", {"seed": 1}],
+		["bush", Rect2(8.2, 9.4, 1.1, 0.9), 0.8, "N", {"seed": 2}],
+		["bush", Rect2(-1.6, 9.3, 1.0, 1.0), 0.7, "N", {"seed": 3}],
+		["wall_ghost", Rect2(-3.1, 5.0, 0.2, 1.0), 2.6, "E", {"tint": Color(0.35, 0.95, 0.45, 0.45)}],
+		["wall_ghost", Rect2(-3.1, 6.0, 0.2, 1.0), 2.6, "E", {"tint": Color(0.35, 0.95, 0.45, 0.45)}],
+	]
+	for e in extra:
+		_put(e[0], e[1], e[2], e[3], e[4])
+	var candle := _put("candle", Rect2(7.6, 5.55, 0.2, 0.2), 0.18, "N", {"light": true})
+	candle.position.y = 0.75
+	var lantern := _put("lantern", Rect2(4.3, 5.55, 0.2, 0.2), 0.32, "N", {"light": true})
+	lantern.position.y = 0.45
+	lights.append(candle)
+	lights.append(lantern)
+	if world.get("yard") != null and world.yard.has_method("update_roof"):
+		world.yard.update_roof(view_target, 0.0, true)
+
+
+func _put(type: String, rect: Rect2, height: float, facing: String, opts: Dictionary) -> Node3D:
+	var o := opts.duplicate()
+	o["facing"] = facing
+	var n := PropKit.make(type, Vector3(rect.size.x, height, rect.size.y), o)
+	var c := rect.get_center()
+	n.position = Vector3(c.x, 0, c.y)
+	add_child(n)
+	return n

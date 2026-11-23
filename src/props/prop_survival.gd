@@ -192,10 +192,18 @@ static func _plank_leaf(mm: PropMesh, lw: float, top: float, rng: RandomNumberGe
 		for by in [b0, b1]:
 			mm.box(Vector3(i * pw + pw * 0.5 - 0.006, by - 0.006, pf - 0.003), Vector3(i * pw + pw * 0.5 + 0.006, by + 0.006, pf))
 	# a scrap-metal patch with screws, and a rope pull
-	mm.set_mat(M.L_METAL, Color(0.6, 0.62, 0.62), 0.45)
 	var px := rng.randf_range(0.05, lw * 0.35)
 	var py := rng.randf_range(0.5, 1.1)
-	mm.obox(Transform3D(Basis(Vector3.BACK, rng.randf_range(-0.08, 0.08)), Vector3(px + 0.16, py + 0.18, pf - 0.003)), Vector3(0.32, 0.36, 0.004))
+	var patch := Transform3D(Basis(Vector3.BACK, rng.randf_range(-0.08, 0.08)), Vector3(px + 0.16, py + 0.18, pf - 0.003))
+	mm.set_mat(M.L_RUST, Color(0.52, 0.55, 0.56), 0.35)
+	mm.obox(patch, Vector3(0.32, 0.36, 0.004))
+	# a bent-over edge and screws
+	mm.set_mat(M.L_METAL, Color(0.44, 0.46, 0.47), 0.4)
+	mm.obox(patch * Transform3D(Basis(Vector3.RIGHT, -0.5), Vector3(0, 0.18, -0.012)), Vector3(0.32, 0.04, 0.004))
+	mm.set_mat(M.L_METAL, NAIL)
+	for sx in [-0.13, 0.13]:
+		for sy in [-0.15, 0.13]:
+			mm.obox(patch * Transform3D(Basis.IDENTITY, Vector3(sx, sy, -0.004)), Vector3(0.014, 0.014, 0.006))
 	mm.set_mat(M.L_PLAIN, Color(0.62, 0.55, 0.42))
 	mm.polyline([Vector3(lw - 0.09, 1.08, pf - 0.002), Vector3(lw - 0.11, 1.0, pf - 0.04), Vector3(lw - 0.09, 0.92, pf - 0.002)], 0.008, 4)
 	mm.set_mat(M.L_METAL, Color(0.4, 0.4, 0.4))
