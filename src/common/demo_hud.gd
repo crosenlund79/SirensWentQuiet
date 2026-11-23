@@ -92,9 +92,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_day_night"):
 		toggle_night()
 	elif event.is_action_pressed("reset_level"):
+		get_viewport().set_input_as_handled()   # before the scene (and this node) goes away
 		reset_level()
+		return
 	elif event.is_action_pressed("back_to_launcher"):
+		get_viewport().set_input_as_handled()
 		back_to_launcher()
+		return
 	elif event.is_action_pressed("toggle_help"):
 		_help.visible = not _help.visible
 	elif event.is_action_pressed("toggle_stats"):
