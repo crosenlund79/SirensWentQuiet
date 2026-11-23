@@ -517,3 +517,19 @@ func test_a_freed_psycho_in_the_roster_is_not_an_error() -> void:
 	check_eq(g.debug_enemy_positions().size(), 0, "positions() skips it")
 	check_eq(g.can_save(), "", "and saving is allowed")
 	await frames(2)
+
+
+func test_settings_opens_from_the_pause_menu_and_returns_to_it() -> void:
+	var g: Node = await _boot()
+	g.debug_open("settings")
+	check_eq(g.debug_modal(), "settings", "settings open")
+	check(tree.paused, "still paused")
+	check(g.debug_ui().settings.visible, "panel visible")
+	g.debug_ui().settings.closed.emit()
+	check_eq(g.debug_modal(), "pause", "back to the pause menu")
+	g.debug_open("settings")
+	await _tap("pause")
+	check_eq(g.debug_modal(), "pause", "Esc in settings returns to the pause menu")
+	await _tap("pause")
+	check_eq(g.debug_modal(), "", "and Esc again resumes")
+	check(not tree.paused, "unpaused")
