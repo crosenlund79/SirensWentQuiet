@@ -64,8 +64,8 @@ const LIGHT_KINDS := {
 	"lantern": {"size": Vector3(0.2, 0.34, 0.2), "flame": 0.2, "energy": 1.9, "range": 6.2, "color": Color(1.0, 0.74, 0.46)},
 }
 ## A few shrubs for the hybrid yard (visual only).
-const BUSHES := [Vector2(-1.2, 0.6), Vector2(-1.0, 7.6), Vector2(1.0, 10.2), Vector2(8.6, 10.0), Vector2(13.2, 10.1),
-	Vector2(15.3, 3.4), Vector2(6.5, -1.1), Vector2(12.8, -1.3), Vector2(-3.6, 4.2), Vector2(17.6, 1.2)]
+const BUSHES := [Vector2(-3.2, -2.4), Vector2(-3.9, 4.0), Vector2(-3.6, 8.6), Vector2(2.0, -2.6), Vector2(9.6, -2.7),
+	Vector2(15.6, -2.2), Vector2(17.6, 2.6), Vector2(17.8, 6.4), Vector2(12.6, 11.8), Vector2(-1.6, 11.8)]
 const BOARD_COLORS := [0x8a6a4a, 0x7b5d40, 0x96785a, 0x6e5640, 0x857565, 0x7f6a55, 0x5f6b6a, 0x8c4a3a]
 
 ## Options, set before build_new() / load_data().
@@ -96,7 +96,7 @@ var upgraded := {}             ## sheathed sections (seg -> true)
 var openings: Array = []       ## door-like gaps: {"axis", "line", "from", "to", "orig"}
 var props: Array = []          ## tall meshes the cutaway hides: {"node", "centre", "half", "body", "cut"}
 var night_lights: Array = []   ## {"node", "light", "base", "phase", "geos"}
-var stats := {"build_ms": 0.0, "save_ms": 0.0, "load_ms": 0.0, "nav_ms": 0.0}
+var stats := {"build_ms": 0.0, "save_ms": 0.0, "load_ms": 0.0, "nav_ms": 0.0, "carve_ms": 0.0}
 
 var _static_solid := PackedByteArray()
 var _opening_clip := {}        # nav cell -> Rect2 that clips its footprint (door gaps ignore their jambs)
@@ -600,7 +600,9 @@ func _hit_voxels(vh: Dictionary, dir: Vector3) -> void:
 		var stretch := PENETRATION if r == WALL_CARVE else 1.0
 		if m == VoxelMat.METAL_SHEET:
 			r *= SHEET_CARVE
+		var t0 := Time.get_ticks_usec()
 		ch = VoxelCarver.carve_sphere(grid, pos + dir * 0.07, r, _shots * 7919 + c.x, dir, stretch, damage_quantum)
+		stats["carve_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	_apply_damage(ch)
 	fx.impact(VoxelMat.IMPACT[m], pos, vh["normal"], dir, ch)
 	Sfx.play(IMPACT_SOUND.get(VoxelMat.IMPACT[m], "impact/plaster"), pos)

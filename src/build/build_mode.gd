@@ -33,6 +33,9 @@ var piece := 0                  ## index in BuildPieces.LIST
 var rot := 0                    ## quarter turns for crates and collectors
 var palette: BuildPalette
 var last_eval := {}
+## Scripted pointer (plan metres) for previews and screenshots; INF = the mouse.
+var debug_pointer := Vector2.INF
+var debug_drag_from := Vector2.INF
 
 var _dragging := false
 var _drag_from := Vector2.INF
@@ -184,10 +187,10 @@ func _process(delta: float) -> void:
 	if not active or world == null:
 		return
 	_eval_age += delta
-	var p := _pointer()
+	var p := _pointer() if debug_pointer == Vector2.INF else debug_pointer
 	if p == Vector2.INF:
 		return
-	var from := _drag_from if _dragging else Vector2.INF
+	var from := _drag_from if _dragging else debug_drag_from
 	var key := _target_key(p, from)
 	if key != _eval_key or _eval_age > 0.3:
 		_eval_key = key

@@ -92,7 +92,8 @@ static func carve_sphere(g: VoxelGrid, center: Vector3, radius: float, seed: int
 
 static func _carve_blocks(g: VoxelGrid, center: Vector3, radius: float, seed: int, dir: Vector3, stretch: float, q: int) -> Dictionary:
 	var ch := empty_change()
-	var r_max := radius * 1.25 * maxf(stretch, 1.0) + g.vs * q * 0.5
+	var grow := g.vs * 0.5 * (q - 1)
+	var r_max := radius * 1.25 * maxf(stretch, 1.0) + grow + g.vs * q * 0.5
 	var has_dir := dir.length() > 0.01
 	var inv_s := 1.0 / maxf(stretch, 0.01)
 	var lo := g.cell_of(center - Vector3.ONE * r_max).clamp(Vector3i.ONE, Vector3i(g.sx - 2, g.sy - 2, g.sz - 2))
@@ -102,10 +103,24 @@ static func _carve_blocks(g: VoxelGrid, center: Vector3, radius: float, seed: in
 	var flags := VoxelMat.FLAGS
 	var hard := VoxelMat.HARDNESS
 	var glass_hit := -1
-	var half := (float(q) * 0.5)
+	var half := float(q) * 0.5
+	# A block goes when its centre is inside the crater, grown by half a voxel
+	# per extra quantum step (`grow`: keeps shots-per-hole of the 0.1 m rule).
 	for by in range(b0.y, b1.y + 1):
 		for bz in range(b0.z, b1.z + 1):
 			for bx in range(b0.x, b1.x + 1):
+				var bc := g.origin + (Vector3(bx * q, by * q, bz * q) + Vector3.ONE * half) * g.vs
+				var rel := bc - center
+				var n := VoxelArt.hash3(bx, by, bz, seed)
+				var thr := radius * (0.78 + 0.44 * n)
+				if has_dir:
+					var along := rel.dot(dir)
+					var depth := clampf((along + radius * 0.5) / (radius * stretch * 1.5), 0.0, 1.0)
+					thr *= 1.1 - 0.3 * depth
+					rel += dir * (along * inv_s - along)
+				var d := rel.length()
+				if d >= thr + grow:
+					continue     # outside even for the softest material
 				# carvable voxels of this block and their mean hardness
 				var cells := PackedInt32Array()
 				var h_sum := 0.0
@@ -126,24 +141,15 @@ static func _carve_blocks(g: VoxelGrid, center: Vector3, radius: float, seed: in
 							h_sum += hard[m]
 				if cells.is_empty() and glass_i < 0:
 					continue
-				var bc := g.origin + (Vector3(bx * q, by * q, bz * q) + Vector3.ONE * half) * g.vs
-				var rel := bc - center
-				var n := VoxelArt.hash3(bx, by, bz, seed)
 				var hm := h_sum / maxf(1.0, cells.size())
-				var thr := radius * (0.78 + 0.44 * n) * (1.0 - hm * 0.45)
-				if has_dir:
-					var along := rel.dot(dir)
-					var depth := clampf((along + radius * 0.5) / (radius * stretch * 1.5), 0.0, 1.0)
-					thr *= 1.1 - 0.3 * depth
-					rel += dir * (along * inv_s - along)
-				if rel.length() < thr:
+				if d < thr * (1.0 - hm * 0.45) + grow:
 					if glass_i >= 0:
 						glass_hit = glass_i
 					for i in cells:
 						_remove(g, i, ch)
 	if glass_hit >= 0:
 		merge(ch, shatter_glass(g, glass_hit))
-	crumble(g, ch, lo - Vector3i.ONE * q, hi + Vector3i.ONE * q)
+	crumble(g, ch, lo - Vector3i.ONE, hi + Vector3i.ONE)
 	return ch
 
 
