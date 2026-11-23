@@ -31,7 +31,7 @@ All panels run with `process_mode = ALWAYS`, take keyboard focus on their first 
 
 ### Settings
 
-Master, sound effects, ambient and music sliders (applied live to the buses of `default_bus_layout.tres`), a fullscreen toggle, and the controls reference (every SPEC §3 action, build keys 1–7 and R, RMB, F3, H/F1 and F10). Values are saved when the panel closes.
+Master, sound effects, ambient and music sliders (applied live to the buses of `default_bus_layout.tres`), a fullscreen toggle, and the controls reference (every SPEC §3 action, build keys 1–9 and R, RMB, F3, H/F1 and F10). Values are saved when the panel closes.
 
 `GameSettings` (static): `load_settings()`, `save_settings() -> Error`, `apply()` (loads once; safe headless), `apply_audio()`, `apply_display()` (only switches the window mode when it differs), `get_value(key)`, `set_value(key, v)` (applies live), `reset()` (tests), `path_override` (tests), `DEFAULTS`.
 

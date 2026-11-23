@@ -16,7 +16,7 @@ const CONTROLS := [
 	["E", "Interact"],
 	["I / Tab", "Inventory"],
 	["B", "Build mode"],
-	["1-7", "Pick a piece (build)"],
+	["1-9", "Build: pieces 1-6, 7 repair, 8 sheathe, 9 demolish"],
 	["R", "Rotate piece (build)"],
 	["RMB", "Cancel / step back (build)"],
 	["Esc", "Pause / close panel"],

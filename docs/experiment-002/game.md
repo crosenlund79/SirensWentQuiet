@@ -31,7 +31,7 @@ No Autoloads. Nothing here depends on `src/modular/` or `src/illustrated/`.
 | E | Use the nearest thing (bed, door, crate, collector), or head into the fog at the lot edge | — |
 | I / Tab | Inventory (pauses) | I closes it |
 | B | Build mode on/off (needs a hammer) | — |
-| R, RMB, 1–7 | Build mode (handled by BuildMode) | — |
+| R, RMB, 1–9 | Build mode (handled by BuildMode): 1 wall, 2 barricade, 3 door, 4 doorway, 5 crate, 6 collector, 7 repair, 8 sheathing, 9 demolish | — |
 | Esc | Closes the open panel, else leaves build mode, else closes the dev menu, else opens the pause menu | — |
 | F10 | Developer menu (does not pause) | Also while paused |
 | Mouse wheel | Zoom | — |
