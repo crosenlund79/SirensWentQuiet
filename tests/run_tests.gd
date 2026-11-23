@@ -52,8 +52,9 @@ func _run() -> void:
 	files.sort()
 	for f in files:
 		var script: GDScript = load(f)
-		if script == null:
-			_failures.append("%s: failed to load" % f)
+		if script == null or not script.can_instantiate():
+			_failures.append("%s: failed to load (parse or compile error)" % f)
+			print("FAIL  %s: failed to load (parse or compile error)" % f)
 			continue
 		for m in script.get_script_method_list():
 			var name: String = m["name"]

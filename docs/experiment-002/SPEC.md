@@ -108,7 +108,7 @@ Number keys 1–7 select pieces in build mode; BuildMode reads them as raw keys,
 - `bandage`: health +20
 - `medkit`: health +50
 - Tools: `hammer` (needed to build and repair), `crowbar` (stockroom and forced-entry options), `flashlight` (needed for the Medical Clinic; lowers risk in dark places), `backpack` (+50 % loot).
-- Food, water, ammo and medical items have no cap.
+- Tools are capped at 1 each (a second crowbar ends up in `left_behind`). Food, water, ammo and medical items have no cap.
 
 **Starting inventory:** ammo 9, canned_food 3, snacks 2, water 4, wood 6, nails 12, bandage 1, hammer 1.
 
@@ -189,6 +189,10 @@ func invasion_due_soon() -> bool       # HUD warning window
 func invasion_size() -> int ; func invasion_enemy_hp() -> int ; func invasion_speed_scale() -> float ; func enemy_damage() -> float
 func start_invasion() -> void ; func end_invasion(survived: bool) -> void
 func apply_expedition(result: Dictionary) -> Array    # applies once (guarded by result["id"])
+# Added by S (see docs/experiment-002/survival.md): warnings(), can_sleep(), can_use(id), on_dawn(collectors, at),
+# roll_straggler(day) -> ABSOLUTE total_minutes or -1, summary(), force_invasion_now(), next_invasion_text(),
+# apply_expedition_report(result). Answer "invasion_due" with start_invasion(); call on_dawn per dawn event;
+# plan_sleep may end early with reason "straggler"; a restored state never has an invasion running.
 func days_survived() -> int
 func to_dict() -> Dictionary ; static func from_dict(d: Dictionary) -> GameState  # null if invalid
 ```
@@ -199,13 +203,13 @@ func to_dict() -> Dictionary ; static func from_dict(d: Dictionary) -> GameState
 class_name SaveGame
 const PATH := "user://savegame.dat" ; const SCHEMA := 1
 static var path_override := ""         # tests
-static func write(data: Dictionary) -> Error  # adds schema/game/saved_at; tmp file + verify + rename; keeps .bak
+static func write(data: Dictionary) -> Error  # adds schema/game_id/saved_at; tmp file + verify + rename; keeps .bak
 static func read() -> Dictionary              # {"ok": bool, "error": String, "data": Dictionary}; falls back to .bak
 static func info() -> Dictionary              # {"exists", "valid", "schema", "saved_at", "summary"}
 static func delete_save() -> void
 ```
 
-The game composes the save as `{"summary": {...}, "state": GameState.to_dict(), "world": HouseWorld.save_data(), "game": {player, director, ...}}`. Godot binary Variant (`store_var`, no objects) inside the file. Missing or invalid data → `ok: false` with a readable error, never a crash.
+The game composes the save as `{"summary": {...}, "state": GameState.to_dict(), "world": HouseWorld.save_data(), "game": {player, director, ...}}`. Godot binary Variant (`store_var`, no objects) inside the file. Missing or invalid data → `ok: false` with a readable error, never a crash. A valid save needs `state` to be a Dictionary; `world` and `game` default to `{}`. `read()` may return `restored_from_backup: true` with a `backup_reason` (show it via `GameLaunch.notice`). `SaveGame.last_error` explains a failed `write()`.
 
 **Limitation (by design):** you can't save while enemies are alive, and autosave only happens at safe transitions (wake / new day, return from an expedition, end of an invasion). Live encounters are therefore never saved. Invasions are scheduled by time, so a save before one restores it correctly.
 
