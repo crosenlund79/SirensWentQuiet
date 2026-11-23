@@ -252,22 +252,34 @@ class Tracer extends Node2D:
 		draw_line(tail, head, Color(1.0, 0.93, 0.75, 0.9 * k), 1.6)
 
 
-## Persistent floor marks (plaster crumbs, splinters, glass glints, drops):
-## one node draws them all.
+## Persistent floor marks (plaster crumbs, splinters, glass glints, drops).
+## Stored in small chunks so adding a mark only redraws the newest chunk.
 class Specks extends Node2D:
-	const MAX := 5000
+	const CHUNK := 300
+	const MAX_CHUNKS := 16
+	var _current: SpeckChunk
+
+	func add(p: Vector2, r: float, c: Color) -> void:
+		if _current == null or _current.count() >= CHUNK:
+			_current = SpeckChunk.new()
+			add_child(_current)
+			if get_child_count() > MAX_CHUNKS:
+				get_child(0).queue_free()
+		_current.add(p, r, c)
+
+
+class SpeckChunk extends Node2D:
 	var _p := PackedVector2Array()
 	var _r := PackedFloat32Array()
 	var _c := PackedColorArray()
+
+	func count() -> int:
+		return _p.size()
 
 	func add(p: Vector2, r: float, c: Color) -> void:
 		_p.append(p)
 		_r.append(r)
 		_c.append(c)
-		if _p.size() > MAX:
-			_p = _p.slice(500)
-			_r = _r.slice(500)
-			_c = _c.slice(500)
 		queue_redraw()
 
 	func _draw() -> void:
