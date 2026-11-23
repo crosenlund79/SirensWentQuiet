@@ -489,10 +489,13 @@ func test_bed_prompt_and_panels() -> void:
 	check_eq(g.debug_state().total_minutes, t0, "no clock while paused")
 	await _tap("pause")
 	check_eq(g.debug_modal(), "", "Esc resumes")
-	g.debug_ui().pause_menu.save_requested.emit()
 	g.debug_open("pause")
+	SaveGame.delete_save()
 	g.debug_ui().pause_menu.save_requested.emit()
-	check_eq(g.last_toast, "Game saved.", "Save from the pause menu")
+	check(SaveGame.info()["valid"], "Save from the pause menu writes the save")
+	var status: Node = g.debug_ui().pause_menu.find_child("Status", true, false)
+	if status is Label:
+		check_eq((status as Label).text, "Game saved.", "and the menu reports it (report_save)")
 	g.debug_ui().pause_menu.main_menu_requested.emit()
 	check_eq(g.left_to, GameLaunch.MENU_SCENE, "Main Menu leaves")
 	g.debug_close()                  # (stay_in_scene: still here) resume
@@ -521,15 +524,16 @@ func test_a_freed_psycho_in_the_roster_is_not_an_error() -> void:
 
 func test_settings_opens_from_the_pause_menu_and_returns_to_it() -> void:
 	var g: Node = await _boot()
-	g.debug_open("settings")
-	check_eq(g.debug_modal(), "settings", "settings open")
+	g.debug_open("settings")               # the pause menu's own Settings button
+	await frames(2)
+	var pause: Node = g.debug_ui().pause_menu
+	var panel: Node = pause.settings_panel() if pause.has_method("settings_panel") else null
+	check(panel != null and panel.is_open, "the pause menu's built-in settings panel is open")
+	check_eq(g.debug_modal(), "pause", "the game stays in the pause state")
 	check(tree.paused, "still paused")
-	check(g.debug_ui().settings.visible, "panel visible")
-	g.debug_ui().settings.closed.emit()
-	check_eq(g.debug_modal(), "pause", "back to the pause menu")
-	g.debug_open("settings")
 	await _tap("pause")
-	check_eq(g.debug_modal(), "pause", "Esc in settings returns to the pause menu")
+	check(panel == null or not panel.is_open, "Esc closes settings")
+	check_eq(g.debug_modal(), "pause", "back on the pause menu")
 	await _tap("pause")
-	check_eq(g.debug_modal(), "", "and Esc again resumes")
+	check_eq(g.debug_modal(), "", "Esc again resumes (resume_requested)")
 	check(not tree.paused, "unpaused")

@@ -70,5 +70,5 @@ func close_all() -> void:
 	for p in [pause_menu, settings, inventory, sleep_dialog]:
 		if is_open(p):
 			close(p)
-	if dev_menu != null and dev_menu.visible:
+	if dev_menu != null and is_open(dev_menu):
 		dev_menu.toggle()

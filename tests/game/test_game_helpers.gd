@@ -56,16 +56,18 @@ func test_save_composition_round_trip_and_validation() -> void:
 	check_eq(p["player_pos"], Vector3(3.5, 0, 7.25), "position back")
 	check_eq(p["yaw"], 0.75, "yaw back")
 	check_eq((p["state"] as GameState).clock_text(), s.clock_text(), "state back")
-	# The foundation SaveGame overwrote "game" with its file id: the mirror keeps the player.
-	d["game"] = "sirens_went_quiet"
-	check_eq(RunSave.parse(d)["player_pos"], Vector3(3.5, 0, 7.25), "game_data mirror")
+	check(not d.has("game_data"), "no stub-era mirror any more")
+	var old := d.duplicate(true)            # a stub-era save: "game" overwritten, data in "game_data"
+	old["game_data"] = old["game"]
+	old["game"] = "sirens_went_quiet"
+	check_eq(RunSave.parse(old)["player_pos"], Vector3(3.5, 0, 7.25), "game_data still read as a fallback")
 	check(not RunSave.parse({"state": {"x": 1}, "world": {}})["ok"], "bad state rejected")
 	check(not RunSave.parse({"state": s.to_dict()})["ok"], "missing world rejected")
 	var dead := GameState.new_run(5)
 	dead.damage(500.0, "test")
 	check(not RunSave.parse({"state": dead.to_dict(), "world": {}})["ok"], "a finished run can't be continued")
 	var odd := d.duplicate(true)
-	odd["game_data"]["player"]["pos"] = [NAN, 1.0]
+	odd["game"]["player"]["pos"] = [NAN, 1.0]
 	check(RunSave.parse(odd)["ok"] and RunSave.parse(odd)["player_pos"] == null, "bad position: ignored, not fatal")
 
 

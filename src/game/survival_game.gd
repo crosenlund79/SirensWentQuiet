@@ -63,7 +63,7 @@ var last_expedition := {}
 var shots_fired := 0
 
 var _ok := false
-var _modal := ""                       ## "" | intro | pause | settings | inventory | sleep | sleeping | expedition | death
+var _modal := ""                       ## "" | intro | pause | inventory | sleep | sleeping | expedition | death
 var _loaded := {}
 var _trigger := false
 var _fire_cd := 0.0
@@ -79,6 +79,7 @@ var _exit_at := Vector3.ZERO
 var _stragglers_done := {}             ## night (day number) -> true
 var _death_handled := false
 var _start_hour := -1.0
+var _backup_notice := ""
 
 
 # --- launch ----------------------------------------------------------------------------
@@ -129,6 +130,9 @@ func _launch() -> String:
 	var r: Dictionary = SaveGame.read()
 	if not r.get("ok", false):
 		return str(r.get("error", "unknown error"))
+	if r.get("restored_from_backup", false):
+		_backup_notice = "The save was damaged (%s), so the backup was loaded." % str(r.get("backup_reason", "unknown reason"))
+		GameLaunch.notice = _backup_notice
 	var p: Dictionary = RunSave.parse(r.get("data", {}))
 	if not p["ok"]:
 		return p["error"]
@@ -192,9 +196,7 @@ func _assemble() -> void:
 	ui.pause_menu.resume_requested.connect(_resume)
 	ui.pause_menu.save_requested.connect(_on_save_requested)
 	ui.pause_menu.main_menu_requested.connect(request_main_menu)
-	if ui.pause_menu.has_signal("settings_requested"):
-		ui.pause_menu.connect("settings_requested", _open_settings)
-	ui.settings.closed.connect(_on_settings_closed)
+	# settings_requested stays unconnected: the pause menu opens its own SettingsPanel.
 	ui.inventory.closed.connect(_on_inventory_closed)
 	ui.sleep_dialog.sleep_chosen.connect(_on_sleep_chosen)
 	ui.sleep_dialog.closed.connect(_on_sleep_closed)
@@ -243,6 +245,8 @@ func _begin_continue() -> void:
 	if state.run.get("invasion_active", false):
 		_start_invasion()     # defensive: saves are refused during invasions
 	toast("Day %d, %s" % [state.day(), state.clock_text()])
+	if _backup_notice != "":
+		toast(_backup_notice, "warn")
 
 
 func _place_player(pos: Vector3, yaw: float) -> void:
@@ -329,7 +333,7 @@ func _on_input(event: InputEvent) -> void:
 	if _modal != "" or state.dead:
 		return
 	if event.is_action_pressed("fire"):
-		if _can_fire():
+		if _can_fire() and get_viewport().gui_get_hovered_control() == null:
 			_trigger = true
 	elif event.is_action_pressed("interact"):
 		_handled()
@@ -369,7 +373,7 @@ func _process_events(events: Array) -> void:
 	for e in events:
 		match str(e.get("type", "")):
 			"dawn":
-				_on_dawn()
+				_on_dawn(float(e.get("at", state.total_minutes)))
 				save_reason = "dawn"
 			"dusk":
 				toast("Dusk. It will be dark soon.", "warn")
@@ -383,15 +387,15 @@ func _process_events(events: Array) -> void:
 		_autosave(save_reason)
 
 
-func _on_dawn() -> void:
+func _on_dawn(at: float) -> void:
 	var collectors := world.count_objects("rain_collector")
 	var water := 0
 	if state.has_method("on_dawn"):
-		var r = state.on_dawn(collectors)
-		if typeof(r) == TYPE_INT or typeof(r) == TYPE_FLOAT:
+		var r = state.on_dawn(collectors, at)      # {"water": n} or {}
+		if typeof(r) == TYPE_DICTIONARY:
+			water = int(r.get("water", 0))
+		elif typeof(r) == TYPE_INT or typeof(r) == TYPE_FLOAT:
 			water = int(r)
-		elif typeof(r) == TYPE_STRING and r != "":
-			toast(r, "good")
 	elif collectors > 0:
 		water = state.inventory.add("water", collectors)
 	if water > 0:
@@ -486,6 +490,8 @@ func _check_stragglers(t0: float, t1: float) -> void:
 # --- combat ----------------------------------------------------------------------------
 
 func _can_fire() -> bool:
+	if ui.intro != null and ui.intro.get("is_playing") == true:
+		return false
 	return _ok and _modal == "" and not state.dead and player.input_enabled and not build.handles_input()
 
 
@@ -624,9 +630,6 @@ func _on_escape() -> void:
 	match _modal:
 		"pause":
 			_resume()
-		"settings":
-			GameUI.close(ui.settings)
-			_on_settings_closed()
 		"inventory":
 			GameUI.close(ui.inventory)
 			_on_inventory_closed()
@@ -636,7 +639,7 @@ func _on_escape() -> void:
 		"":
 			if build.active:
 				_set_build(false)
-			elif ui.dev_menu.visible:
+			elif GameUI.is_open(ui.dev_menu):
 				ui.dev_menu.toggle()
 			elif not state.dead:
 				_set_modal("pause", true)
@@ -649,21 +652,13 @@ func _resume() -> void:
 		_set_modal("", false)
 
 
+## Synchronous, so "Save and quit" knows the result before main_menu_requested.
 func _on_save_requested() -> void:
 	var r := save_now()
-	toast("Game saved." if r == "" else r, "good" if r == "" else "warn")
-
-
-func _open_settings() -> void:
-	GameUI.close(ui.pause_menu)
-	_set_modal("settings", true)
-	ui.settings.open()
-
-
-func _on_settings_closed() -> void:
-	if _modal == "settings":
-		_set_modal("pause", true)
-		ui.pause_menu.open(can_save())
+	if ui.pause_menu.has_method("report_save"):
+		ui.pause_menu.report_save(r)
+	else:
+		toast("Game saved." if r == "" else r, "good" if r == "" else "warn")
 
 
 func _open_inventory() -> void:
@@ -749,11 +744,12 @@ func _sleep(minutes: float) -> Dictionary:
 	_set_modal("sleeping", true)
 	var plan: Dictionary = state.plan_sleep(minutes).duplicate()
 	var t0 := state.total_minutes
-	var s := _straggler_between(t0, t0 + float(plan["minutes"]))
-	if s >= 0.0:
-		plan["minutes"] = s - t0
-		plan["interrupted"] = true
-		plan["reason"] = "straggler"
+	if not state.has_method("roll_straggler"):     # GameState's plan_sleep stops at stragglers itself
+		var s := _straggler_between(t0, t0 + float(plan["minutes"]))
+		if s >= 0.0:
+			plan["minutes"] = s - t0
+			plan["interrupted"] = true
+			plan["reason"] = "straggler"
 	Sfx.play("player/sleep")
 	await ui.fade.fade_to(1.0, fade_time)
 	var events: Array = state.advance(float(plan["minutes"]), true)
@@ -770,7 +766,8 @@ func _sleep(minutes: float) -> Dictionary:
 	if not state.dead and _modal == "sleeping":
 		_set_modal("", false)
 		if plan["interrupted"]:
-			toast("You wake to something at the door.", "bad")
+			var line := "You wake to something at the door." if plan["reason"] != "straggler" else str(plan.get("text", "Something is moving outside."))
+			toast(line, "bad")
 		else:
 			_autosave("wake")
 	sleep_finished.emit(plan)
@@ -831,6 +828,7 @@ func _on_died(cause: String) -> void:
 	if build.active:
 		build.set_active(false)
 	ui.close_all()
+	hud.set_mode("hidden")
 	_set_modal("death", false)
 	Sfx.play("player/death")
 	SaveGame.delete_save()     # the run is over
@@ -877,7 +875,7 @@ func save_now() -> String:
 	var data: Dictionary = RunSave.compose(state, world.save_data(), player.global_position, player.rig.rotation.y, extra)
 	var err := SaveGame.write(data)
 	if err != OK:
-		return "Saving failed (%s)." % error_string(err)
+		return "Saving failed: %s" % (SaveGame.last_error if SaveGame.last_error != "" else error_string(err))
 	return ""
 
 
@@ -1042,10 +1040,11 @@ func debug_open(panel: String) -> void:
 		"settings":
 			if _modal == "":
 				_on_escape()
-			if _modal == "pause":
-				_open_settings()
+			var b: Node = ui.pause_menu.find_child("Settings", true, false)
+			if _modal == "pause" and b is BaseButton:
+				(b as BaseButton).pressed.emit()
 		"dev":
-			if not ui.dev_menu.visible:
+			if not GameUI.is_open(ui.dev_menu):
 				ui.dev_menu.toggle()
 		"build":
 			_set_build(true)

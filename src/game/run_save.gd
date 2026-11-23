@@ -4,8 +4,7 @@ extends RefCounted
 ##
 ## Layout: {"summary", "state": GameState.to_dict(), "world": HouseWorld.save_data(),
 ##          "game": {"version", "player": {"pos": [x, z], "yaw"}, "time_scale", "director"}}
-## "game_data" mirrors "game": the foundation SaveGame.write() overwrites the
-## "game" key with its file id, so the mirror keeps the player data either way.
+## (Saves from the foundation stub era kept "game" in "game_data"; still read.)
 
 const VERSION := 1
 
@@ -22,8 +21,7 @@ static func summary_of(state: GameState) -> Dictionary:
 static func compose(state: GameState, world_data: Dictionary, player_pos: Vector3, yaw: float, extra := {}) -> Dictionary:
 	var game := {"version": VERSION, "player": {"pos": [player_pos.x, player_pos.z], "yaw": yaw}}
 	game.merge(extra, true)
-	return {"summary": summary_of(state), "state": state.to_dict(), "world": world_data,
-		"game": game, "game_data": game.duplicate(true)}
+	return {"summary": summary_of(state), "state": state.to_dict(), "world": world_data, "game": game}
 
 
 ## Returns {"ok", "error", "state": GameState, "world": Dictionary,
