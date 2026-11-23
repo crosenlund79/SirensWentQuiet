@@ -117,6 +117,14 @@ func set_night(on: bool, instant := false) -> void:
 	_tween.tween_method(_apply, night_amount, 1.0 if on else 0.0, TWEEN_TIME)
 
 
+## Survival: drive the blend from the world clock (0 day .. 1 night), no tween.
+func set_amount(t: float) -> void:
+	if _tween != null and _tween.is_valid():
+		_tween.kill()
+	night = t > 0.5
+	_apply(clampf(t, 0.0, 1.0))
+
+
 func _apply(t: float) -> void:
 	night_amount = t
 	var e := environment

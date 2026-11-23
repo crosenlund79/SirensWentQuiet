@@ -1,0 +1,45 @@
+class_name SurvivalTuning
+extends RefCounted
+## Numbers for the survival loop (SPEC §6). Owner: S. Per game hour unless noted.
+
+# --- time ---------------------------------------------------------------------
+const MINUTES_PER_SECOND := 1.0        ## game minutes per real second (dev menu can scale)
+const START_MINUTE := 7.0 * 60.0       ## Day 1, 07:00
+const DAWN_MINUTE := 6.0 * 60.0
+const DUSK_MINUTE := 20.0 * 60.0
+const NIGHT_RAMP_DOWN := Vector2(5.0 * 60.0, 7.0 * 60.0)    ## night -> day
+const NIGHT_RAMP_UP := Vector2(19.5 * 60.0, 21.0 * 60.0)    ## day -> night
+const EXPEDITION_DEPART_FROM := 5.0 * 60.0
+const EXPEDITION_DEPART_UNTIL := 18.0 * 60.0
+const EXPEDITION_RETURN_BY := 20.0 * 60.0
+
+# --- stats --------------------------------------------------------------------
+const HUNGER_PER_HOUR := 1.25
+const HYDRATION_PER_HOUR := 1.9
+const ENERGY_PER_HOUR := 4.5
+const SLEEP_DECAY_SCALE := 0.6         ## hunger/hydration decay while asleep
+const SLEEP_ENERGY_PER_HOUR := 12.5
+const STARVING_DAMAGE := 4.0           ## health/h at hunger 0
+const DEHYDRATED_DAMAGE := 6.0         ## health/h at hydration 0
+const WARN_LEVEL := 15.0
+const REGEN_AWAKE := 1.5
+const REGEN_ASLEEP := 3.0
+const REGEN_THRESHOLD := 50.0
+const EXHAUSTED_SPEED := 0.75          ## energy <= WARN_LEVEL
+const SPENT_SPEED := 0.6               ## energy <= 0
+
+const START_STATS := {"health": 100.0, "hunger": 75.0, "hydration": 70.0, "energy": 85.0}
+const START_ITEMS := {"ammo": 9, "canned_food": 3, "snacks": 2, "water": 4, "wood": 6, "nails": 12, "bandage": 1, "hammer": 1}
+
+# --- invasions ----------------------------------------------------------------
+const FIRST_INVASION_DAY := 3
+const INVASION_HOUR := 22.0
+const INVASION_INTERVAL_DAYS := 3
+const INVASION_BASE_SIZE := 3
+const INVASION_SIZE_STEP := 2
+const INVASION_MAX_SIZE := 11
+const INVASION_SPAWN_GAP := Vector2(25.0, 40.0)   ## real seconds between invaders
+const INVASION_WARNING_HOUR := 12.0
+const STRAGGLER_CHANCE := 0.35
+const STRAGGLER_FROM_DAY := 2
+const ENEMY_DAMAGE := 12.0

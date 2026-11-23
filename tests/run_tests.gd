@@ -7,14 +7,40 @@ extends SceneTree
 ## Runs every method named test_* in every res://tests/**/test_*.gd script.
 ## Test scripts extend res://tests/test_case.gd. Methods may await.
 ## Exit code 0 = all passed, 1 = failures.
+## A GDScript runtime error during a test (which aborts the test function
+## silently) is caught by a Logger and fails that test.
 
 var _filter := ""
 var _failures := PackedStringArray()
 var _passed := 0
 var _skipped := PackedStringArray()
+var _errors := ErrorCatcher.new()
+
+
+class ErrorCatcher extends Logger:
+	var _lock := Mutex.new()
+	var _seen := PackedStringArray()
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _backtraces: Array) -> void:
+		if error_type != Logger.ERROR_TYPE_SCRIPT:
+			return
+		_lock.lock()
+		_seen.append("%s (%s:%d %s)" % [rationale if rationale != "" else code, file.get_file(), line, function])
+		_lock.unlock()
+
+	func _log_message(_message: String, _error: bool) -> void:
+		pass
+
+	func take() -> PackedStringArray:
+		_lock.lock()
+		var out := _seen.duplicate()
+		_seen.clear()
+		_lock.unlock()
+		return out
 
 
 func _initialize() -> void:
+	OS.add_logger(_errors)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--filter="):
 			_filter = a.trim_prefix("--filter=")
@@ -40,8 +66,11 @@ func _run() -> void:
 			t.tree = self
 			t.test_id = id
 			var t0 := Time.get_ticks_msec()
+			_errors.take()
 			await t.call(name)
 			await t.cleanup()
+			for e in _errors.take():
+				t.failures.append("%s: script error: %s" % [id, e])
 			var ms := Time.get_ticks_msec() - t0
 			if t.skipped != "":
 				_skipped.append("%s (%s)" % [id, t.skipped])

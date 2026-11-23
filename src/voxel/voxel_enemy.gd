@@ -12,6 +12,7 @@ var player: Node3D
 var rig: VoxelRig
 var hp := Tuning.ENEMY_HP
 var alive := true
+var speed_scale := 1.0             ## survival: invasion difficulty
 var _stagger := 0.0
 var _knock := Vector3.ZERO
 var _dead_t := 0.0
@@ -104,7 +105,7 @@ func _physics_process(delta: float) -> void:
 		velocity = _knock
 		_knock = _knock.move_toward(Vector3.ZERO, delta * 8.0)
 	else:
-		velocity = Vector3(move.x, 0, move.y) * Tuning.ENEMY_SPEED
+		velocity = Vector3(move.x, 0, move.y) * Tuning.ENEMY_SPEED * speed_scale
 	move_and_slide()
 	global_position.y = 0.0
 	if face.length() > 0.01:

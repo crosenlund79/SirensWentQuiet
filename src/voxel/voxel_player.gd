@@ -13,11 +13,12 @@ var weapon_light: SpotLight3D
 var self_light: OmniLight3D
 var muzzle_light: OmniLight3D
 var input_enabled := true
+var speed_scale := 1.0             ## survival: energy / exhaustion (GameState.move_speed_scale)
 
 
 func _ready() -> void:
 	collision_layer = 1 << 2            # player
-	collision_mask = 1 | 2 | 16         # environment, walls, low obstacles
+	collision_mask = 1 | 2 | 16 | 32    # environment, walls, low obstacles, lot boundary
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	wall_min_slide_angle = 0.0
 	var cs := CollisionShape3D.new()
@@ -71,7 +72,7 @@ func _physics_process(delta: float) -> void:
 	var dir := Vector2.ZERO
 	if input_enabled:
 		dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	var want := Vector3(dir.x, 0, dir.y) * Tuning.PLAYER_SPEED
+	var want := Vector3(dir.x, 0, dir.y) * Tuning.PLAYER_SPEED * speed_scale
 	var v := Vector3(velocity.x, 0, velocity.z)
 	v = v.move_toward(want, Tuning.PLAYER_ACCEL * delta)
 	velocity = v
