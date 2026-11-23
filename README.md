@@ -1,37 +1,40 @@
-# Godot / Claude Starter Pack — v1.2
+# Sirens Went Quiet
 
-Reusable **development instructions and design conventions** for future Godot 4 projects; this is **not a game, a functioning asset loader, or an implemented test framework**. We improve this pack with the user, ChatGPT and Claude before promoting a reviewed version to `main`.
+*Working title.* A modern-day, post-event survival game centred on one house. This repository currently holds **Visual Technology Experiment 001: three ways to build a destructible house**. It's three small playable showcases of the same scenario, built to compare technologies. It is **not** the game yet.
 
-## Contents
+| | Version | Technique |
+|---|---|---|
+| **A** | True 3D Voxels | Volumetric walls, chunked mesh rebuilds, irregular holes |
+| **B** | Modular 3D | Reusable grid-aligned wall/door/window/furniture pieces with damage states |
+| **C** | Illustrated 2D | Top-down ink-and-wash illustration with destructible wall sections |
 
-| File | Responsibility |
-| --- | --- |
-| `CLAUDE.md` | Claude's entry point, preflight and work modes |
-| `docs/GODOT_CLAUDE_GUIDELINES.md` | Single authority for engineering, source control, scope and delivery rules |
-| `docs/DESIGN_WORKFLOW.md` | User / ChatGPT / Claude decision and handoff process |
-| `docs/PROJECT_BRIEF.md` | Single record for each game's design and approved current objective |
-| `docs/BACKLOG.md` | Deferred observations, never implicit authorization |
-| `assets/README.md` | Runtime art/audio override contract (`template_` fallbacks) |
-| `custom/` | User-owned override folder (`graphics/`, `audio/`); `.gdignore` keeps Godot from importing/packing it |
-| `tests/README.md` | Module, integration, manual and environment test expectations |
-| `.gitignore` | Editor-generated, local and binary artifacts ignored by default |
+## Run it
 
-## Pilot this master pack
+1. Install **Godot 4.7** (developed with 4.7.2 stable, standard build, Forward+).
+2. Open this folder in Godot (`project.godot`), or run `godot --path .` from here.
+3. Press **F5**. The launcher appears: click a version or press **1 / 2 / 3**.
 
-1. Review the rules and check for gaps or needless complexity with Claude Code in **review-only mode**.
-2. Approve changes explicitly. Keep review edits on a working branch, then inspect and merge to `main` only after approval.
-3. When stable, optionally mark `_StarterGodotPack` as a **GitHub template repository**.
-4. For a new project, choose **Use this template**, then complete `docs/PROJECT_BRIEF.md` and hold a design review **before any game code**.
+Controls in every version: **WASD** move · **mouse** aim · **LMB** (hold) shoot · **wheel** zoom · **N** day/night · **R** reset · **Esc** back to the launcher · **H** hide help · **F3** stats.
 
-### Starter review prompt
+The player cannot die. Shoot walls to open holes: you can walk through them and the "psychos" will use them too.
 
-> This is the `_StarterGodotPack` reusable template, not a game. Read `CLAUDE.md` and all referenced guidance. Review for contradictory rules, real Godot 4 pitfalls, unnecessary complexity and scope creep. Propose minimal improvements with trade-offs. Do not edit files, create branches, generate game code or export a build without my explicit approval.
+## Replace the art
 
-## Reuse in a game repository
+Claude-made fallback art lives in `assets/graphics/**/template_*.png`. To use your own, put a PNG with the same logical name (without `template_`) in `custom/graphics/` (same subfolder), e.g. `custom/graphics/illustrated/floor_wood.png`, and restart the game. The same works with a `custom/` folder next to an exported Windows/Linux executable. Details: `assets/README.md`.
 
-- **Replace this README with the game's README.** Preserve `CLAUDE.md`, the rules and relevant conventions; fill out `docs/PROJECT_BRIEF.md` only with user-confirmed decisions.
-- `src/<module>/`, automated tests and the minimal asset resolver are introduced when an approved game objective needs them—not prebuilt speculatively in this template.
-- The runtime override behavior (Windows/Linux, effective after restarting the game) is required in games that use replaceable assets. This documentation **does not itself implement that loader**; the first relevant implementation must test it.
-- Template updates do **not** automatically flow into existing games. Review changes case by case.
+## Docs
 
-**Operating principle:** Build what's needed. Test it. Preserve what works. Report what was discovered. Then stop.
+- `docs/experiment-001/COMPARISON.md`: the comparison report (results of the experiment)
+- `docs/experiment-001/SPEC.md`: the shared scenario, numbers and contracts
+- `docs/PROJECT_BRIEF.md`: confirmed decisions and the approved objective
+- `CLAUDE.md`, `docs/GODOT_CLAUDE_GUIDELINES.md`, `docs/DESIGN_WORKFLOW.md`: how work on this project is done (from the starter pack)
+- `docs/BACKLOG.md`: observations deferred during work (not approved tasks)
+
+## Tests
+
+```bash
+godot --headless --path . --import
+godot --headless --fixed-fps 60 --path . -s res://tests/run_tests.gd
+```
+
+Screenshots through the real renderer (Linux, Xvfb + software Vulkan): `tools/capture.sh <res://scene.tscn> <out.png> [seconds] [--night]`.
