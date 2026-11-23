@@ -144,6 +144,20 @@ func test_restored_overdue_invasion_is_reported_once() -> void:
 	var ev := t.advance(1.0)
 	check_eq(_count(ev, "invasion_due"), 1, "late invasion reported on the next advance")
 	check_eq(_count(t.advance(60.0), "invasion_due"), 0, "only once")
+	t.start_invasion()                     # saved mid-invasion (the game blocks this, but be safe)
+	t = GameState.from_dict(t.to_dict())
+	t.cheats["invulnerable"] = true
+	check(not t.run["invasion_active"], "restored without a running invasion")
+	check_eq(_count(t.advance(1.0), "invasion_due"), 1, "it is due again")
+	t.start_invasion()
+	t.end_invasion(true)
+	check_eq(t.run["next_invasion_at"], DAY6_22, "and the schedule moves on")
+	check_eq(t.run["invasions_done"], 1, "counted once")
+	s = _state()
+	s.advance(DAY3_22 - s.total_minutes)   # announced, never started, then saved
+	t = GameState.from_dict(s.to_dict())
+	check_eq(_count(t.advance(1.0), "invasion_due"), 1, "an announced invasion is reported again after loading")
 	s.total_minutes = DAY3_22 + 20 * 60.0  # long stale: rescheduled instead of a daytime attack
+	s.run["invasion_announced"] = false
 	t = GameState.from_dict(s.to_dict())
 	check_eq(t.run["next_invasion_at"], DAY6_22, "stale schedule moved to the next slot")

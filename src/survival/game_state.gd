@@ -12,7 +12,7 @@ signal died(cause: String)
 const T := preload("res://src/survival/survival_tuning.gd")
 const DAY_MIN := 1440.0
 const SNAP_MIN := 0.001           ## an advance ending this close before a boundary lands on it
-const STALE_INVASION_MIN := 8.0 * 60.0   ## a restored, unannounced invasion overdue by more is rescheduled
+const STALE_INVASION_MIN := 8.0 * 60.0   ## a restored invasion overdue by more is rescheduled, not re-fired
 const MAX_TOTAL_MINUTES := 3650.0 * DAY_MIN
 const LOG_SIZE := 40
 const APPLIED_IDS_KEPT := 64
@@ -342,13 +342,15 @@ func use_item(id) -> String:
 	return "%s: %s" % [d["name"], ", ".join(parts)]
 
 
-## Rain collectors: +RAIN_WATER_PER_COLLECTOR water each, once per day. Returns
-## what was added ({"water": n}, or {} if nothing / already collected today).
-func on_dawn(collectors: int) -> Dictionary:
+## Rain collectors: +RAIN_WATER_PER_COLLECTOR water each, once per day. Pass the
+## dawn event's "at" so every dawn of a multi-day skip counts (default: today).
+## Returns what was added ({"water": n}, or {} if nothing / already collected).
+func on_dawn(collectors: int, at := -1.0) -> Dictionary:
 	var n := clampi(collectors, 0, 100) * T.RAIN_WATER_PER_COLLECTOR
-	if dead or n <= 0 or int(run.get("dawn_collected_day", 0)) >= day():
+	var d := day() if not (at >= 0.0 and at <= total_minutes) else int(floorf(at / DAY_MIN)) + 1
+	if dead or n <= 0 or int(run.get("dawn_collected_day", 0)) >= d:
 		return {}
-	run["dawn_collected_day"] = day()
+	run["dawn_collected_day"] = d
 	var added := inventory.add("water", n)
 	if added > 0:
 		_log("Rain collectors: +%d water" % added)
@@ -633,13 +635,15 @@ static func _clean_run(r: Dictionary, now: float) -> Dictionary:
 	var seed_f := _finite_or_nan(r.get("seed"))
 	out["seed"] = (int(r["seed"]) if typeof(r.get("seed")) == TYPE_INT else (0 if is_nan(seed_f) else int(clampf(seed_f, -2e9, 2e9)))) & 0x7fffffff
 	out["invasions_done"] = clampi(Inventory.to_count(r.get("invasions_done", 0)), 0, 1000)
-	out["invasion_active"] = _flag(r.get("invasion_active"))
-	out["invasion_announced"] = _flag(r.get("invasion_announced")) or out["invasion_active"]
-	out["invasion_forced"] = _flag(r.get("invasion_forced")) and not out["invasion_announced"]
+	# live encounters are never saved: a restored run has no invasion running,
+	# and one that was due (announced or not) is reported again by the next advance
+	out["invasion_active"] = false
+	out["invasion_announced"] = false
+	out["invasion_forced"] = _flag(r.get("invasion_forced"))
 	var due := _finite_or_nan(r.get("next_invasion_at"))
 	if is_nan(due) or due < 0.0 or due > now + 400.0 * DAY_MIN:
 		due = _invasion_slot_after(now - STALE_INVASION_MIN)
-	elif not out["invasion_announced"] and now - due > STALE_INVASION_MIN:
+	elif now - due > STALE_INVASION_MIN and not out["invasion_forced"]:
 		due = _invasion_slot_after(now)
 	out["next_invasion_at"] = due
 	out["expeditions"] = maxi(Inventory.to_count(r.get("expeditions", 0)), 0)

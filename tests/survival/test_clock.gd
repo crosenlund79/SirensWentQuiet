@@ -77,7 +77,8 @@ func test_death_stops_the_clock_and_reports_only_earlier_events() -> void:
 	s.hydration = 100.0
 	s.health = 10.0
 	var deaths := []
-	s.died.connect(func(c): deaths.append([c, s.total_minutes]))
+	var ws: WeakRef = weakref(s)   # a lambda holding `s` would make a reference cycle
+	s.died.connect(func(c): deaths.append([c, ws.get_ref().total_minutes]))
 	var ev := s.advance(10 * 60.0)
 	check(s.dead, "starved to death")
 	check_eq(deaths.size(), 1, "died emitted once")

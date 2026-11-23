@@ -32,9 +32,11 @@ func _data(tag: String, blob_bytes := 4096) -> Dictionary:
 	var s := GameState.new_run(5)
 	s.inventory.add("scrap", 2)
 	var blob := PackedByteArray()
+	for i in 257:
+		blob.append((i * 37) % 251)
+	while blob.size() < blob_bytes:
+		blob.append_array(blob)
 	blob.resize(blob_bytes)
-	for i in range(0, blob_bytes, 7):
-		blob[i] = (i / 7) % 251
 	var ints := PackedInt32Array()
 	ints.resize(blob_bytes / 4)
 	ints.fill(0x26221f)
@@ -67,8 +69,8 @@ func test_round_trip_with_world_blobs() -> void:
 	var t3 := Time.get_ticks_msec()
 	print("      4 MB world: write %d ms, read %d ms, info %d ms, file %d bytes" % [t1 - t0, t2 - t1, t3 - t2, _bytes(path).size()])
 	check(r["ok"] and not r["restored_from_backup"], "read back: %s" % r["error"])
-	check_eq(r["data"]["world"]["mat"], d["world"]["mat"], "byte blob intact")
-	check_eq(r["data"]["world"]["col"], d["world"]["col"], "int blob intact")
+	check(r["data"]["world"]["mat"] == d["world"]["mat"], "byte blob intact")   # check_eq would print 4 MB
+	check(r["data"]["world"]["col"] == d["world"]["col"], "int blob intact")
 	check_eq(r["data"]["game"]["player"], Vector3(1, 0, 2), "game data intact")
 	check_eq(r["data"]["schema"], SaveGame.SCHEMA, "schema added")
 	check_eq(r["data"]["game_id"], SaveGame.GAME_ID, "game id added")

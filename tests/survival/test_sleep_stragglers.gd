@@ -83,3 +83,11 @@ func test_on_dawn_rain_collectors() -> void:
 	check_eq(s.on_dawn(-3), {}, "negative")
 	s.advance(1440.0)
 	check_eq(s.on_dawn(1), {"water": 1}, "next dawn")
+	var ev := s.advance(3 * 1440.0)
+	var got := 0
+	for e in ev:
+		if e["type"] == "dawn":
+			got += s.on_dawn(2, e["at"]).get("water", 0)
+	check_eq(got, 6, "every dawn of a three-day skip counts")
+	check_eq(s.on_dawn(2), {}, "and today is done")
+	check_eq(s.on_dawn(2, 1e12), {}, "a future time is treated as today")
