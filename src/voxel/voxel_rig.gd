@@ -14,6 +14,8 @@ const NECK_Y := 1.5
 
 static var _mesh_cache := {}
 static var material: ShaderMaterial
+static var _player_material: ShaderMaterial
+static var _enemy_material: ShaderMaterial
 
 var look := Look.PLAYER
 var hunch := 0.0             ## forward lean of the torso (rad)
@@ -38,11 +40,32 @@ var _fade := 1.0
 var _t := 0.0
 
 
+## Base character material (night uniform lives here; the per-look
+## materials below share its parameters through `night_materials`).
 static func shared_material() -> ShaderMaterial:
 	if material == null:
 		material = ShaderMaterial.new()
 		material.shader = load("res://src/voxel/shaders/voxel_character.gdshader")
 	return material
+
+
+## Character material with an x-ray silhouette pass (warm for the player,
+## pale red for psychos) shown only where walls hide the figure.
+static func look_material(player: bool) -> ShaderMaterial:
+	var m := _player_material if player else _enemy_material
+	if m != null:
+		return m
+	m = ShaderMaterial.new()
+	m.shader = shared_material().shader
+	var x := ShaderMaterial.new()
+	x.shader = load("res://src/voxel/shaders/voxel_xray.gdshader")
+	x.set_shader_parameter("tint", Color(1.0, 0.72, 0.35, 0.5) if player else Color(0.95, 0.5, 0.45, 0.32))
+	m.next_pass = x
+	if player:
+		_player_material = m
+	else:
+		_enemy_material = m
+	return m
 
 
 func _init(which: Look = Look.PLAYER) -> void:
@@ -69,7 +92,7 @@ func _pivot(parent: Node3D, pos: Vector3, part: String) -> Node3D:
 	parent.add_child(n)
 	var mi := MeshInstance3D.new()
 	mi.mesh = _mesh(look, part)
-	mi.material_override = shared_material()
+	mi.material_override = look_material(look == Look.PLAYER)
 	n.add_child(mi)
 	parts.append(mi)
 	return n

@@ -6,7 +6,7 @@ extends RefCounted
 ## face becomes one quad with its own colour (so per-voxel colour patterns,
 ## paint and cut faces survive). COLOR.a carries the AO term (the shader feeds
 ## it to AO, so it only darkens ambient light, plus a little direct light).
-## UV carries material flags: x = emissive, y = glossy.
+## UV carries flags: x = emissive, y = glossy + 2 * (painted / finished face).
 ##
 ## Directions: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z (bit d of pmask paints face d).
 
@@ -102,10 +102,13 @@ static func build_arrays(g: VoxelGrid, lo: Vector3i, hi: Vector3i, glass := fals
 					elif occl[nm] == 1:
 						continue
 					var c: Color
+					var fuv := uv
 					if d == 2 and y == cap_row and st[m] == 1:
 						c = cap_col
+						fuv.y += 2.0
 					elif (pm >> d) & 1:
 						c = Color.hex((pcol[i] << 8) | 0xff)
+						fuv.y += 2.0
 					else:
 						c = Color.hex((col[i] << 8) | 0xff)
 					var cs: PackedVector3Array = corners[d]
@@ -115,7 +118,7 @@ static func build_arrays(g: VoxelGrid, lo: Vector3i, hi: Vector3i, glass := fals
 							verts.append(base + cs[k])
 							norms.append(nrm)
 							cols.append(c)
-							uvs.append(uv)
+							uvs.append(fuv)
 						inds.append(nverts)
 						inds.append(nverts + 2)
 						inds.append(nverts + 1)
@@ -151,10 +154,10 @@ static func build_arrays(g: VoxelGrid, lo: Vector3i, hi: Vector3i, glass := fals
 					cols.append(Color(c.r, c.g, c.b, ao_curve[ao1]))
 					cols.append(Color(c.r, c.g, c.b, ao_curve[ao2]))
 					cols.append(Color(c.r, c.g, c.b, ao_curve[ao3]))
-					uvs.append(uv)
-					uvs.append(uv)
-					uvs.append(uv)
-					uvs.append(uv)
+					uvs.append(fuv)
+					uvs.append(fuv)
+					uvs.append(fuv)
+					uvs.append(fuv)
 					# Split along the diagonal that keeps AO gradients smooth.
 					inds.append(nverts)
 					if ao0 + ao2 >= ao1 + ao3:

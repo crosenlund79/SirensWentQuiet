@@ -9,7 +9,7 @@ const TWEEN_TIME := 0.5
 
 ## Per light kind: [energy, range, colour]
 const KINDS := {
-	"floor_lamp": [2.6, 5.5, Color(1.0, 0.72, 0.42)],
+	"floor_lamp": [4.2, 7.0, Color(1.0, 0.72, 0.42)],
 	"hood": [1.6, 3.6, Color(1.0, 0.82, 0.6)],
 	"table_lamp": [1.6, 3.8, Color(1.0, 0.68, 0.4)],
 	"ceiling": [2.4, 5.0, Color(0.92, 0.95, 1.0)],

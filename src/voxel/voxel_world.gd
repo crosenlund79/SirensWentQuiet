@@ -15,9 +15,13 @@ var glass_material: Material
 var collision_rows := Vector2i(VoxelHouse.NAV_ROW_LO, VoxelHouse.NAV_ROW_HI)
 var visual_budget_ms := 6.0
 
-var last_rebuild_ms := 0.0      ## last chunk rebuild (mesh + collision)
+var last_rebuild_ms := 0.0      ## last chunk mesh rebuild
 var worst_rebuild_ms := 0.0
+var last_collision_ms := 0.0    ## collision rebuild of the last change (all its chunks)
+var last_change_chunks := 0
+var last_change_mesh_ms := 0.0  ## mesh rebuild of the last change (all its chunks)
 var rebuilds := 0
+var mesh_ms_total := 0.0
 var face_count := 0
 
 var _chunks := {}               # Vector3i -> {"mesh": MeshInstance3D, "body": StaticBody3D, "shape": CollisionShape3D, "faces": int}
@@ -53,14 +57,18 @@ func mark_dirty(lo: Vector3i, hi: Vector3i) -> void:
 		return
 	var c0 := Vector3i(maxi(lo.x, 0) / CHUNK.x, maxi(lo.y, 0) / CHUNK.y, maxi(lo.z, 0) / CHUNK.z)
 	var c1 := Vector3i(maxi(hi.x - 1, 0) / CHUNK.x, maxi(hi.y - 1, 0) / CHUNK.y, maxi(hi.z - 1, 0) / CHUNK.z)
+	var t0 := Time.get_ticks_usec()
+	var n := 0
 	for cz in range(c0.z, c1.z + 1):
 		for cy in range(c0.y, c1.y + 1):
 			for cx in range(c0.x, c1.x + 1):
 				var c := Vector3i(cx, cy, cz)
-				var t0 := Time.get_ticks_usec()
 				_rebuild_collision(c)
-				last_rebuild_ms = (Time.get_ticks_usec() - t0) / 1000.0
 				_dirty[c] = true
+				n += 1
+	last_collision_ms = (Time.get_ticks_usec() - t0) / 1000.0
+	last_change_chunks = n
+	last_change_mesh_ms = 0.0
 
 
 func flush(budget_ms := -1.0) -> void:
@@ -74,7 +82,9 @@ func flush(budget_ms := -1.0) -> void:
 		_dirty.erase(c)
 		var ms := (Time.get_ticks_usec() - t0) / 1000.0
 		last_rebuild_ms = ms
+		last_change_mesh_ms += ms
 		worst_rebuild_ms = maxf(worst_rebuild_ms, ms)
+		mesh_ms_total += ms
 		rebuilds += 1
 		if (Time.get_ticks_usec() - t_start) / 1000.0 > budget:
 			break

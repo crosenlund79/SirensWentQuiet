@@ -143,7 +143,7 @@ def siding(h=26, w=96):
 
 
 def insulation(h=32, w=32):
-    a, b = hexrgb("#d79f8f"), hexrgb("#e2c48a")
+    a, b = hexrgb("#e3897a"), hexrgb("#ebb56f")
     n = fbm(h, w, 8, RNG, 3)
     fine = RNG.random((h, w))
     t = np.clip(n * 1.3 - 0.15, 0, 1)

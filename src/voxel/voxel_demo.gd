@@ -16,7 +16,7 @@ const PENETRATION := 1.5
 const FLOOR_CARVE := 0.13
 const FURNITURE_CARVE := 0.17
 ## Enemy wall bite.
-const BITE_RADIUS := 0.2
+const BITE_RADIUS := 0.17
 const CUT_RADIUS := 2.1
 
 static var _pristine: VoxelGrid
@@ -48,6 +48,7 @@ var _cut_dir := Vector3.UP
 var _cut_on := true
 var _build_ms := 0.0
 var mouse_aim := true
+var last_carve_ms := 0.0
 
 
 func _ready() -> void:
@@ -96,7 +97,8 @@ func _ready() -> void:
 	add_child(player)
 	player.global_position = Vector3(HousePlan.PLAYER_START.x, 0, HousePlan.PLAYER_START.y)
 	player.aim_point = player.global_position + Vector3(0, 1, -3)
-	lighting.night_materials.append(VoxelRig.shared_material())
+	lighting.night_materials.append(VoxelRig.look_material(true))
+	lighting.night_materials.append(VoxelRig.look_material(false))
 
 	camera = VoxelCamera.new()
 	camera.target = player
@@ -173,9 +175,9 @@ func _process(delta: float) -> void:
 	if yard != null:
 		yard.update_roof(player.global_position, delta)
 	var alive := debug_living_enemies()
-	hud.stats_text = "voxels %s · chunks %d · faces %s\nchunk rebuild %.1f ms (worst %.1f) · debris %d · enemies %d" % [
-		_thousands(grid.solid_count), world.chunk_count(), _thousands(world.face_count),
-		world.last_rebuild_ms, world.worst_rebuild_ms, fx.debris_count, alive]
+	hud.stats_text = "voxels %s · chunks %d · faces %s · debris %d · enemies %d\nlast hit: carve %.1f ms + collision %.1f ms + mesh %.1f ms (%d chunks)" % [
+		_thousands(grid.solid_count), world.chunk_count(), _thousands(world.face_count), fx.debris_count, alive,
+		last_carve_ms, world.last_collision_ms, world.last_change_mesh_ms, world.last_change_chunks]
 	if _scenario != "":
 		VoxelScenarios.process(self, _scenario, delta)
 
@@ -311,7 +313,9 @@ func _hit_voxels(vh: Dictionary, dir: Vector3) -> void:
 			r = FLOOR_CARVE
 		elif not VoxelMat.is_struct(m):
 			r = FURNITURE_CARVE
+		var t0 := Time.get_ticks_usec()
 		ch = VoxelCarver.carve_sphere(grid, pos + dir * 0.07, r, _shot_count * 7919 + c.x, dir, PENETRATION if r == WALL_CARVE else 1.0)
+		last_carve_ms = (Time.get_ticks_usec() - t0) / 1000.0
 	_apply(ch)
 	fx.impact(VoxelMat.IMPACT[m], pos, vh["normal"], dir, ch)
 

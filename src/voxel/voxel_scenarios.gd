@@ -30,13 +30,16 @@ static func setup(d: Node, name: String) -> void:
 			_at(0.2, func(): _spawn_ring(d, [Vector2(-2.5, 6.5), Vector2(10.5, 11.8), Vector2(16.5, 3.0), Vector2(3.0, -2.6)]))
 			_at(3.8, func(): d.get_tree().paused = true)
 		"blasted":
+			# South wall from outside: one walk-through hole, grazing gouges that
+			# peel the siding off the studs and insulation, a shattered window.
 			_shoot_pattern(d, Vector2(8.6, 10.6), Vector2(8.6, 9.0), 14)
-			_shoot(d, Vector2(11.2, 10.8), [Vector3(11.2, 1.25, 9.0), Vector3(11.45, 1.1, 9.0), Vector3(11.0, 1.5, 9.0)])
+			_shoot(d, Vector2(9.2, 9.75), [Vector3(10.9, 1.7, 9.15), Vector3(11.2, 1.35, 9.15), Vector3(11.5, 1.95, 9.15),
+				Vector3(11.0, 2.2, 9.15), Vector3(11.6, 1.55, 9.15)])
+			_shoot(d, Vector2(11.0, 10.4), [Vector3(10.95, 1.2, 9.0), Vector3(11.3, 0.8, 9.0)])
 			_shoot(d, Vector2(7.0, 10.8), [Vector3(7.0, 1.5, 9.0)])
 			_shoot(d, Vector2(5.8, 10.8), [Vector3(5.6, 0.7, 9.0), Vector3(5.7, 1.7, 9.0)])
-			_place(d, Vector2(9.9, 11.4), Vector3(11.3, 1.2, 9.0))
+			_place(d, Vector2(9.9, 11.2), Vector3(11.3, 1.3, 9.1))
 			d.camera.set_distance(11.0)
-			d.player.rig.rotation.y = atan2(-1.4, 2.4)
 		"interior":
 			_shoot_pattern(d, Vector2(4.5, 5.6), Vector2(4.5, 4.0), 12)
 			_shoot(d, Vector2(2.4, 5.4), [Vector3(1.4, 1.3, 4.0), Vector3(1.2, 1.0, 4.0)])

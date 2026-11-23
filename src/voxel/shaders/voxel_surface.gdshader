@@ -82,13 +82,16 @@ void fragment() {
 		vec2 e = min(uvf, 1.0 - uvf);
 		float edge = min(e.x, e.y);
 		float px = length(fwidth(q));
-		float show = 1.0 - smoothstep(0.12, 0.3, px);
+		float glossy = mod(UV.y, 2.0);
+		float painted = step(1.5, UV.y);
+		// Finished paint stays smooth; voxel grain shows on raw cuts, furniture, tiles.
+		float show = (1.0 - smoothstep(0.12, 0.3, px)) * max(1.0 - painted, glossy);
 		c *= 1.0 - bevel * show * (1.0 - smoothstep(0.0, 0.14, edge));
 		ALBEDO = c;
 		AO = COLOR.a;
 		AO_LIGHT_AFFECT = 0.45;
-		ROUGHNESS = mix(0.86, 0.42, UV.y);
-		SPECULAR = mix(0.32, 0.55, UV.y);
+		ROUGHNESS = mix(0.86, 0.42, glossy);
+		SPECULAR = mix(0.32, 0.55, glossy);
 		EMISSION = c * glow_color * glow_energy * UV.x * night;
 	}
 }

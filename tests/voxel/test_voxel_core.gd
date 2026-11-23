@@ -94,13 +94,24 @@ func test_floating_fragments_fall_and_thin_strips_crumble() -> void:
 	g.set_voxel(10, 10, 10, VoxelMat.DRYWALL, 0)
 	g.set_voxel(10, 11, 10, VoxelMat.DRYWALL, 0)
 	g.set_voxel(11, 10, 10, VoxelMat.DRYWALL, 0)
-	var ch := VoxelCarver.remove_floating(g, Vector3i(5, 5, 5), Vector3i(15, 15, 15))
+	var ch := VoxelCarver.remove_floating(g, PackedInt32Array([g.idx(9, 10, 10)]))
 	check_eq((ch["cells"] as PackedInt32Array).size(), 3, "a fragment touching nothing falls")
+	# A big connected slab stays.
+	for z in range(1, 19):
+		for x in range(1, 19):
+			for y in range(1, 4):
+				g.set_voxel(x, y, z, VoxelMat.SCREED, 0)
+	g.set_voxel(10, 4, 10, VoxelMat.DRYWALL, 0)
+	ch = VoxelCarver.remove_floating(g, PackedInt32Array([g.idx(10, 5, 10)]))
+	check_eq((ch["cells"] as PackedInt32Array).size(), 0, "a stub standing on the slab is anchored")
 	# A 1-voxel-tall strip spanning a gap breaks; a stud (vertical) stays.
 	for x in range(2, 18):
 		g.set_voxel(x, 10, 10, VoxelMat.SIDING, 0)
-	for y in range(2, 18):
+	for y in range(2, 15):
 		g.set_voxel(5, y, 12, VoxelMat.STUD, 0)
+	for y in range(15, 18):
+		for x in range(2, 9):
+			g.set_voxel(x, y, 12, VoxelMat.STUD, 0)   # top plate holds the stud
 	ch = VoxelCarver.crumble_strips(g, Vector3i(1, 1, 1), Vector3i(19, 19, 19))
 	check_eq(g.get_mat(9, 10, 10), VoxelMat.AIR, "thin horizontal strip crumbles")
 	check_eq(g.get_mat(5, 10, 12), VoxelMat.STUD, "vertical stud stands")

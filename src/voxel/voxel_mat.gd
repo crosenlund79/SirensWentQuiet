@@ -108,7 +108,7 @@ static func _make_hardness() -> PackedFloat32Array:
 	h[SCREED] = 0.55
 	h[FLOOR] = 0.35
 	h[RUG] = 0.2
-	h[PLINTH] = 0.45
+	h[PLINTH] = 0.25
 	h[STUD] = 0.3
 	h[TRIM] = 0.15
 	h[FRAME] = 0.2

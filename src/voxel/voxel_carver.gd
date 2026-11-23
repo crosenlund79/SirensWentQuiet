@@ -30,14 +30,20 @@ static func _visible_color(g: VoxelGrid, i: int) -> int:
 
 
 static func _remove(g: VoxelGrid, i: int, ch: Dictionary) -> void:
+	var c := g.coords(i)
+	# touched range = removed cells plus a one-cell margin (their neighbours' AO)
+	ch["lo"] = (ch["lo"] as Vector3i).min(c - Vector3i.ONE)
+	ch["hi"] = (ch["hi"] as Vector3i).max(c + Vector3i(2, 2, 2))
 	ch["cells"].append(i)
 	ch["colors"].append(_visible_color(g, i))
 	ch["mats"].append(g.mat[i])
 	g.clear_index(i)
 
 
-## Removes a ragged ball of voxels around `center`, optionally stretched by
-## `stretch` along `dir` (bullet penetration). Harder materials resist
+## Removes a ragged ball of voxels around `center`. With a shot direction
+## `dir` and `stretch` > 1 it becomes a crater that narrows as it goes deeper
+## (wide in the outer skin, tight in the inner one), so the wall's layers show
+## as rings: paint/siding edge, insulation and studs, then the far skin. Harder materials resist
 ## (smaller effective radius); FOUNDATION never goes. Glass touched by the
 ## carve shatters as a whole pane.
 static func carve_sphere(g: VoxelGrid, center: Vector3, radius: float, seed: int, dir := Vector3.ZERO, stretch := 1.0) -> Dictionary:
@@ -58,30 +64,47 @@ static func carve_sphere(g: VoxelGrid, center: Vector3, radius: float, seed: int
 				if m == 0 or (flags[m] & VoxelMat.F_HARD) != 0:
 					continue
 				var rel := g.origin + (Vector3(x, y, z) + Vector3(0.5, 0.5, 0.5)) * g.vs - center
-				if has_dir:
-					var along := rel.dot(dir)
-					rel += dir * (along * inv_s - along)
 				var n := VoxelArt.hash3(x, y, z, seed)
 				var thr := radius * (0.78 + 0.44 * n) * (1.0 - hard[m] * 0.45)
+				if has_dir:
+					var along := rel.dot(dir)
+					var depth := clampf((along + radius * 0.5) / (radius * stretch * 1.5), 0.0, 1.0)
+					thr *= 1.1 - 0.3 * depth
+					rel += dir * (along * inv_s - along)
 				if rel.length() < thr:
 					if (flags[m] & VoxelMat.F_GLASS) != 0:
 						glass_hit = i
 						continue
 					_remove(g, i, ch)
-	ch["lo"] = lo - Vector3i.ONE
-	ch["hi"] = hi + Vector3i.ONE
 	if glass_hit >= 0:
 		merge(ch, shatter_glass(g, glass_hit))
-	merge(ch, remove_loose(g, lo - Vector3i.ONE, hi + Vector3i.ONE))
-	merge(ch, remove_floating(g, lo - Vector3i(2, 2, 2), hi + Vector3i(2, 2, 2)))
-	merge(ch, crumble_strips(g, lo - Vector3i.ONE, hi + Vector3i.ONE))
-	merge(ch, crumble_sills(g, lo - Vector3i.ONE, hi + Vector3i.ONE))
+	crumble(g, ch, lo - Vector3i.ONE, hi + Vector3i.ONE)
 	return ch
 
 
+## Settles a change: loose crumbs, thin strips, slender posts, floor-level
+## stubs and floating fragments fall. Repeats around whatever fell (falls can
+## expose new crumbs) until nothing more goes (at most three rounds).
+static func crumble(g: VoxelGrid, ch: Dictionary, lo: Vector3i, hi: Vector3i) -> void:
+	var done := 0
+	for round_i in 3:
+		var before := (ch["cells"] as PackedInt32Array).size()
+		if round_i > 0:
+			lo = ch["lo"]
+			hi = ch["hi"]
+		merge(ch, remove_loose(g, lo, hi))
+		merge(ch, crumble_strips(g, lo, hi))
+		merge(ch, crumble_sills(g, lo, hi))
+		var cells: PackedInt32Array = ch["cells"]
+		merge(ch, remove_floating(g, cells.slice(done)))
+		done = before
+		if (ch["cells"] as PackedInt32Array).size() == before and round_i > 0:
+			break
+
+
 ## Free-hanging horizontal strips of wall at most two voxels tall (air above
-## and below, e.g. siding left between two holes) break off. Vertical members
-## such as exposed studs are untouched.
+## and below, e.g. siding left between two holes) break off, and so do
+## free-standing one-voxel posts. Studs still held at the top stay.
 static func crumble_strips(g: VoxelGrid, lo: Vector3i, hi: Vector3i) -> Dictionary:
 	var ch := empty_change()
 	lo = lo.clamp(Vector3i(1, 3, 1), Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
@@ -107,77 +130,89 @@ static func crumble_strips(g: VoxelGrid, lo: Vector3i, hi: Vector3i) -> Dictiona
 	for i in doomed:
 		if g.mat[i] != 0:
 			_remove(g, i, ch)
-	ch["lo"] = lo
-	ch["hi"] = hi
+	# Free-standing slender posts (nothing above, nothing on any side) topple;
+	# scanning top-down takes a whole post at once. Studs still held by the
+	# wall above stay.
+	for y in range(hi.y - 1, lo.y - 1, -1):
+		if y <= VoxelHouse.BASE_ROW:
+			break
+		for z in range(lo.z, hi.z):
+			for x in range(lo.x, hi.x):
+				var i := g.idx(x, y, z)
+				if st[g.mat[i]] == 0 or g.mat[i + up] != 0:
+					continue
+				if g.mat[i + 1] == 0 and g.mat[i - 1] == 0 and g.mat[i + g.sx] == 0 and g.mat[i - g.sx] == 0:
+					_remove(g, i, ch)
 	return ch
 
 
-## A one-voxel strip of wall left standing at floor level (the row just above
-## the bottom plate) crumbles once the wall above it is gone, so ragged holes
-## reach the floor and stay walkable (bottom edge at 0.1 m).
+## A stub of wall at most two voxels tall left standing at floor level (just
+## above the bottom plate) crumbles once the wall above it is gone, so ragged
+## holes reach the floor and stay walkable (bottom edge at 0.1 m).
 static func crumble_sills(g: VoxelGrid, lo: Vector3i, hi: Vector3i) -> Dictionary:
 	var ch := empty_change()
 	var y1 := VoxelHouse.BASE_ROW + 1
-	if lo.y > y1 + 2 or hi.y <= y1:
+	if lo.y > y1 + 3 or hi.y <= y1:
 		return ch
 	lo = lo.clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
 	hi = hi.clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
 	var st := VoxelMat.STRUCT
 	for z in range(lo.z, hi.z):
 		for x in range(lo.x, hi.x):
-			var i := g.idx(x, y1, z)
-			if st[g.mat[i]] == 1 and g.mat[g.idx(x, y1 + 1, z)] == 0 and g.mat[g.idx(x, y1 + 2, z)] == 0:
-				_remove(g, i, ch)
-	ch["lo"] = Vector3i(lo.x, y1 - 1, lo.z)
-	ch["hi"] = Vector3i(hi.x, y1 + 2, hi.z)
+			if g.mat[g.idx(x, y1 + 2, z)] != 0 or g.mat[g.idx(x, y1 + 3, z)] != 0:
+				continue
+			for y in [y1, y1 + 1]:
+				var i := g.idx(x, y, z)
+				if st[g.mat[i]] == 1:
+					_remove(g, i, ch)
 	return ch
 
 
-## Drops fragments that a carve left hanging in mid-air: inside the box
-## [lo, hi), any face-connected solid component that does not reach the box
-## boundary has nothing holding it, so it falls (is removed, becomes debris).
-## Local and bounded; this is crumb cleanup, not structural simulation.
-static func remove_floating(g: VoxelGrid, lo: Vector3i, hi: Vector3i) -> Dictionary:
+## Drops fragments that a carve left hanging in mid-air. Starting from the
+## solid neighbours of the removed `cells`, a bounded flood fill (6-connected,
+## any solid material) explores each piece; a piece that runs out before
+## FLOAT_CAP voxels touches nothing big (the house is one huge connected
+## body through walls and floor slab), so it falls: removed, becomes debris.
+## Bounded and local; crumb cleanup, not structural simulation.
+const FLOAT_CAP := 400
+
+
+static func remove_floating(g: VoxelGrid, cells: PackedInt32Array) -> Dictionary:
 	var ch := empty_change()
-	lo = lo.clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
-	hi = hi.clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
-	var b := hi - lo
-	if b.x <= 2 or b.y <= 2 or b.z <= 2:
-		return ch
-	var seen := PackedByteArray()
-	seen.resize(b.x * b.y * b.z)
-	var offs := [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
-	for y in range(lo.y, hi.y):
-		for z in range(lo.z, hi.z):
-			for x in range(lo.x, hi.x):
-				var li := ((y - lo.y) * b.z + (z - lo.z)) * b.x + (x - lo.x)
-				if seen[li] != 0 or g.mat[g.idx(x, y, z)] == 0:
-					continue
-				seen[li] = 1
-				var comp: Array[Vector3i] = [Vector3i(x, y, z)]
-				var anchored := false
-				var k := 0
-				while k < comp.size():
-					var c := comp[k]
-					k += 1
-					if c.x == lo.x or c.y == lo.y or c.z == lo.z or c.x == hi.x - 1 or c.y == hi.y - 1 or c.z == hi.z - 1:
-						anchored = true
-					for o in offs:
-						var n: Vector3i = c + o
-						if n.x < lo.x or n.y < lo.y or n.z < lo.z or n.x >= hi.x or n.y >= hi.y or n.z >= hi.z:
-							continue
-						var ln := ((n.y - lo.y) * b.z + (n.z - lo.z)) * b.x + (n.x - lo.x)
-						if seen[ln] != 0 or g.mat[g.idx(n.x, n.y, n.z)] == 0:
-							continue
-						seen[ln] = 1
-						comp.append(n)
-				if not anchored:
-					for c in comp:
-						var i := g.idx(c.x, c.y, c.z)
-						if (VoxelMat.FLAGS[g.mat[i]] & VoxelMat.F_HARD) == 0:
-							_remove(g, i, ch)
-	ch["lo"] = lo
-	ch["hi"] = hi
+	var deltas := PackedInt32Array([1, -1, g.sx, -g.sx, g.sx * g.sz, -g.sx * g.sz])
+	var anchored := {}
+	var n_total := g.mat.size()
+	for start_cell in cells:
+		for dl in deltas:
+			var s: int = start_cell + dl
+			if s < 0 or s >= n_total or g.mat[s] == 0 or anchored.has(s):
+				continue
+			var seen := {s: true}
+			var queue := PackedInt32Array([s])
+			var k := 0
+			var capped := false
+			while k < queue.size():
+				var i := queue[k]
+				k += 1
+				for d2 in deltas:
+					var j := i + d2
+					if j < 0 or j >= n_total or g.mat[j] == 0 or seen.has(j):
+						continue
+					if anchored.has(j):
+						capped = true
+						break
+					seen[j] = true
+					queue.append(j)
+				if capped or queue.size() >= FLOAT_CAP:
+					capped = true
+					break
+			if capped:
+				for i in queue:
+					anchored[i] = true
+			else:
+				for i in queue:
+					if (VoxelMat.FLAGS[g.mat[i]] & VoxelMat.F_HARD) == 0:
+						_remove(g, i, ch)
 	return ch
 
 
@@ -202,8 +237,6 @@ static func shatter_glass(g: VoxelGrid, start: int) -> Dictionary:
 			if j >= 0 and j < g.mat.size() and not seen.has(j) and g.mat[j] == VoxelMat.GLASS:
 				seen[j] = true
 				stack.append(j)
-	ch["lo"] = lo - Vector3i.ONE
-	ch["hi"] = hi + Vector3i(2, 2, 2)
 	return ch
 
 
@@ -233,8 +266,6 @@ static func remove_loose(g: VoxelGrid, lo: Vector3i, hi: Vector3i) -> Dictionary
 						removed_any = true
 		if not removed_any:
 			break
-	ch["lo"] = lo
-	ch["hi"] = hi
 	return ch
 
 
