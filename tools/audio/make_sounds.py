@@ -126,14 +126,14 @@ def handgun(rng):
     n = secs(1.6)
     t = taxis(n)
     crack = norm(filt(white(n, rng) * np.exp(-t / 0.0026), [("hp", 1100), ("peak", 3200, 0.9, 6)]))
-    body = norm(filt(white(n, rng) * env_ad(n, 0.0003, 0.017),
+    body = norm(filt(white(n, rng) * env_ad(n, 0.0003, 0.024),
                      [("lp", 4800), ("hp", 220), ("peak", 1100, 0.9, 6), ("peak", 460, 1.0, 3)]))
     f = 55 + 90 * np.exp(-t / 0.012)
     thump = np.sin(2 * np.pi * osc_phase(f)) * env_ad(n, 0.0005, 0.03)
     clack = norm(resonators(impulse(n, 0.024) - 0.6 * impulse(n, 0.033),
                             [(2650, 18, 1.0), (4320, 22, 0.7), (6900, 25, 0.45), (1480, 12, 0.6)], keep_tail=False))
     dry = 1.0 * crack + 1.0 * body + 0.5 * thump + 0.07 * clack
-    dry = softclip(dry * 2.0, 1.0)
+    dry = softclip(dry * 3.0, 1.0)
     ir = reverb_ir(0.8, rng, predelay=0.005, bright=0.7)
     wet = convolve(filt(dry, [("lp", 4200)]), ir)[:n]
     slap = np.zeros(n)
@@ -276,7 +276,7 @@ def footstep(rng, v):
     scuff = filt(white(n, rng) * env_ad(n, 0.004, 0.02), [("bp", 2400, 0.8)])
     scuff = pad_to(np.concatenate([np.zeros(secs(toe_at + 0.004)), scuff]), n)
     out = norm(heel) + 0.5 * norm(knock) + 0.55 * norm(toe) + 0.12 * norm(scuff)
-    return trim_tail(out, -55)
+    return trim_tail(filt(out, [("lp", 3200, 0.6)]), -55)
 
 
 def player_hurt(rng):
@@ -304,8 +304,8 @@ def player_eat(rng):
         out += chew(n, rng, at) * (1.0 - 0.15 * i)
     m = secs(0.12)
     tt = taxis(m)
-    gulp = np.sin(2 * np.pi * osc_phase(340 - 160 * tt / 0.12)) * np.hanning(m) * 0.6
-    gulp = filt(gulp + 0.3 * white(m, rng) * np.hanning(m), [("lp", 700)])
+    gulp = np.sin(2 * np.pi * osc_phase(340 - 160 * tt / 0.12)) * np.hanning(m) * 0.25
+    gulp = filt(gulp + 0.5 * white(m, rng) * np.hanning(m), [("lp", 600), ("peak", 180, 1.5, 6)])
     place(out, norm(gulp) * 0.7, 1.05)
     return trim_tail(out, -55, 0.05)
 
@@ -325,8 +325,10 @@ def player_drink(rng):
         place(out, norm(throat) * 0.8, at)
         for j in range(3):
             place(out, bubble(rng, rng.uniform(380, 720)) * rng.uniform(0.3, 0.6), at + 0.02 + j * rng.uniform(0.015, 0.03))
-    slosh = filt(white(n, rng), [("bp", 900, 1.5)]) * env_points(n, [(0, 0), (0.1, 0.12), (1.0, 0.08), (1.1, 0)])
+    slosh = filt(white(n, rng), [("lp", 700, 0.6), ("hp", 120)]) * env_points(n, [(0, 0), (0.1, 0.05), (1.0, 0.035), (1.1, 0)])
     out += slosh
+    for _ in range(10):  # small bubbles rising in the bottle
+        place(out, bubble(rng, rng.uniform(900, 1600), 0.03) * rng.uniform(0.05, 0.12), rng.uniform(0.05, 1.05))
     m = secs(0.5)
     ah = voice(m, rng, np.full(m, 120.0), vowel_track([(0, "a"), (0.5, "a")]),
                breath=np.hanning(m) * 0.8, voiced=np.zeros(m))
@@ -421,12 +423,14 @@ def build_hammer(rng):
     return trim_tail(out, -58)
 
 
-def creak(n, rng, dur, rate0, rate1, modes, at=0.0, jitter=0.25):
-    """Stick-slip friction: an irregular pulse train through resonances."""
+def creak(n, rng, dur, rate0, rate1, modes, at=0.0, jitter=0.25, mid=None):
+    """Stick-slip friction: an irregular pulse train through resonances.
+    The pulse rate (Hz) goes rate0 -> mid -> rate1 over dur seconds."""
     x = np.zeros(n)
     t = 0.0
+    mid = (rate0 + rate1) / 2 if mid is None else mid
     while t < dur:
-        r = rate0 + (rate1 - rate0) * (t / dur) + 6 * np.sin(2 * np.pi * t * 1.7)
+        r = np.interp(t / dur, [0, 0.5, 1], [rate0, mid, rate1]) + 6 * np.sin(2 * np.pi * t * 1.7)
         i = secs(at + t)
         if i < n:
             x[i] += rng.uniform(0.6, 1.0) * np.sin(np.pi * min(1.0, t / dur)) ** 0.6
@@ -437,8 +441,8 @@ def creak(n, rng, dur, rate0, rate1, modes, at=0.0, jitter=0.25):
 def build_demolish(rng):
     n = secs(1.8)
     out = np.zeros(n)
-    cr = creak(n, rng, 0.42, 22, 55, [(480, 14, 1.0), (980, 18, 0.7), (1650, 20, 0.4)])
-    out += 0.5 * norm(cr)
+    cr = creak(n, rng, 0.42, 30, 70, [(480, 24, 1.0), (980, 28, 0.7), (1650, 30, 0.4)], jitter=0.3, mid=120)
+    out += 0.5 * norm(filt(cr, [("lp", 4000, 0.6)]))
     snap = filt(white(n, rng) * env_ad(n, 0.0003, 0.012), [("lp", 4000)])
     snap = pad_to(np.concatenate([np.zeros(secs(0.45)), snap]), n)
     out += norm(snap) + wood_knock(n, rng, 0.45, 210, 7, 0.006, 0.8)
@@ -492,8 +496,8 @@ def latch(n, rng, at, gain=1.0):
 def door_open(rng):
     n = secs(1.2)
     out = latch(n, rng, 0.0, 0.5)
-    cr = creak(n, rng, 0.75, 28, 75, DOOR_MODES, at=0.08)
-    out += norm(cr)
+    cr = creak(n, rng, 0.75, 35, 90, DOOR_MODES, at=0.08, jitter=0.3, mid=170)
+    out += norm(filt(cr, [("lp", 4500, 0.6)]))
     air = filt(white(n, rng), [("lp", 700)]) * env_points(n, [(0, 0), (0.3, 0.08), (0.9, 0)])
     out += air
     return trim_tail(filt(out, [("hp", 90)]), -58, 0.06)
@@ -501,7 +505,7 @@ def door_open(rng):
 
 def door_close(rng):
     n = secs(0.8)
-    out = 0.5 * norm(creak(n, rng, 0.2, 60, 35, DOOR_MODES))
+    out = 0.5 * norm(filt(creak(n, rng, 0.2, 110, 45, DOOR_MODES, jitter=0.3), [("lp", 4500, 0.6)]))
     out += wood_knock(n, rng, 0.22, 110, 6, 0.008, 1.0)
     out += 0.5 * norm(filt(pad_to(np.concatenate([np.zeros(secs(0.22)), white(secs(0.1), rng) * env_ad(secs(0.1), 0.001, 0.02)]), n), [("lp", 350)]))
     out += latch(n, rng, 0.235, 0.45)
@@ -582,7 +586,7 @@ def enemy_moan_2(rng):
                 voiced=env * env_points(n, [(0, 0), (0.35, 0), (0.7, 1), (2.4, 1)]),
                 fry=env_points(n, [(0, 0), (1.5, 0.1), (1.9, 0.9), (2.3, 0)]), bw_scale=1.5, sub=0.5,
                 tremor=0.45, extra=uncanny_extra)
-    rattle = filt(white(n, rng), [("bp", 420, 2.0)]) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 23 * t))) \
+    rattle = filt(white(n, rng), [("bp", 420, 2.0)]) * np.maximum(0.0, np.sin(2 * np.pi * 23 * t)) ** 3 \
         * env_points(n, [(0, 0), (1.7, 0), (2.0, 0.6), (2.35, 0)])
     out = norm(out) + 0.25 * norm(rattle)
     return trim_tail(filt(out, [("hp", 55)]), -55, 0.2)
@@ -750,7 +754,7 @@ def distant_scrape(rng):
     t = taxis(n)
     stick = np.clip(smooth_random(n, rng, 35.0), 0, 1) ** 2 + 0.2
     exc = white(n, rng) * stick * env_points(n, [(0, 0), (0.6, 0.7), (1.8, 1.0), (2.6, 0.6), (3.4, 0)])
-    glide = 1.0 + 0.05 * np.sin(2 * np.pi * 0.35 * t) + 0.03 * smooth_random(n, rng, 1.5)
+    glide = 1.0 + 0.07 * np.sin(2 * np.pi * 0.35 * t) + 0.04 * smooth_random(n, rng, 1.5) - 0.05 * t / 4.2
 
     def frame(tc, freqs):
         gl = float(glide[min(n - 1, secs(tc))])
@@ -897,10 +901,11 @@ def stinger_invasion(rng):
     tt = taxis(m)
     boom = np.sin(2 * np.pi * osc_phase(49 + 30 * np.exp(-tt / 0.08))) * env_ad(m, 0.002, 0.8)
     boom += 0.6 * norm(filt(white(m, rng) * env_ad(m, 0.001, 0.12), [("lp", 500)]))
-    shim = np.zeros(m)
-    for f in (1840, 2710, 3390, 4620, 5810):
-        shim += np.sin(2 * np.pi * f * tt + rng.uniform(0, 6)) * np.exp(-tt / rng.uniform(0.5, 1.4))
-    hit = norm(boom) + 0.12 * norm(shim)
+    strike = white(m, rng) * env_ad(m, 0.0005, 0.004)
+    shim = resonators(strike, [(f, np.pi * f * d, 1.0) for f, d in
+                               ((1840, 1.2), (1852, 1.1), (2710, 0.9), (3390, 0.8), (3405, 0.7), (4620, 0.6), (5810, 0.5))],
+                      keep_tail=False)
+    hit = norm(boom) + 0.08 * norm(shim)
     out = 0.8 * norm(cluster) + np.stack([0.18 * norm(rev)] * 2) + 0.12 * np.stack([norm(ghost)] * 2)
     place(out, np.stack([hit, hit]), hit_t, 1.1)
     ir = reverb_ir(3.2, rng, predelay=0.03, bright=0.6, stereo=True)
@@ -947,9 +952,9 @@ def music_menu(rng):
         breathe = 0.7 + 0.3 * np.sin(2 * np.pi * (5 / T) * t + c * 0.8)
         out[c] *= breathe
     out = norm(out) * 0.45
-    air = np.stack([filt_circular(colored(n, rng, -3.0), [("bp", 900, 0.5)]) for _ in range(2)])
+    air = np.stack([filt_circular(colored(n, rng, -3.0), [("bp", 700, 0.7), ("lp", 2200)]) for _ in range(2)])
     air *= 0.5 + 0.5 * np.sin(2 * np.pi * (3 / T) * t - np.pi / 2)
-    out += 0.04 * air / np.std(air)
+    out += 0.018 * air / np.std(air)
     # slow, sad piano-like plucks in D minor
     melody = [
         (1.5, [293.66, 220.0], 0.55), (5.0, [349.23], 0.45), (8.4, [329.63], 0.42), (12.2, [261.63, 220.0], 0.4),
@@ -1023,14 +1028,15 @@ SOUNDS = {
 }
 
 # Where a loop may start (seconds; negative = before the end). Default: anywhere.
-SEAM_SEARCH = {"music/menu": (-3.0, 1.2)}
+SEAM_SEARCH = {"music/menu": (-6.0, 1.3)}
 
 PEAK_CEILING = -1.5      # dBFS before encoding
 MAX_LIMIT_DB = 6.0       # never squash more than this to reach the RMS target
+LIMIT_DB = {"weapon/handgun_fire": 9.0}  # a gunshot's crack takes heavier limiting
 DECODED_PEAK_MAX = -1.0  # dBFS after decoding
 
 
-def finish(x, target, loop):
+def finish(x, target, loop, max_limit=MAX_LIMIT_DB):
     """DC/infrasonic cleanup, loudness normalisation, peak safety."""
     if not loop:
         x = filt(x, [("hp", 22, 0.7)])
@@ -1041,8 +1047,8 @@ def finish(x, target, loop):
     y = x * undb(gain)
     over = peak_db(y) - PEAK_CEILING
     if over > 0:
-        if loop or over > MAX_LIMIT_DB:
-            y = y * undb(-max(0.0, over - (0 if loop else MAX_LIMIT_DB)))
+        if loop or over > max_limit:
+            y = y * undb(-max(0.0, over - (0 if loop else max_limit)))
         if not loop:
             y = limit(y, PEAK_CEILING)
     return y
@@ -1070,7 +1076,7 @@ def seam_step(y):
     return max(abs((c[0] - c[-1]) - (c[-1] - c[-2])) for c in st)
 
 
-def seam_rotation(x, q, search=None, candidates=6):
+def seam_rotation(x, q, search=None, candidates=16):
     """Vorbis reconstructs the first and last samples of a file less exactly
     when the signal is far from zero there, which can tick at the loop point.
     The loops are exactly periodic, so rotate them to start where all
@@ -1133,7 +1139,7 @@ def out_path(name):
 def build(name):
     fn, cat, target, loop, q = SOUNDS[name]
     rng = np.random.default_rng(zlib.crc32(name.encode()))
-    x = finish(fn(rng), target, loop)
+    x = finish(fn(rng), target, loop, LIMIT_DB.get(name, MAX_LIMIT_DB))
     if loop:
         x = seam_rotation(x, q, SEAM_SEARCH.get(name))
     path = out_path(name)

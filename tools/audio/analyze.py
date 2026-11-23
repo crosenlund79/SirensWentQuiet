@@ -116,7 +116,14 @@ def spectrogram_png(x, path, title):
     out = Image.new("L", (width, rows + 80 + 14), 30)
     out.paste(wave, (0, 14))
     out.paste(im, (0, 94))
-    ImageDraw.Draw(out).text((4, 1), title, fill=255)
+    dr = ImageDraw.Draw(out)
+    dr.text((4, 1), "%s  (%.2f s)" % (title, len(mono) / SR), fill=255)
+    for hz, label in ((100, "100"), (500, "500"), (1000, "1k"), (2000, "2k"), (5000, "5k"), (10000, "10k")):
+        m = 2595 * np.log10(1 + hz / 700)
+        y = 94 + rows - 1 - int((m - mel[0]) / (mel[-1] - mel[0]) * (rows - 1))
+        for x0 in range(0, width, 8):
+            dr.point((x0, y), fill=128)
+        dr.text((width - 26, y - 11), label, fill=160)
     out.save(path)
 
 
@@ -150,7 +157,7 @@ def problems(r):
     if r["sub"] > 25:
         out.append("too much energy below 40 Hz")
     if r["loop"]:
-        if r["seam_db"] > -60.0 and r["seam_ratio"] > 4.0:
+        if r["seam_db"] > r["rms"] - 30.0 and r["seam_ratio"] > 4.0:
             out.append("loop seam click")
         if r["seam_level"] > 3.0:
             out.append("loop level step")

@@ -110,14 +110,14 @@ func test_cooldown_and_cap_limit_repeats() -> void:
 		Sfx.play("player/footstep", Vector3.ZERO)
 	check_eq(Sfx.active_count("player/footstep"), 1, "cooldown: one footstep")
 	check(int(Sfx.stats["skipped"]) >= 9, "the rest were skipped")
-	# impacts: short cooldown, cap of 4 simultaneous. Cooldowns and playback
-	# run in real time (the test clock is a fixed 60 fps), so wait for real.
-	for i in 8:
-		Sfx.play("impact/wood", Vector3(i, 0, 0))
-		OS.delay_msec(40)
-	var n := Sfx.active_count("impact/wood")
-	check(n >= 2 and n <= 4, "impact cap (got %d)" % n)
-	check(int(Sfx.stats["stolen"]) >= 1, "the oldest impact was restarted")
+	# a 2.2 s sound with a 0.1 s cooldown and a cap of 3. Cooldowns and
+	# playback run in real time (the test clock is a fixed 60 fps), so wait
+	# for real; six plays fit well inside one sound's length.
+	for i in 6:
+		Sfx.play("structure/break", Vector3(i, 0, 0))
+		OS.delay_msec(110)
+	check_eq(Sfx.active_count("structure/break"), 3, "capped at 3 simultaneous")
+	check(int(Sfx.stats["stolen"]) >= 2, "the oldest ones were restarted")
 
 
 func test_group_never_repeats_the_same_variant_twice() -> void:
@@ -152,8 +152,6 @@ func test_ui_plays_on_ui_bus_while_paused() -> void:
 
 func test_music_crossfades_and_stops() -> void:
 	Sfx.reset()
-	Sfx.music("")
-	await seconds(Sfx.MUSIC_FADE + 0.2)
 	Sfx.music("music/menu")
 	check_eq(Sfx.current_music(), "music/menu", "current track")
 	var host := tree.root.get_node_or_null("SfxPersistent")

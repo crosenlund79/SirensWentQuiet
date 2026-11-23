@@ -98,3 +98,18 @@ func test_distant_noises_are_more_frequent_at_night() -> void:
 	for i in 300:
 		counts[a._pick_distant()] += 1
 	check(counts[0] > 0 and counts[1] > 0 and counts[2] > 0, "all three noises in rotation (%s)" % [counts])
+
+
+func test_timer_plays_a_distant_noise_and_reschedules() -> void:
+	var a := _ambience()
+	await frames(1)
+	a.set_night_amount(1.0)
+	a._next_distant = 0.01
+	a._process(0.05)
+	check_eq(Sfx.active_count("ambient/distant"), 1, "one distant noise playing")
+	var r := a.distant_interval_range()
+	check(a.next_distant_in() >= r.x and a.next_distant_in() <= r.y, "next one scheduled in the night range")
+	a.distant_enabled = false
+	a._next_distant = 0.01
+	a._process(0.05)
+	check(is_equal_approx(a.next_distant_in(), 0.01), "disabled: the timer holds")

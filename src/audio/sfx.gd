@@ -251,9 +251,19 @@ static func current_music() -> String:
 	return _music
 
 
-## Tests: detach and forget cooldowns, warnings and counters.
+## Tests: detach, stop the music at once, forget cooldowns, warnings and counters.
 static func reset() -> void:
 	attach(null)
+	var host := _node(_persist_id)
+	if host != null:
+		for c in host.get_children():
+			if c.get_meta("sfx_kind", "") == "M":
+				if c.has_meta("sfx_tween"):
+					var tw: Tween = c.get_meta("sfx_tween")
+					if tw != null and tw.is_valid():
+						tw.kill()
+				c.stop()
+	_music = ""
 	_last.clear()
 	_last_variant.clear()
 	_warned.clear()
