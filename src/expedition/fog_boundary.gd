@@ -30,6 +30,8 @@ const LAYERS := [0.06, 0.4, 0.85, 1.4, 2.05, 2.8, 3.65, 4.6, 5.7, 7.0]
 const LAYER_ALPHA := 0.27
 const RING_INNER := -1.2                  ## slices start this far inside the edge
 const RING_OUTER := 70.0                  ## ... and end this far out
+const VOLUME_REACH := 60.0                ## the FogVolume box reaches this far past the lot
+const VOLUME_HEIGHT := 12.0
 
 ## Volumetric fog settings written to the Environment given to setup().
 const VOLUMETRIC := {
@@ -37,10 +39,10 @@ const VOLUMETRIC := {
 	"volumetric_fog_albedo": Color(1, 1, 1),
 	"volumetric_fog_emission": Color(0, 0, 0),
 	"volumetric_fog_emission_energy": 1.0,
-	"volumetric_fog_anisotropy": 0.35,
+	"volumetric_fog_anisotropy": 0.2,
 	"volumetric_fog_length": 72.0,
 	"volumetric_fog_detail_spread": 1.4,
-	"volumetric_fog_ambient_inject": 0.7,
+	"volumetric_fog_ambient_inject": 1.1,
 	"volumetric_fog_sky_affect": 0.0,
 	"volumetric_fog_gi_inject": 0.0,
 	"volumetric_fog_temporal_reprojection_enabled": true,
@@ -179,7 +181,12 @@ func _build_cards() -> void:
 func _build_volume() -> void:
 	volume = FogVolume.new()
 	volume.name = "FogBank"
-	volume.shape = RenderingServer.FOG_VOLUME_SHAPE_WORLD
+	# A big box around the lot (the shader thins it to nothing on the lawn).
+	# A WORLD-shaped volume rendered nothing under software Vulkan.
+	volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
+	var outer := LOT.grow(VOLUME_REACH)
+	volume.size = Vector3(outer.size.x, VOLUME_HEIGHT, outer.size.y)
+	volume.position = Vector3(outer.get_center().x, VOLUME_HEIGHT * 0.5 - 0.5, outer.get_center().y)
 	volume_material = ShaderMaterial.new()
 	volume_material.shader = VOLUME_SHADER
 	var ln := lanes()
@@ -219,7 +226,7 @@ func set_night_amount(t: float) -> void:
 		volume_material.set_shader_parameter("night", night_amount)
 	if environment != null and use_volumetric:
 		# Moonlight scatter: the bank takes up more ambient light at night.
-		environment.volumetric_fog_ambient_inject = lerpf(VOLUMETRIC["volumetric_fog_ambient_inject"], 1.4, night_amount)
+		environment.volumetric_fog_ambient_inject = lerpf(VOLUMETRIC["volumetric_fog_ambient_inject"], 1.8, night_amount)
 
 
 func _process(delta: float) -> void:

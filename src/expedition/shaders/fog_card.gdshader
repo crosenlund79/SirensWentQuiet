@@ -15,16 +15,16 @@ uniform float layer_alpha = 0.3;      // opacity at full density
 uniform float floor_alpha = 0.0;      // >0 on the lowest slice: opaque far floor
 uniform float seed_offset = 0.0;
 uniform vec2 wind = vec2(0.32, 0.12);
-uniform vec3 day_low : source_color = vec3(0.55, 0.58, 0.62);
-uniform vec3 day_high : source_color = vec3(0.80, 0.82, 0.85);
-uniform vec3 night_low : source_color = vec3(0.05, 0.065, 0.11);
-uniform vec3 night_high : source_color = vec3(0.17, 0.21, 0.31);
+uniform vec3 day_low : source_color = vec3(0.44, 0.48, 0.53);
+uniform vec3 day_high : source_color = vec3(0.86, 0.87, 0.89);
+uniform vec3 night_low : source_color = vec3(0.035, 0.045, 0.08);
+uniform vec3 night_high : source_color = vec3(0.25, 0.3, 0.44);
 uniform float night = 0.0;
 uniform vec3 invite_pos = vec3(0.0, -100.0, 0.0);   // the player, while near the edge
 uniform float invite = 0.0;
 uniform vec4 lane_a = vec4(0.0);      // x0, z0, x1, z1: paths that run on into the fog
 uniform vec4 lane_b = vec4(0.0);
-uniform float lane_push = 1.7;
+uniform float lane_push = 0.6;
 
 varying vec3 wpos;
 
@@ -39,7 +39,7 @@ float lane(vec2 p, vec4 r) {
 	if (r.z <= r.x) {
 		return 0.0;
 	}
-	return 1.0 - smoothstep(-0.2, 0.6, sd_rect(p, r));
+	return 1.0 - smoothstep(-0.3, 1.4, sd_rect(p, r));
 }
 
 void vertex() {
@@ -57,10 +57,15 @@ void fragment() {
 	float lanes = max(lane(q, lane_a), lane(q, lane_b));
 	float d = sd_rect(q, lot_rect) - lanes * lane_push;   // metres beyond the lot edge
 	// The bank rises away from the lot; ragged, slowly breathing top.
-	float top = mix(1.7, 7.4, smoothstep(0.0, 14.0, d)) + (n - 0.45) * 3.0;
-	float in_bank = 1.0 - smoothstep(top - 1.4, top + 0.3, layer_y);
-	float edge = smoothstep(-0.8 + (n2 - 0.5) * 1.8, 3.4, d);
-	float dens = edge * in_bank * mix(0.55, 1.35, n);
+	// Billows: large-scale noise lifts and drops the bank top, so the upper
+	// slices form bright crests over darker hollows.
+	float billow = n1 * 0.55 + n3 * 0.45;
+	float top = mix(1.7, 7.0, smoothstep(0.0, 14.0, d)) + (billow - 0.47) * 5.0 + (n2 - 0.5) * 1.2;
+	float in_bank = 1.0 - smoothstep(top - 0.9, top + 0.25, layer_y);
+	float edge = smoothstep(-0.8 + (n2 - 0.5) * 1.8, 2.8, d);
+	// Patchy wisps near the edge, a solid bank further out.
+	float wisps = mix(smoothstep(0.2, 0.7, n), 1.0, smoothstep(1.5, 7.0, d));
+	float dens = edge * in_bank * mix(0.6, 1.4, n) * mix(0.35, 1.0, wisps);
 	float a = clamp(dens * layer_alpha, 0.0, 1.0);
 	a = max(a, floor_alpha * smoothstep(4.0, 10.0, d));
 
@@ -79,9 +84,10 @@ void fragment() {
 	vec3 lo = mix(day_low, night_low, night);
 	vec3 hi = mix(day_high, night_high, night);
 	// Lit tops, shadowed hollows: higher and denser reads brighter.
-	float lit = clamp(layer_t * 0.75 + (n - 0.35) * 0.7, 0.0, 1.0);
+	float lit = clamp(layer_t * 0.95 + (n - 0.5) * mix(0.45, 0.8, night) - 0.05, 0.0, 1.0);
+	lit = mix(lit, lit * lit * (3.0 - 2.0 * lit), night);
 	vec3 col = mix(lo, hi, lit);
-	col *= mix(1.0, 1.12, lanes * (1.0 - night * 0.5));
+	col *= mix(1.0, 1.08, lanes * (1.0 - night * 0.5));
 	col += invite * exp(-pd * pd / 8.0) * mix(vec3(0.06, 0.055, 0.045), vec3(0.05, 0.06, 0.09), night);
 	ALBEDO = col;
 	ALPHA = a;

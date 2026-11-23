@@ -345,12 +345,22 @@ func result() -> Dictionary:
 	return _result
 
 
+## "Back after 3 h 25 min with water, canned food and snacks. Hurt (-8 health)."
 func _summary(minutes: int, gained: Dictionary, dmg: float, lost: Dictionary) -> String:
-	var n := 0
-	for id in gained:
-		n += int(gained[id])
+	var ids := gained.keys()
+	ids.sort_custom(func(a, b): return int(gained[a]) > int(gained[b]) or (int(gained[a]) == int(gained[b]) and a < b))
+	var names := []
+	for id in ids.slice(0, 3):
+		names.append(Items.name_of(id).to_lower())
 	var s := "Back after %s" % D.duration(minutes)
-	s += " with nothing." if n == 0 else " with %d item%s." % [n, "" if n == 1 else "s"]
+	if names.is_empty():
+		s += " with nothing."
+	elif ids.size() > 3:
+		s += " with %s and more." % ", ".join(names)
+	elif names.size() == 1:
+		s += " with %s." % names[0]
+	else:
+		s += " with %s and %s." % [", ".join(names.slice(0, names.size() - 1)), names[-1]]
 	if dmg >= 1.0:
 		s += " Hurt (-%d health)." % int(round(dmg))
 	if not lost.is_empty():

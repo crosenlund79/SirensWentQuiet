@@ -5,15 +5,15 @@
 shader_type fog;
 
 uniform vec4 lot_rect = vec4(-4.5, -3.5, 18.5, 12.5);
-uniform float density = 0.32;
-uniform vec3 albedo_day : source_color = vec3(0.86, 0.88, 0.92);
-uniform vec3 albedo_night : source_color = vec3(0.62, 0.7, 0.9);
+uniform float density = 0.55;
+uniform vec3 albedo_day : source_color = vec3(0.72, 0.78, 0.88);
+uniform vec3 albedo_night : source_color = vec3(0.6, 0.7, 0.92);
 uniform vec3 emission_day : source_color = vec3(0.0);
-uniform vec3 emission_night : source_color = vec3(0.016, 0.022, 0.045);
+uniform vec3 emission_night : source_color = vec3(0.025, 0.035, 0.07);
 uniform float night = 0.0;
 uniform vec4 lane_a = vec4(0.0);
 uniform vec4 lane_b = vec4(0.0);
-uniform float lane_push = 1.7;
+uniform float lane_push = 0.6;
 
 float sd_rect(vec2 p, vec4 r) {
 	vec2 c = (r.xy + r.zw) * 0.5;
@@ -26,7 +26,7 @@ float lane(vec2 p, vec4 r) {
 	if (r.z <= r.x) {
 		return 0.0;
 	}
-	return 1.0 - smoothstep(-0.2, 0.6, sd_rect(p, r));
+	return 1.0 - smoothstep(-0.3, 1.4, sd_rect(p, r));
 }
 
 float hash(vec3 p) {

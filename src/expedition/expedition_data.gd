@@ -69,9 +69,9 @@ const DESTINATIONS := {
 		"recommends": ["backpack", "crowbar"],
 		"rewards": "Canned food, snacks and bottled water in quantity; sometimes bandages, rarely a backpack.",
 		"loot": [
-			["canned_food", 2, 4, 0.95], ["snacks", 2, 4, 0.85], ["water", 2, 5, 1.0], ["bandage", 1, 1, 0.2], ["backpack", 1, 1, 0.08],
+			["canned_food", 2, 4, 0.95], ["snacks", 2, 4, 0.85], ["water", 2, 4, 1.0], ["bandage", 1, 1, 0.2], ["backpack", 1, 1, 0.08],
 		],
-		"locked": [["water", 2, 4, 0.85], ["canned_food", 1, 3, 0.75], ["snacks", 1, 2, 0.5]],
+		"locked": [["water", 2, 3, 0.85], ["canned_food", 1, 3, 0.75], ["snacks", 1, 2, 0.5]],
 		"locked_name": "the stockroom",
 		"locked_text": "The crowbar opened the stockroom.",
 		"events": {"storage_door": 3, "lone_psycho": 2, "dogs": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1},
@@ -87,10 +87,10 @@ const DESTINATIONS := {
 		"recommends": ["crowbar", "backpack"],
 		"rewards": "Planks, nails and scrap metal; a crowbar or a hammer if you lack one, sometimes a flashlight.",
 		"loot": [
-			["wood", 5, 10, 1.0], ["nails", 10, 24, 0.95], ["scrap", 2, 5, 0.75],
+			["wood", 6, 12, 1.0], ["nails", 8, 16, 0.95], ["scrap", 2, 5, 0.75],
 			["crowbar", 1, 1, 0.5], ["hammer", 1, 1, 0.6], ["flashlight", 1, 1, 0.25],
 		],
-		"locked": [["scrap", 3, 6, 0.9], ["nails", 12, 20, 0.8], ["wood", 4, 8, 0.7]],
+		"locked": [["scrap", 3, 6, 0.9], ["nails", 8, 14, 0.8], ["wood", 5, 9, 0.75]],
 		"locked_name": "the stockroom",
 		"locked_text": "The crowbar opened the stockroom.",
 		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1},
@@ -459,11 +459,26 @@ static func duration(minutes: float) -> String:
 	return "%d h %02d min" % [m / 60, m % 60]
 
 
-## "2 canned food, 1 bottled water" (dictionary order by Items.DEFS).
+## Countable names for the report: [singular, plural].
+const COUNT_NAMES := {
+	"canned_food": ["can of food", "cans of food"], "snacks": ["pack of snacks", "packs of snacks"],
+	"water": ["bottle of water", "bottles of water"], "ammo": ["round", "rounds"],
+	"wood": ["plank", "planks"], "nails": ["nail", "nails"], "scrap": ["piece of scrap metal", "pieces of scrap metal"],
+	"bandage": ["bandage", "bandages"], "medkit": ["first-aid kit", "first-aid kits"],
+}
+
+
+## "3 cans of food", "1 round", "1 crowbar".
+static func count_text(id: String, n: int) -> String:
+	var names: Array = COUNT_NAMES.get(id, [Items.name_of(id).to_lower(), Items.name_of(id).to_lower()])
+	return "%d %s" % [n, names[0] if n == 1 else names[1]]
+
+
+## "3 cans of food, 1 bottle of water" (in Items.DEFS order).
 static func items_text(counts: Dictionary) -> String:
 	var parts := []
 	for id in Items.DEFS:
 		var n := int(counts.get(id, 0))
 		if n > 0:
-			parts.append("%d %s" % [n, Items.name_of(id).to_lower()])
+			parts.append(count_text(id, n))
 	return ", ".join(parts)

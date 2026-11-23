@@ -8,11 +8,16 @@ extends Node3D
 ##   --pos=x,y            player plan position (default: at the south edge on the path)
 ##   --zoom=d             camera distance (11-32)
 ##   --novol              slices only (no volumetric FogVolume)
+##   --nocards            volumetric fog only (debug)
+##   --voldens=x          volumetric density override (debug)
+##   --globalfog=x        global volumetric fog density (debug: does volumetric fog render at all?)
 ##   --clock=HH:MM        GameState time of day (screen captures)
 ##   --screen=list|gear|confirm|event|outcome|report   open the expedition screen at that step
 ##   --dest=id            destination for the screen steps (default grocery)
 ##   --give=id:n,id:n     extra inventory for the screen captures
-##   --pick=i             option picked for the outcome/report steps
+##   --pick=i             option picked in every event (outcome/report steps)
+##   --picks=i,j          option per event
+##   --seed=n             run seed (default 2026)
 
 var state: GameState
 var lighting: VoxelLighting
@@ -33,7 +38,7 @@ func _ready() -> void:
 	var night := 0.0
 	if _args.has("night"):
 		night = 1.0 if _args["night"] == "" else float(_args["night"])
-	state = GameState.new_run(2026)
+	state = GameState.new_run(int(_args.get("seed", "2026")))
 	if _args.has("clock"):
 		var hm: PackedStringArray = str(_args["clock"]).split(":")
 		state.total_minutes = 1440.0 + int(hm[0]) * 60.0 + (int(hm[1]) if hm.size() > 1 else 0)
@@ -69,6 +74,14 @@ func _ready() -> void:
 	boundary.use_volumetric = not _args.has("novol")
 	boundary.setup(player, lighting.environment)
 	add_child(boundary)
+	if _args.has("nocards"):
+		for c in boundary.cards:
+			c.visible = false
+	if _args.has("voldens") and boundary.volume_material != null:
+		boundary.volume_material.set_shader_parameter("density", float(_args["voldens"]))
+	if _args.has("globalfog"):
+		lighting.environment.volumetric_fog_enabled = true
+		lighting.environment.volumetric_fog_density = float(_args["globalfog"])
 	lighting.set_amount(night)
 	player.set_night(night)
 	boundary.set_night_amount(night)
@@ -93,6 +106,7 @@ func _drive_screen(target: String) -> void:
 	var dest := str(_args.get("dest", "grocery"))
 	if target == "list":
 		screen.select_destination(dest)
+		screen.destination_buttons[dest].grab_focus()
 		return
 	screen.select_destination(dest)
 	screen.to_gear()
@@ -105,8 +119,10 @@ func _drive_screen(target: String) -> void:
 	if target == "event":
 		return
 	var pick := int(_args.get("pick", "-1"))
+	var picks: PackedStringArray = str(_args.get("picks", "")).split(",", false)
 	while screen.step == "event":
-		var i := pick if pick >= 0 and screen.run.option_state(pick)["ok"] else screen.run.first_available_option()
+		var want := int(picks[screen.run.step]) if screen.run.step < picks.size() else pick
+		var i := want if want >= 0 and screen.run.option_state(want)["ok"] else screen.run.first_available_option()
 		screen.choose_option(i)
 		if target == "outcome":
 			return

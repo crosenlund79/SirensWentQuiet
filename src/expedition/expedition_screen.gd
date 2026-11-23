@@ -50,6 +50,8 @@ var _travel_label: Label
 var _detail_box: VBoxContainer
 var _gear_summary: VBoxContainer
 var _tween: Tween
+var _veil_tween: Tween
+var _veil_amount := 0.0
 var _emitted := false
 
 
@@ -98,6 +100,8 @@ func open(s: GameState) -> void:
 	is_open = true
 	visible = true
 	_kill_tween()
+	if _veil_tween != null and _veil_tween.is_valid():
+		_veil_tween.kill()
 	var night := s.night_amount() if s != null else 0.0
 	_veil_mat.set_shader_parameter("fog_dark", (VEIL_DAY[0] as Color).lerp(VEIL_NIGHT[0], night))
 	_veil_mat.set_shader_parameter("fog_light", (VEIL_DAY[1] as Color).lerp(VEIL_NIGHT[1], night))
@@ -106,14 +110,15 @@ func open(s: GameState) -> void:
 	_sfx("ui/open")
 	_show_list()
 	if instant:
-		_veil_mat.set_shader_parameter("amount", 1.0)
+		_set_veil(1.0)
 		_panel.modulate.a = 1.0
 	else:
-		_veil_mat.set_shader_parameter("amount", 0.0)
+		_set_veil(0.0)
 		_panel.modulate.a = 0.0
+		_veil_to(1.0, FADE_IN)
 		_tween = create_tween()
-		_tween.tween_method(_set_veil, 0.0, 1.0, FADE_IN).set_trans(Tween.TRANS_SINE)
-		_tween.tween_property(_panel, "modulate:a", 1.0, 0.3)
+		_tween.tween_interval(FADE_IN * 0.6)
+		_tween.tween_method(_set_panel_alpha, 0.0, 1.0, 0.3)
 
 
 ## List: highlight a destination and show its details.
@@ -132,9 +137,6 @@ func available(id: String) -> Dictionary:
 
 ## List -> gear (only for an available destination).
 func to_gear() -> void:
-	if step == "confirm":
-		_go(_show_gear)
-		return
 	if step != "list" or selected == "":
 		return
 	if not available(selected)["ok"]:
@@ -272,7 +274,18 @@ func _sfx(n: String) -> void:
 
 
 func _set_veil(a: float) -> void:
+	_veil_amount = a
 	_veil_mat.set_shader_parameter("amount", a)
+
+
+## The veil has its own tween, so step transitions never cut a fade short.
+func _veil_to(target: float, time: float, then := Callable()) -> void:
+	if _veil_tween != null and _veil_tween.is_valid():
+		_veil_tween.kill()
+	_veil_tween = create_tween()
+	_veil_tween.tween_method(_set_veil, _veil_amount, target, time).set_trans(Tween.TRANS_SINE)
+	if then.is_valid():
+		_veil_tween.tween_callback(then)
 
 
 func _kill_tween() -> void:
@@ -286,13 +299,15 @@ func _close() -> void:
 	step = ""
 	_kill_tween()
 	if instant or not is_inside_tree():
+		if _veil_tween != null and _veil_tween.is_valid():
+			_veil_tween.kill()
+		_set_veil(0.0)
 		visible = false
 		return
-	_tween = create_tween()
 	if _panel != null:
+		_tween = create_tween()
 		_tween.tween_property(_panel, "modulate:a", 0.0, STEP_FADE)
-	_tween.tween_method(_set_veil, float(_veil_mat.get_shader_parameter("amount")), 0.0, FADE_OUT)
-	_tween.tween_callback(func(): visible = is_open)
+	_veil_to(0.0, FADE_OUT, func(): visible = is_open)
 
 
 ## Fades the panel out, rebuilds it with `build`, fades it back in.
@@ -582,6 +597,7 @@ func _show_gear() -> void:
 		cb.button_pressed = have and int(gear.get(id, 0)) > 0
 		cb.disabled = not have or id in req
 		cb.toggled.connect(func(on: bool): set_tool(id, on))
+		_flat_check(cb)
 		left.add_child(cb)
 		tool_boxes[id] = cb
 		if have:
@@ -597,6 +613,28 @@ func _show_gear() -> void:
 	_footer([back_button, primary_button])
 	_refresh_gear_summary()
 	_focus(ammo_slider if ammo_slider.editable else primary_button)
+
+
+## CheckBoxes would inherit the theme's filled Button styles; keep them flat
+## with a thin accent outline on hover and focus.
+func _flat_check(cb: CheckBox) -> void:
+	for state_name in ["normal", "pressed", "hover", "hover_pressed", "disabled", "focus"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(1, 1, 1, 0.04) if state_name in ["hover", "hover_pressed"] else Color(0, 0, 0, 0)
+		sb.border_color = UiTheme.ACCENT if state_name in ["hover", "hover_pressed", "focus"] else Color(0, 0, 0, 0)
+		sb.set_border_width_all(1 if state_name in ["hover", "hover_pressed", "focus"] else 0)
+		sb.set_corner_radius_all(3)
+		sb.content_margin_left = 6
+		sb.content_margin_right = 8
+		sb.content_margin_top = 4
+		sb.content_margin_bottom = 4
+		cb.add_theme_stylebox_override(state_name, sb)
+	cb.add_theme_color_override("font_color", UiTheme.TEXT)
+	cb.add_theme_color_override("font_pressed_color", UiTheme.TEXT)
+	cb.add_theme_color_override("font_hover_color", Color(1, 0.95, 0.88))
+	cb.add_theme_color_override("font_hover_pressed_color", Color(1, 0.95, 0.88))
+	cb.add_theme_color_override("font_focus_color", UiTheme.TEXT)
+	cb.add_theme_color_override("font_disabled_color", UiTheme.TEXT_DIM)
 
 
 func _refresh_gear_summary() -> void:

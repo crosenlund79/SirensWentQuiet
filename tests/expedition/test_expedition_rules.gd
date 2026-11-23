@@ -70,6 +70,10 @@ func test_data_is_consistent() -> void:
 				check(e[1] >= 1 and e[2] >= e[1] and e[3] > 0.0 and e[3] <= 1.0, "%s loot entry sane %s" % [id, e])
 		for ev in d["events"]:
 			check(D.EVENTS.has(ev), "%s event %s exists" % [id, ev])
+	for id in D.COUNT_NAMES:
+		check(Items.has(id), "count name for a real item (%s)" % id)
+	check_eq(D.count_text("ammo", 1), "1 round", "singular")
+	check_eq(D.items_text({"ammo": 3, "water": 2}), "2 bottles of water, 3 rounds", "plural, catalogue order")
 	for bt in D.BONUS_TABLES.values():
 		for e in bt:
 			check(Items.has(e[0]), "bonus table item %s" % e[0])
