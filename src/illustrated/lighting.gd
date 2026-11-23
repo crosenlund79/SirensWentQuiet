@@ -7,17 +7,37 @@ extends Node2D
 ## (desaturation, vignette, paper grain). One blend factor drives everything.
 
 const Art := preload("res://src/illustrated/ill_art.gd")
+const Token := preload("res://src/illustrated/token.gd")
 
-const DAY_AMBIENT := Color(0.79, 0.81, 0.86)
-const NIGHT_AMBIENT := Color(0.15, 0.18, 0.3)
+const DAY_AMBIENT := Color(0.88, 0.89, 0.92)
+const NIGHT_AMBIENT := Color(0.19, 0.22, 0.36)
 ## kind -> [color, energy, radius m]
 const PRACTICAL := {
 	"floor_lamp": [Color(1.0, 0.74, 0.46), 1.25, 4.6],
 	"table_lamp": [Color(1.0, 0.7, 0.44), 1.1, 3.4],
-	"hood": [Color(1.0, 0.84, 0.62), 1.0, 3.6],
+	"hood": [Color(1.0, 0.84, 0.62), 1.35, 4.6],
 	"ceiling": [Color(0.82, 0.9, 1.0), 1.15, 4.2],
 	"bare_bulb": [Color(1.0, 0.82, 0.5), 1.25, 5.0],
 }
+## Slow cloud shadows drifting over everything by day (multiply, world space).
+const CLOUD_SHADER := """
+shader_type canvas_item;
+render_mode blend_mul, unshaded;
+uniform float strength = 0.2;
+varying vec2 world;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+}
+void vertex() { world = VERTEX; }
+void fragment() {
+	vec2 p = world / 640.0 + vec2(TIME * 0.018, TIME * 0.011);
+	float n = vnoise(p) * 0.55 + vnoise(p * 2.1 + 3.7) * 0.3 + vnoise(p * 4.3 + 9.1) * 0.15;
+	float c = smoothstep(0.42, 0.78, n) * strength;
+	COLOR = vec4(vec3(1.0) - c * vec3(0.95, 0.9, 0.75), 1.0);
+}
+"""
 const GRADE_SHADER := """
 shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
@@ -49,7 +69,9 @@ var shadow_group: CanvasItem
 var player
 var lights: Array = []               ## [{light, base, flicker, phase, glow}]
 var hazards: Array[PointLight2D] = []
+var moon: Array[PointLight2D] = []
 var _grade: ShaderMaterial
+var _clouds: ShaderMaterial
 var _t := 0.0
 var _tween: Tween
 
@@ -103,6 +125,36 @@ func build(p_shadow_group: CanvasItem, p_player) -> void:
 			h.energy = 0.0
 			add_child(h)
 			hazards.append(h)
+	# cool moonlight entering through the north and west windows (from the NW)
+	for o in HousePlan.OPENINGS:
+		if o["kind"] != "window" or not (o["wall"] in ["north", "west"]):
+			continue
+		var w := HousePlan.wall_by_id(o["wall"])
+		var mid: float = (o["from"] + o["to"]) * 0.5
+		var p: Vector2 = Vector2(mid - 1.2, w["a"].y - 2.4) if o["wall"] == "north" else Vector2(w["a"].x - 2.4, mid - 1.2)
+		var ml := PointLight2D.new()
+		ml.texture = soft
+		ml.position = Art.w(p)
+		ml.color = Color(0.62, 0.74, 1.0)
+		ml.texture_scale = 1.6
+		ml.energy = 0.0
+		ml.enabled = false
+		ml.shadow_enabled = true
+		ml.shadow_filter = Light2D.SHADOW_FILTER_PCF5
+		ml.shadow_filter_smooth = 2.5
+		ml.shadow_color = Color(0, 0, 0, 0.9)
+		add_child(ml)
+		moon.append(ml)
+	var cloud := Polygon2D.new()
+	cloud.polygon = Art.rect_points(Art.rect(HousePlan.YARD.grow(16.0)))
+	cloud.z_index = Art.Z_FX - 1
+	cloud.z_as_relative = false
+	_clouds = ShaderMaterial.new()
+	var cs := Shader.new()
+	cs.code = CLOUD_SHADER
+	_clouds.shader = cs
+	cloud.material = _clouds
+	add_child(cloud)
 	var layer := CanvasLayer.new()
 	layer.layer = 5
 	add_child(layer)
@@ -137,6 +189,7 @@ func _process(delta: float) -> void:
 
 func _apply() -> void:
 	var k := amount
+	Token.night_amount = k
 	modulate_node.color = DAY_AMBIENT.lerp(NIGHT_AMBIENT, k)
 	for e in lights:
 		var l: PointLight2D = e["light"]
@@ -151,6 +204,11 @@ func _apply() -> void:
 		l.enabled = en > 0.01
 		var g: Sprite2D = e["glow"]
 		g.modulate.a = clampf(en / maxf(e["base"], 0.01), 0.0, 1.0) * 0.9
+	for ml in moon:
+		ml.energy = 0.9 * k
+		ml.enabled = k > 0.01
+	if _clouds != null:
+		_clouds.set_shader_parameter("strength", 0.22 * (1.0 - k))
 	var blink := 1.0 if fmod(_t, 1.1) < 0.45 else 0.0
 	for h in hazards:
 		h.energy = blink * (0.5 + 1.1 * k)
@@ -160,7 +218,7 @@ func _apply() -> void:
 		shadow_group.material.set_shader_parameter("opacity", lerpf(0.62, 0.3, k))
 	if _grade != null:
 		_grade.set_shader_parameter("desat", lerpf(0.2, 0.22, k))
-		_grade.set_shader_parameter("vignette", lerpf(0.38, 0.62, k))
+		_grade.set_shader_parameter("vignette", lerpf(0.3, 0.58, k))
 		_grade.set_shader_parameter("tint", Vector3(1.0, 1.0, 1.02).lerp(Vector3(0.95, 0.98, 1.06), k))
 		_grade.set_shader_parameter("grain", lerpf(0.06, 0.08, k))
 

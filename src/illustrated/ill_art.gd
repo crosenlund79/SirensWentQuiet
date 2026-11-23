@@ -22,6 +22,24 @@ const Z_ACTORS := -10
 const Z_FX := 0
 const Z_OVERHEAD := 10
 
+## Every logical art name Version C loads ("illustrated/<name>"), grouped as in
+## docs/experiment-001/illustrated.md. Tests check that each one resolves.
+const MANIFEST := {
+	"floors": ["floor_wood", "floor_wood_light", "floor_tile", "floor_kitchen_tile", "floor_concrete", "floor_subfloor",
+		"floor_deck", "ground_grass", "ground_concrete", "ground_asphalt"],
+	"walls": ["wall_ext", "wall_ext_cracked", "wall_ext_broken", "wall_int", "wall_int_cracked", "wall_int_broken",
+		"window", "window_cracked", "window_shattered", "window_broken", "wall_post", "door_leaf", "fence"],
+	"furniture": ["sofa", "armchair", "coffee_table", "tv_stand", "floor_lamp", "bookshelf", "dining_table", "chair", "plant",
+		"rug_living", "rug_bed", "bath_mat", "counter", "sink_counter", "stove", "fridge", "island", "stool", "bed",
+		"nightstand", "wardrobe", "dresser", "bathtub", "toilet", "vanity", "water_heater", "workbench", "washer",
+		"shelves", "boxes"],
+	"props": ["car", "dead_tree", "trash_bin", "mailbox", "streetlight"],
+	"details": ["papers", "shoe", "toy", "mud_trail", "leaves", "ceiling_light", "bulb", "table_lamp"],
+	"debris": ["debris_planks", "debris_plaster", "debris_glass"],
+	"characters": ["player", "psycho_a", "psycho_b", "psycho_a_dead", "psycho_b_dead"],
+	"lights": ["light_soft", "light_cone"],
+}
+
 static var _unshaded: CanvasItemMaterial
 static var _additive: CanvasItemMaterial
 static var _fx_cache := {}

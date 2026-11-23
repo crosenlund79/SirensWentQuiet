@@ -4,7 +4,7 @@ extends Node2D
 ## Scene root: builds the world from HousePlan, wires the player, enemies,
 ## gunfire, camera, day/night and the shared HUD, and implements the smoke-test
 ## debug API (plan meters). Extra user args for screenshots:
-##   --scenario=overview|damage|breach|enemies|shooting
+##   --scenario=overview|damage|breach|enemies|shooting|collapse
 ##   --slowmo-at=SECONDS   fire one shot then slow time to 3 % (catches the flash)
 
 const Art := preload("res://src/illustrated/ill_art.gd")
@@ -374,9 +374,18 @@ func _setup_scenario() -> void:
 			_place_enemy(Vector2(2.4, 10.6), -0.9, true)
 			_place_enemy(Vector2(8.2, 10.4), -PI * 0.6, true)
 			_place_enemy(Vector2(9.0, 5.4), PI * 0.9, true)
-			var d = _place_enemy(Vector2(5.4, 4.95), 0.0, true)
-			d.die(Vector2(0.3, -1.0).normalized())
+			var d = _place_enemy(Vector2(8.7, 7.6), 0.0, true)
+			d.die(Vector2(1.0, -0.25).normalized())
 			_damage("south", 2.5, 2)
+		"collapse":
+			_view_target = 12.0
+			_view_m = 12.0
+			_cam_focus = Vector2(2.2, 3.4)
+			player.global_position = Art.w(Vector2(2.2, 6.4))
+			player.aim_point = Art.w(Vector2(0.62, 4.0))
+			var s = _section_at("mid_west", 1.0)
+			walls.damage_section(s, s.max_hp - 1)
+			_damage("mid_west", 3.4, 4)
 		"shooting":
 			_view_target = 12.5
 			_view_m = 12.5
@@ -386,4 +395,4 @@ func _setup_scenario() -> void:
 			_damage("south", 8.5, 7)
 			_damage("south", 7.5, 2)
 			_place_enemy(Vector2(10.6, 11.0), -PI * 0.7, true)
-			_place_enemy(Vector2(5.2, 5.4), 0.3, true)
+			_place_enemy(Vector2(5.9, 5.0), 0.6, true)

@@ -87,7 +87,7 @@ func _casing(pos: Vector2, dir: Vector2) -> void:
 func impact(pos: Vector2, normal: Vector2, material: String) -> void:
 	match material:
 		"cladding", "wood":
-			_particles(pos, normal, 10, 0.45, Color(0.72, 0.56, 0.36), "splinter", 90.0, 260.0, 0.8, 1.3).spread = 55.0
+			_particles(pos, normal, 14, 0.45, Color(0.72, 0.56, 0.36), "splinter", 90.0, 280.0, 0.35, 0.7).spread = 55.0
 			_particles(pos, normal, 6, 0.7, Color(0.6, 0.55, 0.48, 0.5), "dot", 30.0, 90.0, 0.6, 1.8).spread = 50.0
 			_scatter(pos, normal, 4, [Color(0.74, 0.58, 0.38), Color(0.2, 0.2, 0.22)])
 		"plaster":
@@ -144,7 +144,7 @@ func wall_removed(section) -> void:
 	dust.spread = 180.0
 	dust.rotation = section.rotation
 	for side in [-1.0, 1.0]:
-		var pl := _particles(c, across * side, 8, 0.7, Color(0.62, 0.48, 0.32), "splinter", 120.0, 300.0, 1.6, 2.6)
+		var pl := _particles(c, across * side, 10, 0.7, Color(0.62, 0.48, 0.32), "splinter", 120.0, 320.0, 0.9, 2.0)
 		pl.spread = 70.0
 	shake.emit(5.0)
 
@@ -246,7 +246,7 @@ class Tracer extends Node2D:
 
 	func _draw() -> void:
 		var k := 1.0 - clampf(_t / DUR, 0.0, 1.0)
-		var head := a.lerp(b, clampf(_t / DUR * 3.0, 0.0, 1.0) * 0.0 + 1.0)
+		var head := b
 		var tail := a.lerp(b, clampf(_t / DUR, 0.0, 1.0) * 0.85)
 		draw_line(tail, head, Color(1.0, 0.7, 0.35, 0.35 * k), 5.0)
 		draw_line(tail, head, Color(1.0, 0.93, 0.75, 0.9 * k), 1.6)
