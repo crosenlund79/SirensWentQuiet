@@ -161,9 +161,10 @@ func interact_prompt() -> String:
 		"door":
 			return "[E] Close door" if open else "[E] Open door"
 		"crate":
-			return "[E] Storage crate"
+			return "[E] Storage crate · +%d planks, +%d nails, +%d scrap" % [
+				Items.DEFS["wood"]["cap_per_crate"], Items.DEFS["nails"]["cap_per_crate"], Items.DEFS["scrap"]["cap_per_crate"]]
 		"rain_collector":
-			return "[E] Rain collector"
+			return "[E] Rain collector · 1 water at dawn"
 	return ""
 
 

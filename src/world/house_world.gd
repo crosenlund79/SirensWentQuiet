@@ -292,6 +292,7 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	add_child(yard)
 	fx = VoxelFx.new()
 	fx.grid = grid
+	fx.debris_scale = 1.0 + 0.45 * (damage_quantum - 1)
 	add_child(fx)
 	_place_furniture()
 	_place_night_lights()
@@ -1084,7 +1085,7 @@ func _copy_design(lo: Vector3i, hi: Vector3i) -> int:
 ## nav for the area, section counts.
 func _edited(lo: Vector3i, hi: Vector3i) -> void:
 	chunks.mark_dirty(lo - Vector3i.ONE, hi + Vector3i.ONE)
-	chunks.flush(40.0)
+	chunks.flush(12.0)
 	var rect := _plan_rect(lo, hi).grow(GridNav.CELL)
 	_recompute_nav(rect)
 	for s in sections:

@@ -297,3 +297,30 @@ func test_no_power_night_lights() -> void:
 	w.lighting.set_amount(0.0)
 	await frames(2)
 	check(not (w.night_lights[0]["light"] as OmniLight3D).visible, "out by day")
+
+
+func test_psychos_path_to_a_closed_door_and_bash_through_it() -> void:
+	var w: HouseWorld = await _world()
+	var player := VoxelPlayer.new()
+	player.input_enabled = false
+	add(player)
+	player.global_position = Vector3(4.6, 0, 7.4)
+	var e := VoxelEnemy.new()
+	e.setup(w.nav, player, 1)
+	add(e)
+	e.global_position = Vector3(4.4, 0, 11.6)
+	e.wall_swing.connect(func(en: VoxelEnemy, target: Vector2) -> void: w.enemy_strike(en.global_position, target))
+	var before := w.grid.solid_count
+	var t := 0.0
+	var broke_at := -1.0
+	var inside := false
+	while t < 60.0 and not inside:
+		await seconds(0.25)
+		t += 0.25
+		player.global_position = Vector3(4.6, 0, 7.4)
+		if broke_at < 0.0 and w.count_objects("door") < 2:
+			broke_at = t
+		inside = e.global_position.z < 8.6
+	print("    one psycho broke the front door after %.1f s and was inside after %.1f s (%d wall voxels bitten)" % [broke_at, t, before - w.grid.solid_count])
+	check(broke_at > 0.0, "the closed door was bashed down")
+	check(inside, "and the psycho came in through the doorway (%.1f s)" % t)

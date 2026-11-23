@@ -14,6 +14,8 @@ const REST_TIME := 7.0
 
 var grid: VoxelGrid
 var debris_count := 0
+## Size of wall chips relative to one voxel (the survival world's 0.2 m damage uses bigger chips).
+var debris_scale := 1.0
 
 # debris pool
 var _d_mm: MultiMesh
@@ -240,7 +242,7 @@ func impact(kind: int, pos: Vector3, normal: Vector3, dir: Vector3, change: Dict
 		elif imp == VoxelMat.Impact.FLUFF:
 			size = _rng.randf_range(0.4, 0.8)
 			out *= 0.45
-		debris(p, out, col, size, shape)
+		debris(p, out, col, size * (debris_scale if not glass else 1.0), shape)
 		k += stride if not glass else maxi(1, cells.size() / 36)
 	# Dust and sparks by material.
 	var base_col := VoxelArt.to_color(colors[0]) if colors.size() > 0 else Color(0.5, 0.48, 0.44)
