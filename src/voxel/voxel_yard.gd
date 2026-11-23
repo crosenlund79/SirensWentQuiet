@@ -44,7 +44,7 @@ func _build_ground() -> void:
 	var m := ShaderMaterial.new()
 	m.shader = load("res://src/voxel/shaders/voxel_ground.gdshader")
 	m.set_shader_parameter("ground_tex", _ground_tex)
-	m.set_shader_parameter("lawn_tex", AssetResolver.get_texture("voxel/ground"))
+	m.set_shader_parameter("lawn_tex", AssetResolver.get_texture("voxel/ground", true))
 	m.set_shader_parameter("img_origin", IMG_ORIGIN)
 	m.set_shader_parameter("img_size", IMG_SIZE)
 	mi.material_override = m

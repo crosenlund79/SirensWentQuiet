@@ -12,7 +12,9 @@ void fragment() {
 	float d = texture(depth_tex, SCREEN_UV).r;
 	vec4 v = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, d, 1.0);
 	float scene_z = -v.z / v.w;
-	if (scene_z > -VERTEX.z - 0.1) {
+	// Only occluders well in front count (a body is ~0.5 m deep), so the
+	// figure's own arms and torso never trigger the silhouette.
+	if (scene_z > -VERTEX.z - 0.55) {
 		discard;
 	}
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 1.5);

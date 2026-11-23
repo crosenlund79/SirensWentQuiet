@@ -16,6 +16,11 @@ const KINDS := {
 	"bare_bulb": [2.4, 5.0, Color(1.0, 0.78, 0.5)],
 }
 
+## The light source sits just outside its voxel fixture (a solid shade would
+## otherwise swallow the shadowed light): under the floor lamp's shade, above
+## the table lamp, under the hood.
+const KIND_OFFSET := {"floor_lamp": -0.36, "table_lamp": 0.17, "hood": -0.12}
+
 var environment: Environment
 var sun: DirectionalLight3D
 var practicals: Array[OmniLight3D] = []
@@ -91,7 +96,7 @@ func _ready() -> void:
 		o.shadow_enabled = true
 		o.shadow_bias = 0.06
 		o.light_specular = 0.25
-		o.position = Vector3(l["pos"].x, l["height"], l["pos"].y)
+		o.position = Vector3(l["pos"].x, l["height"] + KIND_OFFSET.get(l["kind"], 0.0), l["pos"].y)
 		o.set_meta("night_energy", k[0] if l["night_on"] else 0.0)
 		o.visible = false
 		add_child(o)

@@ -41,10 +41,9 @@ static func setup(d: Node, name: String) -> void:
 			_place(d, Vector2(9.9, 11.2), Vector3(11.3, 1.3, 9.1))
 			d.camera.set_distance(11.0)
 		"interior":
-			_shoot_pattern(d, Vector2(4.5, 5.6), Vector2(4.5, 4.0), 12)
-			_shoot(d, Vector2(2.4, 5.4), [Vector3(1.4, 1.3, 4.0), Vector3(1.2, 1.0, 4.0)])
-			_shoot(d, Vector2(6.0, 5.2), [Vector3(5.6, 1.6, 4.0)])
-			_place(d, Vector2(4.6, 6.0), Vector3(4.5, 1.2, 4.0))
+			_shoot_pattern(d, Vector2(1.4, 5.0), Vector2(1.25, 4.0), 12)
+			_shoot(d, Vector2(3.0, 5.4), [Vector3(5.8, 1.6, 4.0), Vector3(5.65, 2.1, 4.0)])
+			_place(d, Vector2(2.9, 6.3), Vector3(1.25, 1.2, 4.0))
 			d.camera.set_distance(12.0)
 		"layers":
 			# Kitchen north wall from inside: tiles, paint, insulation, studs, siding.
@@ -55,13 +54,13 @@ static func setup(d: Node, name: String) -> void:
 			_place(d, Vector2(10.0, 3.3), Vector3(9.5, 1.5, 0.0))
 			d.camera.set_distance(11.0)
 		"shooting":
-			_shoot_pattern(d, Vector2(4.5, 5.8), Vector2(4.5, 4.0), 7)
-			_place(d, Vector2(4.3, 6.4), Vector3(4.8, 1.25, 4.0))
+			_shoot_pattern(d, Vector2(2.6, 6.2), Vector2(1.3, 4.0), 7)
+			_place(d, Vector2(2.9, 6.3), Vector3(1.4, 1.25, 4.0))
 			d.camera.set_distance(12.0)
 			for k in 6:
-				var tgt := Vector3(4.2 + k * 0.17, 1.0 + 0.1 * (k % 3), 4.0)
+				var tgt := Vector3(1.0 + k * 0.17, 1.0 + 0.12 * (k % 3), 4.0)
 				_at(1.2 + k * 0.45, func(): d.player.aim_point = tgt; d.fire(tgt))
-			_at(3.85, func(): d.player.aim_point = Vector3(5.4, 1.3, 4.0); d.fire(Vector3(5.4, 1.3, 4.0)))
+			_at(3.85, func(): d.player.aim_point = Vector3(1.55, 1.35, 4.0); d.fire(Vector3(1.55, 1.35, 4.0)))
 			_at(3.86, func(): d.get_tree().paused = true)
 		"enemies":
 			_place(d, Vector2(6.2, 7.2), Vector3(6.3, 1.2, 10.5))
@@ -72,13 +71,13 @@ static func setup(d: Node, name: String) -> void:
 			_at(3.02, func(): d.get_tree().paused = true)
 		"firefight":
 			_shoot_pattern(d, Vector2(8.5, 10.6), Vector2(8.5, 9.0), 14)
-			_place(d, Vector2(4.2, 7.6), Vector3(7.5, 1.1, 7.6))
-			d.camera.set_distance(14.0)
-			_at(0.1, func(): _spawn_ring(d, [Vector2(8.6, 10.2), Vector2(8.3, 12.0), Vector2(7.2, 6.8), Vector2(2.0, 11.5)]))
-			_at(2.3, func(): _fire_at_nearest(d))
-			_at(2.8, func(): _fire_at_nearest(d))
-			_at(3.3, func(): _fire_at_nearest(d))
-			_at(3.32, func(): d.get_tree().paused = true)
+			_place(d, Vector2(3.6, 6.9), Vector3(7.5, 1.1, 7.6))
+			d.camera.set_distance(15.0)
+			_at(0.1, func(): _spawn_ring(d, [Vector2(9.0, 11.6), Vector2(10.6, 12.6), Vector2(9.6, 6.6), Vector2(4.6, 11.9)]))
+			_at(1.6, func(): _fire_at_nearest(d))
+			_at(2.1, func(): _fire_at_nearest(d))
+			_at(2.5, func(): _fire_at_nearest(d))
+			_at(2.52, func(): d.get_tree().paused = true)
 	d.camera.snap()
 
 
