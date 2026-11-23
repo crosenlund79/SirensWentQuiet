@@ -278,12 +278,17 @@ func _house() -> void:
 	add_child(world)
 	world.build_new()
 	# Swap the voxel furniture and fixtures (material ids 32..77) for meshes.
-	var g := world.grid
-	for i in g.mat.size():
-		var m := g.mat[i]
-		if m >= 32 and m <= 77:
-			g.clear_index(i)
-	world.chunks.build_all()
+	# (Reads VoxelGrid internals; skipped if V reshapes them.)
+	var g = world.grid
+	if g != null and "mat" in g and g.has_method("clear_index") and world.chunks != null and world.chunks.has_method("build_all"):
+		var mats: PackedByteArray = g.mat
+		for i in mats.size():
+			var m := mats[i]
+			if m >= 32 and m <= 77:
+				g.clear_index(i)
+		world.chunks.build_all()
+	else:
+		push_warning("prop gallery: could not take the voxel furniture out")
 	for m in PropMaterials.cut_materials():
 		world.cut_materials.append(m)
 	for f in HousePlan.FURNITURE:
