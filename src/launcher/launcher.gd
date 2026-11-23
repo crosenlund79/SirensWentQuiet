@@ -17,23 +17,43 @@ float noise(vec2 p) {
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
 float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
-// Skyline of a quiet suburb: gabled roofs, a few dead trees, one utility pole.
+// Skyline of a quiet suburb: gabled roofs, dead trees, power lines and a silent siren.
 float skyline(float x) {
-	float h = 0.16;
-	float cell = floor(x * 7.0);
-	float fx = fract(x * 7.0);
+	float h = 0.065;
+	float sc = x * 8.0;
+	float cell = floor(sc);
+	float fx = fract(sc);
 	float r = hash(vec2(cell, 3.0));
-	if (r > 0.25) {
-		float w = 0.55 + 0.35 * hash(vec2(cell, 7.0));
-		float base = 0.19 + 0.05 * hash(vec2(cell, 11.0));
-		float d = abs(fx - 0.5);
-		if (d < w * 0.5) { h = max(h, base + (w * 0.5 - d) * 0.22); }
+	if (r > 0.22) {
+		float w = 0.5 + 0.38 * hash(vec2(cell, 7.0));
+		float wall = 0.095 + 0.035 * hash(vec2(cell, 11.0));
+		float off = (hash(vec2(cell, 13.0)) - 0.5) * (1.0 - w);
+		float d = abs(fx - 0.5 - off);
+		if (d < w * 0.5) { h = max(h, wall + (w * 0.5 - d) * 0.13); }
+		// chimney on some roofs
+		if (hash(vec2(cell, 17.0)) > 0.6 && abs(fx - 0.5 - off - w * 0.2) < 0.03) { h = max(h, wall + w * 0.08); }
 	}
-	float tx = fract(x * 13.0 + 0.3);
-	float tr = hash(vec2(floor(x * 13.0 + 0.3), 5.0));
-	if (tr > 0.78) { h = max(h, 0.2 + 0.12 * tr * smoothstep(0.08, 0.0, abs(tx - 0.5))); }
-	if (abs(x - 0.71) < 0.0016) { h = max(h, 0.42); }
+	// bare trees between houses
+	float tc = floor(x * 23.0 + 0.4);
+	float tf = fract(x * 23.0 + 0.4);
+	float tr = hash(vec2(tc, 5.0));
+	if (tr > 0.72) {
+		float th = 0.11 + 0.08 * tr;
+		h = max(h, th * smoothstep(0.5, 0.0, abs(tf - 0.5)) * (0.75 + 0.25 * noise(vec2(x * 900.0, 1.0))));
+		if (abs(tf - 0.5) < 0.03) { h = max(h, th); }
+	}
+	// utility poles
+	float pf = fract(x * 4.0 + 0.12);
+	if (abs(pf - 0.5) < 0.0035) { h = max(h, 0.24); }
+	// the siren mast
+	if (abs(x - 0.865) < 0.0022) { h = max(h, 0.37); }
 	return h;
+}
+float wires(vec2 q) {
+	// sagging cables between poles (q.y measured up from the bottom)
+	float pf = fract(q.x * 4.0 + 0.12);
+	float sag = 0.225 - 0.035 * sin(3.14159 * fract(pf + 0.5));
+	return smoothstep(0.0016, 0.0, abs(q.y - sag)) + smoothstep(0.0013, 0.0, abs(q.y - (sag - 0.012)));
 }
 void fragment() {
 	vec2 uv = UV;
@@ -48,12 +68,17 @@ void fragment() {
 	// drifting haze
 	float f = fbm(vec2(uv.x * 3.0 + t * 0.015, uv.y * 5.0 - t * 0.01));
 	col += vec3(0.05, 0.05, 0.06) * smoothstep(0.35, 0.9, f) * (1.0 - uv.y * 0.5);
-	// skyline silhouette
+	// skyline silhouette, cables, siren horn
+	float up = 1.0 - uv.y;
 	float sky_h = skyline(uv.x);
-	if (1.0 - uv.y < sky_h) { col = vec3(0.012, 0.012, 0.016) + vec3(0.02, 0.0, 0.0) * glow; }
+	vec3 ink = vec3(0.012, 0.012, 0.016) + vec3(0.02, 0.0, 0.0) * glow;
+	col = mix(col, ink, clamp(wires(vec2(uv.x, up)), 0.0, 1.0) * 0.9);
+	vec2 horn = vec2(uv.x - 0.865, up - 0.36);
+	bool siren = (abs(horn.x) < 0.015 && abs(horn.y) < 0.0035 + 0.0075 * abs(horn.x) / 0.015) || (abs(horn.x) < 0.003 && abs(horn.y + 0.004) < 0.008);
+	if (up < sky_h || siren) { col = ink; }
 	// one window still lit in the distance
-	vec2 w = vec2(0.284, 1.0 - 0.205);
-	if (abs(uv.x - w.x) < 0.0035 && abs(uv.y - w.y) < 0.006) { col = vec3(0.55, 0.38, 0.18) * (0.8 + 0.2 * sin(t * 9.0) * sin(t * 23.0)); }
+	vec2 w = vec2(0.31, 0.085);
+	if (abs(uv.x - w.x) < 0.0032 && abs(up - w.y) < 0.0055 && up < sky_h) { col = vec3(0.55, 0.38, 0.18) * (0.8 + 0.2 * sin(t * 9.0) * sin(t * 23.0)); }
 	// grain + vignette
 	col += (hash(uv * 900.0 + fract(t)) - 0.5) * 0.025;
 	float v = smoothstep(1.15, 0.35, length((uv - 0.5) * vec2(1.25, 1.0)));
