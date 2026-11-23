@@ -56,7 +56,7 @@ The night amount drives the lighting, the player's lights, the fog boundary and 
 **Firing.** LMB pulls the trigger only through unhandled input (a click on a button is never a shot), and never while a panel is open, the intro plays, the mouse is over UI (`gui_get_hovered_control()`), in build mode or when dead. `state.use_ammo()` then `world.shoot(...)`, the muzzle flash and casing from `world.fx`, recoil, and `weapon/handgun_fire` at the muzzle. Hits on a psycho play `enemy/hit`, and a kill plays `enemy/death`. With an empty gun: `weapon/dry_fire` (at most every 0.45 s) and an "Out of ammo" toast (at most every 2 s). The unlimited cheat keeps the count.
 
 **Enemies.**
-- A wall swing calls `world.enemy_strike` and plays `door/bash` if a door is within 1 m of the target, else `impact/wood`. The camera shakes slightly within 6 m.
+- A wall swing calls `world.enemy_strike`, which bites the wall or bashes the door or barricade and plays the sounds itself. The camera shakes slightly within 6 m.
 - A player swing calls `state.damage(state.enemy_damage(), "psycho")` with a camera nudge and `enemy/attack`. If health actually dropped, it also plays `player/hurt` and calls `hud.flash_damage()` (if it exists).
 - Each psycho moans (the `enemy/moan` group, positional) every 6–14 s.
 - An `AudioListener3D` follows the player at ear height, so positional sounds are heard from the player, not from the camera 20 m above.
@@ -232,7 +232,6 @@ Screenshots:
 | GameHud (U) | `flash_damage()`, `show_saved()` | Damage flash and autosave indicator |
 | PauseMenu (U) | `report_save(error)` | Save result shown in the menu |
 | IntroOverlay (U) | `is_playing` | No firing during the intro |
-| Doors (V) | `is_door()` or `kind == "door"` | `door/bash` instead of `impact/wood` on enemy swings |
 
 `debug_close()` (tests) closes a panel through its `close()` and then updates the game's own state, so it works whether or not `close()` emits `closed`.
 
@@ -241,6 +240,6 @@ Screenshots:
 - No live encounter is ever saved (by design). A save made before an invasion restores it, because invasions are scheduled by time.
 - Invasion spawn gaps are real seconds, independent of the dev time scale.
 - Stragglers crossed during a long time skip that ends in daylight never appear: they "came and went".
-- Eating, drinking and bandaging sounds are the inventory panel's. Impact sounds for bullets are left to `world.shoot` (to check once V lands).
+- Eating, drinking and bandaging sounds are the inventory panel's; impact, bash, break and door sounds are the world's (`world.shoot`, `world.enemy_strike`, doors).
 - The game keeps its own `AudioListener3D` at the player's head; Sfx's auto listener never takes over from it.
 - The game toasts autosaves only through an optional `hud.show_saved()`.

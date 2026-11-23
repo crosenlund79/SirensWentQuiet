@@ -27,7 +27,8 @@ const LIVING_TO_BED := [Vector2(4.5, 8.3), Vector2(2.8, 8.3), Vector2(2.8, 5.0),
 const LIVING_TO_YARD := [Vector2(4.5, 8.3), Vector2(4.5, 9.7), Vector2(4.5, 10.8)]
 const FOG_EDGE := Vector2(4.5, 12.25)
 const FRONT_YARD := Vector2(9.0, 10.8)
-const WALL_SPOT := Vector2(9.0, 9.0)            ## solid south wall between the window and the utility room
+const WALL_SPOT := Vector2(9.5, 9.0)            ## middle of the solid south-wall section x 9..10
+const BARRICADE_SPOT := Vector2(13.0, 10.5)     ## a 1 m barricade on the line x = 13 in the front yard
 const SHOOT_SPOT := Vector2(10.4, 11.0)         ## where the player shoots it from
 
 var _part := 1
@@ -40,6 +41,7 @@ var _notes: Array[String] = []
 var _held := {}
 var _finished := false
 var _invasion_shot := false
+var _doors_opened: Array[String] = []
 var g: Node
 
 
@@ -267,6 +269,7 @@ func _walk_to(target: Vector2, timeout := 15.0) -> bool:
 			tries += 1
 			if str(g.debug_prompt()).to_lower().contains("open") and tries <= 4:
 				_set_moves({})
+				_doors_opened.append(str(g.debug_prompt()))
 				await _tap(KEY_E)
 				await _wait(0.6)
 			elif tries <= 6:
@@ -578,7 +581,7 @@ func _part1() -> void:
 	walked = walked and await _walk_to(Vector2(8.0, 11.0))
 	walked = walked and await _walk_to(Vector2(4.5, 11.2))
 	await _shot("04_day_house.png")
-	_step("3 move around the house and yard", walked and _pos().y > 9.5, "bedroom → living room → front door → yard (%s → %s)" % [p0, _pos()])
+	_step("3 move around the house and yard", walked and _pos().y > 9.5, "bedroom → living room → front door → yard (%s → %s); doors opened with E: %s" % [p0, _pos(), _doors_opened])
 
 	# 4. Enter the fog at the edge (E).
 	var at_edge := await _walk_to(FOG_EDGE)
@@ -689,39 +692,40 @@ func _part1() -> void:
 	_step("7 eat and drink", _state().hunger > h0 and _state().hydration > w0,
 		"clicked '%s' and '%s': hunger %d → %d, hydration %d → %d" % [ate, drank, h0, _state().hunger, w0, _state().hydration])
 
-	# 8. Build (B, number keys, clicks).
-	var inside := await _walk(YARD_TO_LIVING)
+	# 8. Build a barricade: B, key 2, the mouse on the ground, LMB.
 	var m0 := _materials()
 	var o0 := _object_counts()
+	await _walk_to(Vector2(11.5, 11.6))
 	await _tap(KEY_B)
 	await _wait(0.3)
 	var build_on: bool = g.build.active
-	await _shot("07_construction_mode.png")
+	var real_build: bool = g.build.has_method("select")
 	var built := ""
-	if build_on:
-		var spots := [Vector2(6.5, 9.0), Vector2(7.5, 9.0), Vector2(9.5, 11.5)]
-		for k in [KEY_2, KEY_1, KEY_5, KEY_3, KEY_4, KEY_6, KEY_7]:
-			await _tap(k)
-			for sp in spots:
-				await _click(_screen_of(sp, 0.0))
-				await _wait(0.3)
-				if _materials() < m0 or _object_counts() != o0:
-					built = "key %s at %s" % [OS.get_keycode_string(k), sp]
-					break
-			if built != "":
-				break
-			await _click(_screen_of(spots[0], 0.0))
-			_mouse_button(_screen_of(spots[0], 0.0), true, MOUSE_BUTTON_RIGHT)
-			_mouse_button(_screen_of(spots[0], 0.0), false, MOUSE_BUTTON_RIGHT)
+	if build_on and real_build:
+		await _tap(KEY_2)
+		_move_mouse(_screen_of(BARRICADE_SPOT, 0.0))
+		await _wait(0.6)                          # the ghost follows the mouse
+		await _shot("07_construction_mode.png")
+		var why := str(g.build.last_eval.get("reason", ""))
+		await _click(_screen_of(BARRICADE_SPOT, 0.0))
+		await _wait(0.5)
+		if _object_counts()["barricade"] > o0["barricade"]:
+			built = "'%s' at %s" % [g.build.piece_id(), BARRICADE_SPOT]
+		elif why != "":
+			built = ""
+			print("      build refused: " + why)
+		await _settle_meshes()
 		await _shot("07b_built.png")
+	else:
+		await _shot("07_construction_mode.png")
 	await _tap(KEY_ESCAPE)
 	await _wait(0.2)
-	var msg := str(g.last_toast)
-	if built == "" and (msg.contains("not implemented") or not build_on):
-		_skip("8 build or repair a barricade or wall", "build mode is the foundation stub ('%s'); walked inside: %s" % [msg, inside])
+	if not real_build:
+		_skip("8 build or repair a barricade or wall", "build mode is the foundation stub ('%s')" % g.last_toast)
 	else:
-		_step("8 build or repair a barricade or wall", built != "" and not g.build.active,
-			"%s; materials %d → %d; objects %s → %s" % [built if built != "" else "nothing placed", m0, _materials(), o0, _object_counts()])
+		_step("8 build a barricade", built != "" and _materials() < m0 and not g.build.active,
+			"B, 2, LMB: %s, toast '%s'; barricades %d → %d; materials %d → %d; Esc left build mode %s" % [built if built != "" else "nothing placed",
+			g.last_toast, o0["barricade"], _object_counts()["barricade"], m0, _materials(), not g.build.active])
 
 	# 9. Advance into night (dev menu: Night 20:00, then ×10 until dark, then ×1).
 	var how := await _to_night()
@@ -729,7 +733,7 @@ func _part1() -> void:
 	_step("9 advance into night", _state().night_amount() > 0.9, "%s → Day %d %s, night %.2f" % [how, _state().day(), _state().clock_text(), _state().night_amount()])
 
 	# 10. Sleep where safe (walk to the bed, E, click a sleep option).
-	var to_bed := await _walk(LIVING_TO_BED)
+	var to_bed := await _walk([Vector2(4.5, 11.2)] + YARD_TO_LIVING + LIVING_TO_BED)
 	await _tap(KEY_E)
 	await _wait(0.3)
 	var dialog: bool = g.debug_modal() == "sleep"
@@ -778,16 +782,18 @@ func _part1() -> void:
 	await _fight(30.0)
 	var dmg0: Dictionary = _world().damage_summary()
 	var shot_wall := 0
-	if int(dmg0.get("missing_voxels", 0)) < 400:
-		await _walk_to(SHOOT_SPOT)              # beside, not in front of, the hole-to-be
-		if _state().inventory.count("ammo") < 6:
-			await _cheat_on("unlimited", "rounds to shoot a wall for the damage check")
-		var aim := _screen_of(WALL_SPOT, 1.0)
-		for i in 10:
-			var off := Vector2((i % 3 - 1) * 14.0, (i / 3 - 1) * 16.0)
-			await _click(aim + off)
-			await _wait(0.25)
-			shot_wall += 1
+	# A known damaged section for the repair tool: shoot the south wall.
+	await _walk_to(SHOOT_SPOT)                  # beside, not in front of, the hole-to-be
+	if _state().inventory.count("ammo") < 6:
+		await _cheat_on("unlimited", "rounds to shoot a wall for the damage check")
+	var wall_aim := _screen_of(WALL_SPOT, 1.0)
+	for i in 10:
+		var off := Vector2((i % 3 - 1) * 14.0, (i / 3 - 1) * 16.0)
+		await _click(wall_aim + off)
+		await _wait(0.25)
+		shot_wall += 1
+	if _state().cheats.get("unlimited", false):
+		await _dev_click("^Unlimited")            # the repair must cost materials
 	var dmg1: Dictionary = _world().damage_summary()
 	await _wait(1.5)                            # debris settles
 	await _settle_meshes()
@@ -795,37 +801,44 @@ func _part1() -> void:
 	_step("12a observe structural damage", int(dmg1.get("missing_voxels", 0)) > 0 or int(dmg1.get("damaged_objects", 0)) > 0,
 		"after the invasion %s, after %d wall shots %s" % [dmg0, shot_wall, dmg1])
 	var repaired := ""
+	var repair_why := ""
 	await _tap(KEY_B)
 	await _wait(0.2)
-	if g.build.active:
-		for k in [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7]:
-			await _tap(k)
-			var sel := "%s %s %s" % [g.build.get("tool"), g.build.get("piece"), g.build.get("selected")]
-			if sel.to_lower().contains("repair"):
-				await _click(_screen_of(WALL_SPOT, 0.0))
-				await _wait(0.4)
-				if int(_world().damage_summary().get("missing_voxels", 0)) < int(dmg1.get("missing_voxels", 0)):
-					repaired = "build mode repair (key %s)" % OS.get_keycode_string(k)
-				break
+	if g.build.active and g.build.has_method("select"):
+		await _tap(KEY_7)
+		var aim := _screen_of(WALL_SPOT, 1.95)        # intact boards above the hole
+		_move_mouse(aim)
+		await _wait(0.6)
+		repair_why = str(g.build.last_eval.get("reason", ""))
+		if repair_why.begins_with("Needs"):
+			await _tap(KEY_ESCAPE)
+			var add := await _dev_click("^\\+ Materials")
+			_note("step 12: '%s' → dev menu '%s'" % [repair_why, add])
+			await _tap(KEY_B)
+			await _tap(KEY_7)
+			_move_mouse(aim)
+			await _wait(0.6)
+			repair_why = str(g.build.last_eval.get("reason", ""))
+		await _shot("10b_repair_mode.png")
+		var before_missing := int(_world().damage_summary().get("missing_voxels", 0))
+		await _click(aim)
+		await _wait(0.5)
+		if int(_world().damage_summary().get("missing_voxels", 0)) < before_missing:
+			repaired = "build mode repair (B, 7, LMB on the section)"
 		await _tap(KEY_ESCAPE)
-	if repaired == "":
-		var b := await _dev_click("^Repair house|repair")
-		if b != "":
-			repaired = "dev menu '%s' (build-mode repair not reachable yet)" % b
-		else:
-			g.dev_repair_house()
-			repaired = "dev_repair_house through the debug API"
-		_note("step 12 repaired with: " + repaired)
 	await _settle_meshes()
 	var dmg2: Dictionary = _world().damage_summary()
 	await _shot("11_repaired_house.png")
-	_step("12b repair or rebuild", int(dmg2.get("missing_voxels", 0)) < int(dmg1.get("missing_voxels", 0)), "%s: %s → %s" % [repaired, dmg1, dmg2])
+	_step("12b repair or rebuild", repaired != "" and int(dmg2.get("missing_voxels", 0)) < int(dmg1.get("missing_voxels", 0)),
+		"%s (evaluation '%s', toast '%s'): %s → %s" % [repaired if repaired != "" else "not repaired", repair_why, g.last_toast, dmg1, dmg2])
 
 	# 13. Save (pause menu) and quit (main menu → Quit).
 	await _fight(60.0)
 	# Leave some visible damage for part 2 to verify.
 	if int(_world().damage_summary().get("missing_voxels", 0)) == 0:
 		await _walk_to(SHOOT_SPOT)
+		if _state().inventory.count("ammo") < 3:
+			await _cheat_on("unlimited", "rounds to leave damage for part 2 to verify")
 		for i in 3:
 			await _click(_screen_of(WALL_SPOT, 1.0) + Vector2(i * 10.0, 0))
 			await _wait(0.25)

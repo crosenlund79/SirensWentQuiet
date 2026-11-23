@@ -527,23 +527,12 @@ func _fire(target: Vector3) -> Dictionary:
 	return res
 
 
+## The world bites the wall or bashes the door and object, and plays the
+## impact, bash and break sounds itself.
 func _on_wall_swing(e: VoxelEnemy, target: Vector2) -> void:
 	world.enemy_strike(e.global_position, target)
-	var at := Vector3(target.x, 1.0, target.y)
-	Sfx.play("door/bash" if _door_near(target) else "impact/wood", at)
 	if e.global_position.distance_to(player.global_position) < NUDGE_NEAR:
 		camera.nudge(0.35)
-
-
-func _door_near(p: Vector2) -> bool:
-	for n in world.interactables():
-		if not is_instance_valid(n) or not (n is Node3D):
-			continue
-		var is_door: bool = (n.has_method("is_door") and n.is_door()) or str(n.get("kind")) == "door" or str(n.name).to_lower().contains("door")
-		var q: Vector3 = n.global_position
-		if is_door and p.distance_to(Vector2(q.x, q.z)) < 1.0:
-			return true
-	return false
 
 
 func _on_player_swing(e: VoxelEnemy) -> void:
@@ -597,8 +586,8 @@ func _on_structure_changed() -> void:
 
 
 func _on_object_destroyed(kind: String, _at: Vector3) -> void:
-	if kind in ["door", "barricade"]:
-		toast("A %s gave way!" % kind, "bad")
+	var label: String = WorldObject.DEFS[kind]["name"] if WorldObject.DEFS.has(kind) else kind.replace("_", " ")
+	toast("The %s gave way!" % label.to_lower(), "bad")
 
 
 # --- modal state and panels ------------------------------------------------------------

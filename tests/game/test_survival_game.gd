@@ -282,6 +282,20 @@ func test_save_then_continue_restores_state_and_position() -> void:
 	s.inventory.add("scrap", 3)
 	s.use_item("canned_food")
 	g.dev_set_time_scale(2.0)
+	# Damage the house and build a crate (the real world and build mode).
+	for i in 4:
+		g.debug_fire_at(Vector2(9.5, 9.0), 1.0)
+	var built := false
+	if g.build.has_method("select_id") and g.build.has_method("apply"):
+		s.cheats["unlimited"] = true
+		g.build.select_id("crate")
+		built = g.build.apply(Vector2(11.25, 11.75))
+		check(built, "a crate was built (%s)" % str(g.build.last_eval.get("reason", "")))
+		s.cheats["unlimited"] = false
+	await frames(2)
+	var dmg: Dictionary = g.debug_world().damage_summary()
+	var crates: int = g.debug_world().count_objects("crate")
+	g.debug_teleport_player(LIVING_ROOM)
 	g.debug_player().rig.rotation.y = 1.0
 	var saved := s.to_dict()
 	check_eq(g.debug_save(), "", "save allowed")
@@ -298,6 +312,11 @@ func test_save_then_continue_restores_state_and_position() -> void:
 	check(h.debug_player_pos().distance_to(LIVING_ROOM) < 0.05, "player position restored (%s)" % h.debug_player_pos())
 	check(absf(h.debug_player().rig.rotation.y - 1.0) < 0.3, "facing restored")
 	check_eq(h.time_scale, 2.0, "time scale restored")
+	check(int(dmg.get("missing_voxels", 0)) > 0, "the house was damaged before saving")
+	check_eq(h.debug_world().damage_summary(), dmg, "house damage restored")
+	if built:
+		check_eq(h.debug_world().count_objects("crate"), crates, "built crate restored")
+		check_eq(t.inventory.storage_crates, crates, "storage caps follow the loaded crates")
 
 
 func test_continue_with_a_bad_save_returns_to_the_menu_with_a_notice() -> void:
