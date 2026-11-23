@@ -41,23 +41,24 @@ No Autoloads. Nothing here depends on `src/modular/` or `src/illustrated/`.
 **Launch.**
 - *New game* (`GameLaunch.mode = "new"`): `GameState.new_run(GameLaunch.seed)` and `world.build_new()`. The player wakes beside the bed (bed + 1.45 m south), facing the room. The intro overlay plays (the world is paused), then the initial save is written. That is the moment a new game replaces the previous run; the main menu asked first.
 - *Continue*: `SaveGame.read()` → `run_save.gd` validates → `GameState.from_dict` → `world.load_data` → the player's position, facing and the dev time scale are restored.
+  - If `read()` fell back to the `.bak` (`restored_from_backup`), the game says so in a toast and in `GameLaunch.notice`.
   - On any failure (no file, damaged file, missing or invalid state, a finished run, missing house data, `load_data` returning false), `GameLaunch.notice` becomes "The save could not be loaded: …" and the game returns to `GameLaunch.MENU_SCENE` without crashing.
   - Stub-era tolerance: a save whose `world` is an empty dictionary (written while `HouseWorld.save_data()` was a stub) loads the pristine house with a warning.
 
 **Clock.** Each frame of normal play (no modal panel, not paused), `state.advance(delta × MINUTES_PER_SECOND × time_scale)`. The returned events are handled in order:
-- `dawn`: water from the rain collectors (`state.on_dawn(n)` if S provides it, else +1 water per collector), the dawn stinger, every remaining psycho retreats into the fog, an active invasion ends, autosave.
+- `dawn`: water from the rain collectors (`state.on_dawn(n, e["at"])`, once per dawn event, else +1 water per collector), the dawn stinger, every remaining psycho retreats into the fog, an active invasion ends, autosave.
 - `dusk`: a toast.
 - `new_day`: a "Day N" toast and autosave (when safe).
 - `invasion_due`: the invasion starts.
 
 The night amount drives the lighting, the player's lights, the fog boundary and the ambience every frame.
 
-**Firing.** LMB pulls the trigger only through unhandled input (a click on a button is never a shot), and never while a panel is open, in build mode or when dead. `state.use_ammo()` then `world.shoot(...)`, the muzzle flash and casing from `world.fx`, recoil, and `weapon/handgun_fire` at the muzzle. Hits on a psycho play `enemy/hit`, and a kill plays `enemy/death`. With an empty gun: `weapon/dry_fire` (at most every 0.45 s) and an "Out of ammo" toast (at most every 2 s). The unlimited cheat keeps the count.
+**Firing.** LMB pulls the trigger only through unhandled input (a click on a button is never a shot), and never while a panel is open, the intro plays, the mouse is over UI (`gui_get_hovered_control()`), in build mode or when dead. `state.use_ammo()` then `world.shoot(...)`, the muzzle flash and casing from `world.fx`, recoil, and `weapon/handgun_fire` at the muzzle. Hits on a psycho play `enemy/hit`, and a kill plays `enemy/death`. With an empty gun: `weapon/dry_fire` (at most every 0.45 s) and an "Out of ammo" toast (at most every 2 s). The unlimited cheat keeps the count.
 
 **Enemies.**
 - A wall swing calls `world.enemy_strike` and plays `door/bash` if a door is within 1 m of the target, else `impact/wood`. The camera shakes slightly within 6 m.
 - A player swing calls `state.damage(state.enemy_damage(), "psycho")` with a camera nudge and `enemy/attack`. If health actually dropped, it also plays `player/hurt` and calls `hud.flash_damage()` (if it exists).
-- Each psycho moans (`enemy/moan_1..2`, positional) every 6–14 s.
+- Each psycho moans (the `enemy/moan` group, positional) every 6–14 s.
 - An `AudioListener3D` follows the player at ear height, so positional sounds are heard from the player, not from the camera 20 m above.
 
 **Invasions** (`invasion_director.gd`).
@@ -71,8 +72,8 @@ The night amount drives the lighting, the player's lights, the fog boundary and 
 **Interactions.** The nearest interactable with a non-empty `interact_prompt()` within 1.6 m, else the fog boundary's `prompt_text()`, goes to `hud.set_prompt`. E calls `interact(game)` or `boundary.request_exit()`.
 
 **Sleep.**
-- The bed calls `open_sleep()`. It is refused with "You can't sleep with them out there" while any psycho is a threat or an invasion is active, and with `state.can_sleep()`'s reason if S provides one. Otherwise the sleep dialog opens (paused).
-- `sleep_chosen(m)`, where -1 means `until_morning_minutes()`, runs `state.plan_sleep(m)`. The game also cuts the plan at tonight's straggler.
+- The bed calls `open_sleep()`. It is refused with "You can't sleep with them out there" while any psycho is a threat or an invasion is active, and with `state.can_sleep()`'s reason ("You're not tired.", …). Otherwise the sleep dialog opens (paused).
+- `sleep_chosen(m)`, where -1 means `until_morning_minutes()`, runs `state.plan_sleep(m)`, which also stops at tonight's straggler (reason `"straggler"`, its `text` becomes the wake toast).
 - Then: `player/sleep`, fade to black, **one** `state.advance(minutes, true)`, its events processed, fade in.
 - If interrupted: "You wake to something at the door." The invasion has already started, because the advance lands exactly on the due minute. Otherwise it autosaves on waking.
 - Sleeping through an invasion is impossible: `plan_sleep` truncates, and sleep is refused while one is active.
@@ -89,14 +90,14 @@ The night amount drives the lighting, the player's lights, the fog boundary and 
 
 **Panels.**
 - I/Tab opens the inventory panel and pauses.
-- Esc closes the open panel, or else leaves build mode, or else opens the pause menu: `open(can_save())` with Resume, Save, Settings and Main Menu.
-- Save calls `save_now()` and shows a toast ("Game saved." or the reason). `save_requested` directly before `main_menu_requested` works: the save happens first.
-- Settings hides the pause menu and returns to it when closed.
+- The open panel handles Esc / I itself (U's modals consume them) and emits its signal; the game follows: `resume_requested` and `closed` unpause. With no panel open, Esc leaves build mode, else closes the dev menu, else opens the pause menu: `open(can_save())` with Resume, Save, Settings and Main Menu.
+- Save calls `save_now()` synchronously and hands the result to `pause.report_save(...)`. "Save and quit" (`save_requested`, then `main_menu_requested`) therefore leaves only after a successful save.
+- Settings: `settings_requested` stays unconnected, so the pause menu opens its own SettingsPanel and returns to itself.
 - The tree is paused while the pause, settings, inventory, sleep, expedition or death screens are open. All UI nodes are `PROCESS_MODE_ALWAYS`.
 - F10 toggles the developer menu (no pause).
 - Crosshair cursor in play (`AssetResolver "common/crosshair"`), normal cursor otherwise.
 
-**Death.** `state.died` stops input and leaves build mode, closes panels, plays `player/death` and **deletes the save**. After 1.4 s it pauses and opens `DeathScreen.open(days_survived, cause)`, whose button leads to the main menu.
+**Death.** `state.died` stops input and leaves build mode, closes panels, hides the HUD, plays `player/death` and **deletes the save**. After 1.4 s it pauses and opens `DeathScreen.open(days_survived, cause)`, whose button leads to the main menu.
 
 ## Saving
 
@@ -108,11 +109,10 @@ The night amount drives the lighting, the player's lights, the fog boundary and 
 {"summary": state.summary() or {day, clock, health, days_survived, text},
  "state": state.to_dict(), "world": world.save_data(),
  "game": {"version": 1, "player": {"pos": [x, z], "yaw": y}, "time_scale": t,
-          "director": {"stragglers_done": [...]}},
- "game_data": <copy of "game">}
+          "director": {"stragglers_done": [...]}}}
 ```
 
-`game_data` is a mirror because the foundation `SaveGame.write()` overwrites the `game` key with its file id. See the requests for S below.
+SaveGame adds `game_id`, `schema` and `saved_at`. A failed write returns `"Saving failed: " + SaveGame.last_error`. (Saves from the foundation stub era kept the game dictionary in `game_data`; it is still read as a fallback.)
 
 **Autosave** happens only at safe transitions, and is skipped (logged as `skip:<reason>`) when `can_save()` refuses:
 - after the intro of a new run;
@@ -180,20 +180,20 @@ Input is real:
 - mouse motion and clicks on the actual buttons, found by their text;
 - the mouse aimed at psychos with LMB held.
 
-The debug API reads state. It acts only where input can't reasonably reach, and each such use is printed as a note: the time skips, the shortened invasion spawn gaps, cheat fallbacks, kill and repair fallbacks.
+The debug API reads state. It acts only where input can't reasonably reach, and each such use is printed as a note: the shortened invasion spawn gaps and the fallbacks (time skip, cheats, kill, repair) when a button isn't there. Part 1 fixes the run seed (`GameLaunch.seed = 1123`) so expedition rolls and stragglers repeat.
 
 **Part 1:**
 1. New Game from the main menu; wake on Day 1.
 2. Inventory (I).
 3. Walk bedroom → living room → front door → yard.
 4. Fog edge prompt, E.
-5. Click through the expedition screen.
+5. Drive the expedition screen with its own buttons (destination, gear, confirm, "Head into the fog"), answer an event with its number key, Continue, Return home.
 6. Resources gained, time advanced once.
-7. Eat and drink through the inventory buttons.
+7. Eat and drink with the inventory's Use buttons.
 8. B, number keys and clicks to build.
-9. Night (F10 opened; time via `dev_skip_to`).
+9. Night with the dev menu: "Night 20:00", "×10" until dark, "×1" (buttons scrolled into view with the wheel).
 10. Walk to the bed, E, click a sleep option.
-11. Dev-menu invasion, shooting with the mouse.
+11. Dev-menu "Next invasion", shooting with the mouse.
 12. Damage (shooting the south wall if the invasion left little), then repair (build-mode repair if reachable, else the dev menu).
 13. Save from the pause menu, write `part1_state.json`, Main Menu, Quit.
 
@@ -212,7 +212,7 @@ Screenshots:
 | Inventory | `03_inventory` |
 | Daytime house | `04_day_house` |
 | Fog boundary | `05_fog_boundary` |
-| Expedition selection | `06_expedition_selection` |
+| Expedition selection, gear, confirm, event, outcome, report | `06_expedition_selection`, `06b`…`06f` |
 | Construction mode | `07_construction_mode` |
 | Nighttime house | `08_night_house` |
 | Invasion | `09_invasion` |
@@ -225,20 +225,22 @@ Screenshots:
 | Module | Extra | Used for |
 |---|---|---|
 | GameState (S) | `summary() -> Dictionary` | Save summary for the menu |
-| GameState (S) | `on_dawn(collectors: int) -> int` | Water added at dawn (else +1 per collector) |
+| GameState (S) | `on_dawn(collectors, at) -> Dictionary` | Water added at dawn (else +1 per collector) |
 | GameState (S) | `can_sleep() -> String` | Refusal reason, "" = allowed |
-| GameState (S) | `roll_straggler(day: int) -> float` | Absolute minute of that night's straggler, or -1 (also accepts bool or `{"at"}`) |
-| GameState (S) | `force_invasion_now()` | Dev-triggered invasion bookkeeping |
+| GameState (S) | `roll_straggler(day: int) -> float` | Absolute minute of that night's straggler, or -1 (else `invasion_director.gd`'s own roll) |
+| GameState (S) | `force_invasion_now()` | Dev-triggered invasion replaces the next scheduled one |
 | GameHud (U) | `flash_damage()`, `show_saved()` | Damage flash and autosave indicator |
-| PauseMenu (U) | `settings_requested` signal | The game opens SettingsPanel and returns to the pause menu |
+| PauseMenu (U) | `report_save(error)` | Save result shown in the menu |
+| IntroOverlay (U) | `is_playing` | No firing during the intro |
 | Doors (V) | `is_door()` or `kind == "door"` | `door/bash` instead of `impact/wood` on enemy swings |
 
-Panels are closed on Esc through their `close()`. The game then updates its own state, so `close()` should not need to emit `closed`, but if it does, nothing breaks.
+`debug_close()` (tests) closes a panel through its `close()` and then updates the game's own state, so it works whether or not `close()` emits `closed`.
 
 ## Limitations
 
 - No live encounter is ever saved (by design). A save made before an invasion restores it, because invasions are scheduled by time.
 - Invasion spawn gaps are real seconds, independent of the dev time scale.
 - Stragglers crossed during a long time skip that ends in daylight never appear: they "came and went".
-- Sounds for eating, drinking and bandaging are not played by the game root: the inventory panel uses `GameState.use_item` directly. Impact sounds for bullets are left to `world.shoot`.
+- Eating, drinking and bandaging sounds are the inventory panel's. Impact sounds for bullets are left to `world.shoot` (to check once V lands).
+- The game keeps its own `AudioListener3D` at the player's head; Sfx's auto listener never takes over from it.
 - The game toasts autosaves only through an optional `hud.show_saved()`.
