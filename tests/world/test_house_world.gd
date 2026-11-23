@@ -324,3 +324,18 @@ func test_psychos_path_to_a_closed_door_and_bash_through_it() -> void:
 	print("    one psycho broke the front door after %.1f s and was inside after %.1f s (%d wall voxels bitten)" % [broke_at, t, before - w.grid.solid_count])
 	check(broke_at > 0.0, "the closed door was bashed down")
 	check(inside, "and the psycho came in through the doorway (%.1f s)" % t)
+
+
+func test_version_a_voxel_furniture_flag() -> void:
+	var w := HouseWorld.new()
+	w.voxel_furniture = true
+	w.damage_quantum = 1
+	add(w)
+	w.build_new()
+	await physics_frames(2)
+	var fridge := w.grid.cell_of(Vector3(8.5, 1.0, 0.55))
+	check(w.grid.get_mat(fridge.x, fridge.y, fridge.z) != VoxelMat.AIR, "voxel furniture is back (the fridge is voxels)")
+	check(w.get_node_or_null("Prop_fridge") == null, "and there are no furniture meshes")
+	check(w.yard.voxel_props, "the yard builds its voxel props")
+	check(w.exit_path_exists(), "the same rules apply")
+	check(w.layout_id() != HouseWorld.new().layout_id(), "saves of the two looks don't mix")
