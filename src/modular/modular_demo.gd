@@ -8,7 +8,7 @@ extends Node3D
 ## the same frame. See docs/experiment-001/modular.md.
 ##
 ## Extra command-line user args (after --), for screenshots:
-##   --scenario=overview|exterior|damage|breach|enemies|shooting
+##   --scenario=overview|exterior|damage|breach|enemies|shooting|kit
 
 const ENEMY_LAYER := 8
 const AIM_MASK := 1 | 2 | 8 | 16
@@ -37,6 +37,7 @@ var _scenario_fire := false
 var _scenario_aim := Vector3.ZERO
 var _build_ms := 0
 var _quiet_changes := false
+var _cam_override := Vector3.INF
 
 
 func _ready() -> void:
@@ -114,10 +115,7 @@ func _physics_process(delta: float) -> void:
 		_fire_at(aim_point)
 	var pp := player.plan_pos()
 	var alive := 0
-	for e in enemies.duplicate():
-		if not is_instance_valid(e):
-			enemies.erase(e)
-			continue
+	for e in enemies:
 		e.player_pos = pp
 		if e.alive:
 			alive += 1
@@ -127,7 +125,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	cam.follow(player.global_position + Vector3(0, 1, 0), delta)
+	cam.follow(player.global_position + Vector3(0, 1, 0) if _cam_override == Vector3.INF else _cam_override, delta)
 	house.update_view(player.plan_pos(), delta)
 	if scenario != "":
 		_scenario_t += delta
@@ -158,6 +156,10 @@ func _compute_aim() -> Vector3:
 		if hit.is_empty():
 			break
 		if house.is_hidden(hit["collider"], hit["position"]):
+			# aim at the visible cut top if the ray reaches it, else look past
+			var top: Variant = house.cut_top_hit(hit["collider"], from, dir)
+			if top != null:
+				return top
 			ex.append(hit["rid"])
 			q.exclude = ex
 			continue
@@ -232,6 +234,7 @@ func spawn_enemy(p: Vector2) -> ModEnemy:
 	e.global_position = Vector3(p.x, 0, p.y)
 	e.player_pos = player.plan_pos()
 	e.swung.connect(_on_enemy_swung)
+	e.tree_exiting.connect(enemies.erase.bind(e))
 	enemies.append(e)
 	if _night:
 		e.figure.set_param("rim", 0.25)
@@ -392,6 +395,17 @@ func _setup_scenario() -> void:
 			enemies[1].hit(Vector3(0.2, 0, 1))
 			for e in enemies:
 				e.figure.animate(0.0)
+		"kit":
+			var sheet := ModKitSheet.new()
+			sheet.name = "KitSheet"
+			sheet.position = Vector3(-6.0, 0, -15.5)
+			add_child(sheet)
+			debug_teleport_player(Vector2(1.0, -5.5))
+			house.roof_mode = "shown"
+			cam.set_distance(14.5)
+			_cam_override = Vector3(1.3, 1.0, -12.6)
+			cam.snap(_cam_override)
+			_scenario_aim = Vector3(1.0, 1.0, -12.0)
 		"shooting":
 			debug_teleport_player(Vector2(6.3, 7.0))
 			cam.set_distance(12.0)

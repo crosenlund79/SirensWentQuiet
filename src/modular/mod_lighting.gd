@@ -121,6 +121,12 @@ void fragment() {
 	layer.add_child(rect)
 
 
+func _exit_tree() -> void:
+	# the soft-shadow filter is global: give other scenes the project defaults back
+	RenderingServer.directional_soft_shadow_filter_set_quality(ProjectSettings.get_setting("rendering/lights_and_shadows/directional_shadow/soft_shadow_filter_quality", 2))
+	RenderingServer.positional_soft_shadow_filter_set_quality(ProjectSettings.get_setting("rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality", 2))
+
+
 func _add_practical(l: Dictionary) -> void:
 	var p: Vector2 = l["pos"]
 	var h: float = l["height"]

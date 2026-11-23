@@ -224,7 +224,7 @@ func update_view(player: Vector2, delta: float) -> void:
 		var pos: Vector2 = d["pos"]
 		var dy := pos.y - player.y
 		var want := dy > -0.5 and dy < 6.0 and absf(pos.x - player.x) < 1.8 + maxf(dy, 0.0) * 0.3
-		var goal := 0.85 if want else 0.0
+		var goal := 1.0 if want else 0.0
 		var fv: float = goal if instant else move_toward(d["fade"], goal, delta / 0.3)
 		if fv != d["fade"]:
 			d["fade"] = fv
@@ -260,6 +260,25 @@ func is_hidden(collider: Object, point: Vector3) -> bool:
 	if collider is ModPost:
 		return point.y > (collider as ModPost).cut + 0.02
 	return false
+
+
+## Where a camera ray meets the visible top of a cut-down module, or null.
+func cut_top_hit(collider: Object, from: Vector3, dir: Vector3) -> Variant:
+	if not (collider is ModWall or collider is ModPost) or absf(dir.y) < 0.01:
+		return null
+	var node := collider as Node3D
+	var h: float = node.get("cut")
+	var p := from + dir * ((h - from.y) / dir.y)
+	var local := node.to_local(p)
+	if collider is ModWall:
+		var m := collider as ModWall
+		if m.state == ModWall.State.DESTROYED:
+			return null
+		if local.x >= 0.0 and local.x <= m.length and absf(local.z) <= m.thickness * 0.5 + 0.01:
+			return p
+	elif absf(local.x) <= (collider as ModPost).size * 0.5 and absf(local.z) <= (collider as ModPost).size * 0.5:
+		return p
+	return null
 
 
 ## Force every module to a cut level now (scenarios / screenshots).

@@ -135,6 +135,10 @@ func test_cutaway_lowers_modules_in_front_of_the_player() -> void:
 	check(house.is_hidden(front, front.to_global(Vector3(0.5, 2.0, 0.15))), "upper part of a cut module is hidden for aiming")
 	check(not house.is_hidden(front, front.to_global(Vector3(0.5, 0.5, 0.15))), "lower part still solid")
 	check(house.roof.fade > 0.99, "roof hidden while inside")
+	var top_world := front.to_global(Vector3(0.5, 0.0, 0.0))
+	var from := top_world + Vector3(0, 10, 6)
+	var top: Variant = house.cut_top_hit(front, from, (Vector3(top_world.x, front.cut, top_world.z) - from).normalized())
+	check(top != null and absf((top as Vector3).y - front.cut) < 0.01, "aiming at a cut module lands on its visible top")
 
 
 func test_enemy_wall_swing_damages_the_nearest_module() -> void:

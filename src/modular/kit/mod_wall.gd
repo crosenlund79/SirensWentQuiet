@@ -245,9 +245,7 @@ func _shatter_glass() -> void:
 		_shapes.erase(_glass_shape)
 		_glass_shape.queue_free()
 		_glass_shape = null
-	if state == State.INTACT:
-		# frame stays, glass gone: show the empty frame with a few shards
-		_set_body_mesh(ModWallGeometry.intact(self))
+	# the frame stays (part of the body mesh); only the pane and its collider go
 
 
 # --- bullet holes and cracks -------------------------------------------------------------

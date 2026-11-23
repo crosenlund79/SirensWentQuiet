@@ -83,7 +83,7 @@ void fragment() {
 	vec3 wn = normalize(v_wnrm);
 	vec3 vcol = srgb(COLOR.rgb);
 
-	if (!FRONT_FACING && L != 26) {
+	if (!FRONT_FACING && L <= 7) {
 		// Looking into a cut wall: draw the solid section ("poche") cap.
 		ALBEDO = cap_color.rgb;
 		ROUGHNESS = 0.95;
@@ -284,7 +284,7 @@ void fragment() {
 		// hand-painted variation across big surfaces
 		col *= 1.0 + paint_noise * 0.08;
 
-		vec3 n = wn;
+		vec3 n = FRONT_FACING ? wn : -wn;
 		if (textured && bump > 0.0) {
 			float e = 1.0 / 512.0;
 			vec2 u0 = uv / tile;

@@ -105,10 +105,6 @@ static func damaged(w: ModWall) -> ArrayMesh:
 				var pts := _jagged(c, Vector2(rng.randf_range(0.05, 0.12), rng.randf_range(0.04, 0.09)), 9, rng, 0.35)
 				mm.set_mat(M.L_GYPSUM, Color(0.72, 0.71, 0.68), s)
 				mm.flat_poly(pts, z, nz)
-	# a chunk knocked out of the wall top
-	mm.set_mat(M.L_GYPSUM, Color(0.6, 0.58, 0.55), 0)
-	var cx := rng.randf_range(0.2, w.length - 0.3)
-	mm.cbox(Vector3(cx, H - 0.025, 0), Vector3(rng.randf_range(0.08, 0.16), 0.06, t * 0.6))
 	return mm.commit()
 
 
@@ -191,7 +187,7 @@ static func rubble(w: ModWall) -> ArrayMesh:
 			pts.append(c + Vector3(cos(a) * rng.randf_range(0.35, 0.55), 0.0, sin(a) * rng.randf_range(0.15, 0.32)))
 		var top := c + Vector3(0, rng.randf_range(0.05, 0.1), 0)
 		for k in 9:
-			mm.tri(pts[k], pts[(k + 1) % 9], top, Vector3.ZERO)
+			mm.tri(pts[k], pts[(k + 1) % 9], top, Vector3.UP)
 	# chunks: boards, drywall plates, studs, insulation tufts
 	var outside := w.outside
 	for i in 22:
