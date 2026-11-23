@@ -300,7 +300,8 @@ func _build_item(f: Dictionary, indoor: bool) -> void:
 	mi.material_override = M.kit()
 	var y := ModFloorKit.TILE_TOP - 0.005 if indoor and f["type"] != "rug" else 0.0
 	mi.transform = Transform3D(ModFurnitureKit.facing_basis(f.get("facing", "S")), Vector3(center.x, y, center.y))
-	if f["type"] in ["rug", "road", "path", "driveway", "deck", "step"]:
+	# floor_lamp: its shade surrounds its own shadowed bulb and would print a black disc
+	if f["type"] in ["rug", "road", "path", "driveway", "deck", "step", "floor_lamp"]:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	furniture_pieces += 1
