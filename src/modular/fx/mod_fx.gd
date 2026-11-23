@@ -156,8 +156,8 @@ func tracer(from: Vector3, to: Vector3) -> void:
 	var i := GLOW - TRACERS + k
 	_t_from[k] = from
 	_t_to[k] = to
-	_g_life[i] = 0.07
-	_g_max[i] = 0.07
+	_g_life[i] = 0.09
+	_g_max[i] = 0.09
 	_g_col[i] = Color(1.0, 0.85, 0.55)
 
 
@@ -385,7 +385,7 @@ func _step_glow(delta: float) -> void:
 			var seg_start := from + d * maxf(0.0, head - 0.55)
 			var seg_end := from + d * head
 			var seg := seg_end - seg_start
-			var basis := _along(seg.normalized(), Vector3(0.018, 0.018, seg.length()))
+			var basis := _along(seg.normalized(), Vector3(0.028, 0.028, seg.length()))
 			_g_mm.set_instance_transform(i, Transform3D(basis, (seg_start + seg_end) * 0.5))
 			_g_mm.set_instance_custom_data(i, Color(c.r, c.g, c.b, a * 0.9))
 			continue

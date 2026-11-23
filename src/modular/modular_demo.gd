@@ -345,6 +345,8 @@ func _setup_scenario() -> void:
 			house.roof_mode = "shown"
 			debug_teleport_player(Vector2(4.6, 11.6))
 			cam.set_distance(24.0)
+			_cam_override = Vector3(7.5, 1.0, 6.5)
+			cam.snap(_cam_override)
 			_scenario_aim = Vector3(4.6, 1.0, 9.0)
 			for p in [Vector2(-2.5, 11.0), Vector2(13.0, 12.6)]:
 				spawn_enemy(p)
@@ -402,8 +404,8 @@ func _setup_scenario() -> void:
 			add_child(sheet)
 			debug_teleport_player(Vector2(1.0, -5.5))
 			house.roof_mode = "shown"
-			cam.set_distance(14.5)
-			_cam_override = Vector3(1.3, 1.0, -12.6)
+			cam.set_distance(15.5)
+			_cam_override = Vector3(1.3, 1.0, -12.0)
 			cam.snap(_cam_override)
 			_scenario_aim = Vector3(1.0, 1.0, -12.0)
 		"shooting":

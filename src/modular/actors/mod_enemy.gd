@@ -117,7 +117,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	if _flash > 0.0:
-		_flash = maxf(_flash - delta * 6.0, 0.0)
+		_flash = maxf(_flash - minf(delta, 0.05) * 6.0, 0.0)   # visible for at least one frame
 		figure.set_param("flash", _flash)
 	if _swing_t >= 0.0:
 		_swing_t += delta / 0.55

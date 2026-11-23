@@ -75,7 +75,10 @@ func _ready() -> void:
 	flash_mesh.material_override = ModMaterials.fx_add()
 	flash_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	flash_mesh.visible = false
-	add_child(flash_mesh)
+	# the flash rides on the gun so recoil and turning carry it along
+	figure.muzzle.add_child(flash_mesh)
+	flash_light.reparent(figure.muzzle, false)
+	flash_light.position = Vector3.ZERO
 
 
 func plan_pos() -> Vector2:
@@ -121,12 +124,9 @@ func aim_light_at(point: Vector3) -> void:
 func fired() -> void:
 	figure.recoil = 1.0
 	_flash_t = 0.06
-	var m := muzzle_position()
-	flash_light.global_position = m
 	flash_light.visible = true
 	flash_light.light_energy = 3.5
 	flash_mesh.visible = true
-	flash_mesh.global_position = m
 	flash_mesh.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
 	var s := randf_range(0.8, 1.2)
 	flash_mesh.scale = Vector3(s, s, s)

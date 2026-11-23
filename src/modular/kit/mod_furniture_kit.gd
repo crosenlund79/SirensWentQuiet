@@ -765,8 +765,10 @@ static func _road(mm: ModMesh, w: float, d: float, h: float, rng: RandomNumberGe
 		mm.quad(Vector3(x, 0.016, zc - 0.06), Vector3(x + 2.0, 0.016, zc - 0.06), Vector3(x + 2.0, 0.016, zc + 0.06), Vector3(x, 0.016, zc + 0.06), Vector3.UP)
 		x += 4.0
 	# manhole and leaves drifted against the curbs
-	mm.set_mat(M.L_METAL, Color(0.2, 0.2, 0.2))
-	mm.cylinder(Vector3(3.0, 0.0, zc + 1.2), 0.32, 0.32, 0.018, 12)
+	mm.set_mat(M.L_CONCRETE_PLAIN, Color(0.5, 0.5, 0.48))
+	mm.cylinder(Vector3(3.0, 0.0, zc + 1.2), 0.36, 0.36, 0.016, 12)
+	mm.set_mat(M.L_PLAIN, Color(0.3, 0.3, 0.29))
+	mm.cylinder(Vector3(3.0, 0.0, zc + 1.2), 0.3, 0.3, 0.02, 12)
 	for i in 120:
 		mm.set_mat(M.L_PLAIN, Color(0.5, 0.34, 0.18).darkened(rng.randf_range(0.0, 0.45)))
 		var near := rng.randf() < 0.5

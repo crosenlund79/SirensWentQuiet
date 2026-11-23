@@ -27,7 +27,7 @@ func _ready() -> void:
 	_door(Vector3(x, 0, 0), "interior", "interior door")
 	# row 2: interior wall states, posts, floor tiles, roof panel
 	x = 0.0
-	var z := 3.0
+	var z := 4.2
 	for s in [ModWall.State.INTACT, ModWall.State.DAMAGED, ModWall.State.HEAVY, ModWall.State.DESTROYED]:
 		_wall(Vector3(x, 0, z), ModWall.Kind.SOLID, false, s, ["interior wall", "damaged", "heavy damage", "destroyed"][s])
 		x += SPACING
