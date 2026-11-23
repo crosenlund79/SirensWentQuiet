@@ -17,7 +17,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved development objective
 
-**Status: Approved 2026-11-23, in progress.**
+**Status: Approved 2026-11-23. Delivered on the working branch 2026-11-23, awaiting the user's review.** Not merged; the choice of technology is the user's (see `docs/experiment-001/COMPARISON.md`).
 
 - **User approval (reference / summary):** User message of 2026-11-23, "Visual Technology Experiment 001 — Three Ways to Build a Destructible House", with an execution directive for one autonomous run (parallel agents in isolated worktrees, lead integrates).
 - **Objective (one):** Three playable visual prototypes of the same small scenario, selectable from a launcher: A true 3D voxels, B modular 3D, C illustrated top-down 2D. Plus a comparison report.
