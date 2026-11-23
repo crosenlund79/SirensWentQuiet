@@ -39,7 +39,7 @@ amb.set_tension(1.0 if invasion else 0.0)   # low drone during invasions
 | `Sfx.current_music() -> String` | The track asked for last (`""` when stopped) |
 | `Sfx.stats` | `{"played", "skipped", "stolen"}` counters |
 | `Sfx.auto_listener` | See "Listener" |
-| `Sfx.reset()` | Tests: detach, clear cooldowns, warnings and counters |
+| `Sfx.reset()` | Tests: detach, stop the music at once, clear cooldowns, warnings and counters |
 | `Sfx.GROUPS`, `Sfx.DEFS` | The metadata tables |
 | `Ambience.play_distant(index := -1) -> Vector3` | Play one distant noise now (dev menu, tests) |
 | `Ambience.distant_point(angle)`, `distant_interval_range()`, `next_distant_in()`, `gains()`, `player(id)` | Introspection |
@@ -114,7 +114,7 @@ Ambience timing: distant noises every 25–70 s by day and 14–40 s at full nig
 
 - **Variants:** replace them one by one (`custom/audio/player/footstep_1.ogg` … `_4`). A group always plays its numbered files.
 - **Loops:** an override of a looping template (`ambient/wind_day`, `ambient/night`, `ambient/tension`, `music/menu`) is looped automatically. Make your file seamless (the end must flow into the start); a WAV's own loop points are kept if it has them.
-- **If your file is missing,** the template plays silently. **If it can't be decoded** (corrupt, empty, wrong content for its extension), the game prints a warning naming the file and plays the template; it never crashes.
+- **If there is no override file,** the template plays, with no warning. **If it can't be decoded** (corrupt, empty, wrong content for its extension), the game prints a warning naming the file and plays the template; it never crashes.
 - `custom/` belongs to you: the game and its tools never write there.
 
 ### Supported formats
