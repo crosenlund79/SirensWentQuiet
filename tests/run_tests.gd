@@ -48,6 +48,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	await process_frame   # let the root enter the tree before the first test
 	var files := _find("res://tests")
 	files.sort()
 	for f in files:
