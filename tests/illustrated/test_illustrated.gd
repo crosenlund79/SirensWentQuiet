@@ -126,3 +126,34 @@ func test_enemy_bash_damages_the_nearest_standing_section() -> void:
 	check(s != null and s.hp == before - 1, "the section at the swing point lost 1 HP")
 	check_eq(w.bash_at(Vector2(4.5, 9.0) + Vector2(0, 3.0), 1, Vector2.UP), "none", "no wall far from the walls")
 	check(target.x > 0.0, "sanity")
+
+
+func test_creator_override_replaces_art_at_any_resolution() -> void:
+	# A creator's sofa drawn at a different resolution and aspect must replace
+	# the template and still cover the same footprint (no code changes).
+	var root := OS.get_user_data_dir().path_join("ill_override_%d" % Time.get_ticks_usec())
+	DirAccess.make_dir_recursive_absolute(root.path_join("graphics/illustrated"))
+	var img := Image.create(400, 160, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.8, 0.2, 0.2))
+	img.save_png(root.path_join("graphics/illustrated/sofa.png"))
+	AssetResolver.set_override_root(root)
+	var hv: HouseView = HouseView.new()
+	add(hv)
+	var shadows := Node2D.new()
+	add(shadows)
+	hv.build(shadows)
+	var sofa: Sprite2D = null
+	for c in hv.furniture.get_children():
+		if c is Sprite2D and c.texture != null and c.texture.get_size() == Vector2(400, 160):
+			sofa = c
+	check(sofa != null, "the override texture is used for the sofa")
+	if sofa != null:
+		var f: Dictionary = {}
+		for x in HousePlan.FURNITURE:
+			if x["id"] == "sofa":
+				f = x
+		var want: Vector2 = (HouseView.canonical_size(f) + Vector2.ONE * 2.0 * Art.ART_MARGIN_M) * Art.PX_PER_M
+		var got := sofa.texture.get_size() * sofa.scale
+		check(got.distance_to(want) < 0.5, "override scaled to the footprint (%s vs %s)" % [got, want])
+	AssetResolver.set_override_root("")
+	DirAccess.remove_absolute(root.path_join("graphics/illustrated/sofa.png"))

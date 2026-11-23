@@ -6,6 +6,8 @@ extends Node2D
 ## debug API (plan meters). Extra user args for screenshots:
 ##   --scenario=overview|damage|breach|enemies|shooting|collapse
 ##   --slowmo-at=SECONDS   fire one shot then slow time to 3 % (catches the flash)
+##   --override-root=DIR   look for creator art in DIR/graphics/illustrated/ instead
+##                         of custom/ (demonstrates replacement without touching custom/)
 
 const Art := preload("res://src/illustrated/ill_art.gd")
 const HouseView := preload("res://src/illustrated/house_view.gd")
@@ -62,6 +64,8 @@ func _ready() -> void:
 			_scenario = a.trim_prefix("--scenario=")
 		elif a.begins_with("--slowmo-at="):
 			_slowmo_at = float(a.trim_prefix("--slowmo-at="))
+		elif a.begins_with("--override-root="):
+			AssetResolver.set_override_root(a.trim_prefix("--override-root="))
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	nav = GridNav.new()
 	HousePlan.rasterize_into(nav)

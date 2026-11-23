@@ -32,6 +32,10 @@ func build(p_nav: GridNav, shadow_parent: Node) -> void:
 	_shadow_offset = Vector2(Art.m(0.17), Art.m(0.24))
 	_shadow_grow = Art.m(0.07)
 	_build_posts()
+	# posts never break: SOLID keeps pursuers from bashing them (walkability is unchanged)
+	for r in posts:
+		nav.mark_rect(r, GridNav.SOLID)
+		nav.refresh_region(r)
 	_build_sections()
 	_link()
 	_build_doors()

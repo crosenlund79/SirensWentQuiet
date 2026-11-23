@@ -177,15 +177,19 @@ def psycho(name, cloth, hair, style):
             cv.stroke([(93, 47), (93 + math.cos(a) * 5, 47 + math.sin(a) * 5)], 0.4, INK, 0.6)
         limb(cv, [(60, 84), (66, 92), (74, 94)], 6.0, fab(cv, cloth, 0.2))
         hand(cv, 76, 94, 2.8, skin)
-        # hood (up), head pushed forward and low
+        # hood (up), head pushed forward and low: greasy hair hangs over the face
         hood = cv.mask().ellipse(66, 63, 11, 11.5, wobble=0.6)
         P(cv, hood, fab(cv, mix(cloth, "#000000", 0.15), 0.2), depth=2.2, soft=0.3, ow=1.6)
-        cv.paint(cv.mask().ellipse(69, 63, 7.0, 8.0), "#141212")
+        cv.paint(cv.mask().ellipse(69, 63, 7.6, 8.4), "#141212")
         head = cv.mask().ellipse(71, 63, 6.8, 7.0)
         P(cv, head, skin, ow=1.3, depth=1.4, hatch=0.3)
-        for k in range(7):   # greasy strands falling forward
-            y = 57 + k * 2.0
-            cv.stroke(catmull([(66, y), (71, y + rnd.normal(0, 0.6)), (76, y + rnd.normal(0, 1.0))], 5), 0.6, hair, 0.95)
+        hair_m = cv.mask().ellipse(70, 63, 6.6, 7.2, wobble=0.5)
+        P(cv, hair_m, fab(cv, hair, 0.25), ow=0.8, depth=1.2, hatch=0.2)
+        for k in range(6):   # strands falling forward past the face
+            y = 58 + k * 2.0
+            cv.stroke(catmull([(70, y), (75, y + rnd.normal(0, 0.6)), (79, y + rnd.normal(0, 1.0))], 5), 0.7,
+                      mix(hair, "#000000", 0.3), 0.95)
+        cv.paint(cv.mask().ellipse(77.2, 63, 1.4, 2.6), skin, 0.9)   # a pale sliver of face
         # drawstrings
         for yy in (58, 68):
             cv.stroke([(74, yy), (79, yy + (yy - 63) * 0.5 + rnd.normal(0, 1))], 0.6, "#cfcac0", 0.9)
@@ -205,12 +209,13 @@ def psycho(name, cloth, hair, style):
         P(cv, tie, fab(cv, "#3a2a35", 0.1), ow=1.0, depth=1.0, hatch=0.2)
         head = cv.mask().ellipse(68, 64, 8.6, 8.2)
         P(cv, head, skin, ow=1.8, depth=1.8)
-        for k in range(9):
-            a = math.pi * (0.55 + k / 8 * 0.9)
-            x, y = 68 + math.cos(a) * 7.5, 64 + math.sin(a) * 7.5
-            cv.stroke([(x, y), (x - 3 + rnd.normal(0, 0.7), y + rnd.normal(0, 1.2))], 0.6, hair, 0.9)
+        # balding: a ring of matted hair around the back and sides, bare crown
+        ring = np.clip(cv.mask().ellipse(66.5, 64, 8.8, 8.6, wobble=0.6).arr - cv.mask().ellipse(69.5, 64, 6.2, 5.8).arr, 0, 1)
+        cv.paint(ring, fab(cv, hair, 0.25), 0.95)
+        cv.hatch(ring, 30, 1.6, 0.4, 0.5)
         for k in range(3):
-            cv.stroke(catmull([(63, 60 + k * 3), (68, 59.5 + k * 3.5), (73, 61 + k * 2.5)], 5), 0.35, hair, 0.8)
+            cv.stroke(catmull([(64, 61 + k * 3), (68, 60.5 + k * 3.5), (71, 62 + k * 2.5)], 5), 0.4, hair, 0.7)
+        cv.paint(cv.mask().ellipse(70.5, 61.5, 2.2, 1.5), "#e0ddd6", 0.6)   # shine on the scalp
         cv.paint(cv.mask().ellipse(76.2, 64, 1.5, 1.4), mix(skin, "#000000", 0.15))
     return finish(cv, name)
 
