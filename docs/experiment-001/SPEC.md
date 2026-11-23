@@ -43,7 +43,7 @@ Do not write other AI. No tactics, cover, formations or extra sensing.
 
 ### Navigation and destruction contract (important)
 `GridNav` (0.25 m cells over `HousePlan.YARD`) stores a **raw** state per cell: `OPEN`, `WALL` (destructible), `SOLID` (furniture/props). Initialise with `HousePlan.rasterize_into(nav)`. When your geometry changes:
-1. Update the raw cells covering the changed area **from your real geometry** (B/C: a destroyed section's `span_rect` → `OPEN`; A: for each affected cell, `WALL` if any voxel remains in that cell-centre column between 0.15 m and `Tuning.CLEARANCE_HEIGHT` (1.6 m), else `OPEN`; never overwrite `SOLID`).
+1. Update the raw cells covering the changed area **from your real geometry** (B/C: a destroyed section's `span_rect` → `OPEN`; A: for each affected cell, `WALL` if any wall voxel remains between 0.15 m and `Tuning.CLEARANCE_HEIGHT` (1.6 m) in the voxel columns whose centres fall inside the cell's 0.25 m footprint, else `OPEN`; never overwrite `SOLID`. *As built: Version A samples the whole footprint, because the single cell-centre column misses most of a 3-voxel wall and could open nav while siding still blocks.*)
 2. Call `nav.refresh_region(rect)`. Pursuers repath at once.
 3. Collision must change in the same frame (no invisible barriers left; no open nav over remaining collision).
 

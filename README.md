@@ -25,6 +25,7 @@ Claude-made fallback art lives in `assets/graphics/**/template_*.png`. To use yo
 ## Docs
 
 - `docs/experiment-001/COMPARISON.md`: the comparison report (results of the experiment)
+- `docs/experiment-001/voxel.md`, `modular.md`, `illustrated.md`: how each version works, what to try, art names, known issues
 - `docs/experiment-001/SPEC.md`: the shared scenario, numbers and contracts
 - `docs/PROJECT_BRIEF.md`: confirmed decisions and the approved objective
 - `CLAUDE.md`, `docs/GODOT_CLAUDE_GUIDELINES.md`, `docs/DESIGN_WORKFLOW.md`: how work on this project is done (from the starter pack)
@@ -37,4 +38,8 @@ godot --headless --path . --import
 godot --headless --fixed-fps 60 --path . -s res://tests/run_tests.gd
 ```
 
-Screenshots through the real renderer (Linux, Xvfb + software Vulkan): `tools/capture.sh <res://scene.tscn> <out.png> [seconds] [--night]`.
+Through the real renderer (Linux, Xvfb + software Vulkan, slow but deterministic):
+
+- `tools/playtest.sh <1|2|3>`: end-to-end playtest with real input events (launcher key, WASD, mouse aim + held LMB, zoom, N, R, Esc).
+- `tools/compare.sh <1|2|3> [dir]`: renders the same scripted fight (same hole, enemies and player position) in one version, day and night.
+- `tools/capture.sh <res://scene.tscn> <out.png> [seconds] [--night]`: one screenshot. Under software rendering, pass `CAPTURE_ENGINE_ARGS="--fixed-fps 30"` so the scene clock advances.
