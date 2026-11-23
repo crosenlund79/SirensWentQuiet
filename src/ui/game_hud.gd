@@ -344,7 +344,10 @@ static func warnings_for(s: GameState) -> Array:
 				elif typeof(e) == TYPE_ARRAY and e.size() >= 2:
 					out.append([str(e[0]), str(e[1])])
 				else:
-					out.append([str(e), "warn"])
+					var t := str(e)
+					out.append([t, "bad" if t in ["Dehydrated", "Starving", "Badly hurt", "Spent"] else "warn"])
+			if s.invasion_due_soon():
+				out.append(["Something is coming tonight.", "warn"])
 			return out
 	var lvl := SurvivalTuning.WARN_LEVEL
 	if s.health <= lvl:

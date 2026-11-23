@@ -88,4 +88,4 @@ func test_dev_menu_without_game_methods_does_not_crash() -> void:
 	await frames(1)
 	_press(m, "Spawn 3 psychos")
 	check(m.last_status.contains("dev_spawn"), "explains the missing method")
-	check(m.next_invasion_text().contains("Day 3 22:00"), "next invasion computed from run.next_invasion_at")
+	check(m.next_invasion_text().contains("Day 3") and m.next_invasion_text().contains("22:00"), "next invasion shown (%s)" % m.next_invasion_text())

@@ -33,6 +33,7 @@ func _restore() -> void:
 
 func _write_valid_save() -> Dictionary:
 	var s := GameState.new_run(11)
+	s.cheats["invulnerable"] = true             # 86 h without water would kill the run
 	s.advance(3 * 1440.0 + 14 * 60.0 + 15.0)   # Day 4, 21:15
 	var err := SaveGame.write({"summary": {"day": s.day(), "clock": s.clock_text(), "total_minutes": s.total_minutes},
 		"state": s.to_dict(), "world": {}, "game": {}})
