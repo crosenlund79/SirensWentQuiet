@@ -948,7 +948,9 @@ func _part2() -> void:
 		bad.store_string("this is not an ogg file")
 		bad.close()
 		AssetResolver.set_override_root(dir)
+		AssetResolver.clear_cache()
 		var stream: Resource = resolver.call("get_audio", "weapon/handgun_fire")
 		AssetResolver.set_override_root("")
+		AssetResolver.clear_cache()
 		var path := stream.resource_path if stream != null else ""
 		_step("P2.5 audio override fallback", stream != null and path.contains("template_handgun_fire"), "corrupt override → %s" % (path if path != "" else str(stream)))

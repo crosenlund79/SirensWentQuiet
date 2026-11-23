@@ -139,7 +139,7 @@ func _process(delta: float) -> void:
 		var t: float = e.get_meta("moan_t", 5.0) - delta
 		if t <= 0.0:
 			t = rng.randf_range(MOAN_GAP.x, MOAN_GAP.y)
-			Sfx.play("enemy/moan_%d" % rng.randi_range(1, 2), e.global_position + Vector3(0, 1.5, 0))
+			Sfx.play("enemy/moan", e.global_position + Vector3(0, 1.5, 0))   # group: a random variant
 		e.set_meta("moan_t", t)
 
 
