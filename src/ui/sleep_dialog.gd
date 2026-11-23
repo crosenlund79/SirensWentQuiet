@@ -38,9 +38,9 @@ func open(s: GameState) -> void:
 		box.add_child(UiTheme.make_caption(_energy_words(s.energy), 424))
 	box.add_child(UiTheme.make_spacer(4))
 
-	var morning := UiTheme.make_button("Sleep until morning")
+	var morning := _menu_button("Sleep until morning")
 	morning.name = "UntilMorning"
-	var rest := UiTheme.make_button("Rest 2 hours")
+	var rest := _menu_button("Rest 2 hours")
 	rest.name = "Rest"
 	if s != null:
 		var m_plan := _plan(s, s.until_morning_minutes())
@@ -59,7 +59,7 @@ func open(s: GameState) -> void:
 		box.add_child(_warning(block_reason))
 	box.add_child(morning)
 	box.add_child(rest)
-	var cancel := UiTheme.make_button("Cancel")
+	var cancel := _menu_button("Cancel")
 	cancel.name = "Cancel"
 	cancel.pressed.connect(_cancel)
 	box.add_child(cancel)

@@ -153,6 +153,13 @@ func _clear() -> void:
 	_box = null
 
 
+## A button for a vertical menu: text on the left, optional caption on the right.
+func _menu_button(text: String, caption := "") -> Button:
+	var b := UiTheme.make_button(text, caption)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	return b
+
+
 ## A horizontal row of equal-width buttons (e.g. confirm / cancel).
 func _button_row(buttons: Array) -> HBoxContainer:
 	var row := HBoxContainer.new()

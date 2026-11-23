@@ -93,22 +93,16 @@ static func theme() -> Theme:
 	track.content_margin_top = 2
 	track.content_margin_bottom = 2
 	t.set_stylebox("slider", "HSlider", track)
+	# Sliders have no focus box: the focused/hovered one turns amber, the rest stay neutral.
 	var fill := track.duplicate() as StyleBoxFlat
-	fill.bg_color = Color(ACCENT, 0.75)
+	fill.bg_color = Color(TEXT, 0.45)
 	t.set_stylebox("grabber_area", "HSlider", fill)
 	var fill_hi := track.duplicate() as StyleBoxFlat
 	fill_hi.bg_color = ACCENT
 	t.set_stylebox("grabber_area_highlight", "HSlider", fill_hi)
 	t.set_icon("grabber", "HSlider", _dot_texture(14, TEXT))
-	t.set_icon("grabber_highlight", "HSlider", _dot_texture(14, Color(1, 0.9, 0.75)))
+	t.set_icon("grabber_highlight", "HSlider", _dot_texture(16, Color(1.0, 0.78, 0.45)))
 	t.set_icon("grabber_disabled", "HSlider", _dot_texture(14, TEXT_FAINT))
-	var slider_focus := StyleBoxFlat.new()
-	slider_focus.draw_center = false
-	slider_focus.border_color = Color(ACCENT, 0.6)
-	slider_focus.set_border_width_all(1)
-	slider_focus.set_corner_radius_all(3)
-	slider_focus.set_expand_margin_all(4)
-	t.set_stylebox("focus", "HSlider", slider_focus)
 	# scrolling
 	t.set_stylebox("panel", "ScrollContainer", StyleBoxEmpty.new())
 	var bar := StyleBoxFlat.new()

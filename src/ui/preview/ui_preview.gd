@@ -118,7 +118,7 @@ func _open(ui: String) -> void:
 
 # --- sequence mode: several screenshots from one game load ----------------------
 ## --sequence=/abs/dir shoots hud_day, inventory, dev, hud_night, pause, sleep,
-## build and death into that folder, then quits. Run it through capture.sh
+## build and death into that folder, then quits. --only=a,b limits the saved shots. Run it through capture.sh
 ## with a large <secs> and CAPTURE_TIMEOUT so capture.gd never fires first.
 
 func run_sequence(dir: String) -> void:
@@ -201,7 +201,7 @@ func run_sequence(dir: String) -> void:
 	var ds := DeathScreen.new()
 	add_child(ds)
 	ds.open(4, "psycho")
-	await _frames(60)
+	await _frames(60 if not args.has("only") or "death" in str(args["only"]) else 1)
 	await _shot(dir, "death")
 	tree.quit(0)
 
@@ -216,6 +216,8 @@ func _frames(n: int) -> void:
 
 
 func _shot(dir: String, name: String) -> void:
+	if args.has("only") and name not in str(args["only"]).split(","):
+		return
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	if img != null:

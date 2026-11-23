@@ -66,7 +66,7 @@ Master, sound effects, ambient and music sliders (applied live to the buses of `
 
 ### Inventory
 
-Shows the needs bars at the top, then Food, Water, Medical, Ammo, Materials (`count / cap`, plus the storage-crate note) and Tools (Owned / —), each with its description and effect ("food +30, water +4").
+Shows the needs bars at the top, then two columns: Food, Water, Medical and Ammo on the left; Materials (`count / cap`, plus the storage-crate note) and Tools (Owned / —) on the right. Each item shows its description and effect ("food +30 · water +4"), and everything fits without scrolling.
 - **Use** (consumables only) calls `state.use_item(id)`, shows the returned text and plays `player/eat`, `player/drink` or `player/bandage` through `Sfx.play`.
 - An empty result shows "You can't use that right now." and plays `ui/error`.
 - The panel refreshes on `state.changed`, so the developer menu can add items while it is open.

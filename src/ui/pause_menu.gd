@@ -53,11 +53,11 @@ func report_save(error := "") -> void:
 func _main_page(focus_name := "") -> void:
 	page = "main"
 	var box := _begin("Paused", 380)
-	var resume := UiTheme.make_button("Resume")
+	var resume := _menu_button("Resume")
 	resume.name = "Resume"
 	resume.pressed.connect(_resume)
 	box.add_child(resume)
-	var save := UiTheme.make_button("Save")
+	var save := _menu_button("Save")
 	save.name = "Save"
 	save.disabled = save_block_reason != ""
 	if save.disabled:
@@ -65,11 +65,11 @@ func _main_page(focus_name := "") -> void:
 		save.tooltip_text = save_block_reason
 	save.pressed.connect(_save)
 	box.add_child(save)
-	var settings := UiTheme.make_button("Settings")
+	var settings := _menu_button("Settings")
 	settings.name = "Settings"
 	settings.pressed.connect(_open_settings)
 	box.add_child(settings)
-	var menu := UiTheme.make_button("Main Menu")
+	var menu := _menu_button("Main Menu")
 	menu.name = "MainMenu"
 	menu.pressed.connect(_confirm_page)
 	box.add_child(menu)
@@ -89,20 +89,21 @@ func _confirm_page() -> void:
 	var box := _begin("Leave this run?", 440)
 	box.add_child(UiTheme.make_caption("Progress since your last save will be lost.", 404, UiTheme.TEXT))
 	if save_block_reason != "":
-		box.add_child(UiTheme.make_caption("You can't save right now: %s" % save_block_reason, 404, UiTheme.WARN))
+		box.add_child(UiTheme.make_caption("You can't save right now.", 404, UiTheme.WARN))
+		box.add_child(UiTheme.make_caption(save_block_reason, 404, UiTheme.TEXT_DIM))
 	box.add_child(UiTheme.make_spacer(4))
 	var first: Control = null
 	if save_block_reason == "":
-		var sq := UiTheme.make_button("Save and quit")
+		var sq := _menu_button("Save and quit")
 		sq.name = "SaveAndQuit"
 		sq.pressed.connect(_save_and_quit)
 		box.add_child(sq)
 		first = sq
-	var quit := UiTheme.make_button("Quit without saving")
+	var quit := _menu_button("Quit without saving")
 	quit.name = "QuitWithoutSaving"
 	quit.pressed.connect(func(): main_menu_requested.emit())
 	box.add_child(quit)
-	var back := UiTheme.make_button("Back")
+	var back := _menu_button("Back")
 	back.name = "Back"
 	back.pressed.connect(_main_page.bind("MainMenu"))
 	box.add_child(back)
