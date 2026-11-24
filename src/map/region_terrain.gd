@@ -592,7 +592,7 @@ func _pads() -> void:
 		var level: int = hs[hs.size() / 2] if not hs.is_empty() else SEA + 2
 		level = maxi(level, SEA + 2)
 		if id == "quarry":
-			level = int(hs[0]) - 1
+			level = int(hs[hs.size() / 2]) - 4
 		loc_level[id] = level
 		for c in _cells(r.grow(1)):
 			if not in_bounds(c) or water[idx(c)] > 0:
@@ -603,7 +603,7 @@ func _pads() -> void:
 				if id == "quarry":
 					# a cut terrace: benches step up toward the rim, never filled
 					var e := mini(mini(c.x - r.position.x, r.end.x - 1 - c.x), mini(c.y - r.position.y, r.end.y - 1 - c.y))
-					height[i] = mini(height[i], level + maxi(0, 2 * (2 - e)))
+					height[i] = mini(height[i], level + maxi(0, 3 - e))
 					cover[i] = C_QUARRY
 				else:
 					height[i] = level

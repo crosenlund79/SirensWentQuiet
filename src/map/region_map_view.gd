@@ -241,7 +241,7 @@ func _make_clouds() -> void:
 
 ## Frames the whole region (instant or eased).
 func frame_region(instant := false) -> void:
-	set_view(Vector3(RegionTerrain.W * 0.5, GROUND_Y, RegionTerrain.H * 0.57), 190.0, instant)
+	set_view(Vector3(RegionTerrain.W * 0.47, GROUND_Y, RegionTerrain.H * 0.58), 198.0, instant)
 
 
 func set_view(f: Vector3, dist: float, instant := false) -> void:
@@ -255,6 +255,13 @@ func set_view(f: Vector3, dist: float, instant := false) -> void:
 
 func pan(delta_world: Vector3) -> void:
 	focus_target = _clamp_focus(focus_target + Vector3(delta_world.x, 0.0, delta_world.z))
+
+
+## Moves the camera at once (mouse drag keeps the grabbed point under the cursor).
+func drag_pan(delta_world: Vector3) -> void:
+	focus = _clamp_focus(focus + Vector3(delta_world.x, 0.0, delta_world.z))
+	focus_target = focus
+	_apply_camera()
 
 
 func zoom_by(factor: float, toward := Vector3.INF) -> void:
