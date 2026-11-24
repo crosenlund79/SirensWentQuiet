@@ -81,6 +81,7 @@ static func new_run(run_seed := 0, level := Difficulty.DEFAULT) -> GameState:
 	for id in T.START_ITEMS:
 		s.inventory.add(id, T.START_ITEMS[id])
 	s._quiet = false
+	s._mark_gear_seen()
 	s._sync_equipment(false)
 	s.equip("handgun", "primary")
 	s.set_magazine("handgun", int(Difficulty.get_value(s.difficulty, "start_rounds")))
@@ -444,6 +445,13 @@ func _sync_equipment(notify := true) -> void:
 		_fix_active_slot()
 		if notify:
 			equipment_changed.emit()
+
+
+func _mark_gear_seen() -> void:
+	_gear_seen.clear()
+	for id in Items.DEFS:
+		if Equipment.is_equippable(id) and inventory.count(id) > 0:
+			_gear_seen[id] = true
 
 
 func _fix_active_slot() -> void:
@@ -1041,7 +1049,9 @@ static func from_dict(d) -> GameState:
 	var aw = d.get("active_weapon", "primary")
 	s.active_weapon_slot = aw if typeof(aw) == TYPE_STRING and aw in Equipment.WEAPON_SLOTS else "primary"
 	s._quiet = false
-	s._sync_equipment(false)   # magazines for owned weapons; marks owned gear as seen (no auto-equip)
+	s._mark_gear_seen()        # what was owned when saved is not "newly acquired"
+	s._sync_equipment(false)   # magazines for owned weapons
+	s._fix_active_slot()
 	s.region = RegionState.from_dict(d.get("region", {}))
 	return s
 
