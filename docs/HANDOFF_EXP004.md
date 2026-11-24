@@ -11,7 +11,7 @@ The suggestions in §6 are Claude proposals, not approvals; the user's directive
 
 | What | Where |
 |---|---|
-| **Playtest checkpoint** (frozen, never commit to it) | branch `playtest/exp003-integrated` |
+| **Playtest checkpoint** (frozen, never commit to it) | branch `playtest/exp003-integrated` at `3f80fa3` |
 | Development branch (continue here or on a new working branch) | `claude/practical-heisenberg-mjc1xx` |
 | Experiment 002 baseline | `4c87cd6` |
 | Experiment 003 report | `docs/experiment-003/REPORT.md` (plus the module docs in that folder) |

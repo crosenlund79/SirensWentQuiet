@@ -3,7 +3,7 @@
 **Status:** integrated and published as a playtest checkpoint (2026-11-24).
 - **Baseline:** Experiment 002 at `4c87cd6`.
 - **Working branch:** `claude/practical-heisenberg-mjc1xx`.
-- **Checkpoint branch:** `playtest/exp003-integrated`. Its commit is named in `docs/HANDOFF_EXP004.md` and in the delivery message.
+- **Checkpoint branch:** `playtest/exp003-integrated`. It points at `3f80fa3`.
 
 Not human-played. No real-GPU timing (software Vulkan only). Sounds measured, not listened to. Not merged to `main`; no export.
 
