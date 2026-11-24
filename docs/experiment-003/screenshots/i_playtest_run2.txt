@@ -1,0 +1,31 @@
+PASS  1 start a game with a selected difficulty: clicked 'New Game', the difficulty dialog listed Easy/Normal/Hard with descriptions, clicked 'Hard' → GameState difficulty 'hard' (first invasion Day 2, 9 rounds in the handgun); intro skipped with Space after 2.5 s
+PASS  2 wake in the existing house: Day 1 07:00, 1.6 m from the bed, initial save yes, HUD weapon card 'Handgun 9 / 12'
+PASS  3 inspect survival stats and equipment: I opened Supplies (health 100, food 74, water 69, energy 84; 3 canned, 4 water), clicked 'Equipment': primary slot 'Handgun', body 'empty'
+PASS  4 equip and switch weapons: F10 '+ Shotgun & shells' (auto-equipped: shotgun); panel buttons 'Unequip (slot empty: true)' then 'Equip'; keys ["2→shotgun", "1→handgun", "Q→shotgun", "Q→handgun"]; R loaded 5 shells one by one; LMB: one blast of 6 pellets (2 trigger pulls), handgun 9 → 8
+PASS  5 build with wood, stone and iron: F10 '+ Materials'; foundation ok (4 tiles), stone wall ok (2 m), wooden wall ok (2 m), iron plating on the house wall x 10..11 ok; wood 26→18, nails 52→36, stone 20→0, iron 10→8
+      note: step 6 revealed every place with F10 'Reveal all places' (discovery otherwise needs careful-exploration trips); 24 of 24 known
+PASS  6 open the voxel city map: prompt '[E] Study the region map' at the dining table, E → modal 'map', world paused true, the game's 3D view off true
+PASS  7 explore hills, river, bay, roads and districts: wheel ×7 at the harbour: camera distance 198 → 75; drag: focus moved 13.6; A held: 32.9 more; H flew home (selected 'home')
+PASS  8 watch clouds move over the landscape: cloud time 44.6 → 64.8 s (16.3 world units of drift); the two frames differ by 19.77 / 255 on average over the map
+PASS  9 select a scavenging location: clicked its list entry → selected 'quarry', 2 → 'targeted' (stone), clicked '?' → plan quarry|targeted:stone, toast 'Planned: Granite Quarry (Targeted collection: stone)', M closed the map, autosave true
+PASS  10 enter the fog and begin a simulated expedition: prompt '[E] Leave the property and head into the fog', E → the screen preselected the map's plan (true, targeted: stone); clicked ["Plan the trip  >", "Continue  >", "Head into the fog", "Head home  >", "Return home"]; answered ["Back away and go around"]
+PASS  11 collect targeted construction resources: Granite Quarry, targeted: gained { "nails": 1, "stone": 14, "iron": 1 }; stone 0 → 14; 272 min away; region: quarry visits 1, stock 0.93, plan used up ''
+PASS  12 return home and use them: B, 1, drag x -1..1 on the foundation: ok; stone 14 → 2; built sections 4 → 6
+PASS  13 visit a riskier destination for medical supplies: Medical Clinic (risk High on hard): gained { "canned_food": 1, "water": 3, "ammo": 8, "bandage": 3 }, medical 1 → 4, health 100 → 100 (vest worn), 337 min
+FAIL  14 experience equipment-dependent mission decisions: before F10 '+ Vest & gear' the clinic said 'Needs a flashlight. The clinic has no windows.'; after: available true; gear options seen []; chose ''; locked options []
+PASS  15 sleep and advance the clock: clicked 'Night 20:00', '×10', '×1'; walked to the bed true, E, clicked 'Sleep until morning': 21:05 → Day 2 06:00, energy 21 → 99, autosave true
+FAIL  16 fight enemies with distinct AI behaviours: '+ Psycho': a psycho walked at the player and was shot down in 3 s (health 100 → 100); '+ Runner' with ["front door closed", "back door open"]: the runner came in through the open back door false, wall swings 0, shotgun (2) 0 s; '+ Brute': 3 wall swings = 9 strikes (3.0 a swing); door HP 36 → 36, house voxels missing 90 → 385; shot down in 7 s, health 100
+      note: step 17: F10 '+ 10 ammo' for rounds to weaken the wall
+FAIL  17 watch a suicide bomber deliberately attack a wall: top weak points ["wall frame 1.05", "wall frame 0.99", "wall frame 0.87"]; F10 '+ Bomber'; it walked to the ?  at ? (never to the player: closest 99.0 m, the player 0.0 m from the target); fuse: HUD '', 0 ground marker; blast: breach false, 0 voxels, opened 0 nav cells; player -1.0 m away took 0.0 (health 100 → 100)
+FAIL  18 experience persistent damage and repair it: house voxels missing: 1111 before the blast, 1111 after (persistent; 11 damaged sections); B, 7, LMB repaired 5 section(s) → 707 missing; toast 'Wall repaired: 294 voxels (2 planks, 1 iron, 5 nails).'; planks 12, nails 28
+PASS  19 save and leave the game: M, wheel out, clicked the Police Station pin, then clicked its list entry → selected 'police', 3 (careful), Plan: planned police|careful; Esc → pause '?', clicked 'Save' (schema 2, Day 2 · 07:19), 'Main Menu' → 'Save and quit' → main menu true
+PLAYTEST part 1 FAILED: 15 passed, 4 failed, 0 skipped
+  - step 6 revealed every place with F10 'Reveal all places' (discovery otherwise needs careful-exploration trips); 24 of 24 known
+  - step 17: F10 '+ 10 ammo' for rounds to weaken the wall
+PASS  20a continue from the main menu: clicked 'Continue' (Day 2 · 07:19) → Day 2 07:20
+PASS  20b the house persists: voxel + colour hash same, damage { "damaged_objects": 0.0, "missing_voxels": 707.0 }, 2 objects same, built sections 6, foundations 4, plated 1; world data hash same
+PASS  20c inventory, equipment and difficulty persist: inventory same; equipment { "back": "backpack", "body": "vest", "primary": "handgun", "secondary": "shotgun", "tool": "crowbar", "utility": "flashlight" }; magazines { "handgun": 9.0, "shotgun": 0.0 }, in hand primary; difficulty 'hard' (HUD 'Morning · Hard')
+PASS  20d the regional map state persists: 24 places known, stock { "clinic": 0.67, "quarry": 0.928 }, visits { "clinic": 1.0, "quarry": 1.0 }, plan police (careful) preselected on the map true, layout region-v1
+PASS  20e the clock, needs and position persist: Day 2 07:21 (saved 07:19), health 100 hunger 49 hydration 30 energy 93, player same place
+PASS  20f weapons work after the restart: 2 → shotgun, 1 → handgun
+PLAYTEST part 2 PASSED: 6 passed, 0 failed, 0 skipped

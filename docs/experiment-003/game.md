@@ -118,14 +118,62 @@ godot --headless --fixed-fps 60 --path . -s res://tests/run_tests.gd -- --filter
 
 ## 12. The acceptance playtest
 
-`tools/survival_playtest.sh [out dir]` runs `tools/survival_playtest.gd` in two processes under Xvfb with software Vulkan at `--fixed-fps 30` (part 2 after a real application restart). The save goes to `<out>/playtest_save.dat`. Input is real: keys, mouse motion, wheel, drags and clicks on the actual buttons, pins and list entries. The debug API reads state; any action through it is named in the step's line. Rendering and the HUD are off between screenshots. The steps follow ASSIGNMENT §13 one to one (1–19 in part 1, 20a–20f in part 2). Results: see the playtest section of the Phase B report (and the logs next to the screenshots).
+`tools/survival_playtest.sh [out dir]` runs `tools/survival_playtest.gd` in two processes under Xvfb with software Vulkan at `--fixed-fps 30` (part 2 after a real application restart). The save goes to `<out>/playtest_save.dat`. Input is real: keys, mouse motion, wheel, drags and clicks on the actual buttons, pins and list entries; F10 actions are real clicks on the dev menu. The debug API reads state; any action through it is named in the step's line. Rendering and the HUD are off between screenshots. Steps follow ASSIGNMENT §13 one to one (1–19 in part 1, 20a–20f in part 2).
+
+### Run 2 (the reported run: the code and playtest of commit `f2c09eb`, before the dev menu fix)
+
+Part 1: **15 passed, 4 failed**. Part 2 (a separate process, Continue from the main menu): **6 passed, 0 failed**. The full step lines are in `docs/experiment-003/screenshots/i_playtest_run2.txt`; the screenshots (JPEG copies of the 1600 × 900 captures) are `docs/experiment-003/screenshots/i_*.jpg`.
+
+| Step | Result | What happened |
+|---|---|---|
+| 1 New Game with a difficulty | PASS | New Game → the difficulty dialog → Hard; GameState Hard, first invasion Day 2, 9 rounds |
+| 2 Wake in the house | PASS | Day 1 07:00 beside the bed; initial save |
+| 3 Stats and equipment | PASS | I: Supplies, then the Equipment tab (handgun in the primary slot) |
+| 4 Equip and switch weapons | PASS | F10 "+ Shotgun & shells" (auto-equipped); Unequip / Equip in the panel; 2, R (5 shells one by one), LMB (one blast, 6 pellets), 1, LMB (9 → 8), Q, Q |
+| 5 Build with wood, stone, iron | PASS | F10 "+ Materials"; B; a 4-tile stone foundation, a 2 m stone wall, a 2 m wooden wall (drags), iron plating on a house wall section |
+| 6 Open the map | PASS | F10 "Reveal all places" first (noted); E at the dining table; world paused, 3D view off |
+| 7 Explore the map | PASS | wheel ×7 at the harbour (distance 198 → 75), drag pan, A held, H home |
+| 8 Clouds move | PASS | 20 s apart: cloud time +20 s (16 world units), the frames differ by 19.8 / 255 on average |
+| 9 Select a location | PASS | the quarry (its list entry; the pin click missed), 2 = targeted (stone), Plan expedition → "Planned: Granite Quarry (Targeted collection: stone)", autosave |
+| 10 Into the fog | PASS | E at the fog; the screen preselected quarry / targeted / stone |
+| 11 Targeted resources | PASS | +14 stone (+1 iron, +1 nails), 272 min; region: 1 visit, stock 0.93, plan used up |
+| 12 Use them | PASS | a 2 m stone wall from the quarry's stone (14 → 2) |
+| 13 Riskier destination | PASS | the Medical Clinic (High risk on Hard): +3 bandages, +8 rounds, food and water; 337 min |
+| 14 Equipment-dependent decisions | **FAIL** | the clinic said "Needs a flashlight" before F10 "+ Vest & gear" and was available after (an equipment-dependent option), but the events drawn on this seed offered no option that needs gear, so no gear choice was made |
+| 15 Sleep | PASS | F10 Night 20:00, ×10, ×1; walk to the bed, E, "Sleep until morning": 21:05 → Day 2 06:00, energy 21 → 99 |
+| 16 Distinct AI behaviours | **FAIL** | psycho: walked at the player, shot down; brute: 3 wall swings = 9 strikes (3 a swing), 295 voxels bashed out; runner: did not come in through the open back door while watched (it stood at the closed front door, see below) |
+| 17 Bomber at a wall | **FAIL** | no bomber spawned: the F10 panel had grown past the right screen edge, so the "+ Bomber" click landed off-screen (fixed afterwards, not re-run) |
+| 18 Damage and repair | **FAIL** | follows from 17 (no blast to observe); the repair itself worked: B, 7, LMB repaired 5 damaged sections, 1,111 → 707 missing voxels |
+| 19 Save and leave | PASS | M, the police station's pin, 3 (careful), Plan; Esc, Save (schema 2), Main Menu, Save and quit, Quit |
+| 20a Continue | PASS | Continue (Day 2 · 07:19) after a real restart |
+| 20b House | PASS | the voxel and colour hash, damage, objects, built sections, foundations and plating identical |
+| 20c Inventory, equipment, difficulty | PASS | inventory, six equipped items, magazines, the weapon in hand and Hard identical |
+| 20d Region map | PASS | 24 places, stock, visits, the plan (police, careful) identical; the map preselects the plan |
+| 20e Clock, needs, position | PASS | |
+| 20f Weapons after the restart | PASS | 2 → shotgun, 1 → handgun |
+
+The bomber's full behaviour in the real game (F10 spawn → walks to a defence, not the player → HUD alert and ground marker during the fuse → blast with fall-off damage on the player → structural damage) is covered headless by `test_game_wiring::test_a_real_bomber_goes_for_the_house_warns_and_its_blast_hurts_the_player`, and its wall targeting by AI's `test_ai_bomber` tests; it was not captured in this run.
+
+**Software renderer:** under lavapipe every frame with an animated overlay is a full redraw (about 1 s); run 1 spent about ten minutes in the intro overlay, so run 2 skips it with a key after its first second. Run 2's part 1 took about 45 minutes, part 2 a few minutes. No further automated playthrough was run after run 2 (user instruction).
 
 ## 13. Fixes outside my paths
 
 - `docs/experiment-002/audio.md`: rows and measurements for the eight new sounds (the sound list lives there).
+- No code outside my paths was changed.
 
-## 14. Known limitations
+## 14. Known issues and limitations
 
+From playtest run 2 (not re-run after the fixes, by instruction):
+- **Fixed after run 2:** the F10 panel grew past the right screen edge (4-column grids and wide drop-downs), hiding "+ Bomber" and other fourth-column buttons. It is now two columns, the drop-downs are stacked and the panel grows to the left. The fix passes the suite; it was not re-played.
+- **Step 14:** whether an event offers a gear option is random; on this seed the clinic's events had none. The equipment dependency was shown only by the clinic's flashlight requirement.
+- **Step 16, the runner:** with the back door open and the front door closed it did not come in through the back door while watched; the screenshot shows it at the closed front door. The playtest's watch also stopped too early (a straight-line distance through the wall; fixed in the script). Afterwards the runner was gone before the fight started (the fight found no threats); the cause was not investigated. AI's headless test of the runner's open-door detour passes.
+- **Step 17–18:** no bomber blast was played or captured in the real renderer (see the F10 fix); the headless game test covers it.
+- **Map pins:** in step 9 the click on the quarry's pin did not select it (the list entry did); in step 19 the police station's pin click worked.
+- **Build mode HUD:** the dimmed status card shows its text shadow as a second, offset copy (Experiment 002 styling at 55 % opacity).
+- **HUD weapon card:** "4 / 5  5 SPARE SHELLS" is dense; it reads, but a separator would help.
+- **Intro overlay** under the software renderer: about 1 s per frame; the playtest skips it.
+
+Limitations:
 - The map table is a placeholder (a paper sheet of boxes), by the asset policy.
 - The map pauses the world; planning costs no game time.
 - The HUD alert covers one bomber at a time (the latest fuse); each bomber still gets its own ground marker.
