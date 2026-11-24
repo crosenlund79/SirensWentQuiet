@@ -31,6 +31,7 @@ const FADE := 1.1
 const RETARGET_SECONDS := Vector2(14.0, 26.0)
 const KINDS := [["psycho", 6.0], ["runner", 2.0], ["brute", 1.4], ["bomber", 0.7]]
 const ORBIT_SPEED := 0.03             ## rad/s
+const SCREEN_SHIFT := 4.5             ## m: the camera slides left so the house sits right of the menu
 const TIMES := [0.0, 0.25, 0.6, 0.85, 1.0]   ## night amounts: overcast day .. full night
 ## Yard lines that can take a wall run: [axis, line, from, to] (HouseWorld segments).
 const RUNS := [[0, 11, -3, 3], [1, -2, 1, 8], [0, -2, 0, 12], [1, 15, 1, 5], [0, 11, 6, 12]]
@@ -39,6 +40,7 @@ var seed := 0
 var rng := RandomNumberGenerator.new()
 var lighting: VoxelLighting
 var world: HouseWorld
+var fog: FogBoundary
 var roster: Node3D
 var camera: Camera3D
 var round := 0
@@ -134,6 +136,14 @@ func new_round() -> void:
 	world.build_new()
 	lighting.night_materials.append(VoxelRig.look_material(true))
 	lighting.night_materials.append(VoxelRig.look_material(false))
+	var centre_mark := Node3D.new()      # the fog bank's "player": the house centre (no prompt, no walls hit)
+	centre_mark.name = "Centre"
+	_round_root.add_child(centre_mark)
+	centre_mark.position = _centre
+	fog = FogBoundary.new()
+	fog.name = "FogBoundary"
+	fog.setup(centre_mark, lighting.environment)
+	_round_root.add_child(fog)
 	roster = Roster.new()
 	roster.name = "Enemies"
 	roster.setup(world, null, seed + round)
@@ -166,6 +176,8 @@ func _vary() -> void:
 	variation = {"walls": 0, "doors": 0, "barricades": 0, "plated": 0, "blasts": 0, "shots": 0}
 	var night: float = TIMES[rng.randi_range(0, TIMES.size() - 1)]
 	lighting.set_amount(night)
+	if fog != null:
+		fog.set_night_amount(night)
 	variation["night"] = night
 	# wall runs in the yard (wood or stone), one with a door
 	var runs := RUNS.duplicate()
@@ -380,6 +392,7 @@ func _place_camera(delta: float) -> void:
 	var bob := sin(round_t * 0.12) * 0.8
 	camera.position = _centre + Vector3(sin(_orbit) * _dist, _height + bob, cos(_orbit) * _dist)
 	camera.look_at(_centre + Vector3(0, 0.8, 0), Vector3.UP)
+	camera.position -= camera.transform.basis.x * SCREEN_SHIFT     # the house sits right of the menu
 
 
 ## A line for debugging and tests.
