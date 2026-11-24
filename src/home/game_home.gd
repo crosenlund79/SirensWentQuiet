@@ -438,4 +438,4 @@ func _apply_mounts(s: Dictionary) -> bool:
 			s[id] = false
 	for r in switches:
 		(switches[r] as Node3D).visible = world.wall_at(SWITCHES[r]["pos"], 1.1)
-	return _fallen.size() != before          # fallen fixtures never come back up
+	return _fallen.size() != before          # something fell (or a repaired wall took it back)

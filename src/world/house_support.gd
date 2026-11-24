@@ -37,6 +37,7 @@ const MIN_INTEGRITY := 0.5
 const MIN_VOXELS := 30             ## a section's design below this is no wall (a knocked-out section)
 const ROOF_EAVES := 0.65           ## the roof overhangs the footprint by 0.55 m
 const DECK_EDGE := 0.3             ## the upper deck and its outer walls past the footprint line
+const MINOR_VOXELS := 1200         ## fewer fallen deck voxels (a few re-laid tiles) hurt nobody
 const ZONES := [
 	{"id": "bedroom", "name": "the bedroom", "rect": Rect2(0, 0, 5, 4)},
 	{"id": "bathroom", "name": "the bathroom", "rect": Rect2(5, 0, 3, 4)},
@@ -253,9 +254,11 @@ func evaluate() -> void:
 		var ground_fail: bool = g[id]["fail"]
 		var upper_fail: bool = u.has(id) and u[id]["fail"]
 		var info := {"zone": id, "name": z["name"], "rect": z["rect"], "roof": false, "upper": false, "storeys": []}
-		if ground_fail and upper != null and _collapse_deck(z) > 0:
+		var fallen := _collapse_deck(z) if ground_fail and upper != null else 0
+		if fallen > 0:
 			info["upper"] = true
-			info["storeys"] = [Levels.GROUND, Levels.UPPER]
+			# a few tiles laid again over a zone that already came down: no harm done
+			info["storeys"] = [Levels.GROUND, Levels.UPPER] if fallen >= MINOR_VOXELS else []
 		if (ground_fail or upper_fail) and not roof_gone.has(id):
 			roof_gone[id] = true
 			_update_roof()
@@ -266,7 +269,9 @@ func evaluate() -> void:
 		if info["roof"] or info["upper"]:
 			strained_zones.erase(id)
 			collapses += 1
-			if info["upper"]:
+			if info["upper"] and fallen < MINOR_VOXELS and not info["roof"]:
+				info["text"] = "The new floor over %s has nothing to stand on: it fell." % z["name"]
+			elif info["upper"]:
 				info["text"] = "The upper floor over %s came down!" % z["name"]
 			else:
 				info["text"] = "The roof over %s gave way!" % z["name"]

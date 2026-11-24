@@ -147,6 +147,13 @@ func test_upper_floor_falls_with_the_walls_under_it() -> void:
 	check(u.count_objects("crate") == 0, "the crate up there fell")
 	check(w.support.roof_gone.has("kitchen"), "and the roof over it")
 	check_eq(_floating(u, Rect2(7.0, -0.5, 7.5, 5.0)), 0, "nothing of the upper floor hangs in the air")
+	var events := []
+	w.support.collapsed.connect(func(info: Dictionary) -> void: events.append(info))
+	Levels.lay_wood_floor(u, Vector2i(11, 2))
+	w.process_structure()
+	check(not u.has_floor_at(Vector2(11.5, 2.5)), "a tile laid again over the fallen part falls too")
+	check(events.size() == 1 and events[0]["storeys"].is_empty() and str(events[0]["text"]).contains("nothing to stand on"),
+		"quietly, hurting nobody (%s)" % str(events))
 	# the upper storey's own outer walls carry the roof
 	for k in range(0, 5):
 		u.cut_opening(Vector3i(0, 0, k), true)
