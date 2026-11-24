@@ -28,7 +28,9 @@ void fragment() {
 	vec3 c = mix(mix(shallow, river, 1.0 - sea), deep, smoothstep(0.05, 1.0, depth));
 	float n1 = texture(cloud_tex, p / 7.0 + vec2(t * 0.011, t * 0.007)).r;
 	float n2 = texture(cloud_tex, p / 4.3 - vec2(t * 0.009, -t * 0.012)).r;
-	vec3 nrm = normalize(vec3((n1 - 0.5) * 0.16, 1.0, (n2 - 0.5) * 0.16));
+	float r1 = texture(cloud_tex, p / 1.3 + vec2(t * 0.04, t * 0.025)).r;
+	float r2 = texture(cloud_tex, p / 0.9 - vec2(t * 0.03, -t * 0.045)).r;
+	vec3 nrm = normalize(vec3((r1 - 0.5) * 0.22, 1.0, (r2 - 0.5) * 0.22));
 	float f = shore * mix(0.25, 1.0, sea) * smoothstep(0.42, 0.72, n1 * 0.7 + n2 * 0.3 + 0.18 * sin(t * 1.1 + p.x * 0.9 + p.y * 0.6));
 	if (UV.y > 0.5) {
 		// falls: white streaks running down
@@ -39,13 +41,13 @@ void fragment() {
 	c = mix(c, foam, clamp(f, 0.0, 1.0) * 0.75);
 	c *= 1.0 - cloud_shadow_at(v_world);
 	c *= mix(1.0, 0.75, night);
-	// shimmer: small glints that come and go
-	float g = texture(cloud_tex, p / 2.1 + vec2(t * 0.031, -t * 0.019)).r * texture(cloud_tex, p / 3.3 - vec2(t * 0.023, t * 0.027)).r;
-	float glint = smoothstep(0.47, 0.53, g) * shimmer * (1.0 - shore * 0.6) * (1.0 - night * 0.7);
+	// shimmer: soft moving bands of light on the ripples
+	float band = smoothstep(0.5, 0.66, n1 * 0.55 + n2 * 0.45);
+	c += vec3(0.025, 0.03, 0.033) * band * shimmer * (1.0 - night * 0.7);
 	float fk = edge_fog_at(v_world);
 	NORMAL = (VIEW_MATRIX * vec4(nrm, 0.0)).xyz;
 	ALBEDO = c * (1.0 - fk);
 	ROUGHNESS = 0.3;
 	SPECULAR = 0.55;
-	EMISSION = mix(vec3(0.85, 0.88, 0.9) * glint * 0.6, fog_color, fk);
+	EMISSION = fog_color * fk;
 }

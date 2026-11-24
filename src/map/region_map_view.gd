@@ -16,7 +16,7 @@ const PITCH_NEAR := 42.0
 const PITCH_FAR := 60.0
 const GROUND_Y := 3.5                        ## pan plane (town level)
 const FOG := Color(0.56, 0.59, 0.61)
-const CLOUD_OPACITY := [0.55, 0.22]
+const CLOUD_OPACITY := [0.66, 0.16]
 
 const DAY := {"bg": FOG, "ambient": Color(0.64, 0.67, 0.72), "ambient_energy": 0.92,
 	"sun": Color(1.0, 0.91, 0.78), "sun_energy": 1.25, "fog": FOG}
@@ -89,6 +89,7 @@ func build() -> void:
 	home_light.position = terrain.home_light
 	add_child(home_light)
 	camera = Camera3D.new()
+	camera.attributes = _miniature_lens()
 	camera.fov = FOV
 	camera.near = 0.5
 	camera.far = 600.0
@@ -280,9 +281,29 @@ func _clamp_focus(f: Vector3) -> Vector3:
 	return Vector3(clampf(f.x, 0.0, RegionTerrain.W), GROUND_Y, clampf(f.z, 0.0, RegionTerrain.H))
 
 
+## A gentle tilt-shift: the far and near ends of the view go soft, which
+## reads as a model under a lens.
+func _miniature_lens() -> CameraAttributesPractical:
+	var a := CameraAttributesPractical.new()
+	a.dof_blur_far_enabled = true
+	a.dof_blur_near_enabled = true
+	a.dof_blur_amount = 0.025
+	return a
+
+
 func _apply_camera() -> void:
 	if camera == null:
 		return
+	var lens := camera.attributes as CameraAttributesPractical
+	if lens != null:
+		# only when looking closely; the overview stays sharp
+		var on := distance < 100.0
+		lens.dof_blur_far_enabled = on
+		lens.dof_blur_near_enabled = on
+		lens.dof_blur_far_distance = distance * 1.4
+		lens.dof_blur_far_transition = distance * 0.6
+		lens.dof_blur_near_distance = distance * 0.55
+		lens.dof_blur_near_transition = distance * 0.25
 	var p := deg_to_rad(pitch_for(distance))
 	var offset := Vector3(0.0, sin(p), cos(p)) * distance
 	offset = offset.rotated(Vector3.UP, yaw)

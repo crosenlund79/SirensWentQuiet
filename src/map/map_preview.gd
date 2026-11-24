@@ -30,7 +30,11 @@ func _start() -> void:
 	add_child(screen)
 	screen.open(state)
 	for a in args:
-		if a.begins_with("--select="):
+		if a == "--select=none":
+			screen.select("", false)
+		elif a == "--select=home":
+			screen.find_home()
+		elif a.begins_with("--select="):
 			screen.select(a.trim_prefix("--select="), true)
 	for a in args:
 		if a.begins_with("--approach="):

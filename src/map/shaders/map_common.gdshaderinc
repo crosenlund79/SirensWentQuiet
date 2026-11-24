@@ -6,11 +6,11 @@
 uniform sampler2D cloud_tex : filter_linear_mipmap, repeat_enable;
 uniform vec2 cloud_offset = vec2(0.0);      // world units; RegionMapView drifts it
 uniform float cloud_scale = 74.0;           // world units per noise tile
-uniform float cloud_cover = 0.6;           // higher = fewer clouds
-uniform float cloud_softness = 0.09;
+uniform float cloud_cover = 0.62;           // higher = fewer clouds
+uniform float cloud_softness = 0.07;
 uniform float cloud_y = 24.0;               // height of the cloud layer
 uniform vec2 sun_shift = vec2(0.35, 0.55);  // xz shift per unit of height (shadows)
-uniform float cloud_shadow = 0.3;           // darkening under a cloud (0..1)
+uniform float cloud_shadow = 0.36;          // darkening under a cloud (0..1)
 uniform vec2 region_size = vec2(160.0, 120.0);
 uniform float edge_width = 9.0;
 uniform vec3 fog_color : source_color = vec3(0.55, 0.58, 0.6);

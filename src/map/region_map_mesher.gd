@@ -211,6 +211,9 @@ static func top_color(t: RegionTerrain, x: int, y: int, noise: FastNoiseLite) ->
 	var col: Color
 	if cv == RegionTerrain.C_FIELD:
 		col = FIELDS[t.field[i]]
+		# furrows: every other row (or column) a little darker
+		if ((y if t.field[i] % 2 == 0 else x) % 2) == 1:
+			col = col.darkened(0.1)
 	else:
 		col = TOP.get(cv, TOP[RegionTerrain.C_GRASS])
 	var h := t.height[i]

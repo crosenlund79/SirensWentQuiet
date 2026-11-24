@@ -38,6 +38,7 @@ var layout_ok := true
 var last_planned := ""           ## "id|purpose" of the last plan made on this screen
 
 var _root: Control
+var _left: VBoxContainer
 var _viewport: SubViewport
 var _container: SubViewportContainer
 var _title_sub: Label
@@ -320,16 +321,22 @@ func _build_ui() -> void:
 
 
 func _build_top() -> void:
+	_left = VBoxContainer.new()
+	_left.name = "Left"
+	_left.position = Vector2(MARGIN, MARGIN)
+	_left.add_theme_constant_override("separation", 8)
+	_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_left)
 	var card := UiTheme.make_card()
-	card.position = Vector2(MARGIN, MARGIN)
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.custom_minimum_size.x = LIST_W
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 0)
 	box.add_child(UiTheme.make_title("Region map", UiTheme.FONT_TITLE))
-	_title_sub = UiTheme.make_caption("")
+	_title_sub = UiTheme.make_caption("", LIST_W - 24)
 	box.add_child(_title_sub)
 	card.add_child(box)
-	_root.add_child(card)
+	_left.add_child(card)
 	var right_card := UiTheme.make_card()
 	right_card.mouse_filter = Control.MOUSE_FILTER_PASS
 	right_card.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -355,7 +362,6 @@ func _build_top() -> void:
 func _build_list() -> void:
 	var panel := UiTheme.make_panel()
 	panel.name = "Places"
-	panel.position = Vector2(MARGIN, TOP + 8)
 	panel.custom_minimum_size = Vector2(LIST_W, 0)
 	var sb := UiTheme.panel_style()
 	sb.set_content_margin_all(12)
@@ -372,7 +378,7 @@ func _build_list() -> void:
 	scroll.add_child(_list_box)
 	box.add_child(scroll)
 	panel.add_child(box)
-	_root.add_child(panel)
+	_left.add_child(panel)
 
 
 func _rebuild_list() -> void:
@@ -468,11 +474,11 @@ func _update_title() -> void:
 	for id in RegionLocations.ids():
 		if state.region.is_discovered(id):
 			known += 1
-	var t := "%s  ·  %d of %d places known" % [UiTheme.day_time_text(state.day(), state.clock_text()), known, RegionLocations.LOCATIONS.size()]
+	var t := "%s\n%d of %d places known" % [UiTheme.day_time_text(state.day(), state.clock_text()), known, RegionLocations.LOCATIONS.size()]
 	if not layout_ok:
-		t += "  ·  saved on another map layout (%s)" % state.region.layout
+		t += "\nSaved on another map layout (%s)" % state.region.layout
 	if _known(state.region.planned) and state.region.planned != MapInfo.HOME:
-		t += "\nPlanned: %s, %s" % [RegionLocations.name_of(state.region.planned), MapInfo.purpose_text(state.region.planned_purpose).to_lower()]
+		t += "\nPlanned: %s" % RegionLocations.name_of(state.region.planned)
 	_title_sub.text = t
 
 
