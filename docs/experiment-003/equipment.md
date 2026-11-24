@@ -318,6 +318,21 @@ Refresh on `state.changed`, `weapons.fired / reloaded / switched / reload_starte
   - the blast cause `"blast"`.
 - **Audio (lead):** the optional Sfx names above.
 
+## Tests in other folders that the new start breaks
+
+The SPEC-mandated start (the nine rounds sit in the handgun's magazine, with no 9 mm reserve in the inventory) breaks eight checks owned by Phase B and X. They read `inventory.count("ammo")` as "the rounds the player has". In the full suite run at the end of this work: 276 passed, 8 failed, all of them these.
+
+- **`tests/game/test_survival_game.gd`** lines 76, 97, 104, 108, 111 and 127: read `s.magazine("handgun")` instead of `s.inventory.count("ammo")`.
+  - The game's firing itself is right: `use_ammo()` spends the magazine first.
+  - Verified in a scratch copy: 22 of 22 pass.
+- **`tests/ui/test_ui_hud.gd`** line 16 ("nine bullets"), with the HUD fix:
+  - `src/ui/game_hud.gd` line 305 should show the weapon in hand: `state.magazine(state.active_weapon())`, plus the reserve, or `WeaponHandler.current()` once wired;
+  - the test's line 51 then empties with `state.set_magazine("handgun", 0)`.
+  - Verified: 3 of 3 pass with the HUD showing magazine + reserve.
+- **`tests/expedition/test_expedition_screen.gd`** ("rounds 0..owned", "slider sets the rounds", "brought what was chosen"): the gear screen offers `inventory.count("ammo")`, now 0 at the start.
+  - X should offer `state.rounds_carried("ammo")`: `expedition_screen.gd` lines 153, 569 and 645, and `expedition_data.gd` lines 415 and 425.
+  - With those five lines changed the screen test passes. `test_expedition_rules::test_fuzz_invariants_over_many_seeds` then fails, because the run's own `consumed` accounting reads the inventory. X's rewrite has to count the magazines there too; `apply_expedition_report` already spends from them.
+
 ## Tests
 
 ```
