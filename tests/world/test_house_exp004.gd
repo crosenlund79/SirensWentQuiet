@@ -234,6 +234,8 @@ func test_fuse_box_contract_rebuild_and_persistence() -> void:
 	add(w2)
 	check(w2.load_data(w.save_data()), "saved and loaded")
 	check(w2.fuse_box() != null and not w2.fuse_box().mains_on, "the switch state persists")
+	w2.queue_free()          # the copy stands on the same spot: keep its bodies out of the shots below
+	await physics_frames(1)
 	w.damage_object(fb, 100, Vector3(12.0, 1.0, 8.0))
 	check(w.fuse_box() == null and n[0] == 2, "destroyed: gone, power_changed fired")
 	var sb: Array = await _build_mode(w)
