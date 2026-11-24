@@ -705,8 +705,10 @@ func _apply_damage(ch: Dictionary) -> void:
 		return
 	chunks.apply_change(ch)
 	var mats: PackedByteArray = ch["mats"]
+	var row_lo := grid.idx(0, VoxelHouse.BASE_ROW, 0)
+	var row_hi := grid.idx(0, VoxelHouse.TOP_ROW + 1, 0)
 	for k in cells.size():
-		if VoxelMat.is_struct(mats[k]):
+		if VoxelMat.is_struct(mats[k]) and cells[k] >= row_lo and cells[k] < row_hi:
 			var s: Variant = _section_of_index(cells[k])
 			if s != null:
 				sections[s]["current"] -= 1
@@ -849,7 +851,7 @@ func damage_object(o: WorldObject, n: int, from := Vector3.INF, quiet := false) 
 ## timber, and the foundation slab never goes. What is left around the crater
 ## is scorched (persistent, repair cleans it). Every object within
 ## BLAST_OBJECT_REACH x radius loses up to `power` HP at the centre, falling
-## off with distance (to 40 % at the edge) and with the armour between the
+## off with distance ((1 - d / reach)^0.75) and with the armour between the
 ## blast and the object (walls shield what stands behind them). Collision and
 ## navigation are updated before this returns; the crater's meshes too, the
 ## rest of the scorch over the next frames. Plays the flash, fireball,
@@ -882,7 +884,7 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 			continue
 		var oc := Vector3(o.pos.x, clampf(center.y, 0.3, 1.2), o.pos.y)
 		var shield := VoxelCarver.blast_armour(grid, center, oc, reach)
-		var f := (1.0 - 0.6 * d / reach) * clampf(1.0 - shield / reach, 0.0, 1.0)
+		var f := pow(1.0 - d / reach, 0.75) * clampf(1.0 - shield / reach, 0.0, 1.0)
 		if f > 0.0:
 			hits.append([o, f])
 	var t1 := Time.get_ticks_usec()
@@ -899,6 +901,12 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 				touched[s] = true
 	out["sections"] = touched.keys()
 	_apply_damage(ch)
+	if not cells.is_empty():
+		# exact counts for every section near the crater (corners included)
+		var crater := _plan_rect(ch["lo"], ch["hi"])
+		for s in sections:
+			if seg_rect(s, 0.3, 0.2).intersects(crater):
+				_count_section(s)
 	var t3 := Time.get_ticks_usec()
 	_scorch(center, radius)
 	var t4 := Time.get_ticks_usec()
@@ -1041,8 +1049,9 @@ func _add_scar(x: float, z: float, r: float) -> void:
 ##    "strength": float, relative resistance (a wooden door = 1)}
 ## Score = protection (door 1.0, barricade 0.9, wall 0.6) / strength
 ## (objects: HP over a wooden door's 18; walls: section_strength x the
-## remaining integrity x how much of a full wall the section is, so windows
-## and damaged walls are weak, stone and plated walls strong) + up to 0.8
+## remaining integrity x the square root of how much of a full wall the
+## section is, so windows and damaged walls are weaker, stone and plated
+## walls strong) + up to 0.8
 ## for lying within 8 m of `near` (pass the player's position) - 0.03 per
 ## metre from `from`. Sections already walkable through, and doors or
 ## barricades standing in them, are left out of the walls (they are listed
@@ -1069,7 +1078,7 @@ func weak_points(from: Vector2, near := Vector2.INF) -> Array:
 		if stand == Vector2.INF:
 			continue
 		var thick := 2.0 if sec["material"] == "wood" else 3.0
-		var fill := clampf(float(sec["design"]) / (VoxelHouse.WALL_ROWS * 10.0 * thick), 0.25, 1.0)
+		var fill := sqrt(clampf(float(sec["design"]) / (VoxelHouse.WALL_ROWS * 10.0 * thick), 0.25, 1.0))
 		var strength := section_strength(s) * maxf(section_integrity(s), 0.1) * fill
 		out.append(_weak_point("wall", stand, c, 0.6, strength, from, near, s, null, sec["material"]))
 	out.sort_custom(func(a, b): return a["score"] > b["score"])
