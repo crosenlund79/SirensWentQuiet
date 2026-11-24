@@ -153,6 +153,101 @@ static func _carve_blocks(g: VoxelGrid, center: Vector3, radius: float, seed: in
 	return ch
 
 
+## A blast (Experiment 003, HouseWorld.explode). A block of quantum³ voxels
+## goes when its centre is within the blast's reach of `center` after the
+## reach is used up by what lies in between: VoxelMat.BLAST gives, per
+## material, the metres of reach one metre of it absorbs; the block itself
+## costs half a block's thickness of its own mean armour. The reach is ragged
+## (±15 % per block). So a timber wall goes over a wide area, a stone wall
+## loses its face and keeps its core, and sheet metal shields what is behind
+## it. Paths are measured on the grid before anything is removed. Glass
+## panes within the reach shatter whole; FOUNDATION never goes. Returns a
+## change like carve_sphere (crumble included).
+static func carve_blast(g: VoxelGrid, center: Vector3, radius: float, seed: int, quantum := 2) -> Dictionary:
+	var ch := empty_change()
+	if radius <= 0.0:
+		return ch
+	var q := maxi(quantum, 1)
+	var r_max := radius * 1.15 + g.vs * q
+	var lo := g.cell_of(center - Vector3.ONE * r_max).clamp(Vector3i.ONE, Vector3i(g.sx - 2, g.sy - 2, g.sz - 2))
+	var hi := (g.cell_of(center + Vector3.ONE * r_max) + Vector3i.ONE).clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
+	var b0 := Vector3i(lo.x / q, lo.y / q, lo.z / q)
+	var b1 := Vector3i((hi.x - 1) / q, (hi.y - 1) / q, (hi.z - 1) / q)
+	var flags := VoxelMat.FLAGS
+	var armour := VoxelMat.BLAST
+	var half := float(q) * 0.5
+	var own_depth := g.vs * q * 0.5
+	var doomed := PackedInt32Array()
+	var panes := {}
+	for by in range(b0.y, b1.y + 1):
+		for bz in range(b0.z, b1.z + 1):
+			for bx in range(b0.x, b1.x + 1):
+				var bc := g.origin + (Vector3(bx * q, by * q, bz * q) + Vector3.ONE * half) * g.vs
+				var d := bc.distance_to(center)
+				var reach := radius * (0.85 + 0.3 * VoxelArt.hash3(bx, by, bz, seed))
+				if d >= reach:
+					continue
+				var cells := PackedInt32Array()
+				var a_sum := 0.0
+				for y in range(by * q, by * q + q):
+					for z in range(bz * q, bz * q + q):
+						for x in range(bx * q, bx * q + q):
+							if not g.is_inner(x, y, z):
+								continue
+							var i := g.idx(x, y, z)
+							var m := g.mat[i]
+							if m == 0 or (flags[m] & VoxelMat.F_HARD) != 0:
+								continue
+							if (flags[m] & VoxelMat.F_GLASS) != 0:
+								panes[i] = true
+								continue
+							cells.append(i)
+							a_sum += armour[m]
+				if cells.is_empty():
+					continue
+				var budget := reach - d - a_sum / cells.size() * own_depth
+				if budget <= 0.0:
+					continue
+				var blo := Vector3i(bx * q, by * q, bz * q)
+				if _blast_path(g, center, bc, blo, blo + Vector3i.ONE * q, budget) < budget:
+					doomed.append_array(cells)
+	for i in doomed:
+		if g.mat[i] != 0:
+			_remove(g, i, ch)
+	for i in panes:
+		if g.mat[i] == VoxelMat.GLASS:
+			merge(ch, shatter_glass(g, i))
+	crumble(g, ch, lo - Vector3i.ONE, hi + Vector3i.ONE)
+	return ch
+
+
+## Blast armour met on the way from `a` to `b` (0.1 m steps, the target block
+## [blo, bhi) excluded). Stops counting once it exceeds `budget`.
+static func _blast_path(g: VoxelGrid, a: Vector3, b: Vector3, blo: Vector3i, bhi: Vector3i, budget: float) -> float:
+	var dist := a.distance_to(b)
+	var n := int(dist / g.vs)
+	if n <= 0:
+		return 0.0
+	var step := (b - a) / float(n + 1)
+	var len := step.length()
+	var armour := VoxelMat.BLAST
+	var sum := 0.0
+	var p := a
+	for k in n:
+		p += step
+		var c := g.cell_of(p)
+		if c.x >= blo.x and c.y >= blo.y and c.z >= blo.z and c.x < bhi.x and c.y < bhi.y and c.z < bhi.z:
+			continue
+		if c.x < 0 or c.y < 0 or c.z < 0 or c.x >= g.sx or c.y >= g.sy or c.z >= g.sz:
+			continue
+		var m := g.mat[g.idx(c.x, c.y, c.z)]
+		if m != 0:
+			sum += armour[m] * len
+			if sum >= budget:
+				return sum
+	return sum
+
+
 ## Settles a change: loose crumbs, thin strips, slender posts, floor-level
 ## stubs and floating fragments fall. Repeats around whatever fell (falls can
 ## expose new crumbs) until nothing more goes (at most three rounds).
