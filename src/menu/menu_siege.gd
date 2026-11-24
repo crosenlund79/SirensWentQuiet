@@ -43,6 +43,7 @@ var world: HouseWorld
 var fog: FogBoundary
 var roster: Node3D
 var camera: Camera3D
+var sky: NorthernSky                   ## Experiment 004: snowfall and the northern lights
 var round := 0
 var round_t := 0.0
 var broken_share := 0.0
@@ -144,6 +145,15 @@ func new_round() -> void:
 	fog.name = "FogBoundary"
 	fog.setup(centre_mark, lighting.environment)
 	_round_root.add_child(fog)
+	# Experiment 004 (H's northern look): the far-north palette, snow on props,
+	# falling snow and the northern lights on the darker rounds.
+	lighting.set_northern(true)
+	PropMaterials.kit().set_shader_parameter("snow", 1.0)
+	sky = NorthernSky.new()
+	sky.name = "NorthernSky"
+	sky.setup(camera, lighting, fog, seed + round)
+	_round_root.add_child(sky)
+	sky.force_tonight()
 	roster = Roster.new()
 	roster.name = "Enemies"
 	roster.setup(world, null, seed + round)
@@ -178,6 +188,8 @@ func _vary() -> void:
 	lighting.set_amount(night)
 	if fog != null:
 		fog.set_night_amount(night)
+	if sky != null:
+		sky.tick(0.0, night)
 	variation["night"] = night
 	# wall runs in the yard (wood or stone), one with a door
 	var runs := RUNS.duplicate()
@@ -362,6 +374,7 @@ func _process(delta: float) -> void:
 
 func _exit_tree() -> void:
 	_mute_sfx(false)
+	PropMaterials.kit().set_shader_parameter("snow", 0.0)    # galleries and demos stay snow-free
 
 
 func _mute_sfx(on: bool) -> void:
