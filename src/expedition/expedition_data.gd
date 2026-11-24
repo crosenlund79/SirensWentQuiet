@@ -157,10 +157,10 @@ const PROFILES := {
 	"weapons": {
 		"place": "shop", "danger": 1.45, "search": 150, "two_events": 0.75,
 		"loot": [
-			["ammo", 3, 8, 0.7], ["shells", 2, 5, 0.45], ["bandage", 1, 1, 0.3],
+			["ammo", 2, 5, 0.65], ["shells", 1, 3, 0.4], ["bandage", 1, 1, 0.3],
 			["flashlight", 1, 1, 0.2], ["vest", 1, 1, 0.08], ["shotgun", 1, 1, 0.06],
 		],
-		"locked": [["ammo", 4, 10, 0.85], ["shells", 2, 6, 0.6], ["shotgun", 1, 1, 0.15], ["vest", 1, 1, 0.15]],
+		"locked": [["ammo", 2, 6, 0.7], ["shells", 1, 3, 0.5], ["shotgun", 1, 1, 0.15], ["vest", 1, 1, 0.15]],
 		"locked_name": "the locked cabinet", "locked_text": "The crowbar opened a locked cabinet.",
 		"events": {"armoury": 3, "lone_psycho": 2, "patrol": 2, "storage_door": 1, "fog_bank": 1},
 		"deplete": 0.35, "regen": 0.01, "floor": 0.05,
@@ -169,11 +169,11 @@ const PROFILES := {
 	"military": {
 		"place": "outpost", "danger": 2.6, "search": 260, "two_events": 1.0,
 		"loot": [
-			["ammo", 6, 12, 0.75], ["shells", 3, 6, 0.55], ["vest", 1, 1, 0.3], ["shotgun", 1, 1, 0.18],
+			["ammo", 3, 8, 0.7], ["shells", 2, 4, 0.5], ["vest", 1, 1, 0.3], ["shotgun", 1, 1, 0.18],
 			["medkit", 1, 1, 0.5], ["bandage", 1, 2, 0.5], ["flashlight", 1, 1, 0.3],
 			["canned_food", 1, 3, 0.5], ["water", 1, 3, 0.5], ["iron", 1, 2, 0.3],
 		],
-		"locked": [["ammo", 8, 14, 0.8], ["shells", 3, 6, 0.7], ["vest", 1, 1, 0.35], ["shotgun", 1, 1, 0.25], ["medkit", 1, 2, 0.5]],
+		"locked": [["ammo", 4, 8, 0.75], ["shells", 2, 4, 0.6], ["vest", 1, 1, 0.35], ["shotgun", 1, 1, 0.25], ["medkit", 1, 2, 0.5]],
 		"locked_name": "a sealed container", "locked_text": "The crowbar opened a sealed container.",
 		"events": {"outpost_gate": 5, "patrol": 3, "armoury": 3, "fog_bank": 1},
 		"deplete": 0.3, "regen": 0.02, "floor": 0.15,
@@ -303,8 +303,8 @@ const APPROACHES := {
 		"target_mult": 1.8, "target_chance": 0.9, "other_mult": 0.4},
 	"careful": {"name": "Careful exploration", "short": "Slower, safer, finds new places",
 		"desc": "Slow and quiet: safer, a little less loot, and a good chance to find new places for the map.",
-		"search": 1.5, "loot": 0.9, "danger": 0.65, "deplete": 0.8, "discover": [0.75, 0.3],
-		"events": {"lookout": 3}, "two_events": -0.15},
+		"search": 1.5, "loot": 0.9, "danger": 0.65, "deplete": 0.8, "discover": [0.55, 0.15],
+		"events": {"lookout": 2}, "two_events": -0.15},
 	"raid": {"name": "High-risk raid", "short": "Fast and loud: more loot, more danger",
 		"desc": "In fast and loud with a loaded weapon: more loot in less time, far more danger, and they remember.",
 		"search": 0.55, "loot": 1.4, "danger": 1.6, "deplete": 1.3, "discover": [],
