@@ -74,13 +74,13 @@ The map **reads** `GameState` (`region.discovered`, today's stock via `region.st
 
 | What | Number |
 |---|---|
-| Terrain build (`RegionTerrain.build`) | 300–460 ms |
-| Mesh build (`RegionMapMesher.build`) | 410–510 ms |
-| First `open` (both, plus nodes) | 0.8–1.0 s once per session; later opens reuse the cached region and meshes |
-| Quads | terrain 34,414 · props 23,315 · water 2,455 · trees 133,265 (instanced) · **total 193,449** |
+| Terrain build (`RegionTerrain.build`) | 320–460 ms |
+| Mesh build (`RegionMapMesher.build`) | 380–510 ms |
+| First `open` (both, plus nodes) | 0.7–1.0 s once per session (`prewarm()` moves it to loading); later opens reuse the cached region and meshes |
+| Quads | terrain 34,414 · props 23,315 · water 2,455 · trees 112,950 (instanced) · **total 173,134** |
 | Objects | 6,288 trees, 4,663 building boxes |
 | Mesh instances | 43 (20 terrain chunks, 15 non-empty prop chunks, water, 5 tree MultiMeshes, 2 cloud planes) plus the fog floor |
-| Draw calls | see the preview's `--stats` line in §11 (software Vulkan; not a real-GPU measurement) |
+| Rendered frame (preview `--stats`, overview, software Vulkan under Xvfb at 1600 × 900) | 336 draw calls, 1,446 objects, 704k primitives (all passes: depth, two shadow splits, colour); about 1 fps on lavapipe. Not a real-GPU measurement. |
 
 The budget test (`test_map_performance_budget`) records these numbers on every run and fails above 4 s per build step or 260k quads.
 
