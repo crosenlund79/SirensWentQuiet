@@ -118,8 +118,8 @@ Invalid input (NaN, a negative radius, infinite power) does nothing. The radius 
 
 | Blast at | Total time | Carve (evaluate + crumble) | Apply (collision, nav, sections) | Scorch | Meshing in the frame |
 |---|---|---|---|---|---|
-| A 3 m wooden yard wall | 37–58 ms | about 25 ms | — | — | — |
-| The house's south wall (it reaches the floor slab) | 110–140 ms | 64 ms (22 + 42) | 8–11 ms | 6 ms | up to 30 ms |
+| A 3 m wooden yard wall | 37–60 ms | about 25 ms | — | — | — |
+| The house's south wall (it reaches the floor slab) | 100–140 ms | 64 ms (22 + 42) | 8–11 ms | 6 ms | up to 30 ms |
 
 That is a one-off hitch at the moment of the flash. The 30 ms meshing budget is `BLAST_MESH_BUDGET_MS`.
 
@@ -330,7 +330,7 @@ godot --headless --fixed-fps 60 --path . -s res://tests/run_tests.gd -- --filter
 - **Built walls in the yard stand on nothing but their sole plate or a foundation.** After a big blast, short leftover pieces count as floating fragments and fall (see `c_blast_after.png`).
 - **Shots against plate and masonry** remove few voxels. A player can still shoot through a plated or stone wall eventually (78–84 random shots), which is deliberate but high.
 - **The workbench** reuses the furniture workbench mesh. Its pegboard hangs in the air when the bench stands in the open. No detailed art, by policy.
-- **Blast cost** is 40–140 ms on this VM in GDScript, mostly the crumble pass. That is acceptable for a rare event; a native carve would be the fix if blasts become frequent.
+- **Blast cost** is 40–140 ms per blast on this VM in GDScript, mostly the crumble pass. That is acceptable for a rare event; a native carve would be the fix if blasts become frequent.
 - **Stone and iron numbers** are tuned for the suggested bomber values. Another radius changes the breach counts.
 - **No `structure/blast` sound template exists**, so a blast uses break + crumble.
 - Not human-played; no real-GPU timing.
