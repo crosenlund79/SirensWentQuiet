@@ -129,16 +129,17 @@ func try_fire(aim_point: Vector3) -> Dictionary:
 		res["reason"] = "dead"
 		return res
 	var d := WeaponDefs.get_def(id)
-	if is_reloading():
-		if d["reload"] == "shell" and state.magazine(id) > 0:
-			_stop_reload(false)
-		else:
-			res["reason"] = "reloading"
-			res["reloading"] = true
-			return res
-	if _cooldown > 0.0:
-		res["reason"] = "cooldown"
+	var interruptible: bool = d["reload"] == "shell" and state.magazine(id) > 0
+	if is_reloading() and not interruptible:
+		res["reason"] = "reloading"
+		res["reloading"] = true
 		return res
+	if _cooldown > 0.0:
+		res["reason"] = "cooldown"      # a held trigger doesn't interrupt a reload before the next shot is due
+		res["reloading"] = is_reloading()
+		return res
+	if is_reloading():
+		_stop_reload(false)
 	if not state.spend_round(id):
 		res["reason"] = "empty"
 		_cooldown = maxf(_cooldown, float(d["interval"]))

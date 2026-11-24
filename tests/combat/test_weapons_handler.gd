@@ -350,3 +350,21 @@ func test_magazines_survive_a_save_round_trip() -> void:
 	check_eq(t.magazine("handgun"), 7, "handgun magazine")
 	check_eq(t.inventory.count("ammo"), 4, "9 mm reserve")
 	check(not c["reloading"], "a reload in progress isn't saved")
+
+
+func test_a_held_trigger_interrupts_only_when_the_next_shot_is_due() -> void:
+	var s := _with_shotgun(6)
+	s.set_magazine("shotgun", 3)
+	s.set_active_weapon_slot("secondary")
+	var h: WeaponHandler = _rig(s)[0]
+	check(h.try_fire(Vector3(0, 1.3, -5))["ok"], "first blast")
+	check_eq(h.reload(), "", "reload right away")
+	h.tick(0.5)
+	check_eq(s.magazine("shotgun"), 3, "a shell went in")
+	var res := h.try_fire(Vector3(0, 1.3, -5))
+	check_eq(res["reason"], "cooldown", "the pump isn't ready yet")
+	check(h.is_reloading(), "so the reload goes on")
+	h.tick(0.4)
+	check(h.try_fire(Vector3(0, 1.3, -5))["ok"], "now the trigger interrupts it and fires")
+	check(not h.is_reloading(), "reload stopped")
+	check_eq(s.magazine("shotgun"), 2, "one shell spent")
