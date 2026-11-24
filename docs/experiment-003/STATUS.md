@@ -1,25 +1,18 @@
 # Experiment 003 — status and how to resume
 
-**Updated:** 2026-11-24, about 16:00 UTC.
+**Updated:** 2026-11-24, Phase B start.
 **Baseline:** Experiment 002 delivered at `4c87cd6`. The Experiment 003 foundation is at `0820700` (`SPEC.md`, region locations, difficulty, item and state fields, explode/weak_points foundation versions, inputs).
 
-## Phase A (in progress): five module agents, each in a local detached git worktree
+## Phase A: done (all five modules merged, 367 tests passing at `4c24b42`)
 
-Work in progress lives **only in these local worktrees** until the lead merges it. It is not pushed.
+K (equipment and weapons), C (construction), AI (enemies and director), X (scavenging) and M (city map) are merged on the working branch. Their docs are in this folder (`equipment.md`, `construction.md`, `ai.md`, `scavenging.md`, `map.md`), each with an Integration section.
 
-| Agent | Worktree | Scope (SPEC §1) |
-|---|---|---|
-| K | `/home/user/swq3-k` | equipment, weapons (handgun + shotgun), resources, difficulty semantics |
-| C | `/home/user/swq3-c` | stone and iron construction, workbench, explode/weak_points, sections |
-| AI | `/home/user/swq3-ai` | enemy AI core, psycho, runner, brute, bomber, threat-budget director |
-| X | `/home/user/swq3-x` | data-driven scavenging over the 24 locations, approaches, depletion |
-| M | `/home/user/swq3-m` | the interactive voxel city map with clouds |
+## Phase B (in progress): integration agent I
 
-**History:** the agents were stopped twice by account usage limits (around 12:50 and 13:00 UTC). They were resumed at 15:58 UTC, after the limit reset.
+Worktree: `/home/user/swq3-i`, local and not pushed until merged. It wires everything into the game, UI and save (v2, with v1 migration), adds the new sounds and F10 tools, and runs the 20-step acceptance playtest (`ASSIGNMENT.md` §13).
 
 ## How to resume if this session is lost
 
-1. **Check the worktrees:** `git worktree list`, then for each one: `git -C <wt> log --oneline 0820700..HEAD` and `git -C <wt> status`.
-2. **If a worktree is gone** (the container was reclaimed), restart that agent from `0820700` with its brief, which is §1 of `SPEC.md` for its scope.
-3. **Merge:** verify each agent touched only its own paths, then `git cherry-pick 0820700..<tip>` and run the full suite.
-4. **Phase B:** one integration agent wires everything into the game and UI, adds save v2 (with v1 migration) and runs the 20-step acceptance playtest (`ASSIGNMENT.md` §13).
+1. `git worktree list`, then `git -C /home/user/swq3-i log --oneline 4c24b42..HEAD` and `git -C /home/user/swq3-i status`.
+2. If the worktree is gone, restart Phase B from the branch head with the brief in `SPEC.md` §1 and §7 and the modules' Integration sections.
+3. Merge, run the full suite and the playtest (`tools/survival_playtest.sh`), then write `REPORT.md`.
