@@ -221,6 +221,12 @@ static func carve_blast(g: VoxelGrid, center: Vector3, radius: float, seed: int,
 	return ch
 
 
+## Blast armour (metres of reach used up) of the material between `a` and `b`,
+## counted up to `budget` (HouseWorld.explode: walls shield objects).
+static func blast_armour(g: VoxelGrid, a: Vector3, b: Vector3, budget := INF) -> float:
+	return _blast_path(g, a, b, -Vector3i.ONE, -Vector3i.ONE, budget)
+
+
 ## Blast armour met on the way from `a` to `b` (0.1 m steps, the target block
 ## [blo, bhi) excluded). Stops counting once it exceeds `budget`.
 static func _blast_path(g: VoxelGrid, a: Vector3, b: Vector3, blo: Vector3i, bhi: Vector3i, budget: float) -> float:

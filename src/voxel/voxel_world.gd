@@ -71,6 +71,18 @@ func mark_dirty(lo: Vector3i, hi: Vector3i) -> void:
 	last_change_mesh_ms = 0.0
 
 
+## Cells in [lo, hi) changed colour only (no shape): meshes soon, collision untouched.
+func mark_visual_dirty(lo: Vector3i, hi: Vector3i) -> void:
+	if hi.x <= lo.x:
+		return
+	var c0 := Vector3i(maxi(lo.x, 0) / CHUNK.x, maxi(lo.y, 0) / CHUNK.y, maxi(lo.z, 0) / CHUNK.z)
+	var c1 := Vector3i(maxi(hi.x - 1, 0) / CHUNK.x, maxi(hi.y - 1, 0) / CHUNK.y, maxi(hi.z - 1, 0) / CHUNK.z)
+	for cz in range(c0.z, c1.z + 1):
+		for cy in range(c0.y, c1.y + 1):
+			for cx in range(c0.x, c1.x + 1):
+				_dirty[Vector3i(cx, cy, cz)] = true
+
+
 func flush(budget_ms := -1.0) -> void:
 	if _dirty.is_empty():
 		return

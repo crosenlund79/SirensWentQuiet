@@ -11,7 +11,10 @@ extends Node3D
 ## collision (SPEC §4) and a navigation mark. Navigation is recomputed per
 ## region from voxels + furniture + objects, so built or repaired walls close
 ## it again. Persistence saves both grids as diffs against the pristine house.
-## Docs: docs/experiment-002/world.md.
+## Docs: docs/experiment-002/world.md; Experiment 003 additions (stone walls,
+## foundations, iron doors and barricades, the workbench, explode and
+## weak_points, section materials, save version 2):
+## docs/experiment-003/construction.md.
 
 signal structure_changed
 signal object_destroyed(kind: String, at: Vector3)
@@ -20,7 +23,10 @@ const SURFACE_SHADER := preload("res://src/voxel/shaders/voxel_surface.gdshader"
 const GLASS_SHADER := preload("res://src/voxel/shaders/voxel_glass.gdshader")
 const BED_SCRIPT := preload("res://src/world/bed_interactable.gd")
 
-const SAVE_VERSION := 1
+## Version 2 (Experiment 003) adds stone walls, foundations, object
+## materials and blast scars; version 1 saves (Experiment 002) still load.
+const SAVE_VERSION := 2
+const LOADABLE_VERSIONS := [1, 2]
 ## Bump when the pristine house (HousePlan, VoxelHouse, the grid) changes:
 ## saves of another layout are refused instead of misapplied.
 const LAYOUT := "swq-house-1"
@@ -36,6 +42,33 @@ const CUT_RADIUS := 2.1
 const SHEET_CARVE := 0.45
 const DOOR_ROWS := 21                  ## a doorway is cut 2.1 m high
 const SECTION_ACROSS := 0.2            ## half-width of a 1 m wall section across its line
+## Experiment 003: shots and bites into masonry carve this much smaller (and
+## barely penetrate); stone walls are three voxels (0.3 m) thick.
+const STONE_CARVE := 0.55
+const STONE_STRETCH := 1.1
+const STONE_BITE := 0.5
+const STONE_HALF := 0.15
+const FOUNDATION_HALF := 0.5           ## a foundation tile is 1 m x 1 m centred on its segment
+## Wall materials of the 1 m sections: "strength" is the measured resistance
+## relative to the original house wall (shots, bites and blasts to breach;
+## docs/experiment-003/construction.md); "load" the material's share of the
+## coarse support estimate (section_load_hint). Iron plating multiplies both.
+const SECTION_MATERIALS := {
+	"frame": {"name": "House wall", "strength": 1.0, "load": 1.0},
+	"wood": {"name": "Wooden wall", "strength": 1.0, "load": 0.6},
+	"stone": {"name": "Stone wall", "strength": 3.0, "load": 2.5},
+}
+const PLATED_FACTOR := 2.0
+const UNFOUNDED_LOAD := 0.5            ## support factor of a wall without a foundation under it
+## Blasts: objects within radius x this are damaged; scorch reaches radius x SCORCH_REACH.
+const BLAST_OBJECT_REACH := 1.5
+const SCORCH_REACH := 1.35
+const SCARS_MAX := 24
+const SOOT := 0x1f1b18
+const STONE_TONES := [0x7f7a73, 0x8c867c, 0x746f69, 0x99928a, 0x6b6762, 0x857d70, 0x8a8278]
+const MORTAR_TONE := 0xaca493
+const PAVING_TONES := [0x8b867e, 0x7e7a74, 0x948f86, 0x87827a, 0x7a756d]
+const PAVING_JOINT := 0x57524b
 
 ## Plan facing -> node yaw (front faces -Z before rotation).
 const FACING_YAW := {"N": 0.0, "E": -PI * 0.5, "S": PI, "W": PI * 0.5}
@@ -92,7 +125,9 @@ var objects: Array[WorldObject] = []
 ## The hook for a later coarse structural-support model: no per-voxel scans.
 var sections := {}
 var built := {}                ## player-built wall segments (seg -> true)
-var upgraded := {}             ## sheathed sections (seg -> true)
+var upgraded := {}             ## sheathed (iron-plated) sections (seg -> true)
+var foundations := {}          ## stone foundation tiles laid by the player (seg -> true)
+var scars: Array = []          ## blast scorch marks on the ground: [x, z, radius]
 var openings: Array = []       ## door-like gaps: {"axis", "line", "from", "to", "orig"}
 var props: Array = []          ## tall meshes the cutaway hides: {"node", "centre", "half", "body", "cut"}
 var night_lights: Array = []   ## {"node", "light", "base", "phase", "geos"}
@@ -112,6 +147,7 @@ var _cut_on := false
 var _hidden_bodies: Array[RID] = []
 var _t := 0.0
 var _house_zone := HousePlan.FOOTPRINT.grow(0.5)
+var _scar_root: Node3D
 
 
 func setup(light: VoxelLighting) -> void:
@@ -149,13 +185,15 @@ func build_new() -> void:
 			var mid: float = (o["from"] + o["to"]) * 0.5
 			var c := Vector2(mid, w["a"].y) if horiz else Vector2(w["a"].x, mid)
 			objs.append({"kind": "door", "x": c.x, "y": c.y, "rot": _outward_rot(c, horiz), "hp": WorldObject.DEFS["door"]["hp"], "open": false, "built": false})
-	_build(p.copy(), p.copy(), objs, [], [], [])
+	_build(p.copy(), p.copy(), objs, [], [], [], [], [], [])
 
 
 # --- persistence ----------------------------------------------------------------------
 
 ## Versioned save: both grids as voxel diffs against the pristine house, plus
-## objects, built and sheathed sections and cut openings (docs: world.md).
+## objects, built and sheathed sections and cut openings (docs: world.md);
+## version 2 adds "stone" (built sections of masonry), "foundations" and
+## "scars", and objects carry "mat".
 func save_data() -> Dictionary:
 	var t0 := Time.get_ticks_usec()
 	var p := pristine(voxel_furniture)
@@ -170,6 +208,7 @@ func save_data() -> Dictionary:
 		"version": SAVE_VERSION, "layout": layout_id(), "cells": p.mat.size(),
 		"design": VoxelDiff.encode(design, p), "current": VoxelDiff.encode(grid, p),
 		"objects": objs, "built": _keys(built), "upgraded": _keys(upgraded), "openings": cut,
+		"stone": _keys(_stone_sections()), "foundations": _keys(foundations), "scars": scars.duplicate(true),
 	}
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return d
@@ -177,10 +216,12 @@ func save_data() -> Dictionary:
 
 ## Restores a saved house exactly (instead of build_new). Returns false, having
 ## built nothing, if the data is invalid or from another house layout; the
-## caller can then report it and call build_new().
+## caller can then report it and call build_new(). Version 1 saves
+## (Experiment 002) load with the version 2 defaults: every built wall wooden,
+## no foundations, wooden doors and barricades, no scars.
 func load_data(d: Dictionary) -> bool:
 	var t0 := Time.get_ticks_usec()
-	if typeof(d.get("version")) != TYPE_INT or d["version"] != SAVE_VERSION:
+	if typeof(d.get("version")) != TYPE_INT or not (d["version"] in LOADABLE_VERSIONS):
 		push_warning("HouseWorld: unsupported world save version %s" % str(d.get("version")))
 		return false
 	if d.get("layout") != layout_id():
@@ -199,14 +240,18 @@ func load_data(d: Dictionary) -> bool:
 	var b: Variant = _valid_segs(d.get("built"), 3)
 	var u: Variant = _valid_segs(d.get("upgraded"), 3)
 	var cut: Variant = _valid_segs(d.get("openings"), 4)
-	if objs == null or b == null or u == null or cut == null:
+	var v2: bool = d["version"] >= 2
+	var st: Variant = _valid_segs(d.get("stone"), 3) if v2 else []
+	var fd: Variant = _valid_segs(d.get("foundations"), 3) if v2 else []
+	var sc: Variant = _valid_scars(d.get("scars")) if v2 else []
+	if objs == null or b == null or u == null or cut == null or st == null or fd == null or sc == null:
 		push_warning("HouseWorld: damaged object or section data in the save")
 		return false
 	var g_design := p.copy()
 	VoxelDiff.apply(g_design, dd)
 	var g_cur := p.copy()
 	VoxelDiff.apply(g_cur, dc)
-	_build(g_design, g_cur, objs, b, u, cut)
+	_build(g_design, g_cur, objs, b, u, cut, st, fd, sc)
 	stats["load_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return true
 
@@ -236,6 +281,22 @@ static func _valid_segs(v: Variant, n: int) -> Variant:
 	return out
 
 
+static func _valid_scars(v: Variant) -> Variant:
+	if not (v is Array) or (v as Array).size() > SCARS_MAX:
+		return null
+	var out := []
+	for e in v:
+		if not (e is Array) or e.size() != 3:
+			return null
+		for x in e:
+			if (typeof(x) != TYPE_INT and typeof(x) != TYPE_FLOAT) or not is_finite(float(x)):
+				return null
+		if not HousePlan.YARD.has_point(Vector2(e[0], e[1])) or float(e[2]) <= 0.0 or float(e[2]) > 5.0:
+			return null
+		out.append([float(e[0]), float(e[1]), float(e[2])])
+	return out
+
+
 static func _valid_objects(v: Variant) -> Variant:
 	if not (v is Array):
 		return null
@@ -246,6 +307,9 @@ static func _valid_objects(v: Variant) -> Variant:
 		var k: Variant = e.get("kind")
 		if not (k is String) or not WorldObject.DEFS.has(k):
 			return null
+		var mat: Variant = e.get("mat", "wood")
+		if not (mat is String) or not WorldObject.has_mat(k, mat):
+			return null
 		var x: Variant = e.get("x")
 		var y: Variant = e.get("y")
 		if typeof(x) not in [TYPE_FLOAT, TYPE_INT] or typeof(y) not in [TYPE_FLOAT, TYPE_INT]:
@@ -254,15 +318,16 @@ static func _valid_objects(v: Variant) -> Variant:
 			return null
 		var r: Variant = e.get("rot")
 		var hp: Variant = e.get("hp")
-		if typeof(r) != TYPE_INT or r < 0 or r > 3 or typeof(hp) != TYPE_INT or hp < 1 or hp > WorldObject.DEFS[k]["hp"]:
+		if typeof(r) != TYPE_INT or r < 0 or r > 3 or typeof(hp) != TYPE_INT or hp < 1 or hp > WorldObject.max_hp_of(k, mat):
 			return null
-		out.append({"kind": k, "x": float(x), "y": float(y), "rot": r, "hp": hp, "open": e.get("open") == true, "built": e.get("built") == true})
+		out.append({"kind": k, "x": float(x), "y": float(y), "rot": r, "hp": hp, "open": e.get("open") == true, "built": e.get("built") == true, "mat": mat})
 	return out
 
 
 # --- building the scene ---------------------------------------------------------------
 
-func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Array, upgraded_list: Array, cut_list: Array) -> void:
+func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Array, upgraded_list: Array, cut_list: Array,
+		stone_list: Array, foundation_list: Array, scar_list: Array) -> void:
 	var t0 := Time.get_ticks_usec()
 	design = g_design
 	grid = g_cur
@@ -310,29 +375,39 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 		var lo := int(minf(a.x, b.x)) if horiz else int(minf(a.y, b.y))
 		var hi := int(maxf(a.x, b.x)) if horiz else int(maxf(a.y, b.y))
 		for s in range(lo, hi):
-			sections[Vector3i(0 if horiz else 1, int(a.y) if horiz else int(a.x), s)] = {"orig": true, "design": 0, "current": 0}
+			sections[Vector3i(0 if horiz else 1, int(a.y) if horiz else int(a.x), s)] = _new_section(true, "frame")
 	for o in HousePlan.OPENINGS:
 		if o["kind"] == "door":
 			var w := HousePlan.wall_by_id(o["wall"])
 			var horiz := HousePlan.is_horizontal(w)
 			openings.append({"axis": 0 if horiz else 1, "line": int(w["a"].y if horiz else w["a"].x), "from": float(o["from"]), "to": float(o["to"]), "orig": true})
+	var stone := {}
+	for e in stone_list:
+		stone[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
 	for e in built_list:
 		var s := Vector3i(int(e[0]), int(e[1]), int(e[2]))
 		built[s] = true
 		if not sections.has(s):
-			sections[s] = {"orig": false, "design": 0, "current": 0}
+			sections[s] = _new_section(false, "stone" if stone.has(s) else "wood")
 		_mark_struct_zone(s)
 	for e in upgraded_list:
 		upgraded[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
+	for e in foundation_list:
+		foundations[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
 	for e in cut_list:
 		openings.append({"axis": int(e[0]), "line": int(e[1]), "from": float(e[2]), "to": float(e[3]), "orig": false})
 	_index_openings()
 	for e in objs:
-		_spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"])
+		_spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"], e.get("mat", "wood"))
 	_index_objects()
 	_full_nav()
 	for s in sections:
 		_count_section(s)
+	_scar_root = Node3D.new()
+	_scar_root.name = "Scars"
+	add_child(_scar_root)
+	for e in scar_list:
+		_add_scar(e[0], e[1], e[2])
 	bed = BED_SCRIPT.new()
 	bed.name = "Bed"
 	bed.position = bed_position()
@@ -608,6 +683,9 @@ func _hit_voxels(vh: Dictionary, dir: Vector3) -> void:
 		var stretch := PENETRATION if r == WALL_CARVE else 1.0
 		if m == VoxelMat.METAL_SHEET:
 			r *= SHEET_CARVE
+		elif m == VoxelMat.MASONRY or m == VoxelMat.MORTAR:
+			r *= STONE_CARVE
+			stretch = minf(stretch, STONE_STRETCH)
 		var t0 := Time.get_ticks_usec()
 		ch = VoxelCarver.carve_sphere(grid, pos + dir * 0.07, r, _shots * 7919 + c.x, dir, stretch, damage_quantum)
 		stats["carve_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
@@ -636,11 +714,15 @@ func _apply_damage(ch: Dictionary) -> void:
 # --- enemies ---------------------------------------------------------------------------
 
 ## An enemy swing at nav cell `target`: damages a door or barricade standing
-## there, otherwise bites the voxels still blocking the passage.
-func enemy_strike(attacker_pos: Vector3, target: Vector2) -> void:
+## there, otherwise bites the voxels still blocking the passage. `strength`
+## (Experiment 003, e.g. 3 for a brute) multiplies the object damage
+## (rounded) and the bitten volume (the bite radius grows with its cube
+## root). Bites into masonry are much smaller, into sheet metal smaller.
+func enemy_strike(attacker_pos: Vector3, target: Vector2, strength := 1.0) -> void:
+	strength = clampf(strength, 0.1, 20.0)
 	var o: WorldObject = _obj_cells.get(nav.cell_of(target))
 	if o != null and o.bashable():
-		damage_object(o, Tuning.ENEMY_WALL_DAMAGE, attacker_pos)
+		damage_object(o, maxi(1, roundi(Tuning.ENEMY_WALL_DAMAGE * strength)), attacker_pos)
 		return
 	var h := _rng.randf_range(0.2, 1.5)
 	var aim := target
@@ -662,7 +744,11 @@ func enemy_strike(attacker_pos: Vector3, target: Vector2) -> void:
 		center = (vh["pos"] as Vector3) + dir * 0.1
 		m = vh["mat"]
 		n = vh["normal"]
-	var r := BITE_RADIUS * (SHEET_CARVE + 0.2 if m == VoxelMat.METAL_SHEET else 1.0)
+	var r := BITE_RADIUS * pow(strength, 1.0 / 3.0)
+	if m == VoxelMat.METAL_SHEET:
+		r *= SHEET_CARVE + 0.2
+	elif m == VoxelMat.MASONRY or m == VoxelMat.MORTAR:
+		r *= STONE_BITE
 	var ch := VoxelCarver.carve_sphere(grid, center, r, _rng.randi(), Vector3.ZERO, 1.0, damage_quantum)
 	if (ch["cells"] as PackedInt32Array).is_empty():
 		return
@@ -686,9 +772,9 @@ func _blockers(target: Vector2, along: Vector2) -> Array:
 
 # --- objects ---------------------------------------------------------------------------
 
-func _spawn_object(kind: String, p: Vector2, rot: int, is_built: bool, hp := -1, is_open := false) -> WorldObject:
+func _spawn_object(kind: String, p: Vector2, rot: int, is_built: bool, hp := -1, is_open := false, mat := "wood") -> WorldObject:
 	var o := WorldObject.new()
-	o.setup(kind, p, rot, self, is_built)
+	o.setup(kind, p, rot, self, is_built, mat)
 	if hp > 0:
 		o.hp = mini(hp, o.max_hp)
 	o.open = is_open
@@ -698,8 +784,9 @@ func _spawn_object(kind: String, p: Vector2, rot: int, is_built: bool, hp := -1,
 
 
 ## Places an object (no validity checks: BuildMode validates). Updates nav.
-func place_object(kind: String, p: Vector2, rot: int, is_built := true) -> WorldObject:
-	var o := _spawn_object(kind, p, rot, is_built)
+## `mat` "iron" makes a reinforced door or an iron barricade (WorldObject.MATS).
+func place_object(kind: String, p: Vector2, rot: int, is_built := true, mat := "wood") -> WorldObject:
+	var o := _spawn_object(kind, p, rot, is_built, -1, false, mat)
 	_index_objects()
 	_recompute_nav(o.footprint().grow(GridNav.CELL))
 	structure_changed.emit()
@@ -719,21 +806,26 @@ func remove_object(o: WorldObject) -> void:
 	structure_changed.emit()
 
 
-## Damages a door or barricade; destroyed objects break into debris.
-func damage_object(o: WorldObject, n: int, from := Vector3.INF) -> void:
+## Damages an object (doors and barricades by enemies, anything by blasts);
+## destroyed objects break into debris in their material's colours. `quiet`
+## (blasts) skips the per-hit chips and sounds.
+func damage_object(o: WorldObject, n: int, from := Vector3.INF, quiet := false) -> void:
 	var at := Vector3(o.pos.x, 1.0, o.pos.y)
 	var dir := Vector3(at.x - from.x, 0, at.z - from.z).normalized() if from != Vector3.INF else Vector3.FORWARD
-	var wood := VoxelArt.to_color(0x7a5c40)
-	for k in 5:
-		fx.debris(at + Vector3(_rng.randf_range(-0.4, 0.4), _rng.randf_range(-0.5, 0.4), 0), dir * 1.5 + Vector3(_rng.randf_range(-1, 1), _rng.randf_range(0.5, 2.0), _rng.randf_range(-1, 1)), wood, 0.7)
-	Sfx.play("door/bash", at)
+	if dir.length() < 0.5:
+		dir = Vector3.FORWARD
+	var tones := o.debris_tones()
+	if not quiet:
+		for k in 5:
+			fx.debris(at + Vector3(_rng.randf_range(-0.4, 0.4), _rng.randf_range(-0.5, 0.4), 0), dir * 1.5 + Vector3(_rng.randf_range(-1, 1), _rng.randf_range(0.5, 2.0), _rng.randf_range(-1, 1)), VoxelArt.to_color(tones[k % tones.size()]), 0.7)
+		Sfx.play("door/bash" if o.mat == "wood" else "impact/metal", at)
 	if not o.take_damage(n):
 		return
 	for k in 26:
-		var c := VoxelArt.to_color([0x7a5c40, 0x8c6c4c, 0x5e4a36, 0x9a8466][k % 4])
+		var c := VoxelArt.to_color(tones[k % tones.size()])
 		fx.debris(at + Vector3(_rng.randf_range(-0.5, 0.5), _rng.randf_range(-0.9, 0.8), _rng.randf_range(-0.1, 0.1)),
 			dir * 2.0 + Vector3(_rng.randf_range(-1.5, 1.5), _rng.randf_range(0.5, 3.0), _rng.randf_range(-1.5, 1.5)), c, _rng.randf_range(0.8, 1.6))
-	fx.impact(VoxelMat.Impact.WOOD, at, -dir, dir, {})
+	fx.impact(VoxelMat.Impact.WOOD if o.mat == "wood" else VoxelMat.Impact.METAL, at, -dir, dir, {})
 	Sfx.play("structure/break", at)
 	var kind := o.kind
 	var where := Vector3(o.pos.x, 0, o.pos.y)
@@ -741,55 +833,274 @@ func damage_object(o: WorldObject, n: int, from := Vector3.INF) -> void:
 	object_destroyed.emit(kind, where)
 
 
-## SPEC-003 §4 (foundation version; C refines). A blast at `center`: carves a
-## ragged sphere of `radius` from the structure (the foundation slab never
-## goes), damages objects within 1.5 x radius by `power` (falling off with
-## distance), updates collision and navigation, leaves persistent damage.
-## Characters are hurt by the caller (the game). Returns
-## {"voxels": removed count, "hit": [kinds], "destroyed": [kinds]}.
+## SPEC-003 §4. A blast at `center` (plan x, height, plan y; a bomber blows
+## up at about 1 m). The structure is carved by VoxelCarver.carve_blast in the
+## damage quantum's blocks: the reach `radius` is used up by the material in
+## between (VoxelMat.BLAST), so stone and iron plating resist far more than
+## timber, and the foundation slab never goes. What is left around the crater
+## is scorched (persistent, repair cleans it). Every object within
+## BLAST_OBJECT_REACH x radius loses up to `power` HP at the centre, falling
+## off with distance (to 40 % at the edge) and with the armour between the
+## blast and the object (walls shield what stands behind them). Collision and
+## navigation are updated before this returns; the crater's meshes too, the
+## rest of the scorch over the next frames. Plays the flash, fireball,
+## debris in the materials' colours, dust and smoke, and leaves a scorch mark
+## on the ground (saved with the world). Characters are hurt by the caller
+## (the game), and the camera shake is the game's. Returns
+##   {"voxels": removed voxels, "hit": [object kinds], "destroyed": [kinds],
+##    "opened": nav cells that became walkable, "breach": bool (a wall, door
+##    or barricade cell opened), "sections": [Vector3i] sections that lost
+##    voxels, "ms": time taken}.
 func explode(center: Vector3, radius: float, power: float) -> Dictionary:
-	var out := {"voxels": 0, "hit": [], "destroyed": []}
-	var ch := VoxelCarver.carve_sphere(grid, center, radius, _rng.randi())
-	out["voxels"] = (ch["cells"] as PackedInt32Array).size()
-	_apply_damage(ch)
-	if fx != null:
-		fx.impact(VoxelMat.Impact.CONCRETE, center, Vector3.UP, Vector3.DOWN, ch)
-	var reach := radius * 1.5
+	var out := {"voxels": 0, "hit": [], "destroyed": [], "opened": 0, "breach": false, "sections": [], "ms": 0.0}
+	if grid == null or not center.is_finite() or not is_finite(radius) or not is_finite(power) or radius <= 0.0:
+		return out
+	var t0 := Time.get_ticks_usec()
+	radius = minf(radius, 4.0)
+	power = maxf(power, 0.0)
 	var p := Vector2(center.x, center.z)
+	var reach := radius * BLAST_OBJECT_REACH
+	var area := Rect2(p - Vector2.ONE * (reach + 0.5), Vector2.ONE * (reach + 0.5) * 2.0)
+	var before := {}
+	for c in nav.cells_in_rect(area):
+		before[c] = [nav.is_walkable(c), nav.get_raw(c)]
+	# object damage factors, measured before anything breaks (walls shield)
+	var hits := []
 	for o in objects_in(Rect2(p - Vector2.ONE * reach, Vector2.ONE * reach * 2.0)):
-		if not is_instance_valid(o):
-			continue
-		var d: float = (o as WorldObject).pos.distance_to(p)
+		var fp: Rect2 = (o as WorldObject).footprint()
+		var d := p.distance_to(p.clamp(fp.position, fp.end))
 		if d > reach:
 			continue
-		var n := int(ceil(power * (1.0 - 0.6 * d / reach)))
-		var kind: String = o.kind
-		out["hit"].append(kind)
-		damage_object(o, maxi(n, 1), center)
+		var oc := Vector3(o.pos.x, clampf(center.y, 0.3, 1.2), o.pos.y)
+		var shield := VoxelCarver.blast_armour(grid, center, oc, reach)
+		var f := (1.0 - 0.6 * d / reach) * clampf(1.0 - shield / reach, 0.0, 1.0)
+		if f > 0.0:
+			hits.append([o, f])
+	var ch := VoxelCarver.carve_blast(grid, center, radius, _rng.randi(), damage_quantum)
+	var cells: PackedInt32Array = ch["cells"]
+	var mats: PackedByteArray = ch["mats"]
+	out["voxels"] = cells.size()
+	var touched := {}
+	for k in cells.size():
+		if VoxelMat.is_struct(mats[k]):
+			var s: Variant = _section_of_index(cells[k])
+			if s != null:
+				touched[s] = true
+	out["sections"] = touched.keys()
+	_apply_damage(ch)
+	_scorch(center, radius)
+	var splinters := PackedColorArray()
+	for h in hits:
+		var o: WorldObject = h[0]
 		if not is_instance_valid(o) or not objects.has(o):
+			continue
+		var kind := o.kind
+		out["hit"].append(kind)
+		var tones := o.debris_tones()
+		damage_object(o, maxi(1, int(ceil(power * float(h[1])))), center, true)
+		if not objects.has(o):
 			out["destroyed"].append(kind)
+			for k in 10:
+				splinters.append(VoxelArt.to_color(tones[k % tones.size()]))
+	for c in before:
+		if not before[c][0] and nav.is_walkable(c):
+			out["opened"] += 1
+			if before[c][1] == GridNav.WALL:
+				out["breach"] = true
+	# the crater shows in the same frame as the flash
+	chunks.flush(60.0)
+	_add_scar(center.x, center.z, radius * 1.15)
+	if fx != null:
+		fx.blast(center, radius, ch, splinters)
+	if ResourceLoader.exists(AssetResolver.audio_fallback_path("structure/blast")):
+		Sfx.play("structure/blast", center)
+	Sfx.play("structure/break", center)
+	Sfx.play("structure/crumble", center)
+	structure_changed.emit()
+	out["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return out
 
 
-## SPEC-003 §5 (foundation version; C refines). Defensive points a wall-seeking
-## attacker (the bomber) could target, best first, as
-## [{"kind": "door"|"barricade"|"wall", "pos": Vector2 (outside face), "score": float}].
-## Doors and barricades score by how much they protect; wall sections by how
-## weak they already are and how close they are to `from`.
-func weak_points(from: Vector2) -> Array:
+## Darkens the exposed voxels within radius x SCORCH_REACH of a blast (the
+## current grid only: repair brings the design's colours back). Meshes are
+## rebuilt over the next frames; collision is not touched.
+func _scorch(center: Vector3, radius: float) -> void:
+	var rr := radius * SCORCH_REACH
+	var lo := grid.cell_of(center - Vector3.ONE * rr).clamp(Vector3i(1, VoxelHouse.FLOOR_ROW, 1), Vector3i(grid.sx - 2, grid.sy - 2, grid.sz - 2))
+	var hi := (grid.cell_of(center + Vector3.ONE * rr) + Vector3i.ONE).clamp(Vector3i.ONE, Vector3i(grid.sx - 1, grid.sy - 1, grid.sz - 1))
+	var up := grid.sx * grid.sz
+	var sx := grid.sx
+	var gm := grid.mat
+	var flags := VoxelMat.FLAGS
+	var n := 0
+	for y in range(lo.y, hi.y):
+		for z in range(lo.z, hi.z):
+			for x in range(lo.x, hi.x):
+				var i := (y * grid.sz + z) * sx + x
+				var m := gm[i]
+				if m == 0 or (flags[m] & VoxelMat.F_GLASS) != 0:
+					continue
+				if gm[i + 1] != 0 and gm[i - 1] != 0 and gm[i + sx] != 0 and gm[i - sx] != 0 and gm[i + up] != 0 and gm[i - up] != 0:
+					continue
+				var d := (grid.origin + (Vector3(x, y, z) + Vector3(0.5, 0.5, 0.5)) * grid.vs).distance_to(center)
+				if d >= rr:
+					continue
+				var k := clampf((1.0 - d / rr) * 1.3, 0.0, 0.86) * (0.72 + 0.28 * VoxelArt.hash3(x, y, z, 77))
+				grid.col[i] = VoxelArt.mix(grid.col[i], SOOT, k)
+				grid.pcol[i] = VoxelArt.mix(grid.pcol[i], SOOT, k)
+				n += 1
+	if n > 0:
+		chunks.mark_visual_dirty(lo - Vector3i.ONE, hi + Vector3i.ONE)
+
+
+const SCAR_SHADER := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back, shadows_disabled;
+instance uniform float seed = 0.0;
+float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+void fragment() {
+	vec2 q = UV * 2.0 - 1.0;
+	float r = length(q);
+	float n = vnoise(q * 3.0 + seed) * 0.6 + vnoise(q * 7.0 - seed * 1.7) * 0.4;
+	float edge = 0.62 + (n - 0.5) * 0.45;
+	float a = 1.0 - smoothstep(edge * 0.5, edge, r);
+	float ang = atan(q.y, q.x);
+	float streak = vnoise(vec2(ang * 2.6 + seed, seed * 0.3));
+	a = max(a, (1.0 - smoothstep(0.25, 0.98, r)) * smoothstep(0.55, 0.85, streak) * 0.75);
+	ALBEDO = mix(vec3(0.025, 0.022, 0.02), vec3(0.09, 0.075, 0.06), smoothstep(0.0, 0.85, r));
+	ALPHA = a * 0.9;
+	ROUGHNESS = 1.0;
+	SPECULAR = 0.0;
+}
+"""
+static var _scar_mat: ShaderMaterial
+
+
+## A scorch mark on the ground (just above the yard's ground plane; the
+## house floor hides it indoors, where the scorched floor voxels show
+## instead). Recorded in `scars` (saved); the oldest goes past SCARS_MAX.
+func _add_scar(x: float, z: float, r: float) -> void:
+	if _scar_root == null:
+		return
+	if scars.size() >= SCARS_MAX:
+		scars.pop_front()
+		if _scar_root.get_child_count() > 0:
+			_scar_root.get_child(0).free()
+	scars.append([x, z, r])
+	if _scar_mat == null:
+		var sh := Shader.new()
+		sh.code = SCAR_SHADER
+		_scar_mat = ShaderMaterial.new()
+		_scar_mat.shader = sh
+	var mi := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(r * 2.0, r * 2.0)
+	mi.mesh = pm
+	mi.material_override = _scar_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(x, VoxelYard.GROUND_Y + 0.012, z)
+	mi.rotation.y = fmod(absf(x * 12.9898 + z * 78.233), TAU)
+	mi.set_instance_shader_parameter("seed", fmod(absf(x * 3.7 + z * 5.3), 50.0))
+	_scar_root.add_child(mi)
+
+
+## SPEC-003 §5. Where a wall-seeking attacker (the bomber) should strike,
+## best first. Candidates: closed doors, barricades, and the exterior walls
+## of the house and every player-built wall, wherever their outside can be
+## reached on foot. Each entry:
+##   {"kind": "door" | "barricade" | "wall",
+##    "pos": Vector2, where the attacker stands: the first walkable nav cell
+##           0.3-1.2 m out from the OUTSIDE face,
+##    "target": Vector2, the centre of the door, barricade or wall section,
+##    "score": float (higher = better target), "seg": Vector3i,
+##    "object": WorldObject or null, "material": "wood" | "iron" (objects),
+##           "frame" | "wood" | "stone" (walls),
+##    "strength": float, relative resistance (a wooden door = 1)}
+## Score = protection (door 1.0, barricade 0.9, wall 0.6) / strength
+## (objects: HP over a wooden door's 18; walls: section_strength x the
+## remaining integrity x how much of a full wall the section is, so windows
+## and damaged walls are weak, stone and plated walls strong) + up to 0.8
+## for lying within 8 m of `near` (pass the player's position) - 0.03 per
+## metre from `from`. Sections already walkable through, and doors or
+## barricades standing in them, are left out of the walls (they are listed
+## as objects).
+func weak_points(from: Vector2, near := Vector2.INF) -> Array:
 	var out := []
+	var wood_door := float(WorldObject.max_hp_of("door", "wood"))
 	for o in objects:
-		if o.kind in ["door", "barricade"]:
-			out.append({"kind": o.kind, "pos": o.pos, "score": 2.0 - float(o.hp) / maxf(o.max_hp, 1) - o.pos.distance_to(from) * 0.02})
-	for s in sections:
-		var info: Dictionary = sections[s]
-		if int(info.get("design", 0)) <= 0:
+		if not (o.kind == "barricade" or (o.kind == "door" and not o.open)):
 			continue
-		var integ := section_integrity(s)
+		var stand := _stand_point(o.pos, WorldObject.front_dir(o.rot))
+		if stand == Vector2.INF:
+			continue
+		out.append(_weak_point(o.kind, stand, o.pos, 1.0 if o.kind == "door" else 0.9, float(o.hp) / wood_door,
+				from, near, o.seg, o, o.mat))
+	for s in sections:
+		var sec: Dictionary = sections[s]
+		if int(sec["design"]) <= 0 or not _is_outer_wall(s):
+			continue
 		var c := seg_center(s)
-		out.append({"kind": "wall", "pos": c, "score": 1.2 - integ - c.distance_to(from) * 0.03})
+		if nav.is_walkable(nav.cell_of(c)) or not objects_in(seg_rect(s, 0.12, -0.1)).is_empty():
+			continue
+		var stand := _stand_point(c, _outward(s))
+		if stand == Vector2.INF:
+			continue
+		var thick := 2.0 if sec["material"] == "wood" else 3.0
+		var fill := clampf(float(sec["design"]) / (VoxelHouse.WALL_ROWS * 10.0 * thick), 0.25, 1.0)
+		var strength := section_strength(s) * maxf(section_integrity(s), 0.1) * fill
+		out.append(_weak_point("wall", stand, c, 0.6, strength, from, near, s, null, sec["material"]))
 	out.sort_custom(func(a, b): return a["score"] > b["score"])
 	return out
+
+
+func _weak_point(kind: String, stand: Vector2, target: Vector2, base: float, strength: float, from: Vector2, near: Vector2,
+		seg: Vector3i, o: WorldObject, mat: String) -> Dictionary:
+	strength = maxf(strength, 0.1)
+	var score := base / strength - target.distance_to(from) * 0.03
+	if near.is_finite():
+		score += 0.8 * maxf(0.0, 1.0 - target.distance_to(near) / 8.0)
+	return {"kind": kind, "pos": stand, "target": target, "score": score, "seg": seg, "object": o, "material": mat, "strength": strength}
+
+
+## The first walkable nav cell centre 0.3-1.2 m from `c` along `dir`, inside
+## the lot; INF if there is none (the outside is blocked or off the lot).
+func _stand_point(c: Vector2, dir: Vector2) -> Vector2:
+	var t := 0.3
+	while t <= 1.2:
+		var q := c + dir * t
+		var cell := nav.cell_of(q)
+		if LOT.has_point(q) and nav.is_walkable(cell):
+			return nav.center_of(cell)
+		t += 0.125
+	return Vector2.INF
+
+
+## Exterior house walls and every player-built wall.
+func _is_outer_wall(s: Vector3i) -> bool:
+	if built.has(s):
+		return true
+	var f := HousePlan.FOOTPRINT
+	if s.x == 0:
+		return s.y == int(f.position.y) or s.y == int(f.end.y)
+	return s.y == int(f.position.x) or s.y == int(f.end.x)
+
+
+## Unit plan vector from a wall section toward its outside: away from the
+## house for its walls, away from the bed for built walls.
+func _outward(s: Vector3i) -> Vector2:
+	var sign := 1.0
+	if built.has(s) or not sections.get(s, {}).get("orig", false):
+		sign = float(outer_sign(s))
+	else:
+		var mid := HousePlan.FOOTPRINT.get_center()
+		sign = 1.0 if float(s.y) > (mid.y if s.x == 0 else mid.x) else -1.0
+	return Vector2(0, sign) if s.x == 0 else Vector2(sign, 0)
 
 
 ## Opens or closes a door. Returns "" or the reason it can't close.
@@ -1029,9 +1340,14 @@ func _section_of_index(i: int) -> Variant:
 	return null
 
 
+func _new_section(orig: bool, material: String) -> Dictionary:
+	return {"orig": orig, "design": 0, "current": 0, "material": material, "strength": float(SECTION_MATERIALS[material]["strength"])}
+
+
 func _count_section(s: Vector3i) -> void:
 	if not sections.has(s):
 		return
+	sections[s]["strength"] = section_strength(s)
 	var b := _box_of(grid, seg_rect(s), VoxelHouse.BASE_ROW, VoxelHouse.TOP_ROW)
 	var nd := 0
 	var nc := 0
@@ -1087,7 +1403,79 @@ func section_info(s: Vector3i) -> Dictionary:
 		"coverage": coverage, "wall": coverage >= 0.5, "glass": glass, "gap": coverage < 0.1 and ends == 2,
 		"missing": section_missing(s), "integrity": section_integrity(s),
 		"objects": objects_in(seg_rect(s, 0.1)),
+		"material": sec.get("material", ""), "strength": section_strength(s) if not sec.is_empty() else 0.0,
+		"founded": is_founded(s), "foundation": foundations.has(s), "load": section_load_hint(s),
 	}
+
+
+## Relative resistance of a section's wall (SECTION_MATERIALS strength, x
+## PLATED_FACTOR when iron-plated); 0 for no section. Damage is not included
+## (see section_integrity).
+func section_strength(s: Vector3i) -> float:
+	var sec: Dictionary = sections.get(s, {})
+	if sec.is_empty():
+		return 0.0
+	var st := float(SECTION_MATERIALS.get(sec.get("material", "frame"), SECTION_MATERIALS["frame"])["strength"])
+	return st * (PLATED_FACTOR if upgraded.has(s) else 1.0)
+
+
+## Load-bearing hook (no collapse simulation; SPEC-003 §4): a coarse estimate
+## of the load the section could carry, for a later support model. It is the
+## material's "load" (house frame 1, timber 0.6, stone 2.5) x the remaining
+## integrity (0..1) x 1 on a foundation (the house slab or a stone foundation)
+## or UNFOUNDED_LOAD without one, x PLATED_FACTOR when iron-plated. 0 for a
+## missing section or one without structure. Nothing reads it yet.
+func section_load_hint(s: Vector3i) -> float:
+	var sec: Dictionary = sections.get(s, {})
+	if sec.is_empty() or int(sec["design"]) <= 0:
+		return 0.0
+	var load := float(SECTION_MATERIALS.get(sec.get("material", "frame"), SECTION_MATERIALS["frame"])["load"])
+	return load * section_integrity(s) * (1.0 if is_founded(s) else UNFOUNDED_LOAD) * (PLATED_FACTOR if upgraded.has(s) else 1.0)
+
+
+## True if the wall line of segment s stands on a floor: the house slab or a
+## stone foundation (the design's floor-finish row under the 0.3 m wall
+## footprint, at least 85 % covered).
+func is_founded(s: Vector3i) -> bool:
+	var b := _box_of(design, seg_rect(s, STONE_HALF), VoxelHouse.FLOOR_ROW, VoxelHouse.FLOOR_ROW)
+	var n := 0
+	var on := 0
+	for z in range(b[0].z, b[1].z):
+		for x in range(b[0].x, b[1].x):
+			n += 1
+			var m := design.get_mat(x, VoxelHouse.FLOOR_ROW, z)
+			if m == VoxelMat.FLOOR or m == VoxelMat.THRESHOLD or m == VoxelMat.PAVING:
+				on += 1
+	return n > 0 and on >= n * 0.85
+
+
+## Missing design voxels of a section (as section_missing) by the resource
+## that repairs them: "stone" (masonry, mortar), "iron" (plating), "wood"
+## (everything else: timber framing, boards, drywall, trim, glass).
+func section_missing_by(s: Vector3i) -> Dictionary:
+	var b := _box_of(grid, seg_rect(s, SECTION_ACROSS, 0.1), VoxelHouse.FLOOR_ROW, VoxelHouse.TOP_ROW)
+	var out := {"wood": 0, "stone": 0, "iron": 0}
+	for y in range(b[0].y, b[1].y):
+		for z in range(b[0].z, b[1].z):
+			for x in range(b[0].x, b[1].x):
+				var i := grid.idx(x, y, z)
+				var m := design.mat[i]
+				if m != 0 and grid.mat[i] != m:
+					if m == VoxelMat.MASONRY or m == VoxelMat.MORTAR:
+						out["stone"] += 1
+					elif m == VoxelMat.METAL_SHEET:
+						out["iron"] += 1
+					elif m != VoxelMat.PAVING:
+						out["wood"] += 1
+	return out
+
+
+func _stone_sections() -> Dictionary:
+	var out := {}
+	for s in built:
+		if sections.has(s) and sections[s].get("material", "") == "stone":
+			out[s] = true
+	return out
 
 
 ## Fraction of the section's structural voxels still standing (1 = intact).
@@ -1160,21 +1548,54 @@ func outer_sign(s: Vector3i) -> int:
 	return 1 if across < s.y else -1
 
 
-## Builds a wooden wall on segments (design and current), no checks:
-## two voxels thick on the line, full height; outer boards, inner boards with
-## studs every 0.5 m; a sole plate where it stands on the ground.
-func build_walls(segs: Array) -> void:
+## Builds a wall on segments (design and current), no checks. "wood": two
+## voxels thick on the line, full height; outer boards, inner boards with
+## studs every 0.5 m; a sole plate where it stands on the ground. "stone":
+## three voxels (0.3 m) of masonry in courses with mortar joints, full
+## height (BuildMode only allows it on a foundation).
+func build_walls(segs: Array, material := "wood") -> void:
 	var lo := Vector3i(1 << 20, 1 << 20, 1 << 20)
 	var hi := -lo
 	for s in segs:
-		var b := _stamp_wall(s)
+		var b := _stamp_stone(s) if material == "stone" else _stamp_wall(s)
 		lo = lo.min(b[0])
 		hi = hi.max(b[1])
 		built[s] = true
-		if not sections.has(s):
-			sections[s] = {"orig": false, "design": 0, "current": 0}
+		sections[s] = _new_section(false, "stone" if material == "stone" else "wood")
 		_mark_struct_zone(s)
 	_edited(lo, hi)
+
+
+## Masonry: courses of two stone rows under a mortar bed joint, head joints
+## every 0.5 m staggered by 0.2 m per course, each stone in its own tone;
+## the same pattern through the whole thickness, so a crater shows joints.
+func _stamp_stone(s: Vector3i) -> Array:
+	var horiz := s.x == 0
+	var b := _box_of(design, seg_rect(s, STONE_HALF), VoxelHouse.BASE_ROW, VoxelHouse.TOP_ROW)
+	var a0: int = b[0].x if horiz else b[0].z
+	var a1: int = b[1].x if horiz else b[1].z
+	var t0: int = b[0].z if horiz else b[0].x
+	var t1: int = b[1].z if horiz else b[1].x
+	for a in range(a0, a1):
+		for r in VoxelHouse.WALL_ROWS:
+			var y := VoxelHouse.BASE_ROW + r
+			var course := r / 3
+			var u := a + (course % 2) * 2
+			var joint := r % 3 == 2 or posmod(u, 5) == 0
+			var stone: int = STONE_TONES[int(VoxelArt.hash3(floori(u / 5.0), course, s.y, 13) * STONE_TONES.size()) % STONE_TONES.size()]
+			for t in range(t0, t1):
+				var x := a if horiz else t
+				var z := t if horiz else a
+				var old := design.get_mat(x, y, z)
+				if old != VoxelMat.AIR and old != VoxelMat.BASEBOARD and old != VoxelMat.SILL:
+					continue
+				if joint:
+					var mc := VoxelArt.jitter(MORTAR_TONE, x, y, z, 0.04)
+					_put(x, y, z, VoxelMat.MORTAR, mc, mc, 0)
+				else:
+					var c := VoxelArt.jitter(stone, x, y, z, 0.05)
+					_put(x, y, z, VoxelMat.MASONRY, c, c, 0)
+	return b
 
 
 func _stamp_wall(s: Vector3i) -> Array:
@@ -1230,9 +1651,11 @@ func _put(x: int, y: int, z: int, m: int, c: int, pc: int, pm: int) -> void:
 	grid.set_voxel(x, y, z, m, c, pc, pm)
 
 
-## Removes a player-built wall segment (design and current).
+## Removes a player-built wall segment (design and current). A stone
+## foundation under it stays.
 func demolish_wall(s: Vector3i) -> void:
-	var rect := seg_rect(s, 0.1)
+	var stone: bool = sections.get(s, {}).get("material", "") == "stone"
+	var rect := seg_rect(s, STONE_HALF if stone else 0.1)
 	var b := _box_of(design, rect, VoxelHouse.FLOOR_ROW, VoxelHouse.TOP_ROW)
 	var house := HousePlan.FOOTPRINT.grow(0.15)
 	for y in range(b[0].y, b[1].y):
@@ -1241,9 +1664,9 @@ func demolish_wall(s: Vector3i) -> void:
 				if y == VoxelHouse.FLOOR_ROW and house.has_point(VoxelHouse.column_plan(design, x, z)):
 					continue
 				var i := design.idx(x, y, z)
-				if design.mat[i] != 0 and (VoxelMat.FLAGS[design.mat[i]] & VoxelMat.F_HARD) == 0:
+				if design.mat[i] != 0 and design.mat[i] != VoxelMat.PAVING and (VoxelMat.FLAGS[design.mat[i]] & VoxelMat.F_HARD) == 0:
 					design.clear_index(i)
-				if grid.mat[i] != 0 and (VoxelMat.FLAGS[grid.mat[i]] & VoxelMat.F_HARD) == 0:
+				if grid.mat[i] != 0 and grid.mat[i] != VoxelMat.PAVING and (VoxelMat.FLAGS[grid.mat[i]] & VoxelMat.F_HARD) == 0:
 					grid.clear_index(i)
 	built.erase(s)
 	upgraded.erase(s)
@@ -1251,9 +1674,91 @@ func demolish_wall(s: Vector3i) -> void:
 		sections.erase(s)
 	# a neighbour sharing a corner column gets it back
 	for o in built:
-		if seg_rect(o, 0.1).intersects(rect.grow(0.05)):
-			_stamp_wall(o)
+		var o_stone: bool = sections.get(o, {}).get("material", "") == "stone"
+		if seg_rect(o, STONE_HALF if o_stone else 0.1).intersects(rect.grow(0.05)):
+			if o_stone:
+				_stamp_stone(o)
+			else:
+				_stamp_wall(o)
 	_edited(b[0], b[1])
+
+
+## Lays stone foundation tiles (design and current), no checks: 1 m x 1 m
+## centred on each segment, two voxel rows of paving slabs (the top row flush
+## with the house floor, 3 cm above the yard ground) in 0.5 m flagstones with
+## dark joints. Cells that already have a floor are left alone.
+func build_foundation(segs: Array) -> void:
+	var lo := Vector3i(1 << 20, 1 << 20, 1 << 20)
+	var hi := -lo
+	for s in segs:
+		var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW)
+		for z in range(b[0].z, b[1].z):
+			for x in range(b[0].x, b[1].x):
+				if design.get_mat(x, VoxelHouse.FLOOR_ROW, z) != VoxelMat.AIR:
+					continue
+				var p := VoxelHouse.column_plan(design, x, z)
+				var xi := roundi(p.x * 10.0)
+				var zi := roundi(p.y * 10.0)
+				var slab: int = PAVING_TONES[int(VoxelArt.hash3(floori(p.x * 2.0), floori(p.y * 2.0), 3, 29) * PAVING_TONES.size()) % PAVING_TONES.size()]
+				var c := VoxelArt.jitter(slab, x, 0, z, 0.05)
+				if posmod(xi, 5) == 0 or posmod(zi, 5) == 0:
+					c = VoxelArt.jitter(PAVING_JOINT, x, 0, z, 0.06)
+				_put(x, VoxelHouse.FLOOR_ROW, z, VoxelMat.PAVING, c, c, 0)
+				var under := VoxelArt.scale(c, 0.8)
+				_put(x, VoxelHouse.SCREED_ROW, z, VoxelMat.PAVING, under, under, 0)
+		lo = lo.min(b[0])
+		hi = hi.max(b[1])
+		foundations[s] = true
+	if hi.x > lo.x:
+		_edited(lo, hi)
+
+
+## Takes up a foundation tile (design and current); columns another tile
+## still covers stay.
+func remove_foundation(s: Vector3i) -> void:
+	if not foundations.has(s):
+		return
+	foundations.erase(s)
+	var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW)
+	for z in range(b[0].z, b[1].z):
+		for x in range(b[0].x, b[1].x):
+			var p := VoxelHouse.column_plan(design, x, z)
+			var keep := false
+			for o in foundations:
+				if seg_rect(o, FOUNDATION_HALF).has_point(p):
+					keep = true
+					break
+			if keep:
+				continue
+			for y in [VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW]:
+				var i := design.idx(x, y, z)
+				if design.mat[i] == VoxelMat.PAVING:
+					design.clear_index(i)
+				if grid.mat[i] == VoxelMat.PAVING:
+					grid.clear_index(i)
+	_edited(b[0], b[1])
+
+
+## Fraction (0..1) of a foundation tile's columns that already have a floor
+## (the house floor or paving).
+func floor_coverage(s: Vector3i) -> float:
+	var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.FLOOR_ROW, VoxelHouse.FLOOR_ROW)
+	var n := 0
+	var on := 0
+	for z in range(b[0].z, b[1].z):
+		for x in range(b[0].x, b[1].x):
+			n += 1
+			if design.get_mat(x, VoxelHouse.FLOOR_ROW, z) != VoxelMat.AIR:
+				on += 1
+	return float(on) / maxf(1.0, n)
+
+
+## The player-laid foundation tile under plan point p, or Vector3i(-1, 0, 0).
+func foundation_at(p: Vector2) -> Vector3i:
+	for s in foundations:
+		if seg_rect(s, FOUNDATION_HALF).has_point(p):
+			return s
+	return Vector3i(-1, 0, 0)
 
 
 ## Cuts a 1 m opening (design and current): a doorway 2.1 m high, or the full

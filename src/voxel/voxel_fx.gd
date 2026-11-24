@@ -53,6 +53,11 @@ var _tracer_t: Array[float] = []
 var _tracer_next := 0
 var _flash: MeshInstance3D
 var _flash_t := 0.0
+# blast (Experiment 003): a light flash and a fireball, created on first use
+var _blast_light: OmniLight3D
+var _fireball: MeshInstance3D
+var _blast_t := 0.0
+var _blast_r := 1.0
 var _rng := RandomNumberGenerator.new()
 var _zero := Transform3D(Basis().scaled(Vector3.ZERO), Vector3(0, -100, 0))
 
@@ -273,6 +278,112 @@ func impact(kind: int, pos: Vector3, normal: Vector3, dir: Vector3, change: Dict
 				puff(pos + n * 0.1, n * 0.6 + Vector3(0, 0.25, 0), dc, 0.28, 1.1, 1.0)
 
 
+## A blast (Experiment 003, HouseWorld.explode): a bright flash of light and
+## a fireball, a shower of debris in the removed voxels' own colours (plus
+## `extra` colours, e.g. splintered doors), sparks, a ring of dust rolling
+## out along the ground and a column of dark smoke. `change` is the blast's
+## VoxelCarver change (may be empty).
+func blast(center: Vector3, radius: float, change: Dictionary, extra := PackedColorArray()) -> void:
+	_blast_effect_nodes()
+	_blast_t = BLAST_TIME
+	_blast_r = radius
+	_blast_light.global_position = center + Vector3(0, 0.4, 0)
+	_blast_light.omni_range = radius * 5.0
+	_blast_light.visible = true
+	_fireball.global_position = center
+	_fireball.visible = true
+	_update_blast(0.0)
+	var cells: PackedInt32Array = change.get("cells", PackedInt32Array())
+	var colors: PackedInt32Array = change.get("colors", PackedInt32Array())
+	var mats: PackedByteArray = change.get("mats", PackedByteArray())
+	# debris in the materials' colours, thrown away from the centre
+	var n := mini(cells.size(), 150)
+	var stride := maxi(1, cells.size() / maxi(n, 1))
+	var k := 0
+	while k < cells.size() and n > 0:
+		var p := grid.center(grid.coords(cells[k]))
+		var away := p - center
+		away.y = maxf(away.y, 0.0)
+		var v := away.normalized() * _rng.randf_range(3.0, 9.0) + Vector3(_rng.randf_range(-1, 1), _rng.randf_range(2.0, 6.0), _rng.randf_range(-1, 1))
+		var m := mats[k]
+		var shape := Vector3.ONE
+		if VoxelMat.IMPACT[m] == VoxelMat.Impact.WOOD and _rng.randf() < 0.5:
+			shape = Vector3(0.35, 0.35, 1.8)
+		elif m == VoxelMat.METAL_SHEET:
+			shape = Vector3(1.3, 0.2, 1.1)
+		var col := VoxelArt.to_color(colors[k])
+		if (VoxelMat.FLAGS[m] & VoxelMat.F_GLASS) != 0:
+			col = Color(0.75, 0.88, 0.92)
+			shape = Vector3(1.0, 0.15, 0.8)
+		debris(p, v, col.darkened(_rng.randf_range(0.0, 0.35)), _rng.randf_range(0.6, 1.25) * debris_scale, shape)
+		k += stride
+		n -= 1
+	for c in extra:
+		var dir := Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized()
+		debris(center + Vector3(0, 0.6, 0), dir * _rng.randf_range(3.0, 7.0) + Vector3(0, _rng.randf_range(2.0, 5.0), 0), c, _rng.randf_range(0.8, 1.6), Vector3(0.35, 0.35, 1.8))
+	sparks(center, Vector3.UP, 36, 9.0)
+	# dust rolling out along the ground, then a slow column of dark smoke
+	for i in 18:
+		var a := TAU * i / 18.0 + _rng.randf_range(-0.15, 0.15)
+		var out := Vector3(cos(a), 0, sin(a))
+		puff(Vector3(center.x, 0.25, center.z) + out * 0.3, out * _rng.randf_range(3.0, 5.5) + Vector3(0, 0.3, 0),
+				Color(0.55, 0.5, 0.44, 0.8), 0.6, 2.2, _rng.randf_range(2.2, 3.4))
+	for i in 10:
+		puff(center + Vector3(_rng.randf_range(-0.4, 0.4), _rng.randf_range(0.0, 0.6), _rng.randf_range(-0.4, 0.4)),
+				Vector3(_rng.randf_range(-0.5, 0.5), _rng.randf_range(1.0, 2.6), _rng.randf_range(-0.5, 0.5)),
+				Color(0.2, 0.18, 0.16, 0.85), 0.7, 2.0, _rng.randf_range(3.0, 4.5))
+	for i in 6:
+		puff(center + Vector3(_rng.randf_range(-0.3, 0.3), 0.3, _rng.randf_range(-0.3, 0.3)), Vector3(0, 0.6, 0),
+				Color(1.0, 0.62, 0.28, 0.9), 0.5, 1.6, 0.45)
+
+
+const BLAST_TIME := 0.55
+
+
+func blast_active() -> bool:
+	return _blast_t > 0.0
+
+
+func _blast_effect_nodes() -> void:
+	if _blast_light != null:
+		return
+	_blast_light = OmniLight3D.new()
+	_blast_light.name = "BlastLight"
+	_blast_light.light_color = Color(1.0, 0.66, 0.34)
+	_blast_light.omni_attenuation = 1.2
+	_blast_light.shadow_enabled = false
+	_blast_light.visible = false
+	add_child(_blast_light)
+	_fireball = MeshInstance3D.new()
+	_fireball.name = "Fireball"
+	var sph := SphereMesh.new()
+	sph.radius = 1.0
+	sph.height = 2.0
+	sph.radial_segments = 16
+	sph.rings = 8
+	_fireball.mesh = sph
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_color = Color(1.0, 0.7, 0.35, 1.0)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_fireball.material_override = m
+	_fireball.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_fireball.visible = false
+	add_child(_fireball)
+
+
+## t = seconds since the blast.
+func _update_blast(t: float) -> void:
+	var f := clampf(t / BLAST_TIME, 0.0, 1.0)
+	_blast_light.light_energy = 14.0 * pow(1.0 - f, 2.0)
+	var s := _blast_r * (0.35 + 0.75 * sqrt(f))
+	_fireball.scale = Vector3(s, s * 0.8, s)
+	var m := _fireball.material_override as StandardMaterial3D
+	m.albedo_color = Color(1.0, lerpf(0.85, 0.45, f), lerpf(0.55, 0.2, f), pow(1.0 - f, 1.5) * 0.85)
+
+
 func ground_hit(pos: Vector3, dir: Vector3) -> void:
 	for i in 4:
 		debris(pos + Vector3(0, 0.03, 0), Vector3(_rng.randf_range(-1, 1), _rng.randf_range(1.5, 3.0), _rng.randf_range(-1, 1)) - dir * 0.8, Color(0.33, 0.28, 0.22), 0.45)
@@ -316,6 +427,12 @@ func _process(delta: float) -> void:
 		_flash_t -= delta
 		if _flash_t <= 0.0:
 			_flash.visible = false
+	if _blast_t > 0.0:
+		_blast_t -= delta
+		_update_blast(BLAST_TIME - _blast_t)
+		if _blast_t <= 0.0:
+			_blast_light.visible = false
+			_fireball.visible = false
 
 
 func _update_debris(delta: float) -> void:
