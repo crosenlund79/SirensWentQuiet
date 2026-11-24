@@ -1076,7 +1076,13 @@ func _show_report() -> void:
 	if not r["lost"].is_empty():
 		_box.add_child(_report_row("Lost", D.items_text(r["lost"]), "", UiTheme.BAD, w))
 	var dmg := float(r["damage"])
-	_box.add_child(_report_row("Injuries", "-%d health" % int(round(dmg)) if dmg >= 0.5 else "", "Unhurt.", UiTheme.BAD if dmg >= 0.5 else UiTheme.GOOD, w))
+	var taken := dmg * (float(state.call("damage_factor", "expedition")) if state.has_method("damage_factor") else 1.0)
+	var inj := ""
+	if dmg >= 0.5:
+		inj = "-%d health" % int(round(taken))
+		if int(round(taken)) < int(round(dmg)):
+			inj += " (the vest took %d off)" % (int(round(dmg)) - int(round(taken)))
+	_box.add_child(_report_row("Injuries", inj, "Unhurt.", UiTheme.BAD if dmg >= 0.5 else UiTheme.GOOD, w))
 	if not r["left_behind"].is_empty():
 		_box.add_child(_report_row("Left behind", D.items_text(r["left_behind"]) + " (storage full)", "", UiTheme.WARN, w))
 	var disc: Array = r.get("discovered", [])
