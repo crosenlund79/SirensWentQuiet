@@ -727,8 +727,9 @@ func _refresh_palette() -> void:
 	match tool():
 		"place":
 			cost_txt = BuildPieces.cost_text(p["cost"]) + (" per metre" if p.get("per_m", false) and piece_id() != "foundation" else " per tile" if piece_id() == "foundation" else "")
-			if last_eval.get("segs", []).size() > 1:
-				cost_txt += "  ·  %d: %s" % [last_eval["segs"].size(), BuildPieces.cost_text(cost)]
+			var n: int = last_eval.get("segs", []).size()
+			if n > 1:
+				cost_txt += ("  ·  %d tiles: %s" if piece_id() == "foundation" else "  ·  run %d m: %s") % [n, BuildPieces.cost_text(cost)]
 		"repair":
 			cost_txt = BuildPieces.cost_text(cost) if not cost.is_empty() else "paid in the damaged material"
 		"upgrade":

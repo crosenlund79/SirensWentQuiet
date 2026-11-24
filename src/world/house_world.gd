@@ -361,10 +361,13 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 		if f["blocks"]:
 			for c in nav.cells_in_rect(f["rect"]):
 				_static_solid[c.y * nav.size.x + c.x] = 1
+	for e in foundation_list:
+		foundations[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
 	yard = VoxelYard.new()
 	yard.name = "Yard"
 	yard.demo = self
 	yard.voxel_props = voxel_furniture
+	yard.tuft_avoid = _foundation_rects()
 	add_child(yard)
 	fx = VoxelFx.new()
 	fx.grid = grid
@@ -396,8 +399,7 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 		_mark_struct_zone(s)
 	for e in upgraded_list:
 		upgraded[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
-	for e in foundation_list:
-		foundations[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
+	_hide_covered_bushes()
 	for e in cut_list:
 		openings.append({"axis": int(e[0]), "line": int(e[1]), "from": float(e[2]), "to": float(e[3]), "orig": false})
 	_index_openings()
@@ -1739,6 +1741,7 @@ func build_foundation(segs: Array) -> void:
 		foundations[s] = true
 	if hi.x > lo.x:
 		_edited(lo, hi)
+	_foundations_changed()
 
 
 ## Takes up a foundation tile (design and current); columns another tile
@@ -1765,6 +1768,34 @@ func remove_foundation(s: Vector3i) -> void:
 				if grid.mat[i] == VoxelMat.PAVING:
 					grid.clear_index(i)
 	_edited(b[0], b[1])
+	_foundations_changed()
+
+
+func _foundation_rects() -> Array:
+	var out := []
+	for s in foundations:
+		out.append(seg_rect(s, FOUNDATION_HALF))
+	return out
+
+
+## No grass or shrubs grow through paving.
+func _foundations_changed() -> void:
+	if yard != null:
+		yard.set_tuft_avoid(_foundation_rects())
+	_hide_covered_bushes()
+
+
+func _hide_covered_bushes() -> void:
+	var rects := _foundation_rects()
+	for k in BUSHES.size():
+		var b := get_node_or_null("Bush_%d" % k) as Node3D
+		if b == null:
+			continue
+		var on := false
+		for r in rects:
+			if (r as Rect2).grow(0.3).has_point(BUSHES[k]):
+				on = true
+		b.visible = not on
 
 
 ## Fraction (0..1) of a foundation tile's columns that already have a floor

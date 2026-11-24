@@ -22,6 +22,12 @@ var roof_mat: ShaderMaterial
 var prop_mat: ShaderMaterial
 var _roof_fade := 1.0
 var _rng := RandomNumberGenerator.new()
+## Experiment 003: plan rects where no grass grows (stone foundations). Set
+## before the yard enters the tree, or call set_tuft_avoid() later.
+var tuft_avoid: Array = []
+var last_tuft_ms := 0.0
+var _tufts: MeshInstance3D
+var _tuft_state := -1
 
 
 func _ready() -> void:
@@ -363,13 +369,30 @@ func _step(r: Rect2) -> Array:
 
 
 ## Sparse dry grass tufts and a few weeds over the lawn (decor, no collision).
+## Rebuilds the grass tufts without the ones inside `rects` (plan metres),
+## from the same random sequence, so every other tuft stays where it was.
+func set_tuft_avoid(rects: Array) -> void:
+	tuft_avoid = rects.duplicate()
+	if _tufts == null or _tuft_state < 0:
+		return
+	var after := _rng.state
+	_tufts.free()
+	_tufts = null
+	_rng.state = _tuft_state
+	_build_tufts()
+	_rng.state = after
+
+
 func _build_tufts() -> void:
+	var t0 := Time.get_ticks_usec()
+	_tuft_state = _rng.state
 	var area := Rect2(-9.0, -8.0, 32.0, 21.4)
 	var g := _grid(Vector3(area.size.x, 0.4, area.size.y))
 	var avoid := [HousePlan.FOOTPRINT.grow(0.6), _rect("driveway").grow(0.2), _rect("front_path").grow(0.2), _rect("porch_deck").grow(0.2), Rect2(-30, 12.3, 80, 4.0)]
 	for p in HousePlan.PROPS:
 		if p["blocks"]:
 			avoid.append((p["rect"] as Rect2).grow(0.3))
+	var extra: Array = tuft_avoid
 	var cols := [0x7d7748, 0x6b6a40, 0x8c8152, 0x59613c, 0x947a46]
 	for k in 2600:
 		var pos := Vector2(_rng.randf_range(area.position.x, area.end.x), _rng.randf_range(area.position.y, area.end.y))
@@ -383,6 +406,14 @@ func _build_tufts() -> void:
 		var c := g.cell_of(Vector3(pos.x - area.position.x, 0.05, pos.y - area.position.y))
 		var ht := 1 + int(_rng.randf() * _rng.randf() * 3.5)
 		var col: int = cols[_rng.randi() % cols.size()]
+		for a in extra:
+			if (a as Rect2).grow(0.08).has_point(pos):
+				skip = true
+				break
+		if skip:
+			if ht >= 2 and _rng.randf() < 0.5:     # the same draws as a drawn tuft
+				_rng.randi()
+			continue
 		for y in ht:
 			g.set_voxel(c.x, 1 + y, c.z, VoxelMat.LEAF, VoxelArt.scale(col, 1.0 + y * 0.08), 0, 0)
 		if ht >= 2 and _rng.randf() < 0.5:
@@ -394,6 +425,8 @@ func _build_tufts() -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.name = "GrassTufts"
 	add_child(mi)
+	_tufts = mi
+	last_tuft_ms = (Time.get_ticks_usec() - t0) / 1000.0
 
 
 # --- roof --------------------------------------------------------------------------

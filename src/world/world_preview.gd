@@ -162,10 +162,10 @@ func _scenario() -> void:
 			build.debug_pointer = Vector2(0.9, 11.05)
 			_place(Vector2(-0.6, 12.9), Vector3(-1.0, 0.5, 10.8), 11.0)
 		"workbench":
-			world.place_object("workbench", Vector2(16.0, 3.25), 3)
-			world.place_object("crate", Vector2(16.25, 1.5), 1)
-			world.place_object("rain_collector", Vector2(16.25, 5.25), 1)
-			_place(Vector2(15.2, 4.6), Vector3(16.0, 0.6, 3.25), 9.0)
+			world.place_object("workbench", Vector2(11.0, 10.25), 2)
+			world.place_object("crate", Vector2(12.5, 10.25), 2)
+			world.place_object("rain_collector", Vector2(9.25, 10.25), 2)
+			_place(Vector2(11.0, 11.4), Vector3(11.0, 0.6, 10.25), 10.0)
 		"blast", "blast_fx":
 			_stone_and_wood()
 			var shots := [[Vector3(-1.5, 1.0, 11.55), 1.6, 24.0], [Vector3(2.5, 1.0, 11.55), 1.6, 24.0]]
