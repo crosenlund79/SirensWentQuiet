@@ -98,7 +98,27 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Out of scope:** structural collapse simulation, multi-floor construction, crafting beyond one scrap → iron example, detailed art, SirenVoxelLibrary assets, exports. No merge to `main`.
 - **Acceptance:** the 20-step vertical slice in `ASSIGNMENT.md` §13, with focused tests, an integrated playthrough and screenshots (especially the city map, enemy behaviours and construction).
 
-## Next approved objective (Experiment 004)
+## Current approved objective: "Make This House a Home" (Experiment 004)
+
+**Status: Approved by the user's message of 2026-11-24 ("SIRENS — Make This House a Home", execution mode: Rapid Delivery); in progress since 2026-11-24 20:30 CET.** Record: `docs/experiment-004/ASSIGNMENT.md`.
+
+- **Scope (one milestone, as the user bundled it):**
+  - destruction lifecycle (intact / damaged / rubble);
+  - live main-menu siege;
+  - northern atmosphere (darker nights, aurora, pines, snow, snowy map, a lit fireplace);
+  - destructible and demolishable furniture and house structures with refunds (full refund for player-built pieces);
+  - electrical lights, switches and a destructible, rebuildable fuse box;
+  - an equipment / quick-access bar with an unarmed pose;
+  - the forest destination and a repairable car as expedition gear;
+  - door fix, door reinforcement, boarded windows and metal doors;
+  - replaceable floors, stairs, an upper floor and basement excavation with a shovel;
+  - sink and fridge interactions, Shift sprint;
+  - persistence;
+  - a **Windows build delivered as a GitHub Actions artifact**: this explicitly approves the export preset and the CI build workflow.
+- **Verification:** basic only (build, launch, new game, systems reachable, no fatal errors, save/load). The user playtests.
+- **Supersedes in practice:** the earlier, not-started Experiment 004 directive below. Its overlapping parts (upper floor, basement, stairs) are delivered here in the player-built form this milestone asks for.
+
+## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
 

@@ -28,6 +28,7 @@ const DEFS := {
 	"shotgun": {"name": "Shotgun", "category": "weapon", "desc": "Pump shotgun: a wide, short-range blast. Slow to reload.", "cap": 1, "slot": "weapon"},
 	"vest": {"name": "Protective vest", "category": "protective", "desc": "Equipped: blows and blasts hurt 35 % less.", "cap": 1, "slot": "body"},
 	"hammer": {"name": "Hammer", "category": "tool", "desc": "Needed to build and repair (kept at home).", "cap": 1, "slot": "tool"},
+	"shovel": {"name": "Shovel", "category": "tool", "desc": "Digs out a basement under the house (kept at home).", "cap": 1, "slot": "tool"},
 	"crowbar": {"name": "Crowbar", "category": "tool", "desc": "Equipped: opens stockrooms and locked doors on expeditions.", "cap": 1, "slot": "tool"},
 	"flashlight": {"name": "Flashlight", "category": "utility", "desc": "Equipped: needed in dark places like the clinic.", "cap": 1, "slot": "utility"},
 	"backpack": {"name": "Backpack", "category": "utility", "desc": "Equipped: carry half as much again from expeditions.", "cap": 1, "slot": "back"},
