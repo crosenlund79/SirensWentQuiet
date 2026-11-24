@@ -860,12 +860,16 @@ func apply_expedition(result: Dictionary) -> Array:
 
 
 ## Like apply_expedition, with what actually happened:
-## {"applied": bool, "events", "added", "left_behind", "consumed", "lost": {id: n}, "damage": float}.
+## {"applied": bool, "events", "added", "left_behind", "consumed", "lost": {id: n},
+##  "damage": float, "damage_taken": float}.
 ## Time passes first; then consumed and lost items are removed (clamped to what
-## is owned), then gains are added up to the caps (the rest is `left_behind`),
-## then damage. Unknown items and non-numeric or negative amounts are ignored.
+## is owned; consumed rounds come from the reserve first, then the magazines),
+## then gains are added up to the caps (the rest is `left_behind`), then
+## damage (`damage` as reported by the trip, `damage_taken` the health actually
+## lost after the vest). Unknown items and non-numeric or negative amounts are
+## ignored.
 func apply_expedition_report(result: Dictionary) -> Dictionary:
-	var out := {"applied": false, "events": [], "added": {}, "left_behind": {}, "consumed": {}, "lost": {}, "damage": 0.0}
+	var out := {"applied": false, "events": [], "added": {}, "left_behind": {}, "consumed": {}, "lost": {}, "damage": 0.0, "damage_taken": 0.0}
 	var rid := str(result.get("id", "")) if result.get("id") != null else ""
 	var applied: Array = run.get("applied_expeditions", [])
 	if dead or rid == "" or rid in applied:
@@ -888,6 +892,11 @@ func apply_expedition_report(result: Dictionary) -> Dictionary:
 			# Unlimited resources: rounds spent on the trip cost nothing (lost tools still go).
 			if key == "consumed" and cheats.get("unlimited", false):
 				continue
+			if key == "consumed" and Items.category(id) == "ammo":
+				var spent := _consume_rounds(str(id), maxi(Inventory.to_count(items[id]), 0))
+				if spent > 0:
+					out[key][str(id)] = int(out[key].get(str(id), 0)) + spent
+				continue
 			var n := mini(Inventory.to_count(items[id]), inventory.count(id))
 			if n > 0 and inventory.remove(id, n):
 				out[key][str(id)] = int(out[key].get(str(id), 0)) + n
@@ -905,7 +914,9 @@ func apply_expedition_report(result: Dictionary) -> Dictionary:
 	var dmg := _finite_or_nan(result.get("damage", 0.0))
 	if is_finite(dmg) and dmg > 0.0:
 		out["damage"] = minf(dmg, 100.0)
+		var before := health
 		damage(out["damage"], "expedition")
+		out["damage_taken"] = before - health
 	var name_text := str(result.get("name", "Expedition")).left(60)
 	_log("%s: %s" % [name_text, str(result.get("summary", "")).left(140)])
 	changed.emit()
@@ -927,7 +938,7 @@ func summary() -> Dictionary:
 	return {
 		"day": day(), "clock": clock_text(), "health": int(ceilf(health)),
 		"days_survived": days_survived(), "invasions_done": int(run.get("invasions_done", 0)),
-		"dead": dead,
+		"dead": dead, "difficulty": difficulty,
 	}
 
 
@@ -937,14 +948,18 @@ func to_dict() -> Dictionary:
 		"hydration": hydration, "energy": energy, "inventory": inventory.to_dict(),
 		"cheats": cheats.duplicate(), "run": run.duplicate(true), "dead": dead, "death_cause": death_cause,
 		"difficulty": difficulty, "equipment": equipment.duplicate(), "weapons": weapons.duplicate(true),
-		"region": region.to_dict(),
+		"active_weapon": active_weapon_slot, "region": region.to_dict(),
 	}
 
 
 ## Restores a state from untrusted data. Returns null (no crash) when the clock,
 ## a stat, the inventory or the run record is missing or of the wrong type, or a
 ## number is NaN/infinite. Out-of-range values are clamped, unknown items
-## dropped, and the run record is sanitised field by field.
+## dropped, and the run record is sanitised field by field. Equipment keeps only
+## owned gear in a slot it fits (each item once); magazines only owned weapons,
+## clamped to their capacity. An Experiment 002 dictionary (no "equipment" and
+## no "weapons") gets the handgun equipped as primary with its magazine filled
+## from the inventory's 9 mm rounds, up to 12; Normal difficulty.
 static func from_dict(d) -> GameState:
 	if typeof(d) != TYPE_DICTIONARY:
 		return null
@@ -957,6 +972,7 @@ static func from_dict(d) -> GameState:
 	if typeof(d.get("inventory")) != TYPE_DICTIONARY or typeof(d.get("run")) != TYPE_DICTIONARY:
 		return null
 	var s := GameState.new()
+	s._quiet = true
 	s.total_minutes = clampf(nums["total_minutes"], T.START_MINUTE, MAX_TOTAL_MINUTES)
 	for k in ["health", "hunger", "hydration", "energy"]:
 		s.set(k, nums[k])
@@ -965,20 +981,58 @@ static func from_dict(d) -> GameState:
 	if typeof(c) != TYPE_DICTIONARY:
 		c = {}
 	s.cheats = {"invulnerable": _flag(c.get("invulnerable")), "unlimited": _flag(c.get("unlimited"))}
-	s.run = _clean_run(d["run"], s.total_minutes)
+	# Experiment 003 fields; an Experiment 002 save has none of them (defaults).
+	var lv = d.get("difficulty", Difficulty.DEFAULT)
+	s.difficulty = Difficulty.valid(lv if typeof(lv) == TYPE_STRING else Difficulty.DEFAULT)
+	s.run = _clean_run(d["run"], s.total_minutes, s.difficulty)
 	s.dead = _flag(d.get("dead")) or (s.health <= 0.0 and not s.cheats["invulnerable"])
 	s.death_cause = str(d.get("death_cause", "")).left(60) if s.dead else ""
-	# Experiment 003 fields; an Experiment 002 save has none of them (defaults).
-	s.difficulty = Difficulty.valid(str(d.get("difficulty", Difficulty.DEFAULT)))
-	var eq = d.get("equipment", {})
-	s.equipment = (eq as Dictionary).duplicate() if typeof(eq) == TYPE_DICTIONARY else {}
-	var wp = d.get("weapons", {})
-	s.weapons = (wp as Dictionary).duplicate(true) if typeof(wp) == TYPE_DICTIONARY else {}
+	if not d.has("equipment") and not d.has("weapons"):
+		s._migrate_from_v1()
+	else:
+		s.equipment = _clean_equipment(d.get("equipment"), s.inventory)
+		s.weapons = _clean_weapons(d.get("weapons"), s.inventory)
+	var aw = d.get("active_weapon", "primary")
+	s.active_weapon_slot = aw if typeof(aw) == TYPE_STRING and aw in Equipment.WEAPON_SLOTS else "primary"
+	s._quiet = false
+	s._sync_equipment(false)   # magazines for owned weapons; marks owned gear as seen (no auto-equip)
 	s.region = RegionState.from_dict(d.get("region", {}))
 	return s
 
 
-static func _clean_run(r: Dictionary, now: float) -> Dictionary:
+## Experiment 002 run: the handgun didn't exist as an item; the rounds were all
+## in the inventory. Equip it and fill its magazine from them (up to 12).
+func _migrate_from_v1() -> void:
+	inventory.add("handgun", 1)
+	equipment = {"primary": "handgun"}
+	var n := mini(WeaponDefs.capacity("handgun"), inventory.count("ammo"))
+	inventory.remove("ammo", n)
+	weapons = {"handgun": {"loaded": n}}
+
+
+static func _clean_equipment(v, inv: Inventory) -> Dictionary:
+	var out := {}
+	if typeof(v) != TYPE_DICTIONARY:
+		return out
+	for slot in Equipment.SLOTS:
+		var id = v.get(slot)
+		if typeof(id) == TYPE_STRING and Equipment.fits(id, slot) and inv.count(id) > 0 and not id in out.values():
+			out[slot] = id
+	return out
+
+
+static func _clean_weapons(v, inv: Inventory) -> Dictionary:
+	var out := {}
+	for id in WeaponDefs.ids():
+		if inv.count(id) <= 0:
+			continue
+		var w = v.get(id) if typeof(v) == TYPE_DICTIONARY else null
+		var n := Inventory.to_count(w.get("loaded", 0)) if typeof(w) == TYPE_DICTIONARY else 0
+		out[id] = {"loaded": clampi(n, 0, WeaponDefs.capacity(id))}
+	return out
+
+
+static func _clean_run(r: Dictionary, now: float, level := Difficulty.DEFAULT) -> Dictionary:
 	var out := r.duplicate(true)   # unknown keys from other modules survive
 	var seed_f := _finite_or_nan(r.get("seed"))
 	out["seed"] = (int(r["seed"]) if typeof(r.get("seed")) == TYPE_INT else (0 if is_nan(seed_f) else int(clampf(seed_f, -2e9, 2e9)))) & 0x7fffffff
@@ -990,9 +1044,9 @@ static func _clean_run(r: Dictionary, now: float) -> Dictionary:
 	out["invasion_forced"] = _flag(r.get("invasion_forced"))
 	var due := _finite_or_nan(r.get("next_invasion_at"))
 	if is_nan(due) or due < 0.0 or due > now + 400.0 * DAY_MIN:
-		due = _invasion_slot_after(now - STALE_INVASION_MIN)
+		due = _invasion_slot_after(now - STALE_INVASION_MIN, level)
 	elif now - due > STALE_INVASION_MIN and not out["invasion_forced"]:
-		due = _invasion_slot_after(now)
+		due = _invasion_slot_after(now, level)
 	out["next_invasion_at"] = due
 	out["expeditions"] = maxi(Inventory.to_count(r.get("expeditions", 0)), 0)
 	out["dawn_collected_day"] = maxi(Inventory.to_count(r.get("dawn_collected_day", 0)), 0)
