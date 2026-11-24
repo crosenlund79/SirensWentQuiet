@@ -1,6 +1,8 @@
 extends RefCounted
 ## Survival pieces for PropKit: door, barricade, crate, rain_collector,
 ## candle, lantern and the wall_ghost preview block. New for Experiment 002.
+## Experiment 003: style "iron" for doors (a reinforced door: riveted plate,
+## straps, steel frame) and barricades (steel posts and flat bars).
 ## The builders other than `door` use the PropKit builder frame (front toward
 ## +z, turned to -Z by PropKit). `door` is built directly in the canonical
 ## frame because its "Leaf" is a separate node: the leaf's origin is the
@@ -22,7 +24,10 @@ const LEAF_T := 0.04
 static func build(mm: PropMesh, type: String, w: float, h: float, d: float, rng: RandomNumberGenerator, damage: float, style: String) -> bool:
 	match type:
 		"barricade":
-			_barricade(mm, w, h, d, rng, damage)
+			if style == "iron":
+				_iron_barricade(mm, w, h, d, rng, damage)
+			else:
+				_barricade(mm, w, h, d, rng, damage)
 		"crate":
 			_crate(mm, w, h, d, rng, damage)
 		"rain_collector":
@@ -45,12 +50,16 @@ static func build(mm: PropMesh, type: String, w: float, h: float, d: float, rng:
 ## +X, closed), "hinge": leaf position in the door's frame}. The frame fits
 ## the w x h opening and is d + 0.03 deep (a 15 mm lip on each wall face).
 static func door(w: float, h: float, d: float, rng: RandomNumberGenerator, damage: float, style: String) -> Dictionary:
-	var plank := style == "plank"
+	var iron := style == "iron"
+	var plank := style == "plank" or iron
 	var fr := PropMesh.new()
 	var fd := d + 0.03
 	var x := w * 0.5
-	# jambs and head (trim colour; grubby where hands push)
-	fr.set_mat(M.L_PLAIN if not plank else M.L_ROUGH_WOOD, TRIM if not plank else PLANKS[2], 0.08)
+	# jambs and head (trim colour; grubby where hands push; steel angle for iron)
+	if iron:
+		fr.set_mat(M.L_METAL, Color(0.27, 0.28, 0.29), 0.3)
+	else:
+		fr.set_mat(M.L_PLAIN if not plank else M.L_ROUGH_WOOD, TRIM if not plank else PLANKS[2], 0.08)
 	fr.grain_v = true
 	fr.chamfer_box(Vector3(-x, 0, -fd * 0.5), Vector3(-x + JAMB, h, fd * 0.5), 0.006, false)
 	fr.chamfer_box(Vector3(x - JAMB, 0, -fd * 0.5), Vector3(x, h, fd * 0.5), 0.006, false)
@@ -81,7 +90,9 @@ static func door(w: float, h: float, d: float, rng: RandomNumberGenerator, damag
 	if damage >= 0.95:
 		# the top hinge gave: the leaf sags a little
 		lf.xf = Transform3D(Basis(Vector3.BACK, -0.025), Vector3.ZERO)
-	if plank:
+	if iron:
+		_iron_leaf(lf, lw, top, rng, damage)
+	elif plank:
 		_plank_leaf(lf, lw, top, rng, damage)
 	else:
 		_panel_leaf(lf, lw, top, rng, damage)
@@ -208,6 +219,59 @@ static func _plank_leaf(mm: PropMesh, lw: float, top: float, rng: RandomNumberGe
 	mm.polyline([Vector3(lw - 0.09, 1.08, pf - 0.002), Vector3(lw - 0.11, 1.0, pf - 0.04), Vector3(lw - 0.09, 0.92, pf - 0.002)], 0.008, 4)
 	mm.set_mat(M.L_METAL, Color(0.4, 0.4, 0.4))
 	mm.box(Vector3(lw - 0.2, 0.98, t), Vector3(lw - 0.03, 1.02, t + 0.025))
+
+
+## A reinforced door: a board core faced with two riveted steel plates, three
+## iron straps across, a heavy pull. Damage dents and scorches the plate,
+## then peels a corner back to the boards.
+static func _iron_leaf(mm: PropMesh, lw: float, top: float, rng: RandomNumberGenerator, damage: float) -> void:
+	var t := LEAF_T * 0.5
+	var y0 := 0.01
+	# board core (seen from the back) with two battens
+	mm.grain_v = true
+	mm.set_mat(M.L_ROUGH_WOOD, PLANKS[2], 0.2)
+	mm.box(Vector3(0, y0, -t + 0.002), Vector3(lw, top, t))
+	mm.grain_v = false
+	mm.set_mat(M.L_ROUGH_WOOD, PLANKS[0].darkened(0.2), 0.2)
+	for by in [0.35, top - 0.4]:
+		mm.box(Vector3(0.04, by - 0.05, t), Vector3(lw - 0.04, by + 0.05, t + 0.018))
+	# front plates
+	var z0 := -t - 0.008
+	var z1 := -t + 0.002
+	var mid := top * 0.52
+	var plate := Color(0.4, 0.42, 0.43).darkened(rng.randf_range(0.0, 0.08))
+	mm.set_mat(M.L_METAL, plate, 0.3 + damage * 0.35)
+	var peel := damage >= 0.7
+	mm.box(Vector3(0.012, y0 + 0.01, z0), Vector3(lw - 0.012, mid - 0.004, z1))
+	if peel:
+		mm.box(Vector3(0.012, mid + 0.004, z0), Vector3(lw * 0.55, top - 0.012, z1))
+		mm.box(Vector3(lw * 0.55, mid + 0.004, z0), Vector3(lw - 0.012, top - 0.32, z1))
+		# the torn corner bent forward, boards showing behind it
+		mm.set_mat(M.L_METAL, plate.darkened(0.15), 0.6)
+		mm.obox(Transform3D(Basis(Vector3.RIGHT, -0.55), Vector3(lw * 0.775, top - 0.17, z0 - 0.07)), Vector3(lw * 0.43, 0.3, 0.008))
+	else:
+		mm.box(Vector3(0.012, mid + 0.004, z0), Vector3(lw - 0.012, top - 0.012, z1))
+	# straps and rivets
+	var straps := [0.22, mid, top - 0.26]
+	mm.set_mat(M.L_RUST, Color(0.27, 0.25, 0.23), 0.45)
+	for y in straps:
+		mm.box(Vector3(-0.004, y - 0.035, z0 - 0.006), Vector3(lw + 0.004, y + 0.035, z0))
+	mm.set_mat(M.L_METAL, Color(0.55, 0.55, 0.52), 0.25)
+	var n := maxi(3, int(lw / 0.13))
+	for y in straps:
+		for i in n:
+			var rx := 0.05 + i * (lw - 0.1) / float(n - 1)
+			mm.box(Vector3(rx - 0.01, y - 0.01, z0 - 0.012), Vector3(rx + 0.01, y + 0.01, z0 - 0.006))
+	# dents and soot
+	if damage >= 0.3:
+		mm.set_mat(M.L_SCREEN, Color(0.08, 0.075, 0.07))
+		for i in int(damage * 6.0):
+			var dx := rng.randf_range(0.08, lw - 0.16)
+			var dy := rng.randf_range(0.3, top - 0.4)
+			mm.box(Vector3(dx, dy, z0 - 0.001), Vector3(dx + rng.randf_range(0.04, 0.1), dy + rng.randf_range(0.03, 0.08), z0))
+	# a heavy D pull
+	mm.set_mat(M.L_METAL, Color(0.2, 0.2, 0.21), 0.3)
+	mm.polyline([Vector3(lw - 0.09, 1.12, z0 - 0.002), Vector3(lw - 0.09, 1.1, z0 - 0.05), Vector3(lw - 0.09, 0.94, z0 - 0.05), Vector3(lw - 0.09, 0.92, z0 - 0.002)], 0.011, 5)
 
 
 ## Jagged remains of a knocked-out panel: shards along the edges of the opening.
@@ -348,6 +412,56 @@ static func _barricade(mm: PropMesh, w: float, h: float, d: float, rng: RandomNu
 		var blen := (w - 0.06 - bw * sin(ang)) / cos(ang)
 		mm.set_mat(M.L_ROUGH_WOOD, PLANKS[1], 0.2)
 		mm.obox(Transform3D(Basis(Vector3.BACK, ang), Vector3(0.0, h * 0.5, zf + t * 1.5 + 0.003)), Vector3(blen, bw, t))
+
+
+## An iron barricade, front toward +z: two square steel posts on foot plates,
+## flat bars bolted across with gaps (bullets pass), a diagonal brace. Damage
+## bends bars out of line, then tears them off (one lies at the foot).
+static func _iron_barricade(mm: PropMesh, w: float, h: float, d: float, rng: RandomNumberGenerator, damage: float) -> void:
+	var post := minf(0.06, d * 0.4)
+	var px := w * 0.5 - post * 0.5
+	var zf := post * 0.5
+	var steel := Color(0.33, 0.35, 0.36)
+	mm.set_mat(M.L_METAL, steel, 0.35)
+	for sx in [-1.0, 1.0]:
+		mm.box(Vector3(sx * px - post * 0.5, 0, -post * 0.5), Vector3(sx * px + post * 0.5, h, post * 0.5))
+		# foot plate and a gusset behind
+		mm.box(Vector3(sx * px - 0.08, 0, -d * 0.5), Vector3(sx * px + 0.08, 0.012, d * 0.5))
+		mm.obox(Transform3D(Basis(Vector3.RIGHT, -0.7), Vector3(sx * px, 0.12, -post * 0.5 - 0.07)), Vector3(0.012, 0.2, 0.012))
+	var n := clampi(int(round(h / 0.22)), 4, 9)
+	var pitch := h / n
+	var order := range(n)
+	_shuffle(order, rng)
+	var fallen := false
+	for i in n:
+		var rank: int = order.find(i)
+		var yc := pitch * (i + 0.5)
+		var bh := minf(0.075, pitch * 0.45)
+		var bar := Color(0.38, 0.4, 0.41) if i % 2 == 0 else Color(0.45, 0.33, 0.24)    # some rusted
+		mm.set_mat(M.L_RUST if i % 2 == 1 else M.L_METAL, bar.darkened(rng.randf_range(0.0, 0.1)), rng.randf_range(0.2, 0.5))
+		var gone_at := 0.45 + 0.55 * rank / n
+		var bent_at := 0.15 + 0.5 * rank / n
+		if damage >= gone_at:
+			# torn off: a stub bolted to one post, the bar on the ground (once)
+			mm.box(Vector3(-px - post * 0.5, yc - bh * 0.5, zf), Vector3(-px + 0.14, yc + bh * 0.5, zf + 0.012))
+			if not fallen:
+				fallen = true
+				mm.obox(Transform3D(Basis(Vector3.UP, rng.randf_range(-0.2, 0.2)), Vector3(0.0, 0.008, zf + 0.25)), Vector3(w * 0.8, 0.012, bh))
+			continue
+		var tilt := 0.0
+		if damage >= bent_at:
+			tilt = rng.randf_range(0.05, 0.12) * (1.0 if rng.randf() < 0.5 else -1.0)
+		mm.obox(Transform3D(Basis(Vector3.BACK, tilt), Vector3(0, yc, zf + 0.006)), Vector3(w - 0.01, bh, 0.012))
+		# bolt heads at the posts
+		mm.set_mat(M.L_METAL, Color(0.55, 0.55, 0.52), 0.2)
+		for sx in [-1.0, 1.0]:
+			mm.box(Vector3(sx * px - 0.012, yc - 0.012, zf + 0.012), Vector3(sx * px + 0.012, yc + 0.012, zf + 0.022))
+	if damage < 0.8:
+		mm.set_mat(M.L_METAL, steel.darkened(0.1), 0.4)
+		var dx := w - 0.12
+		var dy := h - 0.4
+		var ang := atan2(dy, dx)
+		mm.obox(Transform3D(Basis(Vector3.BACK, ang), Vector3(0.0, h * 0.5, zf + 0.026)), Vector3(sqrt(dx * dx + dy * dy) - 0.1, 0.05, 0.01))
 
 
 ## One piece of a plank in a plank-local frame (x along the plank), from x0 to

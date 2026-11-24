@@ -47,7 +47,7 @@ func test_placement_validity_and_refusal_reasons() -> void:
 	(setup[1] as GameState).inventory.add("scrap", 1)
 	check_eq(_reason(b, "door", Vector2(14.0, 3.5)), "", "a door into a solid wall")
 	check_eq(_reason(b, "door", Vector2(4.5, 9.0)), "There's already something in this opening.", "a door where one hangs")
-	check_eq(_reason(b, "upgrade", Vector2(1.5, 0.0)), "Windows can't be sheathed.", "sheathing a window")
+	check_eq(_reason(b, "upgrade", Vector2(1.5, 0.0)), "Windows can't be plated.", "plating a window")
 	check_eq(_reason(b, "repair", Vector2(8.5, 9.0)), "This wall is intact.", "repairing an intact wall")
 	check_eq(_reason(b, "demolish", Vector2(2.0, 11.0)), "Nothing to demolish here.", "demolishing nothing")
 	# a run along one axis
@@ -141,7 +141,7 @@ func test_upgrade_makes_walls_harder() -> void:
 	var c := w.grid.cell_of(Vector3(4.5, 1.2, -0.1))
 	check_eq(w.grid.get_mat(c.x, c.y, c.z), VoxelMat.METAL_SHEET, "the outer skin is sheet metal")
 	check(VoxelMat.HARDNESS[VoxelMat.METAL_SHEET] > VoxelMat.HARDNESS[VoxelMat.SIDING], "harder than siding")
-	check_eq(_reason(b, "upgrade", Vector2(4.5, -0.05)), "Already sheathed.", "only once")
+	check_eq(_reason(b, "upgrade", Vector2(4.5, -0.05)), "Already plated with iron.", "only once")
 	var plain := 0
 	var sheet := 0
 	for k in 3:

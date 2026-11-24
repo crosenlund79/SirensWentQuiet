@@ -1,13 +1,16 @@
 class_name BuildMode
 extends Node3D
-## Construction mode (SPEC §6, §7.4). Owner: V.
+## Construction mode (SPEC-002 §6, §7.4; SPEC-003 §4).
 ##
-## Pieces (keys 1-6): wooden wall (click-drag runs of 1 m segments on integer
-## plan lines), barricade, door, doorway, storage crate, rain collector.
-## Tools (7-9): repair, upgrade (metal sheathing), demolish. A ghost preview is
-## green when valid, red with a reason when not. Costs go through
-## GameState.pay (the unlimited cheat makes them free); building needs a
-## hammer. Every change keeps a way out (the exit rule).
+## Palette slots (BuildPieces): 1 walls (wood | stone; click-drag runs of 1 m
+## segments on integer plan lines), 2 barricades (wood | iron), 3 doors (wood
+## | reinforced), 4 doorway, 5 storage crate, 6 equipment (rain collector |
+## workbench), 7 repair, 8 iron plating, 9 demolish, 0 stone foundation
+## (runs of 1 m tiles). Pressing a slot's key again cycles its material
+## variants. A ghost preview is green when valid, red with a reason when not.
+## Costs (wood, stone, iron, nails, scrap) go through GameState.pay (the
+## unlimited cheat makes them free); building needs a hammer. Every change
+## keeps a way out (the exit rule). Stone walls need a foundation.
 ##
 ## Input while active (handles_input() is true, so the game doesn't fire):
 ## LMB place / apply (drag for runs), RMB (`secondary`) cancels a drag,
@@ -23,6 +26,11 @@ const GHOST_OK := Color(0.35, 1.0, 0.5, 0.36)
 const GHOST_BAD := Color(1.0, 0.28, 0.22, 0.4)
 const GHOST_TOOL := {"repair": Color(1.0, 0.72, 0.3, 0.32), "upgrade": Color(0.55, 0.75, 1.0, 0.34), "demolish": Color(1.0, 0.45, 0.25, 0.34)}
 const SEAL_REASON := "That would seal the last way out."
+const FOUNDATION_REASON := "Stone walls need a foundation: the house floor or a stone foundation."
+## Pieces placed by dragging along a line, and pieces that follow the ground
+## point under the mouse (the rest follow the aimed surface).
+const RUN_PIECES := ["wall", "stone_wall", "barricade", "iron_barricade", "foundation"]
+const FREE_PIECES := ["crate", "rain_collector", "workbench"]
 
 var active := false
 var world: HouseWorld
@@ -45,6 +53,7 @@ var _ghost_key := ""
 var _eval_key := ""
 var _eval_age := 0.0
 var _mats := {}
+var _slot_pick := {}            # palette slot -> LIST index last used in it
 
 
 func setup(w: HouseWorld, s: GameState, cam: Camera3D, p: Node3D) -> void:
@@ -66,7 +75,8 @@ func _ready() -> void:
 	add_child(_ghost_root)
 	palette = BuildPalette.new()
 	palette.visible = false
-	palette.slot_pressed.connect(select)
+	palette.slot_pressed.connect(select_slot)
+	palette.variant_pressed.connect(select)
 	add_child(palette)
 
 
@@ -98,6 +108,7 @@ func select(i: int) -> void:
 	if i < 0 or i >= BuildPieces.LIST.size():
 		return
 	piece = i
+	_slot_pick[BuildPieces.slot_of(i)] = i
 	_dragging = false
 	_eval_key = ""
 	_ghost_key = ""
@@ -107,6 +118,22 @@ func select(i: int) -> void:
 
 func select_id(id: String) -> void:
 	select(BuildPieces.index_of(id))
+
+
+## A palette slot (0-9; keys 1-9 and 0): its last-used variant, or the next
+## variant when the slot is already selected.
+func select_slot(slot: int) -> void:
+	var v := BuildPieces.variants(slot)
+	if v.is_empty():
+		return
+	if BuildPieces.slot_of(piece) == slot:
+		select(v[(v.find(piece) + 1) % v.size()])
+	else:
+		select(int(_slot_pick.get(slot, v[0])))
+
+
+func slot() -> int:
+	return BuildPieces.slot_of(piece)
 
 
 func rotate_piece() -> void:
@@ -131,7 +158,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k: int = (event as InputEventKey).keycode
 		if k >= KEY_1 and k <= KEY_9:
-			select(k - KEY_1)
+			select_slot(k - KEY_1)
+			get_viewport().set_input_as_handled()
+			return
+		if k == KEY_0:
+			select_slot(9)
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("build_rotate"):
@@ -163,7 +194,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _is_run_piece() -> bool:
-	return piece_id() in ["wall", "barricade"]
+	return piece_id() in RUN_PIECES
 
 
 ## Ground point under the mouse for free placement; the aimed surface (walls,
@@ -174,7 +205,7 @@ func _pointer() -> Vector2:
 	var mp := get_viewport().get_mouse_position()
 	var o := camera.project_ray_origin(mp)
 	var d := camera.project_ray_normal(mp)
-	if piece_id() in ["wall", "barricade", "crate", "rain_collector"]:
+	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES:
 		if d.y > -0.001:
 			return Vector2.INF
 		var g := o + d * (-o.y / d.y)
@@ -202,8 +233,8 @@ func _process(delta: float) -> void:
 
 func _target_key(p: Vector2, from: Vector2) -> String:
 	var id := piece_id()
-	if id in ["crate", "rain_collector"]:
-		return "%s|%s|%d" % [id, str(_snap_pos(id, p, rot)), rot]
+	if id in FREE_PIECES:
+		return "%s|%s|%d" % [id, str(_snap_pos(_kind(), p, rot)), rot]
 	var s := HouseWorld.nearest_seg(p)
 	if from != Vector2.INF and from.distance_to(p) > 0.35:
 		return "%s|%s" % [id, str(_run(from, p))]
@@ -225,17 +256,20 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 		r["reason"] = "You need a hammer."
 		return r
 	match id:
-		"wall", "barricade":
+		"wall", "stone_wall", "barricade", "iron_barricade", "foundation":
 			var segs := [HouseWorld.nearest_seg(p)]
 			if from != Vector2.INF and from.distance_to(p) > 0.35:
 				segs = _run(from, p)
-			_eval_run(r, id, segs)
-		"door":
+			if id == "foundation":
+				_eval_foundation(r, segs)
+			else:
+				_eval_run(r, id, segs)
+		"door", "iron_door":
 			_eval_door(r, HouseWorld.nearest_seg(p))
 		"doorway":
 			_eval_doorway(r, HouseWorld.nearest_seg(p))
-		"crate", "rain_collector":
-			_eval_object(r, id, _snap_pos(id, p, rot))
+		"crate", "rain_collector", "workbench":
+			_eval_object(r, _kind(), _snap_pos(_kind(), p, rot))
 		"repair":
 			_eval_repair(r, p)
 		"upgrade":
@@ -246,6 +280,15 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 		r["reason"] = "Needs %s." % BuildPieces.cost_text(r["cost"])
 	r["ok"] = r["reason"] == ""
 	return r
+
+
+## WorldObject kind and material of the selected piece ("" for walls and tools).
+func _kind() -> String:
+	return str(BuildPieces.LIST[piece].get("kind", ""))
+
+
+func _mat() -> String:
+	return str(BuildPieces.LIST[piece].get("mat", "wood"))
 
 
 func state_can_pay(cost: Dictionary) -> bool:
@@ -284,7 +327,8 @@ func _eval_run(r: Dictionary, id: String, segs: Array) -> void:
 			r["bad"].append(s)
 			if r["reason"] == "":
 				r["reason"] = why
-		var cells := world.nav.cells_in_rect(HouseWorld.seg_rect(s, 0.125, 0.125) if id == "wall" else WorldObject.footprint_of("barricade", HouseWorld.seg_center(s), world.seg_rot(s)))
+		var is_wall := id == "wall" or id == "stone_wall"
+		var cells := world.nav.cells_in_rect(HouseWorld.seg_rect(s, 0.125, 0.125) if is_wall else WorldObject.footprint_of("barricade", HouseWorld.seg_center(s), world.seg_rot(s)))
 		for c in cells:
 			extra[c] = GridNav.WALL
 	if r["reason"] == "" and not world.exit_path_exists(extra):
@@ -293,21 +337,48 @@ func _eval_run(r: Dictionary, id: String, segs: Array) -> void:
 
 
 func _check_line_piece(id: String, s: Vector3i) -> String:
-	var rect := HouseWorld.seg_rect(s, 0.1)
+	var rect := HouseWorld.seg_rect(s, HouseWorld.STONE_HALF if id == "stone_wall" else 0.1)
 	if not HouseWorld.LOT.encloses(rect):
 		return "Outside the lot: the fog starts there."
 	var info := world.section_info(s)
 	if info["glass"]:
 		return "There's a window here."
 	if info["coverage"] >= 0.3:
-		return "There's already a wall here." if id == "wall" else "There's a wall here."
+		return "There's already a wall here." if id == "wall" or id == "stone_wall" else "There's a wall here."
 	if not world.objects_in(HouseWorld.seg_rect(s, 0.12)).is_empty():
 		return "Something is already standing here."
 	if world.furniture_in(rect):
 		return "Furniture is in the way."
 	if world.bodies_in(rect.grow(0.05)):
 		return "Someone is standing there."
+	if id == "stone_wall" and not info["founded"]:
+		return FOUNDATION_REASON
 	return ""
+
+
+## Stone foundation tiles (1 m x 1 m on each segment): on open ground in the
+## lot, not under walls, furniture or objects, and not where there is a floor.
+func _eval_foundation(r: Dictionary, segs: Array) -> void:
+	r["segs"] = segs
+	r["cost"] = BuildPieces.times(BuildPieces.LIST[piece]["cost"], segs.size())
+	r["bad"] = []
+	for s in segs:
+		var rect := HouseWorld.seg_rect(s, HouseWorld.FOUNDATION_HALF)
+		var why := ""
+		if not HouseWorld.LOT.encloses(rect):
+			why = "Outside the lot: the fog starts there."
+		elif world.floor_coverage(s) >= 0.5:
+			why = "There's already a floor here."
+		elif world.design.any_struct_in(rect.position, rect.end, VoxelHouse.BASE_ROW, VoxelHouse.TOP_ROW):
+			why = "There's a wall in the way."
+		elif world.furniture_in(rect.grow(-0.05)):
+			why = "Something is in the way."
+		elif not world.objects_in(rect.grow(-0.05)).is_empty():
+			why = "Something is already standing here."
+		if why != "":
+			r["bad"].append(s)
+			if r["reason"] == "":
+				r["reason"] = why
 
 
 func _eval_door(r: Dictionary, s: Vector3i) -> void:
@@ -354,6 +425,7 @@ func _eval_object(r: Dictionary, id: String, pos: Vector2) -> void:
 	r["pos"] = pos
 	r["rot"] = rot
 	r["cost"] = BuildPieces.LIST[piece]["cost"]
+	r["kind"] = id
 	var fp := WorldObject.footprint_of(id, pos, rot)
 	if not HouseWorld.LOT.encloses(fp):
 		r["reason"] = "Outside the lot: the fog starts there."
@@ -379,8 +451,8 @@ func _eval_repair(r: Dictionary, p: Vector2) -> void:
 	if o != null:
 		r["object"] = o
 		if o.hp >= o.max_hp:
-			r["reason"] = "The %s is in good shape." % WorldObject.DEFS[o.kind]["name"].to_lower()
-		r["cost"] = BuildPieces.object_repair_cost(o.kind, o.hp, o.max_hp)
+			r["reason"] = "The %s is in good shape." % o.display_name().to_lower()
+		r["cost"] = BuildPieces.object_repair_cost(o.kind, o.hp, o.max_hp, o.mat)
 		return
 	var s := HouseWorld.nearest_seg(p)
 	r["segs"] = [s]
@@ -392,7 +464,8 @@ func _eval_repair(r: Dictionary, p: Vector2) -> void:
 	if missing <= 0:
 		r["reason"] = "This wall is intact."
 		return
-	r["cost"] = BuildPieces.section_repair_cost(missing)
+	r["missing_by"] = world.section_missing_by(s)
+	r["cost"] = BuildPieces.section_repair_cost_by(r["missing_by"])
 	if world.bodies_in(HouseWorld.seg_rect(s, 0.25, 0.1)):
 		r["reason"] = "Someone is standing in the wall."
 
@@ -404,27 +477,38 @@ func _eval_upgrade(r: Dictionary, s: Vector3i) -> void:
 	if not info["exists"] or not info["wall"]:
 		r["reason"] = "Aim at a wall."
 	elif info["glass"]:
-		r["reason"] = "Windows can't be sheathed."
+		r["reason"] = "Windows can't be plated."
 	elif info["upgraded"]:
-		r["reason"] = "Already sheathed."
+		r["reason"] = "Already plated with iron."
 
 
 func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 	var o := world.object_at(p, 0.2)
 	if o != null:
 		r["object"] = o
-		r["refund"] = BuildPieces.refund(BuildPieces.OBJECT_COST.get(o.kind, {})) if o.built else {}
+		r["refund"] = BuildPieces.refund(BuildPieces.object_cost(o.kind, o.mat)) if o.built else {}
 		return
 	var s := HouseWorld.nearest_seg(p)
 	r["segs"] = [s]
 	if world.built.has(s):
-		r["refund"] = BuildPieces.refund(BuildPieces.WALL_COST)
+		r["refund"] = BuildPieces.refund(BuildPieces.wall_cost(world.sections.get(s, {}).get("material", "wood")))
 		return
 	var info := world.section_info(s)
 	if info["exists"] and info["wall"]:
 		r["opening"] = true
 		if world.bodies_in(HouseWorld.seg_rect(s, 0.2)):
 			r["reason"] = "Someone is standing there."
+		return
+	var f := world.foundation_at(p)
+	if f.x >= 0:
+		r["segs"] = [f]
+		r["foundation"] = true
+		r["refund"] = BuildPieces.refund(BuildPieces.FOUNDATION_COST)
+		var tile := HouseWorld.seg_rect(f, HouseWorld.FOUNDATION_HALF)
+		for b in world.built:
+			if world.sections.get(b, {}).get("material", "") == "stone" and HouseWorld.seg_rect(b, 0.15).intersects(tile):
+				r["reason"] = "Take the stone wall down first."
+				break
 		return
 	r["reason"] = "Nothing to demolish here."
 
@@ -446,51 +530,66 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 	var at := _where(r)
 	var text := ""
 	match r["piece"]:
-		"wall":
-			world.build_walls(r["segs"])
-			text = "Built %d m of wall (%s)." % [r["segs"].size(), BuildPieces.cost_text(r["cost"])]
+		"wall", "stone_wall":
+			var stone: bool = r["piece"] == "stone_wall"
+			world.build_walls(r["segs"], "stone" if stone else "wood")
+			text = "Built %d m of %s wall (%s)." % [r["segs"].size(), "stone" if stone else "wooden", BuildPieces.cost_text(r["cost"])]
 			Sfx.play("build/place", at)
 			Sfx.play("build/hammer", at)
-		"barricade":
+		"foundation":
+			world.build_foundation(r["segs"])
+			text = "Laid %d m² of stone foundation (%s)." % [r["segs"].size(), BuildPieces.cost_text(r["cost"])]
+			Sfx.play("build/place", at)
+		"barricade", "iron_barricade":
 			for s in r["segs"]:
-				world.place_object("barricade", HouseWorld.seg_center(s), world.seg_rot(s))
-			text = "Barricade up." if r["segs"].size() == 1 else "%d m of barricades up." % r["segs"].size()
+				world.place_object("barricade", HouseWorld.seg_center(s), world.seg_rot(s), true, _mat())
+			var bname := "Iron barricade" if _mat() == "iron" else "Barricade"
+			text = "%s up." % bname if r["segs"].size() == 1 else "%d m of %ss up." % [r["segs"].size(), bname.to_lower()]
 			Sfx.play("build/place", at)
-			Sfx.play("build/hammer", at)
-		"door":
+			Sfx.play("build/upgrade" if _mat() == "iron" else "build/hammer", at)
+		"door", "iron_door":
 			var s: Vector3i = r["segs"][0]
 			if r.get("cut", false):
 				world.cut_opening(s)
-			world.place_object("door", HouseWorld.seg_center(s), world.seg_rot(s))
-			text = "Door hung. E opens and closes it."
+			world.place_object("door", HouseWorld.seg_center(s), world.seg_rot(s), true, _mat())
+			text = ("Reinforced door" if _mat() == "iron" else "Door") + " hung. E opens and closes it."
 			Sfx.play("build/place", at)
-			Sfx.play("build/hammer", at)
+			Sfx.play("build/upgrade" if _mat() == "iron" else "build/hammer", at)
 		"doorway":
 			world.cut_opening(r["segs"][0])
 			text = "Doorway cut."
 			Sfx.play("build/demolish", at)
-		"crate", "rain_collector":
-			world.place_object(r["piece"], r["pos"], r["rot"])
-			text = "Storage crate built: room for more materials." if r["piece"] == "crate" else "Rain collector set up: a bottle of water every dawn."
+		"crate", "rain_collector", "workbench":
+			world.place_object(r["kind"], r["pos"], r["rot"])
+			match r["piece"]:
+				"crate":
+					text = "Storage crate built: room for more materials."
+				"rain_collector":
+					text = "Rain collector set up: a bottle of water every dawn."
+				_:
+					text = "Workbench set up: E turns 3 scrap into 1 iron."
 			Sfx.play("build/place", at)
 		"repair":
 			if r["object"] != null:
 				world.repair_object(r["object"])
-				text = "%s repaired (%s)." % [WorldObject.DEFS[r["object"].kind]["name"], BuildPieces.cost_text(r["cost"])]
+				text = "%s repaired (%s)." % [r["object"].display_name(), BuildPieces.cost_text(r["cost"])]
 			else:
 				var n := world.repair_section(r["segs"][0])
 				text = "Wall repaired: %d voxels (%s)." % [n, BuildPieces.cost_text(r["cost"])]
 			Sfx.play("build/hammer", at)
 		"upgrade":
 			world.upgrade_section(r["segs"][0])
-			text = "Sheathed in scrap metal (%s)." % BuildPieces.cost_text(r["cost"])
+			text = "Plated with iron (%s)." % BuildPieces.cost_text(r["cost"])
 			Sfx.play("build/upgrade", at)
 		"demolish":
 			var refund: Dictionary = r.get("refund", {})
 			if r["object"] != null:
-				var name: String = WorldObject.DEFS[r["object"].kind]["name"]
+				var name: String = r["object"].display_name()
 				world.remove_object(r["object"])
 				text = "%s taken down." % name
+			elif r.get("foundation", false):
+				world.remove_foundation(r["segs"][0])
+				text = "Foundation taken up."
 			elif r.get("opening", false):
 				world.cut_opening(r["segs"][0], true)
 				text = "Wall section knocked out."
@@ -546,11 +645,12 @@ func _ghost_material(c: Color) -> StandardMaterial3D:
 
 func _show_ghost(r: Dictionary) -> void:
 	var id: String = r["piece"]
-	var items := []   # [type, size, position, yaw, colour]
+	var items := []   # [type, size, position, yaw, colour, style]
 	var t := tool()
 	var col_ok: Color = GHOST_TOOL.get(t, GHOST_OK)
+	var style := "iron" if _mat() == "iron" else ""
 	match id:
-		"wall", "barricade", "door", "doorway":
+		"wall", "stone_wall", "barricade", "iron_barricade", "door", "iron_door", "doorway", "foundation":
 			for s in r["segs"]:
 				var bad: bool = not r["ok"] and (r.get("bad", []).has(s) or not r.has("bad"))
 				var c := HouseWorld.seg_center(s)
@@ -558,39 +658,47 @@ func _show_ghost(r: Dictionary) -> void:
 				var type := "wall_ghost"
 				var size := Vector3(1.0, 2.6, 0.2)
 				match id:
-					"barricade":
+					"stone_wall":
+						size = Vector3(1.0, 2.6, 0.3)
+					"foundation":
+						size = Vector3(1.0, 0.06, 0.98)
+					"barricade", "iron_barricade":
 						type = "barricade"
 						size = WorldObject.DEFS["barricade"]["size"]
 						yaw = WorldObject.YAW[world.seg_rot(s)]
-					"door":
+					"door", "iron_door":
 						type = "door"
 						size = WorldObject.DEFS["door"]["size"]
 						yaw = WorldObject.YAW[world.seg_rot(s)]
 					"doorway":
 						size = Vector3(1.0, 2.1, 0.42)
-				items.append([type, size, Vector3(c.x, 0, c.y), yaw, GHOST_BAD if bad else col_ok])
-		"crate", "rain_collector":
+				items.append([type, size, Vector3(c.x, 0, c.y), yaw, GHOST_BAD if bad else col_ok, style])
+		"crate", "rain_collector", "workbench":
 			if r["pos"] != Vector2.INF:
-				items.append([id, WorldObject.DEFS[id]["size"], Vector3(r["pos"].x, 0, r["pos"].y), WorldObject.YAW[rot], col_ok if r["ok"] else GHOST_BAD])
+				items.append([_kind(), WorldObject.DEFS[_kind()]["size"], Vector3(r["pos"].x, 0, r["pos"].y), WorldObject.YAW[rot], col_ok if r["ok"] else GHOST_BAD, ""])
 		_:
 			var o: WorldObject = r["object"]
 			if o != null:
 				var s: Vector3 = WorldObject.DEFS[o.kind]["size"]
-				items.append(["wall_ghost", s + Vector3(0.12, 0.08, 0.12), Vector3(o.pos.x, 0, o.pos.y), WorldObject.YAW[o.rot], col_ok if r["ok"] else GHOST_BAD])
+				items.append(["wall_ghost", s + Vector3(0.12, 0.08, 0.12), Vector3(o.pos.x, 0, o.pos.y), WorldObject.YAW[o.rot], col_ok if r["ok"] else GHOST_BAD, ""])
+			elif r.get("foundation", false):
+				var s: Vector3i = r["segs"][0]
+				var c := HouseWorld.seg_center(s)
+				items.append(["wall_ghost", Vector3(1.04, 0.1, 1.02), Vector3(c.x, 0, c.y), 0.0 if s.x == 0 else PI * 0.5, col_ok if r["ok"] else GHOST_BAD, ""])
 			elif not r["segs"].is_empty():
 				var s: Vector3i = r["segs"][0]
 				var c := HouseWorld.seg_center(s)
-				items.append(["wall_ghost", Vector3(1.04, 2.68, 0.44), Vector3(c.x, 0, c.y), 0.0 if s.x == 0 else PI * 0.5, col_ok if r["ok"] else GHOST_BAD])
+				items.append(["wall_ghost", Vector3(1.04, 2.68, 0.44), Vector3(c.x, 0, c.y), 0.0 if s.x == 0 else PI * 0.5, col_ok if r["ok"] else GHOST_BAD, ""])
 	var key := ""
 	for it in items:
-		key += "%s%s;" % [it[0], str(it[1])]
+		key += "%s%s%s;" % [it[0], str(it[1]), it[5]]
 	if key != _ghost_key:
 		_ghost_key = key
 		for g in _ghosts:
 			g.queue_free()
 		_ghosts.clear()
 		for it in items:
-			var g := PropKit.make(it[0], it[1], {"facing": "N", "seed": 1})
+			var g := PropKit.make(it[0], it[1], {"facing": "N", "seed": 1, "style": it[5]})
 			for gi in g.find_children("*", "GeometryInstance3D", true, false):
 				(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			_ghost_root.add_child(g)
@@ -612,11 +720,11 @@ func _refresh_palette() -> void:
 	var cost_txt := ""
 	match tool():
 		"place":
-			cost_txt = BuildPieces.cost_text(p["cost"]) + (" per metre" if p.get("per_m", false) else "")
+			cost_txt = BuildPieces.cost_text(p["cost"]) + (" per metre" if p.get("per_m", false) and piece_id() != "foundation" else " per tile" if piece_id() == "foundation" else "")
 			if last_eval.get("segs", []).size() > 1:
-				cost_txt += "  ·  run %d m: %s" % [last_eval["segs"].size(), BuildPieces.cost_text(cost)]
+				cost_txt += "  ·  %d: %s" % [last_eval["segs"].size(), BuildPieces.cost_text(cost)]
 		"repair":
-			cost_txt = BuildPieces.cost_text(cost) if not cost.is_empty() else "1 plank / 150 voxels · 1 nail / 60"
+			cost_txt = BuildPieces.cost_text(cost) if not cost.is_empty() else "paid in the damaged material"
 		"upgrade":
 			cost_txt = BuildPieces.cost_text(p["cost"]) + " per section"
 		"demolish":
@@ -624,7 +732,8 @@ func _refresh_palette() -> void:
 			cost_txt = "refund %s" % BuildPieces.cost_text(rf) if not rf.is_empty() else "free"
 	var mats := "no inventory"
 	if state != null:
-		mats = "Planks %d · Nails %d · Scrap %d" % [state.inventory.count("wood"), state.inventory.count("nails"), state.inventory.count("scrap")]
+		var inv := state.inventory
+		mats = "Planks %d · Stone %d · Iron %d · Nails %d · Scrap %d" % [inv.count("wood"), inv.count("stone"), inv.count("iron"), inv.count("nails"), inv.count("scrap")]
 		if state.cheats.get("unlimited", false):
 			mats += "  (unlimited)"
 	var status := "Ready: click to %s." % ("build" if tool() == "place" else tool())
