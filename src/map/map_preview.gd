@@ -11,6 +11,7 @@ extends Node
 ##   --night=n            night amount 0..1
 ##   --hide-ui            hide the panels (map and pins only)
 ##   --all                every place discovered
+##   --stats              print render monitors after a few frames
 
 var screen: RegionMapScreen
 var state: GameState
@@ -57,6 +58,14 @@ func _start() -> void:
 				if c != screen.markers and not (c is SubViewportContainer):
 					c.visible = false
 	print("map stats ", screen.view.stats)
+	if "--stats" in args:
+		for k in 20:
+			await get_tree().process_frame
+		print("render: draw calls %d, objects %d, primitives %d, fps %.1f" % [
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+			Performance.get_monitor(Performance.TIME_FPS)])
 
 
 ## A run a few days in: some places found, one picked over, one planned.

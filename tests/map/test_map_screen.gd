@@ -179,6 +179,35 @@ func test_map_info_fallback_and_expedition_shape() -> void:
 	check_eq(MapInfo.split_purpose("nonsense")[0], "general", "unknown purpose -> general")
 
 
+func test_map_clouds_drift_and_clear_around_the_cursor() -> void:
+	var s := _screen(GameState.new_run(15))
+	var v := s.view
+	var mat: ShaderMaterial = v.cloud_mats[0]
+	await frames(2)
+	var a: Vector2 = mat.get_shader_parameter("cloud_offset")
+	await seconds(0.5)
+	var b: Vector2 = mat.get_shader_parameter("cloud_offset")
+	check(b.distance_to(a) > 0.1, "the clouds drift (%s -> %s)" % [a, b])
+	check_eq(v.surface_mat.get_shader_parameter("cloud_offset"), v.cloud_mats[0].get_shader_parameter("cloud_offset"), "shadows move with the clouds")
+	v.set_clear_points(Vector2(800, 450), Vector3.INF)
+	v._update_clouds()
+	check((mat.get_shader_parameter("clear_a") as Vector2).x > -900.0, "the clouds clear around the cursor")
+	v.set_view(Vector3(60, RegionMapView.GROUND_Y, 90), RegionMapView.DIST_MIN, true)
+	v._update_clouds()
+	check(float(mat.get_shader_parameter("opacity")) < 0.05, "zoomed in, the camera is below the clouds")
+	s.find_home()
+	check_eq(s.selected, MapInfo.HOME, "find my house selects it")
+	check(v.focus_target.distance_to(v.terrain.anchor_of(MapInfo.HOME) * Vector3(1, 0, 1) + Vector3(0, RegionMapView.GROUND_Y, 0)) < 0.5, "and moves the camera there")
+
+
+func test_map_prewarm_caches() -> void:
+	RegionMapScreen.prewarm()
+	var t0 := Time.get_ticks_usec()
+	var m := RegionMapMesher.build(RegionTerrain.shared())
+	check((Time.get_ticks_usec() - t0) / 1000.0 < 5.0, "after prewarm the meshes come from the cache")
+	check(not (m["terrain"] as Array).is_empty(), "with terrain")
+
+
 func _key(code: Key) -> InputEventKey:
 	var e := InputEventKey.new()
 	e.physical_keycode = code

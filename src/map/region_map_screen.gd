@@ -65,6 +65,13 @@ func _ready() -> void:
 
 # --- API --------------------------------------------------------------------------
 
+## Builds and caches the region and its meshes (about a second, once per
+## session) so the first open() doesn't hitch. Optional; call while loading.
+static func prewarm() -> void:
+	RegionMapMesher.build(RegionTerrain.shared())
+	RegionMapView.cloud_texture()
+
+
 ## Opens the map for a run (`state` may be null: a fresh sample run).
 func open(game_state: GameState) -> void:
 	if _root == null:
