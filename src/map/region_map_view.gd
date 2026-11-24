@@ -287,7 +287,7 @@ func _miniature_lens() -> CameraAttributesPractical:
 	var a := CameraAttributesPractical.new()
 	a.dof_blur_far_enabled = true
 	a.dof_blur_near_enabled = true
-	a.dof_blur_amount = 0.025
+	a.dof_blur_amount = 0.012
 	return a
 
 
@@ -300,9 +300,9 @@ func _apply_camera() -> void:
 		var on := distance < 100.0
 		lens.dof_blur_far_enabled = on
 		lens.dof_blur_near_enabled = on
-		lens.dof_blur_far_distance = distance * 1.4
-		lens.dof_blur_far_transition = distance * 0.6
-		lens.dof_blur_near_distance = distance * 0.55
+		lens.dof_blur_far_distance = distance * 1.6
+		lens.dof_blur_far_transition = distance * 0.7
+		lens.dof_blur_near_distance = distance * 0.5
 		lens.dof_blur_near_transition = distance * 0.25
 	var p := deg_to_rad(pitch_for(distance))
 	var offset := Vector3(0.0, sin(p), cos(p)) * distance

@@ -45,6 +45,7 @@ var _title_sub: Label
 var _list_box: VBoxContainer
 var _list_buttons := {}
 var _info_panel: PanelContainer
+var _info_scroll: ScrollContainer
 var _info: VBoxContainer
 var _approach_buttons := {}
 var _plan_button: Button
@@ -92,6 +93,7 @@ func open(game_state: GameState) -> void:
 	is_open = true
 	visible = true
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	view.process_mode = Node.PROCESS_MODE_INHERIT
 	if not was_open:
 		Sfx.ui("ui/open")
 		if _tween != null and _tween.is_valid():
@@ -125,6 +127,7 @@ func _hide_now() -> void:
 		return
 	visible = false
 	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	view.process_mode = Node.PROCESS_MODE_DISABLED
 
 
 ## Selects a place (a discovered location id, MapInfo.HOME or "" for none).
@@ -434,9 +437,14 @@ func _build_info() -> void:
 	_info_panel.offset_right = -MARGIN
 	_info_panel.offset_top = TOP + 8
 	_info_panel.custom_minimum_size = Vector2(INFO_W, 0)
+	_info_scroll = ScrollContainer.new()
+	_info_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_info_scroll.custom_minimum_size = Vector2(INFO_W - 2 * UiTheme.PAD, 0)
 	_info = VBoxContainer.new()
 	_info.add_theme_constant_override("separation", 8)
-	_info_panel.add_child(_info)
+	_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_info_scroll.add_child(_info)
+	_info_panel.add_child(_info_scroll)
 	_root.add_child(_info_panel)
 
 
@@ -514,6 +522,7 @@ func _show_info() -> void:
 	if selected == MapInfo.HOME:
 		if state.region.planned != "":
 			_info.add_child(UiTheme.make_caption("Planned: %s, %s." % [RegionLocations.name_of(state.region.planned), MapInfo.purpose_text(state.region.planned_purpose).to_lower()], INFO_W - 40, UiTheme.ACCENT))
+		_fit_info.call_deferred()
 		return
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -531,15 +540,22 @@ func _show_info() -> void:
 	if not s["equipment"].is_empty():
 		_info.add_child(UiTheme.make_section("Equipment"))
 		for e in s["equipment"]:
+			# one line each; the full effect is the tooltip
 			var on: bool = e["have"] and e.get("equipped", true)
 			var mark := "✓" if on else ("○" if e["have"] else "✗")
-			var line := "%s %s%s%s" % [mark, e["name"], "" if on or not e["have"] else " (not equipped)", (": " + e["effect"]) if e["effect"] != "" else ""]
-			if e.get("required", false):
-				line += " (required)"
+			var head := "%s %s%s%s" % [mark, e["name"], " (required)" if e.get("required", false) else "", "" if on or not e["have"] else " (not equipped)"]
 			var col := UiTheme.GOOD if on else (UiTheme.TEXT if e["have"] else (UiTheme.BAD if e.get("required", false) else UiTheme.TEXT_DIM))
-			_info.add_child(UiTheme.make_caption(line, INFO_W - 40, col))
+			var l := UiTheme.make_caption(head + ((":  " + e["effect"]) if e["effect"] != "" else ""), 0, col)
+			l.custom_minimum_size.x = INFO_W - 40
+			l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			l.clip_text = true
+			l.tooltip_text = head + ("\n" + e["effect"] if e["effect"] != "" else "")
+			l.mouse_filter = Control.MOUSE_FILTER_PASS
+			_info.add_child(l)
 	for n in s.get("notes", []):
 		_info.add_child(UiTheme.make_caption(str(n), INFO_W - 40, UiTheme.WARN))
+	if not s.get("available", true) and str(s.get("reason", "")) != "":
+		_info.add_child(UiTheme.make_caption("Right now: " + str(s["reason"]), INFO_W - 40, UiTheme.TEXT_DIM))
 	_info.add_child(UiTheme.make_section("Mission purpose"))
 	var ag := GridContainer.new()
 	ag.columns = 2
@@ -577,6 +593,15 @@ func _show_info() -> void:
 	_status = UiTheme.make_caption("", INFO_W - 40, UiTheme.ACCENT)
 	_info.add_child(_status)
 	_set_approach(approach, target)
+	_fit_info.call_deferred()
+
+
+## Sizes the info panel to its content, at most down to the key hints.
+func _fit_info() -> void:
+	if _info_scroll == null or _root == null:
+		return
+	var avail := maxf(_root.size.y - (TOP + 8.0) - 2.0 * UiTheme.PAD - 76.0, 200.0)
+	_info_scroll.custom_minimum_size.y = minf(_info.get_combined_minimum_size().y, avail)
 
 
 func _row(grid: GridContainer, key: String, value: String, col: Color) -> void:
@@ -601,7 +626,7 @@ func _set_approach(id: String, tgt: String) -> void:
 	if desc != null:
 		var extra := ""
 		if int(a.get("minutes", 0)) > 0:
-			extra = "  About %s there and back%s." % [UiTheme.duration_text(a["minutes"]), (", risk " + str(a["risk_name"]).to_lower()) if str(a.get("risk_name", "")) != "" else ""]
+			extra = "  About %s in all%s." % [UiTheme.duration_text(a["minutes"]), (", risk " + str(a["risk_name"]).to_lower()) if str(a.get("risk_name", "")) != "" else ""]
 		desc.text = str(a.get("desc", "")) + extra
 	var flow: HFlowContainer = _info.get_node_or_null("Targets")
 	if flow != null:
