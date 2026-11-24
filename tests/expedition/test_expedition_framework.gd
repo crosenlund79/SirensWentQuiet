@@ -50,7 +50,7 @@ func test_every_location_is_configured() -> void:
 	var order: Array = D.ORDER.duplicate()
 	order.sort()
 	check_eq(order, ids, "ExpeditionData covers exactly the RegionLocations ids")
-	check_eq(D.LOCATIONS.size(), 24, "24 places")
+	check_eq(D.LOCATIONS.size(), 25, "25 places (Experiment 004: the pine woods)")
 	for p in ["residential", "food", "medical", "construction_wood", "construction_stone", "construction_iron", "weapons", "military"]:
 		check(D.PROFILES.has(p), "profile %s" % p)
 	var last_cat := -1

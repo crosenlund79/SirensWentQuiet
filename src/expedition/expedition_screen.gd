@@ -244,6 +244,23 @@ func set_tool(id: String, on: bool) -> void:
 	_refresh_gear_summary()
 
 
+## Plan step (Experiment 004): take the repaired car along or not.
+func set_car(on: bool) -> void:
+	if on and not D.can_drive(state):
+		return
+	if on:
+		gear[D.CAR] = 1
+	else:
+		gear[D.CAR] = 0
+	if tool_boxes.has(D.CAR):
+		(tool_boxes[D.CAR] as CheckBox).set_pressed_no_signal(on)
+	_refresh_gear_summary()
+
+
+func _by_car() -> bool:
+	return int(brought_gear().get(D.CAR, 0)) > 0
+
+
 func brought_gear() -> Dictionary:
 	var g := gear.duplicate()
 	g.erase("_dest")
@@ -280,7 +297,7 @@ func depart() -> void:
 		_next_event()
 		return
 	_kill_tween()
-	_travel_label.text = "You walk into the fog."
+	_travel_label.text = "You drive into the fog." if int(run.gear.get(D.CAR, 0)) > 0 else "You walk into the fog."
 	_tween = create_tween()
 	_tween.tween_property(_panel, "modulate:a", 0.0, STEP_FADE * 1.5)
 	_tween.tween_property(_travel_label, "modulate:a", 1.0, 0.45)
@@ -775,6 +792,21 @@ func _show_gear() -> void:
 		var eff := _text(D.gear_effect(id, selected) if have else why, 13, UiTheme.TEXT_DIM, PLAN_LEFT - 200)
 		eff.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		grid.add_child(eff)
+	# Experiment 004 (E): the repaired yard car
+	var car_why := D.car_state(state)
+	var car_cb := CheckBox.new()
+	car_cb.name = "CarBox"
+	car_cb.text = "Car (%d fuel)" % state.inventory.count("fuel") if bool(state.get("car_repaired")) else "Car"
+	car_cb.button_pressed = int(g.get(D.CAR, 0)) > 0
+	car_cb.disabled = car_why != ""
+	car_cb.custom_minimum_size.x = 190
+	car_cb.toggled.connect(func(on: bool): set_car(on))
+	_flat_check(car_cb)
+	grid.add_child(car_cb)
+	tool_boxes[D.CAR] = car_cb
+	var car_eff := _text(D.gear_effect(D.CAR, selected) if car_why == "" else car_why, 13, UiTheme.TEXT_DIM, PLAN_LEFT - 200)
+	car_eff.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	grid.add_child(car_eff)
 	if D.owns(state, "hammer"):
 		left.add_child(_text("The hammer stays home: you need it to build.", 13, UiTheme.TEXT_DIM, PLAN_LEFT))
 	_gear_summary = VBoxContainer.new()
@@ -855,7 +887,7 @@ func _refresh_gear_summary() -> void:
 			c.text = "%d of %d" % [int(g.get(pair[1], 0)), D.rounds_owned(state, pair[1])]
 	for a in approach_buttons:
 		var st := D.approach_state(state, selected, a, g)
-		UiTheme.set_caption(approach_buttons[a], "%s · %s risk" % [_short_time(D.nominal_minutes(selected, a)), D.risk_name(D.danger_for(state, selected, g, a)).to_lower()] if st["ok"] else _short_reason(st["reason"]).to_lower())
+		UiTheme.set_caption(approach_buttons[a], "%s · %s risk" % [_short_time(D.nominal_minutes(selected, a, _by_car())), D.risk_name(D.danger_for(state, selected, g, a)).to_lower()] if st["ok"] else _short_reason(st["reason"]).to_lower())
 		approach_buttons[a].tooltip_text = st["reason"] if not st["ok"] else D.APPROACHES[a]["desc"]
 	for ch in _gear_summary.get_children():
 		_gear_summary.remove_child(ch)
@@ -866,7 +898,7 @@ func _refresh_gear_summary() -> void:
 	var now := D.risk_name(D.danger_for(state, selected, g, approach))
 	_gear_summary.add_child(UiTheme.make_label("RISK", 13, UiTheme.TEXT_DIM))
 	_gear_summary.add_child(UiTheme.make_label(now + ("" if now == base else "  (bare-handed: %s)" % base.to_lower()), 19, _risk_color(now)))
-	var mins := D.nominal_minutes(selected, approach)
+	var mins := D.nominal_minutes(selected, approach, _by_car())
 	_gear_summary.add_child(UiTheme.make_label("TIME", 13, UiTheme.TEXT_DIM))
 	_gear_summary.add_child(_text("%s, back around %s (%s searching)" % [_approx(mins), D.clock(state.minute_of_day() + mins), D.duration(D.search_minutes(selected, approach))], 15, UiTheme.TEXT, w))
 	_gear_summary.add_child(UiTheme.make_label("EXPECT", 13, UiTheme.TEXT_DIM))
@@ -924,6 +956,8 @@ func _gear_text(g: Dictionary) -> String:
 	for id in D.BRINGABLE_GEAR:
 		if int(g.get(id, 0)) > 0:
 			parts.append(Items.name_of(id).to_lower())
+	if int(g.get(D.CAR, 0)) > 0:
+		parts.append("the car (1 fuel can)")
 	if parts.is_empty():
 		return "Nothing but your hands."
 	var s := ", ".join(parts) + "."
@@ -937,7 +971,7 @@ func _show_confirm() -> void:
 	var d := D.destination(selected)
 	_begin("Set out?", d["name"])
 	var g := brought_gear()
-	var mins := D.nominal_minutes(selected, approach)
+	var mins := D.nominal_minutes(selected, approach, _by_car())
 	var back_at := state.minute_of_day() + mins
 	var w := PANEL_WIDTH - 40
 	_box.add_child(_text("%s You'll be gone %s and back around %s." % [d["desc"], _approx(mins), D.clock(back_at)], 17, UiTheme.TEXT, w))
@@ -1033,6 +1067,8 @@ func _carry_text() -> String:
 	for id in D.BRINGABLE_GEAR:
 		if run.has_tool(id):
 			parts.append(Items.name_of(id).to_lower())
+	if int(run.gear.get(D.CAR, 0)) > 0:
+		parts.append("the car")
 	return "You carry: " + (", ".join(parts) if not parts.is_empty() else "nothing but your hands") + ".   %s.   Keys 1-3 choose." % _approach_label(run.approach, run.target)
 
 

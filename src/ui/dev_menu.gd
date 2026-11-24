@@ -503,11 +503,13 @@ func _build() -> void:
 	_build_levels_section(box)          # Experiment 004 (L)
 
 	_build_house_section(box)      # Experiment 004
+	_build_exp004_e(box)          # Experiment 004 (E)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
 	box.add_child(_status)
 
+	_build_exp004_e(box)          # Experiment 004 (E): the car and the quick-access bar
 	box.add_child(UiTheme.make_section("Inspect"))
 	_inspect = RichTextLabel.new()
 	_inspect.name = "Inspect"
@@ -608,3 +610,28 @@ func _levels_call(method: String, args: Array, said: String) -> void:
 		return
 	l.callv(method, args)
 	_say(said)
+# --- Experiment 004 (E): the car and the quick-access bar -----------------------
+
+func _build_exp004_e(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Car and quick bar"))
+	box.add_child(_grid(2, [["Car parts", _exp004_e_call.bind("car", "dev_give_parts", "Car parts and fuel added")],
+		["Repair car now", _exp004_e_call.bind("car", "dev_repair", "The car runs")],
+		["Bar test kit", _exp004_e_kit]]))
+
+
+func _exp004_e_call(helper: String, method: String, said: String) -> void:
+	var h = game.get(helper) if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no %s.%s()" % [helper, method], true)
+		return
+	h.call(method)
+	_say(said)
+
+
+## Gear and supplies to try every kind of bar item.
+func _exp004_e_kit() -> void:
+	if state == null:
+		return
+	for id in ["flashlight", "crowbar", "shovel", "hammer", "medkit", "bandage", "water", "canned_food", "snacks"]:
+		state.inventory.add(id, 1 if Items.is_unique(id) else 2)
+	_say("Bar test kit added")

@@ -22,7 +22,7 @@ func test_new_region_and_discovery() -> void:
 	for id in RegionState.START_KNOWN:
 		check(r.is_discovered(id) and RegionLocations.has(id), "%s known at the start" % id)
 	check(not r.is_discovered("military"), "the outpost starts unknown")
-	check_eq(r.undiscovered().size(), 24 - RegionState.START_KNOWN.size(), "the rest is unknown")
+	check_eq(r.undiscovered().size(), RegionLocations.ids().size() - RegionState.START_KNOWN.size(), "the rest is unknown")
 	check(r.discover("quarry"), "a new place")
 	check(not r.discover("quarry"), "only once")
 	check(not r.discover("atlantis"), "unknown ids are ignored")

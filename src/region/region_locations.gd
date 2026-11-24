@@ -72,6 +72,8 @@ const LOCATIONS := {
 	# --- construction --------------------------------------------------------------
 	"hardware": {"name": "Hardware Store", "category": "construction", "district": "suburbs", "pos": Vector2(80, 76), "size": Vector2(4, 3),
 		"desc": "A hardware store on the ring road. Planks, nails, tools; a locked stockroom."},
+	"forest": {"name": "Pine Woods", "category": "construction", "district": "hills", "pos": Vector2(47, 70), "size": Vector2(5, 6),
+		"desc": "Snowy pine woods a short walk from home. Deadfall and timber for the taking; quiet, mostly."},
 	"logging": {"name": "Logging Area", "category": "construction", "district": "forest", "pos": Vector2(60, 18), "size": Vector2(6, 5),
 		"desc": "A clearing in the north woods with stacked timber."},
 	"sawmill": {"name": "Pine Creek Sawmill", "category": "construction", "district": "forest", "pos": Vector2(78, 32), "size": Vector2(5, 4),

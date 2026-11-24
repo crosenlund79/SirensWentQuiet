@@ -59,6 +59,11 @@ var dead := false
 var death_cause := ""
 ## Newly acquired gear goes into its slot when that slot is free (not saved).
 var auto_equip := true
+## Experiment 004 (E): the quick-access bar (Hotbar rules; saved as "hotbar")
+## and the yard car, repaired once (saved as "car_repaired"). Both optional:
+## older saves load with an empty bar (filled by the game) and a broken car.
+var hotbar := Hotbar.new_bar()
+var car_repaired := false
 
 var _quiet := false                             ## restoring: no equipment sync
 var _gear_seen := {}                            ## equippable ids owned at the last sync
@@ -1003,6 +1008,7 @@ func to_dict() -> Dictionary:
 		"cheats": cheats.duplicate(), "run": run.duplicate(true), "dead": dead, "death_cause": death_cause,
 		"difficulty": difficulty, "equipment": equipment.duplicate(), "weapons": weapons.duplicate(true),
 		"active_weapon": active_weapon_slot, "region": region.to_dict(),
+		"hotbar": hotbar.duplicate(true), "car_repaired": car_repaired,
 	}
 
 
@@ -1053,6 +1059,8 @@ static func from_dict(d) -> GameState:
 	s._sync_equipment(false)   # magazines for owned weapons
 	s._fix_active_slot()
 	s.region = RegionState.from_dict(d.get("region", {}))
+	s.hotbar = Hotbar.clean(d.get("hotbar"))          # Experiment 004 (E), optional
+	s.car_repaired = _flag(d.get("car_repaired"))
 	return s
 
 

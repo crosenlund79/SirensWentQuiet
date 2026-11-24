@@ -21,7 +21,7 @@ const TOAST_MAX := 4
 const TOAST_LIFE := 3.2
 const CHEAT_NAMES := {"invulnerable": "Invulnerable", "unlimited": "Unlimited resources"}
 const HELP := [
-	["W A S D", "Move"], ["LMB", "Shoot"], ["R", "Reload"], ["1 / 2 / Q", "Weapons"],
+	["W A S D", "Move"], ["LMB", "Shoot / use"], ["R", "Reload"], ["1-8 / Q", "Quick bar"], ["X", "Empty hands"],
 	["Wheel", "Zoom"], ["E", "Interact"], ["I / Tab", "Inventory"], ["M", "Region map"],
 	["B", "Build"], ["Esc", "Pause"], ["F10", "Developer"],
 ]

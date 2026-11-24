@@ -32,6 +32,8 @@ const Combat := preload("res://src/game/game_combat.gd")
 const MapLink := preload("res://src/game/game_map.gd")
 const Dev := preload("res://src/game/game_dev.gd")
 const GameLevels := preload("res://src/levels/game_levels.gd")   # Experiment 004 storeys (L)
+const HotbarCtl := preload("res://src/game/game_hotbar.gd")   # Experiment 004 (E)
+const CarCtl := preload("res://src/game/game_car.gd")         # Experiment 004 (E)
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -54,6 +56,8 @@ var combat: Node                       ## game_combat.gd (owns the WeaponHandler
 var map: Node                          ## game_map.gd (the region map and its table)
 var dev: Node                          ## game_dev.gd (Experiment 003 F10 tools)
 var levels: Node                       ## src/levels/game_levels.gd (Experiment 004 storeys, stairs, basement)
+var bar: Node                          ## game_hotbar.gd (Experiment 004, E: the quick-access bar)
+var car: Node                          ## game_car.gd (Experiment 004, E: the yard car)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -226,6 +230,15 @@ func _assemble() -> void:
 	levels.name = "Levels"
 	add_child(levels)
 	levels.setup(self)
+	# Experiment 004 (E): the quick-access bar and the yard car.
+	bar = HotbarCtl.new()
+	bar.name = "Hotbar"
+	add_child(bar)
+	bar.setup(self)
+	car = CarCtl.new()
+	car.name = "Car"
+	add_child(car)
+	car.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -361,7 +374,8 @@ func _on_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("fire"):
 		if _can_fire() and get_viewport().gui_get_hovered_control() == null:
-			_trigger = true
+			if not bar.on_fire_pressed():   # Experiment 004 (E): non-weapon items are used once
+				_trigger = true
 	elif event.is_action_pressed("interact"):
 		_handled()
 		_interact()
@@ -374,6 +388,8 @@ func _on_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("open_map"):
 		_handled()
 		open_map()
+	elif not build.active and bar.handle_input(event):
+		_handled()                          # 1-8, X, Q (Experiment 004, E: the quick-access bar)
 	elif not build.active and combat.handle_input(event):
 		_handled()                          # R, Q, 1, 2 (in build mode they belong to BuildMode)
 	elif event.is_action_pressed("zoom_in"):
@@ -513,7 +529,7 @@ func _update_prompt() -> void:
 	var p := ""
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables()), player.plan_pos())   # + stairs, by storey
+		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables() + car.interactables()), player.plan_pos())   # + stairs, by storey (L); + the yard car (E)
 		p = str(_focus.interact_prompt()) if _focus != null else boundary.prompt_text()
 	if p != _prompt:
 		_prompt = p

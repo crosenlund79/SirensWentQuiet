@@ -32,7 +32,15 @@ const DEFS := {
 	"crowbar": {"name": "Crowbar", "category": "tool", "desc": "Equipped: opens stockrooms and locked doors on expeditions.", "cap": 1, "slot": "tool"},
 	"flashlight": {"name": "Flashlight", "category": "utility", "desc": "Equipped: needed in dark places like the clinic.", "cap": 1, "slot": "utility"},
 	"backpack": {"name": "Backpack", "category": "utility", "desc": "Equipped: carry half as much again from expeditions.", "cap": 1, "slot": "back"},
+	# --- Experiment 004 (E): the yard car's parts and fuel ---
+	"car_battery": {"name": "Car battery", "category": "material", "desc": "A heavy 12 V battery. The car in the yard needs one.", "cap": 2},
+	"fuel": {"name": "Fuel can", "category": "material", "desc": "A jerrycan of petrol. Repairing the car takes 2; every car trip burns 1.", "cap": 10, "cap_per_crate": 4},
 }
+
+## Items the quick-access bar fills itself with when the player owns them, in
+## this order after the two equipped weapons (Experiment 004, E). Other
+## consumables and gear can be put on the bar by hand (Hotbar.can_hold).
+const BAR_AUTO := ["flashlight", "hammer", "water", "canned_food", "snacks", "bandage", "medkit", "crowbar", "shovel"]
 
 
 static func has(id) -> bool:

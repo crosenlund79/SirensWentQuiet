@@ -57,6 +57,8 @@ var _rng_events := RandomNumberGenerator.new()
 var _rng_outcome := RandomNumberGenerator.new()
 var _rng_loot := RandomNumberGenerator.new()
 var _rng_discover := RandomNumberGenerator.new()
+var _rng_car := RandomNumberGenerator.new()   ## Experiment 004: the car's haul and load (only drawn with the car)
+var _car := false              ## the repaired car came along (gear "car")
 var _result := {}
 
 
@@ -108,7 +110,8 @@ func _setup(state: GameState, destination_id: String, g: Dictionary, approach_id
 		target = target_id if target_id in tg else (str(tg[0]) if not tg.is_empty() else "")
 	gear = g
 	depart_at = state.total_minutes
-	nominal_minutes = D.nominal_minutes(dest_id, approach)
+	_car = int(gear.get(D.CAR, 0)) > 0
+	nominal_minutes = D.nominal_minutes(dest_id, approach, _car)
 	_seed = int(state.run.get("seed", 0))
 	_number = int(state.run.get("expeditions", 0))
 	_energy = state.energy
@@ -134,6 +137,7 @@ func _setup(state: GameState, destination_id: String, g: Dictionary, approach_id
 	_rng_outcome.seed = _stream_seed(_seed, _number, dest_id, "outcome")
 	_rng_loot.seed = _stream_seed(_seed, _number, dest_id, "loot")
 	_rng_discover.seed = _stream_seed(_seed, _number, dest_id, "discover")
+	_rng_car.seed = _stream_seed(_seed, _number, dest_id, "car")
 	_pick_events()
 
 
@@ -436,6 +440,20 @@ func result() -> Dictionary:
 		if backpack and not D.is_unique(id):
 			var x := float(found[id]) * _carry
 			found[id] = int(floor(x)) + (1 if frac < x - floor(x) else 0)
+	# Experiment 004: the car brings the heavy loads, carries x CAR_CARRY (materials more)
+	if _car:
+		var haul := {}
+		_roll_into(haul, D.car_haul(dest_id), base, _rng_car)
+		for id in haul:
+			found[id] = int(found.get(id, 0)) + int(haul[id])
+		ids = found.keys()
+		ids.sort()
+		for id in ids:
+			var frac := _rng_car.randf()
+			if not D.is_unique(id):
+				var x := float(found[id]) * D.CAR_CARRY * (D.CAR_MATERIAL_MULT if id in D.CAR_MATERIALS else 1.0)
+				found[id] = int(floor(x)) + (1 if frac < x - floor(x) else 0)
+		lines.append("You took the car: a full boot%s, and a can of fuel burnt." % ((" and the heavy loads (" + D.items_text(haul) + ")") if not haul.is_empty() else ""))
 	# unique items: one each, only when not already owned (or lost on this trip)
 	for id in ids:
 		if D.is_unique(id):
@@ -462,11 +480,13 @@ func result() -> Dictionary:
 		var k := mini(int(_spent[am]), int(_owned.get(am, 0)))
 		if k > 0:
 			consumed[am] = k
+	if _car:
+		consumed["fuel"] = D.CAR_FUEL
 	var lost := {}
 	for id in _lost:
 		if int(_owned.get(id, 0)) > 0:
 			lost[id] = 1
-	var lo := maxi(D.MIN_MINUTES, 2 * int(dest.get("travel", 0)) + 10)
+	var lo := maxi(D.MIN_MINUTES, 2 * D.travel_minutes(dest_id, _car) + 10)
 	var minutes := clampi(nominal_minutes + jitter + _minutes_delta, lo, maxi(nominal_minutes + 150, lo))
 	if not left.is_empty():
 		lines.append("Storage full: left behind %s." % D.items_text(left))
@@ -527,6 +547,7 @@ func result() -> Dictionary:
 		"discovered": discovered,
 		"marks": marks,
 		"day": day,
+		"car": _car,
 	}
 	return _result
 

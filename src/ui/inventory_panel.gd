@@ -127,7 +127,13 @@ func _build_tab() -> Control:
 	var close_b := UiTheme.make_button("Close")
 	close_b.name = "Close"
 	close_b.pressed.connect(_close_and_emit)
-	box.add_child(_footer("I / Tab / Esc", "Close", [close_b]))
+	var foot := _footer("I / Tab / Esc", "Close", [close_b])
+	var bar_hint := UiTheme.make_key_hint("1-8", "Choose the bar slot \"Bar\" fills")
+	bar_hint.name = "BarHint"
+	bar_hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	foot.add_child(bar_hint)
+	foot.move_child(bar_hint, 1)
+	box.add_child(foot)
 	var first := _first_action_button() if tab == "supplies" else _tabs["equipment"] as Button
 	return first if first != null else close_b
 
@@ -213,6 +219,14 @@ func _item_row(id: String, gear := false) -> Control:
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(count)
+	if Hotbar.can_hold(id):
+		var bb := UiTheme.make_button("Bar")
+		bb.name = "Bar"
+		bb.tooltip_text = "Put on the quick-access bar, in the selected slot (1-8 choose it)"
+		bb.custom_minimum_size.x = 52
+		bb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bb.pressed.connect(put_on_bar.bind(id))
+		row.add_child(bb)
 	var use: Button = null
 	if gear:
 		use = UiTheme.make_button("Equip")
@@ -278,6 +292,34 @@ func toggle_equip(id: String) -> String:
 		Sfx.ui("ui/click")
 	_refresh()
 	return why
+
+
+## Experiment 004 (E): puts `id` in the quick-access bar's selected slot
+## (Hotbar.assign; the item there swaps places). Returns "" or the reason.
+func put_on_bar(id: String) -> String:
+	if state == null:
+		return ""
+	var i := int(state.hotbar.get("selected", 0))
+	var why := Hotbar.assign(state.hotbar, i, id)
+	if why != "":
+		_say(why, UiTheme.WARN)
+		Sfx.ui("ui/error")
+		return why
+	state.hotbar["holstered"] = false
+	_say("%s on the bar, slot %d." % [Items.name_of(id), i + 1], UiTheme.GOOD)
+	Sfx.ui("ui/click")
+	state.changed.emit()
+	return ""
+
+
+## Experiment 004 (E): 1-8 choose the bar slot that "Bar" fills.
+func select_bar_slot(i: int) -> void:
+	if state == null or i < 0 or i >= Hotbar.SIZE:
+		return
+	state.hotbar["selected"] = i
+	var id := Hotbar.at(state.hotbar, i)
+	_say("Bar slot %d selected%s." % [i + 1, (": " + Items.name_of(id)) if id != "" else " (empty)"], UiTheme.TEXT_DIM)
+	state.changed.emit()
 
 
 func unequip_slot(slot: String) -> String:
@@ -385,6 +427,12 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		_close_and_emit()
 		return
+	if is_open and visible and event is InputEventKey and event.pressed and not event.echo:
+		var k: int = (event as InputEventKey).physical_keycode
+		if k >= KEY_1 and k <= KEY_8:
+			get_viewport().set_input_as_handled()
+			select_bar_slot(k - KEY_1)
+			return
 	super._input(event)
 
 

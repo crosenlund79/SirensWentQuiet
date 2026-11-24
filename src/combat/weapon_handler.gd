@@ -35,6 +35,17 @@ var auto_reload := true           ## pulling the trigger on an empty magazine st
 var rng := RandomNumberGenerator.new()
 var shots := 0                    ## trigger pulls that fired
 var last := {}                    ## the last try_fire result
+## Experiment 004 (E): the weapon is put away (empty hands, the bar's empty
+## slot or X). Nothing is in hand then: current_id() is "", firing returns
+## "no_weapon", the rig's arms hang. switch_to() takes a weapon out again.
+var holstered := false:
+	set(v):
+		if v == holstered:
+			return
+		holstered = v
+		if v and _reload_id != "":
+			_stop_reload(false)
+		_apply_visual()
 
 var _cooldown := 0.0
 var _dry_cd := 0.0
@@ -76,7 +87,7 @@ func tick(delta: float) -> void:
 
 ## The weapon in hand ("" = none).
 func current_id() -> String:
-	return state.active_weapon() if state != null else ""
+	return state.active_weapon() if state != null and not holstered else ""
 
 
 func current() -> Dictionary:
@@ -303,6 +314,13 @@ func switch_to(id: String) -> String:
 	var slot := state.slot_of(id)
 	if not slot in Equipment.WEAPON_SLOTS:
 		return "%s isn't equipped." % (WeaponDefs.name_of(id) if WeaponDefs.has(id) else "That")
+	if holstered:
+		state.set_active_weapon_slot(slot)
+		holstered = false              # draws it (the setter shows it on the rig)
+		_cooldown = maxf(_cooldown, SWITCH_DELAY)
+		_play("switch", _muzzle_global(WeaponDefs.get_def(id)))
+		switched.emit(id)
+		return ""
 	if id == current_id():
 		return ""
 	if _reload_id != "":
@@ -374,6 +392,9 @@ func _muzzle_global(d: Dictionary) -> Vector3:
 ## Shows the weapon in hand on the rig's gun node: the rig's own pistol for the
 ## handgun, a placeholder model for the shotgun, nothing without a weapon.
 func _apply_visual() -> void:
+	var rig := _rig()
+	if rig != null and "aiming" in rig:
+		rig.aiming = current_id() != ""      # empty hands: the arms hang (VoxelRig)
 	var gun := _gun()
 	if gun == null or gun.get_child_count() == 0:
 		return

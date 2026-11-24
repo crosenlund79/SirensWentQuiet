@@ -843,6 +843,10 @@ func _land_cover() -> void:
 				if density > 0.32:
 					cv = C_FOREST
 			cover[i] = cv
+	# Experiment 004 (E): the pine woods near home are dense forest
+	for c in _cells(footprint("forest").grow(2)):
+		if in_bounds(c) and water[idx(c)] == 0 and cover[idx(c)] != C_QUARRY:
+			cover[idx(c)] = C_FOREST
 	# the logging clearing and the farm yard
 	for id in ["logging", "farmhouse", "sawmill", "shooting_range", "military"]:
 		for c in _cells(footprint(id).grow(1)):
@@ -1350,6 +1354,7 @@ func _trees() -> void:
 			for k in n:
 				var q := Vector3(x + 0.2 + _rng.randf() * 0.6, g, y + 0.2 + _rng.randf() * 0.6)
 				var conifer := cv == C_ROCK or height[i] >= 15 or (cv == C_FOREST and _n_warp.get_noise_2d(fx * 2.0, fy * 2.0) > -0.05 - (40.0 - fy) * 0.01)
+				conifer = conifer or (cv == C_FOREST and footprint("forest").grow(2).has_point(c))   # Experiment 004: pines
 				if conifer:
 					_tree(q, 0 if _rng.randf() < 0.6 else 1, 0.8 + _rng.randf() * 0.45, PINE[_rng.randi() % PINE.size()])
 				else:

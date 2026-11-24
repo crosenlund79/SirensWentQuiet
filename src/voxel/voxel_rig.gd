@@ -35,6 +35,14 @@ var aiming := false
 var recoil := 0.0
 var swing := 0.0             ## enemy swing progress 1 -> 0
 var stagger := 0.0
+## Experiment 004 (E), player only: without a weapon in hand (`aiming` false)
+## the arms hang and sway a little; `carry` holds the right arm out (the
+## flashlight, pointed by aim_pitch); `held` is the small item in the right
+## hand (set_held); `use_t` lifts the hand once (eating, drinking, bandaging).
+var carry := false
+var held := ""
+var use_t := 0.0
+var _held_node: Node3D
 var _flash := 0.0
 var _fade := 1.0
 var _t := 0.0
@@ -110,6 +118,78 @@ func set_fade(v: float) -> void:
 		p.set_instance_shader_parameter("fade", v)
 
 
+## The small item in the right hand (player): "flashlight", "hammer",
+## "crowbar", "shovel", "food", "water", "medical", or "" (nothing). Simple
+## boxes in arm space (the arm points down -Y; the hand is at y -0.6).
+func set_held(kind: String) -> void:
+	if kind == held and (_held_node != null) == (kind != ""):
+		return
+	held = kind
+	if _held_node != null:
+		_held_node.queue_free()
+		_held_node = null
+	if kind == "" or arm_r == null:
+		return
+	_held_node = held_model(kind)
+	if _held_node != null:
+		_held_node.name = "Held"
+		_held_node.position = Vector3(0, -0.6, 0)
+		arm_r.add_child(_held_node)
+
+
+## Hand position in world space (where a held flashlight shines from).
+func hand_global() -> Vector3:
+	if arm_r == null or not arm_r.is_inside_tree():
+		return global_position + Vector3(0, 1.0, 0)
+	return arm_r.global_transform * Vector3(0, -0.72, 0)
+
+
+static func held_model(kind: String) -> Node3D:
+	# [size, offset, colour] boxes; -Y is "forward" when the arm is raised
+	var parts := []
+	match kind:
+		"flashlight":
+			parts = [[Vector3(0.05, 0.2, 0.05), Vector3(0, -0.08, 0), Color(0.12, 0.12, 0.13)],
+				[Vector3(0.07, 0.05, 0.07), Vector3(0, -0.2, 0), Color(0.2, 0.2, 0.21)],
+				[Vector3(0.055, 0.01, 0.055), Vector3(0, -0.228, 0), Color(1.0, 0.95, 0.75)]]
+		"hammer":
+			parts = [[Vector3(0.03, 0.03, 0.3), Vector3(0, -0.02, -0.06), Color(0.45, 0.3, 0.18)],
+				[Vector3(0.05, 0.12, 0.05), Vector3(0, -0.02, -0.22), Color(0.3, 0.31, 0.33)]]
+		"crowbar":
+			parts = [[Vector3(0.025, 0.025, 0.55), Vector3(0, -0.02, -0.12), Color(0.55, 0.12, 0.1)],
+				[Vector3(0.025, 0.1, 0.025), Vector3(0, -0.06, -0.39), Color(0.55, 0.12, 0.1)]]
+		"shovel":
+			parts = [[Vector3(0.03, 0.03, 0.8), Vector3(0, -0.02, -0.1), Color(0.5, 0.36, 0.22)],
+				[Vector3(0.16, 0.02, 0.2), Vector3(0, -0.02, -0.58), Color(0.35, 0.37, 0.38)]]
+		"food":
+			parts = [[Vector3(0.08, 0.1, 0.08), Vector3(0, -0.05, 0.02), Color(0.7, 0.32, 0.2)]]
+		"water":
+			parts = [[Vector3(0.065, 0.2, 0.065), Vector3(0, -0.07, 0.02), Color(0.55, 0.72, 0.85)],
+				[Vector3(0.03, 0.03, 0.03), Vector3(0, -0.185, 0.02), Color(0.2, 0.4, 0.75)]]
+		"medical":
+			parts = [[Vector3(0.12, 0.09, 0.04), Vector3(0, -0.05, 0.02), Color(0.86, 0.86, 0.84)],
+				[Vector3(0.05, 0.015, 0.042), Vector3(0, -0.05, 0.02), Color(0.75, 0.15, 0.15)]]
+		_:
+			parts = [[Vector3(0.08, 0.08, 0.08), Vector3(0, -0.04, 0.02), Color(0.5, 0.48, 0.44)]]
+	var root := Node3D.new()
+	for p in parts:
+		var mi := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = p[0]
+		mi.mesh = box
+		mi.position = p[1]
+		var m := StandardMaterial3D.new()
+		m.albedo_color = p[2]
+		m.roughness = 0.7
+		if kind == "flashlight" and p == parts[-1]:
+			m.emission_enabled = true
+			m.emission = Color(1.0, 0.92, 0.7)
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+	return root
+
+
 ## Muzzle tip in world space (player).
 func muzzle_global() -> Vector3:
 	if gun == null:
@@ -149,8 +229,17 @@ func animate(delta: float) -> void:
 			arm_l.rotation = Vector3(1.2 + aim_pitch * 0.8, 0, 0.5)
 			arm_r.rotation = Vector3(PI * 0.5 + aim_pitch + recoil * 0.35, 0, 0)
 		else:
-			arm_l.rotation = Vector3(-s * 0.45 * amp, 0, -0.06)
-			arm_r.rotation = Vector3(s * 0.45 * amp, 0, 0.06)
+			# empty or busy hands: relaxed, swinging with the gait, a slow idle sway
+			var sway := sin(_t * 1.1) * 0.03 * (1.0 - amp)
+			arm_l.rotation = Vector3(-s * 0.45 * amp + sway, 0, -0.07)
+			var lift := sin(clampf(use_t, 0.0, 1.0) * PI) * 1.7
+			if carry:
+				arm_r.rotation = Vector3(1.3 + aim_pitch * 0.8 + lift * 0.3, 0, 0.0)
+			elif held != "":
+				arm_r.rotation = Vector3(0.32 + s * 0.18 * amp + lift, 0, 0.08)
+			else:
+				arm_r.rotation = Vector3(s * 0.45 * amp - sway + lift, 0, 0.07)
+			use_t = maxf(use_t - delta * 1.6, 0.0)
 	recoil = maxf(recoil - delta * 9.0, 0.0)
 	stagger = maxf(stagger - delta * 3.5, 0.0)
 	if _flash > 0.0:

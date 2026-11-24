@@ -84,6 +84,25 @@ const UNIQUE_CHANCE_MAX := 0.95
 const DEFAULT_ROUNDS := 12           ## the gear screen suggests up to this many 9 mm rounds
 const DEFAULT_SHELLS := 6
 
+## Experiment 004 (E): the repaired yard car (GameState.car_repaired) as
+## expedition equipment, gear id "car" (not an item). It needs a fuel can and
+## burns CAR_FUEL per trip; travel takes CAR_TRAVEL of the time; stackable
+## loot x CAR_CARRY (on top of the backpack), materials x CAR_MATERIAL_MULT
+## more, and the heavy loads of CAR_HAUL (by kind of place) only come home by car.
+const CAR := "car"
+const CAR_FUEL := 1
+const CAR_TRAVEL := 0.6
+const CAR_CARRY := 2.0
+const CAR_MATERIAL_MULT := 1.5
+const CAR_MATERIALS := ["wood", "stone", "iron", "scrap"]
+const CAR_HAUL := {
+	"residential": [["wood", 3, 6, 0.6], ["scrap", 2, 4, 0.5], ["fuel", 1, 1, 0.3]],
+	"food": [["water", 3, 6, 0.7], ["canned_food", 2, 4, 0.6]],
+	"medical": [["medkit", 1, 1, 0.35], ["water", 2, 3, 0.4]],
+	"construction": [["stone", 3, 6, 0.6], ["iron", 1, 3, 0.5], ["wood", 4, 8, 0.6]],
+	"weapons": [["ammo", 3, 6, 0.4], ["iron", 1, 2, 0.3]],
+}
+
 const RISK_NAMES := ["Low", "Moderate", "High", "Severe"]
 const RISK_BOUNDS := [0.9, 1.15, 1.45]
 
@@ -95,7 +114,7 @@ const ORDER := [
 	"homes", "cul_de_sac", "trailer_park", "farmhouse",
 	"convenience", "grocery", "diner", "restaurant", "fast_food",
 	"drugstore", "clinic", "vet_clinic", "hospital",
-	"hardware", "logging", "sawmill", "quarry", "construction_site", "scrapyard", "warehouse",
+	"hardware", "forest", "logging", "sawmill", "quarry", "construction_site", "scrapyard", "warehouse",
 	"gun_shop", "shooting_range", "police", "military",
 ]
 
@@ -204,7 +223,8 @@ const LOCATIONS := {
 		"two_events": 0.5},
 	"farmhouse": {"profile": "residential", "place": "farmhouse", "danger": 0.85, "search": 160,
 		"mods": {"water": 0.8, "nails": 0.6},
-		"extra": [["canned_food", 1, 3, 0.7], ["wood", 3, 6, 0.7], ["shells", 1, 2, 0.15], ["shotgun", 1, 1, 0.07]],
+		"extra": [["canned_food", 1, 3, 0.7], ["wood", 3, 6, 0.7], ["shells", 1, 2, 0.15], ["shotgun", 1, 1, 0.07],
+			["fuel", 1, 2, 0.45], ["car_battery", 1, 1, 0.2]],
 		"events": {"collapsed_floor": 3, "dogs": 2, "tracks": 2, "boarded_house": 1, "fog_bank": 2},
 		"two_events": 0.45, "deplete": 0.25, "regen": 0.025},
 	# food and water
@@ -249,7 +269,16 @@ const LOCATIONS := {
 	# construction
 	"hardware": {"profile": "construction_wood", "place": "hardware store", "danger": 1.0, "search": 210,
 		"mods": {"nails": 1.3, "scrap": 1.3, "hammer": 1.5, "crowbar": 1.4},
+		"extra": [["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.2]],
 		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1}},
+	# Experiment 004 (E): the pine woods near home, a low-risk wood source
+	"forest": {"profile": "construction_wood", "place": "woods", "danger": 0.7, "search": 150,
+		"mods": {"wood": 1.4, "nails": 0.0, "scrap": 0.5, "hammer": 0.0, "flashlight": 0.0, "crowbar": 0.0},
+		"extra": [["wood", 3, 6, 0.6]],
+		"locked": [["wood", 5, 9, 0.9], ["nails", 2, 6, 0.6], ["scrap", 1, 2, 0.4]],
+		"locked_name": "the woodcutter's shed", "locked_text": "The crowbar opened a woodcutter's shed under the snow.",
+		"events": {"deadfall": 3, "hunters_cabin": 2, "dogs": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.4, "deplete": 0.08, "regen": 0.1, "floor": 0.5},
 	"logging": {"profile": "construction_wood", "place": "clearing", "danger": 0.9, "search": 180,
 		"mods": {"wood": 1.5, "nails": 0.0, "scrap": 0.4, "hammer": 0.0, "flashlight": 0.0, "crowbar": 0.5},
 		"locked": [["wood", 6, 10, 0.9], ["scrap", 1, 2, 0.4]],
@@ -264,11 +293,12 @@ const LOCATIONS := {
 		"deplete": 0.08, "regen": 0.1, "floor": 0.6},
 	"construction_site": {"profile": "construction_stone", "place": "site", "danger": 1.1, "search": 190,
 		"mods": {"stone": 0.9},
-		"extra": [["wood", 3, 6, 0.8], ["iron", 1, 3, 0.55]],
+		"extra": [["wood", 3, 6, 0.8], ["iron", 1, 3, 0.55], ["fuel", 1, 2, 0.4]],
 		"events": {"scaffold": 4, "heavy_load": 2, "lone_psycho": 2, "dogs": 1, "fog_bank": 1},
 		"two_events": 0.65, "deplete": 0.2, "regen": 0.03, "floor": 0.2},
 	"scrapyard": {"profile": "construction_iron", "place": "scrapyard", "danger": 1.05, "search": 180,
-		"mods": {"scrap": 1.4}},
+		"mods": {"scrap": 1.4},
+		"extra": [["car_battery", 1, 1, 0.35], ["fuel", 1, 2, 0.3]]},
 	"warehouse": {"profile": "construction_iron", "place": "warehouse", "danger": 1.1, "search": 200,
 		"mods": {"scrap": 0.7, "iron": 0.8},
 		"extra": [["wood", 3, 6, 0.7], ["stone", 2, 4, 0.4], ["canned_food", 1, 2, 0.35], ["water", 1, 2, 0.35]],
@@ -285,7 +315,7 @@ const LOCATIONS := {
 		"two_events": 0.6, "risk_floor": 0.0},
 	"police": {"profile": "weapons", "place": "station", "danger": 1.6, "search": 220,
 		"mods": {"vest": 2.5, "shotgun": 1.5},
-		"extra": [["medkit", 1, 1, 0.25], ["flashlight", 1, 1, 0.2]],
+		"extra": [["medkit", 1, 1, 0.25], ["flashlight", 1, 1, 0.2], ["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.15]],
 		"events": {"armoury": 4, "patrol": 3, "waiting_room": 1, "lone_psycho": 1, "fog_bank": 1},
 		"two_events": 1.0, "prep": {"vest": 0.85, "shots": 0.85}, "prep_shots": 3},
 	"military": {"profile": "military", "place": "outpost",
@@ -327,7 +357,7 @@ const FLAGS := {
 
 const STASH := [["ammo", 2, 5, 0.5], ["water", 2, 3, 0.6], ["canned_food", 1, 2, 0.5]]
 const CAR_BAG := [["ammo", 2, 4, 0.35], ["water", 1, 2, 0.7], ["snacks", 1, 3, 0.7], ["bandage", 1, 1, 0.3]]
-const CAR_BOOT := [["ammo", 2, 4, 0.35], ["water", 1, 2, 0.7], ["snacks", 1, 3, 0.7], ["bandage", 1, 1, 0.3], ["scrap", 1, 2, 0.6], ["nails", 4, 8, 0.5]]
+const CAR_BOOT := [["ammo", 2, 4, 0.35], ["water", 1, 2, 0.7], ["snacks", 1, 3, 0.7], ["bandage", 1, 1, 0.3], ["scrap", 1, 2, 0.6], ["nails", 4, 8, 0.5], ["fuel", 1, 1, 0.25]]
 ## Named bonus tables for event options ("locked" and "cache" come from the destination).
 const BONUS_TABLES := {"stash": STASH, "car": CAR_BAG, "car_quiet": CAR_BOOT}
 
@@ -505,6 +535,42 @@ const EVENTS := {
 			{"label": "Leave it be",
 				"outcome": "Some doors are closed for a reason.",
 				"log": "Left a boarded-up house alone."},
+		],
+	},
+	# --- Experiment 004 (E): the pine woods -------------------------------------------------
+	"deadfall": {
+		"title": "Deadfall",
+		"text": "A storm-felled pine lies across the path, half buried in snow. Dry, seasoned wood, and a lot of it.",
+		"tags": [],
+		"options": [
+			{"label": "Cut it up and haul it", "minutes": 45, "bonus": [["wood", 4, 8, 1.0]], "hurt": [0.15, 3, 8],
+				"outcome": "It takes the better part of an hour, but the planks are good.",
+				"hurt_text": "The saw jumps on a frozen knot.",
+				"log": "Cut up a fallen pine for planks."},
+			{"label": "Lever the trunk free with the crowbar", "needs": {"crowbar": 1}, "minutes": 25, "bonus": [["wood", 5, 9, 1.0]], "lose": ["crowbar", 0.15],
+				"outcome": "The trunk rolls free of the snow and splits clean.",
+				"lose_text": "The crowbar slips into the snow under the trunk. Gone.",
+				"log": "Levered a fallen pine free for planks."},
+			{"label": "Climb over and go on", "minutes": -10,
+				"outcome": "You leave it for the next storm.",
+				"log": "Climbed over a fallen pine."},
+		],
+	},
+	"hunters_cabin": {
+		"title": "A hunter's cabin",
+		"text": "A cabin among the pines, its door frozen shut. No smoke from the chimney. No tracks but yours.",
+		"tags": ["dark"],
+		"options": [
+			{"label": "Pry the door", "needs": {"crowbar": 1}, "minutes": 20, "bonus": [["canned_food", 1, 2, 0.7], ["water", 1, 2, 0.5], ["shells", 1, 2, 0.25], ["wood", 2, 4, 0.8]],
+				"outcome": "The ice cracks and the door gives. Tins on a shelf, a box of shells, stacked firewood.",
+				"log": "Pried open a hunter's cabin."},
+			{"label": "Climb in through the window", "minutes": 25, "bonus": [["canned_food", 1, 2, 0.6], ["wood", 1, 3, 0.7]], "hurt": [0.3, 4, 10],
+				"outcome": "You knock out the frosted pane and climb into the dark.",
+				"hurt_text": "The glass bites through your sleeve.",
+				"log": "Climbed into a hunter's cabin."},
+			{"label": "Leave it be",
+				"outcome": "Whoever lived here might still. You keep to the trees.",
+				"log": "Left a hunter's cabin alone."},
 		],
 	},
 	"timber_rack": {
@@ -1026,12 +1092,45 @@ static func search_minutes(id: String, approach := "general") -> int:
 	return maxi(int(round(float(d["search"]) * float(approach_def(approach).get("search", 1.0)) / 5.0)) * 5, 30)
 
 
-## Nominal trip length: travel there and back (RegionLocations) plus the search.
-static func nominal_minutes(id: String, approach := "general") -> int:
+## Nominal trip length: travel there and back (RegionLocations) plus the
+## search. `car`: by car (Experiment 004), travel x CAR_TRAVEL.
+static func nominal_minutes(id: String, approach := "general", car := false) -> int:
 	var d := destination(id)
 	if d.is_empty():
 		return 0
-	return 2 * int(d["travel"]) + search_minutes(id, approach)
+	return 2 * travel_minutes(id, car) + search_minutes(id, approach)
+
+
+## One-way travel in minutes, on foot or by car (rounded to 5, at least 5).
+static func travel_minutes(id: String, car := false) -> int:
+	var d := destination(id)
+	if d.is_empty():
+		return 0
+	if not car:
+		return int(d["travel"])
+	return maxi(int(round(float(d["travel"]) * CAR_TRAVEL / 5.0)) * 5, 5)
+
+
+# --- the car (Experiment 004, E) ---------------------------------------------------------
+
+## Why the car can't come along now ("" = it can): it must be repaired and
+## there must be a fuel can (the unlimited cheat needs none).
+static func car_state(state: GameState) -> String:
+	if state == null or not bool(state.get("car_repaired")):
+		return "The car in the yard doesn't run yet."
+	if not state.cheats.get("unlimited", false) and state.inventory.count("fuel") < CAR_FUEL:
+		return "No fuel for the car."
+	return ""
+
+
+static func can_drive(state: GameState) -> bool:
+	return car_state(state) == ""
+
+
+## The heavy loads only the car brings home from this kind of place.
+static func car_haul(dest_id: String) -> Array:
+	var d := destination(dest_id)
+	return CAR_HAUL.get(str(d.get("category", "")), [])
 
 
 # --- departure rules ---------------------------------------------------------------------
@@ -1040,7 +1139,7 @@ static func nominal_minutes(id: String, approach := "general") -> int:
 ## approach (pure). Checks the departure window (05:00-18:00, back by 20:00 with
 ## this approach's nominal time), invasions, required gear and the approach's
 ## needs against what you own. Discovery is the screen's and the map's concern.
-static func availability(state: GameState, dest_id: String, approach := "general") -> Dictionary:
+static func availability(state: GameState, dest_id: String, approach := "general", car := false) -> Dictionary:
 	var d := destination(dest_id)
 	if d.is_empty():
 		return {"ok": false, "reason": "Unknown place."}
@@ -1055,7 +1154,7 @@ static func availability(state: GameState, dest_id: String, approach := "general
 		return {"ok": false, "reason": "It's still dark out there. You can set out from %s." % clock(T.EXPEDITION_DEPART_FROM)}
 	if m > T.EXPEDITION_DEPART_UNTIL:
 		return {"ok": false, "reason": "Too late to set out. You'd be coming back in the dark."}
-	var mins := float(nominal_minutes(dest_id, approach))
+	var mins := float(nominal_minutes(dest_id, approach, car))
 	var back := m + mins
 	if back > T.EXPEDITION_RETURN_BY:
 		return {"ok": false, "reason": "You'd be coming back in the dark (around %s). Leave by %s." % [clock(back), clock(T.EXPEDITION_RETURN_BY - mins)]}
@@ -1073,7 +1172,7 @@ static func availability(state: GameState, dest_id: String, approach := "general
 
 ## {"ok", "reason"} for the approach with the gear actually brought.
 static func approach_state(state: GameState, dest_id: String, approach: String, gear: Dictionary) -> Dictionary:
-	var av := availability(state, dest_id, approach)
+	var av := availability(state, dest_id, approach, int(gear.get(CAR, 0)) > 0)
 	if not av["ok"]:
 		return av
 	var need := int(approach_def(approach).get("needs_shots", 0))
@@ -1102,6 +1201,9 @@ static func sanitize_gear(state: GameState, dest_id: String, gear: Dictionary) -
 		var want = gear.get(id, 0)
 		if can_bring(state, id) and ((typeof(want) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and int(want) > 0) or id in req or id in WORN_GEAR):
 			out[id] = 1
+	var car = gear.get(CAR, 0)
+	if typeof(car) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and int(car) > 0 and can_drive(state):
+		out[CAR] = 1
 	return out
 
 
@@ -1111,6 +1213,7 @@ static func default_gear(state: GameState, dest_id: String) -> Dictionary:
 	var g := {"ammo": mini(rounds_owned(state, "ammo"), DEFAULT_ROUNDS), "shells": mini(rounds_owned(state, "shells"), DEFAULT_SHELLS)}
 	for id in BRINGABLE_GEAR:
 		g[id] = 1
+	g[CAR] = 1                       # the repaired car with fuel comes along by default
 	return sanitize_gear(state, dest_id, g)
 
 
@@ -1138,6 +1241,14 @@ static func gear_effect(id: String, dest_id: String) -> String:
 			return "Worn: +%d %% on everything you carry back." % int(round((Equipment.BACKPACK_CARRY - 1.0) * 100.0))
 		"vest":
 			return "Worn: injuries -35 %." + (" Sharply lowers the risk here." if p.has("vest") else "")
+		CAR:
+			var haul := []
+			for e in car_haul(dest_id):
+				if not Items.name_of(e[0]).to_lower() in haul:
+					haul.append(Items.name_of(e[0]).to_lower())
+			return "1 fuel can. Travel %d min instead of %d each way; carries x%d (building materials x%d)%s." % [
+				travel_minutes(dest_id, true), travel_minutes(dest_id), int(CAR_CARRY), int(CAR_CARRY * CAR_MATERIAL_MULT),
+				("; heavy loads too: " + ", ".join(haul)) if not haul.is_empty() else ""]
 	return ""
 
 

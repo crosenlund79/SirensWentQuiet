@@ -199,7 +199,7 @@ func test_list_is_grouped_and_grows_with_discovery() -> void:
 	sc.cancel()
 	s.region.discover_all()
 	sc.open(s)
-	check_eq(sc.destination_buttons.size(), 24, "all 24 places once discovered")
+	check_eq(sc.destination_buttons.size(), RegionLocations.ids().size(), "every place once discovered")
 	check_eq(sc.listed_ids(), D.ORDER, "display order")
 	var sections := sc._panel.find_children("*", "HBoxContainer", true, false).filter(func(n): return n.has_meta("category"))
 	check_eq(sections.map(func(n): return n.get_meta("category")), D.CATEGORY_ORDER, "one header per category, in order")
