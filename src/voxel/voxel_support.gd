@@ -19,6 +19,11 @@ extends RefCounted
 ## Unlike VoxelCarver.remove_floating (a crumb cleanup with a 400-voxel cap
 ## and no notion of the ground) this drops whole wall bands, lintels, sills
 ## and window assemblies that lost what held them.
+##
+## Furniture voxels (materials from VoxelMat.WOOD up: a damaged piece's
+## voxels, HouseFurniture) count as air here: they keep their own
+## break-off lifecycle (some pieces' voxel models have parts above thin
+## legs), and they don't hold up walls.
 
 const CAP := 25000
 
@@ -37,6 +42,7 @@ static func unsupported(g: VoxelGrid, lo: Vector3i, hi: Vector3i, ground_row := 
 	var ground_hi := (ground_row + 1) * sxz          # indices below this are ground rows
 	var mat := g.mat
 	var flags := VoxelMat.FLAGS
+	var furniture := VoxelMat.WOOD
 	# pushed in this order, popped in reverse: down first, then sideways, up last
 	var deltas := PackedInt32Array([sxz, g.sx, -g.sx, 1, -1, -sxz])
 	var known := {}                                  # index -> true (grounded) / false (falls)
@@ -45,7 +51,7 @@ static func unsupported(g: VoxelGrid, lo: Vector3i, hi: Vector3i, ground_row := 
 			var base := (y * g.sz + z) * g.sx
 			for x in range(lo.x, hi.x):
 				var s := base + x
-				if mat[s] == 0 or known.has(s):
+				if mat[s] == 0 or mat[s] >= furniture or known.has(s):
 					continue
 				var seen := {s: true}
 				var stack := PackedInt32Array([s])
@@ -55,7 +61,7 @@ static func unsupported(g: VoxelGrid, lo: Vector3i, hi: Vector3i, ground_row := 
 					stack.resize(stack.size() - 1)
 					for d in deltas:
 						var j := i + d
-						if j < 0 or j >= n_total or mat[j] == 0 or seen.has(j):
+						if j < 0 or j >= n_total or mat[j] == 0 or mat[j] >= furniture or seen.has(j):
 							continue
 						if j < ground_hi or mat[j] == VoxelMat.EARTH or known.get(j, false):
 							grounded = true

@@ -59,6 +59,8 @@ var roof_gone := {}                ## zone id -> true: that part of the roof col
 var strained_zones := {}           ## zone id -> true (warned once per strain)
 var dirty := false
 var collapses := 0                 ## collapse events (tests)
+static var _ring: Array = []
+static var _zone_ring := {}
 var last_ms := 0.0
 
 
@@ -72,7 +74,8 @@ func mark_dirty() -> void:
 
 
 ## Links the upper storey (game_support.gd calls this when it is built or
-## loaded); its changes count as structural changes too.
+## loaded); its changes count as structural changes too. Linking alone
+## evaluates nothing (a loaded save stands as it was saved).
 func set_upper(u: HouseWorld) -> void:
 	if u == upper:
 		return
@@ -81,7 +84,6 @@ func set_upper(u: HouseWorld) -> void:
 		u.support = self
 		if not u.structure_changed.is_connected(mark_dirty):
 			u.structure_changed.connect(mark_dirty)
-		dirty = true
 
 
 ## HouseWorld._process: one evaluation per frame at most, only after changes.
@@ -134,24 +136,22 @@ func roof_intact_at(p: Vector2) -> bool:
 ## Zone id -> {"fail": bool, "run": longest non-bearing run (m) on its outer sides}
 ## for one storey's perimeter. `skip`: a section treated as gone (previews).
 func zone_states(w: HouseWorld, skip := Vector3i(-1, -1, -1)) -> Dictionary:
-	var runs := {}
-	for key in LINES:
-		runs[key] = _runs(w, key, skip)
+	var runs := _runs(w, skip)
 	var out := {}
 	for z in ZONES:
+		var mine := _ring_of(z["id"])
 		var worst := 0
 		var fail := false
-		for side in _sides(z["rect"]):
-			var a: int = side[1]
-			var b: int = side[2]
-			for r in runs[side[0]]:
-				var ov := mini(b, r[1]) - maxi(a, r[0])
-				if ov <= 0:
-					continue
-				var length: int = r[1] - r[0]
-				worst = maxi(worst, length)
-				if length >= FAIL_RUN and ov >= mini(2, b - a):
-					fail = true
+		for r in runs:
+			var ov := 0
+			for i in r:
+				if mine.has(i):
+					ov += 1
+			if ov == 0:
+				continue
+			worst = maxi(worst, r.size())
+			if r.size() >= FAIL_RUN and ov >= mini(2, mine.size()):
+				fail = true
 		out[z["id"]] = {"fail": fail, "run": worst}
 	return out
 
@@ -288,18 +288,59 @@ func evaluate() -> void:
 		world.structure_changed.emit()        # the roof is part of the structure (lights, listeners)
 
 
-## Maximal runs [from, to) of non-bearing sections on perimeter line `key`.
-func _runs(w: HouseWorld, key: String, skip: Vector3i) -> Array:
-	var l: Dictionary = LINES[key]
+## The perimeter as one closed ring of 1 m sections, clockwise from the
+## north-west corner: [line key, k] (runs continue round the corners).
+static func ring() -> Array:
+	if _ring.is_empty():
+		for k in range(0, 14):
+			_ring.append(["north", k])
+		for k in range(0, 9):
+			_ring.append(["east", k])
+		for k in range(13, -1, -1):
+			_ring.append(["south", k])
+		for k in range(8, -1, -1):
+			_ring.append(["west", k])
+	return _ring
+
+
+## Ring indices of zone `id`'s outer sides (cached).
+static func _ring_of(id: String) -> Dictionary:
+	if not _zone_ring.has(id):
+		var out := {}
+		var sides := _sides(zone(id)["rect"])
+		var rg := ring()
+		for i in rg.size():
+			for side in sides:
+				if rg[i][0] == side[0] and int(rg[i][1]) >= int(side[1]) and int(rg[i][1]) < int(side[2]):
+					out[i] = true
+		_zone_ring[id] = out
+	return _zone_ring[id]
+
+
+## Maximal runs of non-bearing perimeter sections, as lists of ring indices
+## (a run may wrap past the ring's start).
+func _runs(w: HouseWorld, skip: Vector3i) -> Array:
+	var rg := ring()
+	var n := rg.size()
+	var bears := []
+	var first := -1
+	for i in n:
+		var b := line_bears(w, rg[i][0], int(rg[i][1]), skip)
+		bears.append(b)
+		if b and first < 0:
+			first = i
+	if first < 0:
+		return [range(n)]                         # nothing bears at all
 	var out := []
-	var start := -1
-	for k in range(int(l["from"]), int(l["to"]) + 1):
-		var bears := k >= int(l["to"]) or line_bears(w, key, k, skip)
-		if not bears and start < 0:
-			start = k
-		elif bears and start >= 0:
-			out.append([start, k])
-			start = -1
+	var cur := []
+	for j in range(1, n + 1):
+		var i := (first + j) % n
+		if bears[i]:
+			if not cur.is_empty():
+				out.append(cur)
+				cur = []
+		else:
+			cur.append(i)
 	return out
 
 
