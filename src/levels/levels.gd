@@ -14,7 +14,6 @@ extends RefCounted
 ##   "down" stairs (lo -1): in a hole in the ground floor, descending from the
 ##     start edge into dug basement cells.
 ## Each end has an exit point 0.5 m outside the stairs (where a body arrives).
-## Docs: docs/experiment-004/levels.md.
 
 const HEIGHT := 2.9
 const BASEMENT := -1

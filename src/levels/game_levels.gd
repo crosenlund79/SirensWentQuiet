@@ -23,7 +23,6 @@ extends Node
 ##             through a floor (game_combat checks same_storey()).
 ##   save      world["levels"] (stairs, laid tiles, each LevelWorld's data);
 ##             the player's storey goes into RunSave.
-## Docs: docs/experiment-004/levels.md.
 
 signal storey_changed(storey: int)
 
@@ -419,6 +418,9 @@ func _update_visibility() -> void:
 	var show_ground := _storey_shown(Levels.GROUND)
 	if game.world.visible != show_ground:
 		game.world.visible = show_ground
+	var table = game.map.get("table") if game.get("map") != null else null
+	if table is Node3D:
+		(table as Node3D).visible = show_ground      # the map on the dining table
 	if upper != null:
 		upper.visible = _storey_shown(Levels.UPPER)
 	if basement != null:
@@ -428,6 +430,9 @@ func _update_visibility() -> void:
 		if is_instance_valid(v):
 			var lo := int(v.stairs["lo"])
 			v.visible = show_ground or (lo == Levels.BASEMENT and player_storey == Levels.BASEMENT)
+			var pit := v.get_node_or_null("Pit") as Node3D
+			if pit != null:
+				pit.visible = player_storey != Levels.BASEMENT
 	if game.roster != null:
 		for e in game.roster.enemies:
 			if is_instance_valid(e) and e is AIEnemy:

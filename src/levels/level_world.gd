@@ -50,7 +50,7 @@ func configure(s: int, light: VoxelLighting) -> void:
 static func create_grid(s: int) -> VoxelGrid:
 	var g := VoxelGrid.new(SIZE, VoxelHouse.VS, Vector3(ORIGIN_XZ.x, VoxelHouse.LOT_ORIGIN.y + Levels.base_y(s), ORIGIN_XZ.y))
 	g.cap_row = VoxelHouse.TOP_ROW
-	g.cap_color = VoxelArt.pal(VoxelArt.Slot.CAP)
+	g.cap_color = 0x2f271f if s == Levels.BASEMENT else VoxelArt.pal(VoxelArt.Slot.CAP)
 	return g
 
 
@@ -141,7 +141,8 @@ static func _stamp_outer_wall(g: VoxelGrid, w: Dictionary) -> void:
 	for z in range(zr.x, zr.y):
 		for x in range(xr.x, xr.y):
 			var p := VoxelHouse.column_plan(g, x, z)
-			var outer := (p.y - line) * (line - mid.y) > 0.0 if horiz else (p.x - line) * (line - mid.x) > 0.0
+			# voxel centres sit on multiples of 0.1 m: the wall's two are line - 0.1 and line
+			var outer := (p.y - line + 0.05) * (line - mid.y) > 0.0 if horiz else (p.x - line + 0.05) * (line - mid.x) > 0.0
 			var along := p.x if horiz else p.y
 			var seg := Vector3i(0 if horiz else 1, int(line), floori(along))
 			var glazed := UPPER_WINDOWS.has(seg)

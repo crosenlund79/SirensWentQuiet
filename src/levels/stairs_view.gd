@@ -3,11 +3,14 @@ extends Node3D
 ## record): Levels.STEPS solid wooden steps over its two cells, rising from
 ## the ground floor to the upper floor ("up") or descending into the basement
 ## ("down"), with a stringer on each side. Visual only: bodies change storey
-## through GameLevels, so the steps have no collision.
+## through GameLevels, so the steps have no collision. Stairs down also get
+## a dark "Pit" over their hole, seen from the ground floor (the yard's ground
+## plane, just under the floor, would otherwise show through the hole).
 
 const TREAD := 0x7b5d40
 const RISER := 0x5f4630
 const STRINGER := 0x4e3a28
+const PIT := 0x0d0b0a
 
 var stairs: Dictionary
 
@@ -49,7 +52,14 @@ func _build() -> void:
 			_box(size, Vector3(c.x, (lo + top) * 0.5, c.y), _mat(STRINGER))
 
 
-func _box(size: Vector3, at: Vector3, m: Material) -> void:
+	if not up:
+		var pit := _box(Vector3(0.98 if not along_x else 1.98, 0.01, 1.98 if not along_x else 0.98),
+			Vector3(start.x + d.x, -0.012, start.y + d.y), _mat(PIT))
+		pit.name = "Pit"
+		pit.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _box(size: Vector3, at: Vector3, m: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
@@ -57,6 +67,7 @@ func _box(size: Vector3, at: Vector3, m: Material) -> void:
 	mi.material_override = m
 	mi.position = at
 	add_child(mi)
+	return mi
 
 
 static var _mats := {}
