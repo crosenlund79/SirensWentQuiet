@@ -231,3 +231,26 @@ func test_ai_bomber_blast_hurts_nearby_enemies() -> void:
 	check(not _ev("blast").is_empty(), "detonated")
 	check(near.hp < near_hp, "the brute near the blast was hurt (%d -> %d)" % [near_hp, near.hp])
 	check(far.alive and far.hp == far.max_hp, "the far psycho was not")
+
+
+## Its target is destroyed on the way (here: the door is broken down by
+## something else): it picks another weak point and still blows it.
+func test_ai_bomber_repicks_when_its_target_is_gone() -> void:
+	await _setup(Vector2(9.0, 13.5))
+	var b: AIEnemy = roster.spawn_type("bomber", Vector2(2.4, 13.2))
+	await physics_frames(20)
+	var first: Dictionary = b.behaviour.target.duplicate()
+	check_eq(first.get("kind"), "door", "it went for the front door first")
+	var door := _door(Vector2(4.5, 9.0))
+	world.damage_object(door, 100)
+	await physics_frames(2)
+	check(_door(Vector2(4.5, 9.0)) == null, "the door is gone")
+	var bref: WeakRef = weakref(b)
+	await _run_until(func(): return not _ev("blast").is_empty() or bref.get_ref() == null, 30.0)
+	var fuse := _ev("fuse")
+	check(fuse.size() == 1, "one fuse, at the new target")
+	if fuse.is_empty():
+		return
+	var at: Vector3 = fuse[0]["at"]
+	check(Vector2(at.x, at.z).distance_to(Vector2(4.5, 9.0)) > 0.8, "not at the broken doorway (%s)" % at)
+	check_eq(_ev("blast").size(), 1, "and blew it")

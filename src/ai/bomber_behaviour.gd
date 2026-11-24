@@ -157,15 +157,15 @@ static func describe(w: HouseWorld, p: Dictionary) -> Dictionary:
 		return {}
 	elif w.sections.has(seg) and w.section_integrity(seg) < BREACHED:
 		return {}
-	return {"kind": kind, "pos": line_pos, "approach": approach, "normal": n, "seg": seg, "object": obj,
+	return {"kind": kind, "pos": line_pos, "approach": approach, "normal": n, "seg": seg, "object": obj, "has_object": obj != null,
 		"key": "%d:%d,%d,%d" % [w.get_instance_id(), seg.x, seg.y, seg.z]}
 
 
 func _still_valid(e: AIEnemy) -> bool:
 	if target.is_empty() or e.world == null:
 		return false
-	var obj: WorldObject = target["object"]
-	if obj != null:
+	if target.get("has_object", false):
+		var obj = target["object"]       # untyped: it may have been freed
 		return is_instance_valid(obj) and e.world.objects.has(obj) and obj.bashable()
 	var seg: Vector3i = target["seg"]
 	return not e.world.sections.has(seg) or e.world.section_integrity(seg) >= BREACHED

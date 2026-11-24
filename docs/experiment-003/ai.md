@@ -273,7 +273,8 @@ Scenarios: `lineup`, `close --kind=<k>`, `runner_door`, `brute_barricade`, `bomb
   - **it goes for the first usable weak wall while a psycho from the same spot attacks the player** (a hole and a walk-only path through it);
   - **killed before the fuse: it fizzles** (no blast, the house untouched);
   - **killed during the fuse: it pops** (1.6 m, 15 damage, no structural damage, no later full blast);
-  - the blast hurts nearby enemies, not far ones.
+  - the blast hurts nearby enemies, not far ones;
+  - its target is destroyed on the way: it picks another weak point and still blows it.
 - **`tests/common/test_pursuit_brain.gd`**: the two existing tests, plus the oscillating half-open gap (fails on the old brain), no false swings while chasing a moving goal, and walking to a goal without attacking.
 - **`tests/game/test_game_helpers.gd`**: the existing pacing test, plus the director → roster wave contract on a real HouseWorld.
 
