@@ -612,8 +612,8 @@ func _build_roof() -> void:
 			if snow:
 				# snow, thinner along the edges, with a few wind-scoured patches
 				top = VoxelArt.jitter(VoxelArt.mix(SNOW, SNOW_SHADE, VoxelArt.hash3(x / 6, 0, z / 6, 4) * 0.5), x, 2, z, 0.025)
-				if edge or VoxelArt.hash3(x / 3, 1, z / 3, 7) > 0.93:
-					top = VoxelArt.mix(VoxelArt.sample("roof", x, z), SNOW, 0.45)
+				if edge or VoxelArt.hash3(x / 3, 1, z / 3, 7) > 0.975:
+					top = VoxelArt.mix(VoxelArt.sample("roof", x, z), SNOW, 0.6)
 			else:
 				# rain streaks and a dark puddle
 				var pc := Vector2(x - 40, (z - 60) * 1.4).length()

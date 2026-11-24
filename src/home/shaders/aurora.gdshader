@@ -29,6 +29,6 @@ void fragment() {
 	float ends = smoothstep(0.0, 0.2, x) * smoothstep(1.0, 0.8, x);
 	float pulse = 0.72 + 0.28 * sin(t * 0.45 + x * 5.0 + seed * 3.0);
 	vec3 c = mix(col_low, col_high, smoothstep(0.1, 0.7, yy));
-	ALBEDO = c * 1.6;
-	ALPHA = clamp(lower * (0.3 + 0.7 * rays) * ends * pulse * strength, 0.0, 1.0);
+	ALBEDO = c * 1.15;
+	ALPHA = clamp(lower * (0.12 + 0.88 * rays) * ends * pulse * strength * 0.85, 0.0, 1.0);
 }

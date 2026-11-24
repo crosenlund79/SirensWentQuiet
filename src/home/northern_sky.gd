@@ -23,7 +23,7 @@ const RIBBONS := [
 const AURORA_SHADER := preload("res://src/home/shaders/aurora.gdshader")
 const SNOW_SHADER := preload("res://src/home/shaders/snowfall.gdshader")
 const SNOW_DAY := Color(0.9, 0.93, 0.97)
-const SNOW_NIGHT := Color(0.32, 0.38, 0.5)
+const SNOW_NIGHT := Color(0.42, 0.48, 0.62)
 
 var camera: Camera3D
 var lighting: VoxelLighting

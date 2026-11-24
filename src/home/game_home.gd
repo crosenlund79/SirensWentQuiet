@@ -52,6 +52,7 @@ var _states := {}
 var _mains := true
 var _refresh_t := 0.0
 var _root: Node3D
+var _place_at := Vector2.INF           ## --player-at=x,z (screenshots): placed on the first frame
 
 
 func setup(g: Node) -> void:
@@ -85,6 +86,11 @@ func setup(g: Node) -> void:
 		world.object_destroyed.connect(_on_power_changed)
 	refresh_power(true)
 	_save()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--player-at="):
+			var v := a.trim_prefix("--player-at=").split(",")
+			if v.size() == 2:
+				_place_at = Vector2(float(v[0]), float(v[1]))
 
 
 func _exit_tree() -> void:
@@ -277,6 +283,10 @@ func on_fridge() -> void:
 func _process(delta: float) -> void:
 	if game == null or state == null:
 		return
+	if _place_at != Vector2.INF:
+		game.debug_teleport_player(_place_at)
+		game.camera.snap()
+		_place_at = Vector2.INF
 	var n := state.night_amount()
 	sky.tick(state.total_minutes, n)
 	fireplace.set_night(n)
