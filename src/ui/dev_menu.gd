@@ -359,6 +359,7 @@ func _build() -> void:
 	_panel.anchor_bottom = 1.0
 	_panel.offset_left = -WIDTH - 20.0
 	_panel.offset_right = -20.0
+	_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN   # never past the right edge
 	_panel.offset_top = 80.0
 	_panel.offset_bottom = -20.0
 	_root.add_child(_panel)
@@ -406,7 +407,7 @@ func _build() -> void:
 		["Fill magazines", fill_magazines], ["+ Vest & gear", add_pack.bind("gear")],
 		["+ Materials", add_pack.bind("materials")], ["All tools", add_pack.bind("tools")],
 	]))
-	box.add_child(_grid(4, [
+	box.add_child(_grid(2, [
 		["+10 planks", add_pack.bind("wood")], ["+10 stone", add_pack.bind("stone")],
 		["+10 iron", add_pack.bind("iron")], ["+10 scrap", add_pack.bind("scrap")],
 	]))
@@ -465,12 +466,12 @@ func _build() -> void:
 	var spawn_items := []
 	for k in EnemyDefs.KINDS:
 		spawn_items.append(["+ " + EnemyDefs.get_def(k)["name"], spawn_type.bind(k)])
-	box.add_child(_grid(4, spawn_items))
+	box.add_child(_grid(2, spawn_items))
 	box.add_child(UiTheme.make_caption("Invasion with a chosen wave (click a type to change its count):", WIDTH - 52, UiTheme.TEXT_FAINT))
 	var wave_items := []
 	for k in EnemyDefs.KINDS:
 		wave_items.append(["%s ×%d" % [EnemyDefs.get_def(k)["name"], int(wave.get(k, 0))], bump_wave.bind(k)])
-	var wg := _grid(4, wave_items)
+	var wg := _grid(2, wave_items)
 	for i in EnemyDefs.KINDS.size():
 		var wb := wg.get_child(i) as Button
 		wb.name = "Wave_" + EnemyDefs.KINDS[i]
@@ -493,13 +494,11 @@ func _build() -> void:
 	for a in ExpeditionData.approaches():
 		_mission_approach.add_item(str(a["name"]))
 		_mission_approach.set_item_metadata(_mission_approach.item_count - 1, a["id"])
-	var mrow := HBoxContainer.new()
-	mrow.add_theme_constant_override("separation", 5)
-	_mission_place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_mission_approach.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mrow.add_child(_mission_place)
-	mrow.add_child(_mission_approach)
-	box.add_child(mrow)
+	for ob in [_mission_place, _mission_approach]:
+		(ob as OptionButton).fit_to_longest_item = false      # keep the panel narrow
+		(ob as OptionButton).clip_text = true
+		(ob as OptionButton).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box.add_child(ob)
 	box.add_child(_grid(2, [["Run mission now", run_mission.bind("", "")], ["Reveal all places", reveal_map]]))
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)

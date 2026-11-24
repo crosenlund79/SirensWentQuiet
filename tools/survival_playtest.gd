@@ -1155,8 +1155,8 @@ func _part1() -> void:
 			if not runner_shot:
 				runner_shot = true
 				await _shot("12b_runner_through_the_open_door.png")
-		if rp.x < 13.2 and through_door or rp.distance_to(_pos()) < 4.0:
-			break
+		if HousePlan.FOOTPRINT.has_point(rp) and (rp.x < 13.2 or rp.distance_to(_pos()) < 4.0):
+			break                              # inside the house and close (not through a wall)
 		await _frames(3)
 		t += 3 * DT
 	var runner_walls := int(runner.swings["wall"]) if runner != null and is_instance_valid(runner) else -1
