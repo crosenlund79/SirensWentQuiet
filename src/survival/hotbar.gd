@@ -11,7 +11,7 @@ extends RefCounted
 ## from Items.BAR_AUTO take the first free slot; an item the bar placed once is
 ## never put back by itself after the player removed it ("known").
 ## The game helper src/game/game_hotbar.gd does the input, the use and the
-## weapon in hand; docs: docs/experiment-004/equipment_bar.md.
+## weapon in hand; docs: docs/experiment-004/e_bar_car_menu.md.
 
 const SIZE := 8
 const HOLDABLE := ["weapon", "tool", "utility", "protective", "food", "water", "medical"]

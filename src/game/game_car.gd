@@ -7,7 +7,7 @@ extends Node
 ## expedition equipment (ExpeditionData: CAR_*): picked on the expedition
 ## screen, it carries far more (heavy loads too), cuts the travel time and
 ## burns one fuel can per trip. No driving. F10: dev_give_parts, dev_repair.
-## Docs: docs/experiment-004/car.md.
+## Docs: docs/experiment-004/e_bar_car_menu.md.
 
 const REPAIR_COST := {"car_battery": 1, "fuel": 2, "scrap": 10, "iron": 4, "nails": 6}
 const REPAIR_ORDER := ["car_battery", "fuel", "scrap", "iron", "nails"]

@@ -1,7 +1,10 @@
 extends Control
 ## Main menu, the project's main scene (SPEC §2). Owner: U.
-## New Game · Continue · Settings · Visual Experiments · Quit over a silent
-## suburban street in drifting fog, with an abandoned siren mast.
+## New Game · Continue · Settings · Visual Experiments · Quit over a live
+## siege (Experiment 004, MenuSiege: a varied house torn apart by a small
+## horde, rebuilt each round). The painted fog street (BG_SHADER) shows until
+## the first round is built, and instead of it with `live_background` off
+## (tests) or the user argument --static-menu.
 ## New Game asks for the difficulty (DifficultyDialog; Experiment 003) and
 ## hands it over in GameLaunch.difficulty.
 ## Keyboard (arrows, Enter, Esc) and mouse. Shows GameLaunch.notice once.
@@ -130,6 +133,9 @@ const BUTTONS := [["NewGame", "New Game"], ["Continue", "Continue"], ["Settings"
 
 ## Tests replace this to observe scene changes: func(path: String).
 var scene_changer: Callable
+## Experiment 004: the live siege behind the menu (set before _ready).
+var live_background := true
+var siege: MenuSiege
 var transition_time := 0.4
 var save_info := {}
 
@@ -155,7 +161,15 @@ func _ready() -> void:
 	Sfx.attach(self)
 	_build()
 	refresh_save_info()
-	Sfx.music("music/menu")
+	# Deferred: on the very first launch the root is still adding this scene,
+	# and Sfx's persistent music host can't be added to it yet.
+	_start_music.call_deferred()
+	if live_background and not "--static-menu" in OS.get_cmdline_user_args():
+		siege = MenuSiege.new()
+		siege.name = "Siege"
+		siege.round_started.connect(func(_n: int): _bg.visible = false, CONNECT_ONE_SHOT)
+		add_child(siege)
+		move_child(siege, 0)
 	_focus_first()
 	_fader.color.a = 1.0
 	create_tween().tween_property(_fader, "color:a", 0.0, 0.9).set_trans(Tween.TRANS_SINE)
@@ -165,6 +179,11 @@ func _ready() -> void:
 		_confirm.inform(n, "OK", "Notice")
 	resized.connect(_on_resized)
 	_on_resized()
+
+
+func _start_music() -> void:
+	if is_inside_tree() and not _leaving:
+		Sfx.music("music/menu")
 
 
 func button(id: String) -> Button:
@@ -319,7 +338,7 @@ func _build() -> void:
 	_status.name = "SaveStatus"
 	menu.add_child(_status)
 
-	var foot := UiTheme.make_label("Experiment 003 · Foundations of Survival · %s" % str(ProjectSettings.get_setting("application/config/version", "")), 12, UiTheme.TEXT_FAINT)
+	var foot := UiTheme.make_label("Experiment 004 · Make This House a Home · %s" % str(ProjectSettings.get_setting("application/config/version", "")), 12, UiTheme.TEXT_FAINT)
 	foot.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	foot.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	foot.offset_left = 128

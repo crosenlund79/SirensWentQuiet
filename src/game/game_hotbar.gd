@@ -13,7 +13,7 @@ extends Node
 ##               dig); the crowbar and worn gear explain or toggle themselves.
 ## Empty hands: the WeaponHandler is holstered (firing does nothing) and the
 ## rig's arms hang. The bar is hidden in build mode and while panels are open.
-## Docs: docs/experiment-004/equipment_bar.md.
+## Docs: docs/experiment-004/e_bar_car_menu.md.
 
 const USE_SOUNDS := {"food": "player/eat", "water": "player/drink", "medical": "player/bandage"}
 const HELD := {"food": "food", "water": "water", "medical": "medical"}
