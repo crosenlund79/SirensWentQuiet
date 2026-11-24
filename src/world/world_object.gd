@@ -1,9 +1,12 @@
 class_name WorldObject
 extends Node3D
 ## A placeable object of the survival house (SPEC §7.3 d, §4): door,
-## barricade, storage crate or rain collector. Kind, HP, footprint, a PropKit
-## visual and the SPEC collision layers. Navigation and collision consistency
-## are kept by HouseWorld, which owns every object.
+## barricade, storage crate, rain collector or (Experiment 003) workbench.
+## Kind, material, HP, footprint, a PropKit visual and the SPEC collision
+## layers. Navigation and collision consistency are kept by HouseWorld,
+## which owns every object. Doors and barricades come in "wood" and "iron"
+## (a reinforced door, an iron barricade: same behaviour, more HP); `kind`
+## stays "door" / "barricade" for both.
 ##
 ## Wall-like objects (door, barricade) sit on a 1 m segment of an integer plan
 ## line: `seg` = Vector3i(axis, line, start) with axis 0 = along plan x on
@@ -19,7 +22,16 @@ const DEFS := {
 	"barricade": {"name": "Barricade", "hp": 12, "size": Vector3(1.0, 1.5, 0.22), "segment": true, "layers": 2, "impact": VoxelMat.Impact.WOOD},
 	"crate": {"name": "Storage crate", "hp": 10, "size": Vector3(1.0, 0.75, 0.5), "segment": false, "layers": 1, "impact": VoxelMat.Impact.WOOD},
 	"rain_collector": {"name": "Rain collector", "hp": 10, "size": Vector3(0.5, 1.1, 0.5), "segment": false, "layers": 1, "impact": VoxelMat.Impact.METAL},
+	"workbench": {"name": "Workbench", "hp": 14, "size": Vector3(1.0, 0.9, 0.5), "segment": false, "layers": 1, "impact": VoxelMat.Impact.WOOD},
 }
+## Material variants (Experiment 003). "wood" is DEFS itself; others override
+## name, hp, the PropKit style and the impact kind.
+const MATS := {
+	"door": {"iron": {"name": "Reinforced door", "hp": 42, "style": "iron", "impact": VoxelMat.Impact.METAL}},
+	"barricade": {"iron": {"name": "Iron barricade", "hp": 30, "style": "iron", "impact": VoxelMat.Impact.METAL}},
+}
+const WOOD_TONES := [0x7a5c40, 0x8c6c4c, 0x5e4a36, 0x9a8466]
+const IRON_TONES := [0x5d6266, 0x7a7f82, 0x4a4643, 0x7b4a2c]
 
 var kind := ""
 var hp := 1
@@ -29,6 +41,7 @@ var rot := 0                     ## 0..3 = front faces N, E, S, W
 var seg := Vector3i(-1, 0, 0)    ## wall-like objects only
 var open := false                ## doors
 var built := true                ## placed by the player (demolish refunds half)
+var mat := "wood"                ## "wood" | "iron" (doors and barricades)
 var world: Node                  ## the owning HouseWorld
 var visual: Node3D
 var body: StaticBody3D
@@ -43,6 +56,30 @@ var _cut := false
 
 static func is_segment_kind(k: String) -> bool:
 	return DEFS.has(k) and DEFS[k]["segment"]
+
+
+static func has_mat(k: String, m: String) -> bool:
+	return DEFS.has(k) and (m == "wood" or (MATS.has(k) and MATS[k].has(m)))
+
+
+static func _def(k: String, m: String, key: String) -> Variant:
+	if m != "wood" and MATS.has(k) and MATS[k].has(m) and MATS[k][m].has(key):
+		return MATS[k][m][key]
+	return DEFS[k].get(key)
+
+
+static func max_hp_of(k: String, m := "wood") -> int:
+	return int(_def(k, m, "hp")) if DEFS.has(k) else 1
+
+
+static func name_of(k: String, m := "wood") -> String:
+	return str(_def(k, m, "name")) if DEFS.has(k) else k
+
+
+## Plan direction of an object's front (the attacker's side of doors and
+## barricades): rotation 0..3 = N, E, S, W.
+static func front_dir(r: int) -> Vector2:
+	return [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)][posmod(r, 4)]
 
 
 ## Plan footprint used for navigation and overlap checks.
@@ -62,13 +99,14 @@ static func segment_of(p: Vector2, r: int) -> Vector3i:
 	return Vector3i(1, roundi(p.x), floori(p.y))
 
 
-func setup(k: String, p: Vector2, r: int, w: Node, is_built := true) -> void:
+func setup(k: String, p: Vector2, r: int, w: Node, is_built := true, m := "wood") -> void:
 	kind = k
 	pos = p
 	rot = posmod(r, 4)
 	world = w
 	built = is_built
-	max_hp = DEFS[k]["hp"]
+	mat = m if has_mat(k, m) else "wood"
+	max_hp = max_hp_of(k, mat)
 	hp = max_hp
 	if is_segment_kind(k):
 		seg = segment_of(p, rot)
@@ -86,7 +124,7 @@ func _ready() -> void:
 	body.name = "Body"
 	body.collision_layer = DEFS[kind]["layers"]
 	body.collision_mask = 0
-	body.set_meta("impact", DEFS[kind]["impact"])
+	body.set_meta("impact", _def(kind, mat, "impact"))
 	_shape = CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	var s: Vector3 = DEFS[kind]["size"]
@@ -104,6 +142,15 @@ func footprint() -> Rect2:
 
 func facing() -> String:
 	return FACINGS[rot]
+
+
+func display_name() -> String:
+	return name_of(kind, mat)
+
+
+## Debris colours when this object is hit or breaks (0xRRGGBB).
+func debris_tones() -> Array:
+	return IRON_TONES if mat == "iron" else WOOD_TONES
 
 
 func damage_fraction() -> float:
@@ -151,7 +198,7 @@ func set_cut(on: bool) -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"kind": kind, "x": pos.x, "y": pos.y, "rot": rot, "hp": hp, "open": open, "built": built}
+	return {"kind": kind, "x": pos.x, "y": pos.y, "rot": rot, "hp": hp, "open": open, "built": built, "mat": mat}
 
 
 # --- interactable duck type (SPEC §7.3) -------------------------------------------
@@ -165,6 +212,8 @@ func interact_prompt() -> String:
 				Items.DEFS["wood"]["cap_per_crate"], Items.DEFS["nails"]["cap_per_crate"], Items.DEFS["scrap"]["cap_per_crate"]]
 		"rain_collector":
 			return "[E] Rain collector · 1 water at dawn"
+		"workbench":
+			return "[E] Workbench · %d scrap → 1 iron" % Workbench.SCRAP_PER_IRON
 	return ""
 
 
@@ -182,6 +231,13 @@ func interact(game: Node) -> void:
 		"rain_collector":
 			if game != null and game.has_method("toast"):
 				game.toast("Rain collector: gathers 1 water at dawn.", "info")
+		"workbench":
+			var st: Variant = game.get("state") if game != null else null
+			var r := Workbench.convert(st, 1)
+			if r["ok"]:
+				Sfx.play("build/hammer", Vector3(pos.x, 0.9, pos.y))
+			if game != null and game.has_method("toast"):
+				game.toast(r["text"], "info" if r["ok"] else "warn")
 
 
 # --- visuals -----------------------------------------------------------------------
@@ -192,7 +248,7 @@ func _refresh_visual() -> void:
 	if visual != null:
 		visual.queue_free()
 	var s: Vector3 = DEFS[kind]["size"]
-	visual = PropKit.make(kind, s, {"facing": "N", "seed": hash(name) & 0xffff, "damage": damage_fraction()})
+	visual = PropKit.make(kind, s, {"facing": "N", "seed": hash(name) & 0xffff, "damage": damage_fraction(), "style": str(_def(kind, mat, "style") if mat != "wood" else "")})
 	visual.name = "Visual"
 	_pivot.add_child(visual)
 	_leaf = visual.find_child("Leaf", true, false) as Node3D
