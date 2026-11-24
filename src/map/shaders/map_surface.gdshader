@@ -38,6 +38,11 @@ void fragment() {
 		float show = 1.0 - smoothstep(0.1, 0.45, px);
 		c *= 1.0 - bevel * show * (1.0 - smoothstep(0.0, 0.09, edge));
 	}
+	if (UV.y > 0.5 && abs(v_nrm.y) < 0.5) {
+		// rock strata: each height step a slightly different shade
+		float layer = floor(v_world.y / 0.5 + 0.001);
+		c *= 0.93 + 0.12 * fract(sin(layer * 12.9898 + floor(v_world.x * 0.25) * 3.1) * 43758.5453);
+	}
 	c *= 1.0 - cloud_shadow_at(v_world);
 	c *= mix(1.0, 0.82, night);
 	vec3 em = c * glow_color * glow_energy * UV.x * mix(0.45, 1.6, night);

@@ -219,6 +219,10 @@ static func top_color(t: RegionTerrain, x: int, y: int, noise: FastNoiseLite) ->
 	var h := t.height[i]
 	if cv == RegionTerrain.C_ROCK:
 		col = col.lightened(clampf((h - 20) * 0.012, 0.0, 0.2))
+		# lichen and scree
+		col = col.lerp(Color(0.44, 0.45, 0.4), clampf(noise.get_noise_2d(x * 2.0, y * 2.0) * 0.8, 0.0, 0.6))
+	elif cv == RegionTerrain.C_SNOW:
+		col = col.lerp(Color(0.7, 0.72, 0.74), clampf(-noise.get_noise_2d(x * 2.0, y * 2.0), 0.0, 0.4))
 	var n := noise.get_noise_2d(x, y)
 	if cv in [RegionTerrain.C_GRASS, RegionTerrain.C_MEADOW, RegionTerrain.C_FOREST, RegionTerrain.C_LAWN, RegionTerrain.C_PARK]:
 		# autumn patches: drier and warmer in places
