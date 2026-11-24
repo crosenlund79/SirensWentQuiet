@@ -10,7 +10,7 @@ extends RefCounted
 ## enemy material, which the game's lighting drives (sync_night).
 
 const SHADER := preload("res://src/ai/shaders/enemy_character.gdshader")
-const XRAY_SHADER_PATH := "res://src/voxel/shaders/voxel_xray.gdshader"
+const XRAY_SHADER := preload("res://src/ai/shaders/enemy_xray.gdshader")
 const PACK_GLOW := Color(1.0, 0.42, 0.12)
 
 static var _materials := {}
@@ -29,8 +29,9 @@ static func material(kind: String) -> ShaderMaterial:
 	m.set_shader_parameter("tint", tint)
 	m.set_shader_parameter("shade", float(d["shade"]))
 	var x := ShaderMaterial.new()
-	x.shader = load(XRAY_SHADER_PATH)
+	x.shader = XRAY_SHADER
 	x.set_shader_parameter("tint", d["xray"])
+	x.set_shader_parameter("self_depth", 0.55 * maxf((d["scale"] as Vector3).x, (d["scale"] as Vector3).z) + (0.45 if kind == "brute" else 0.0))
 	m.next_pass = x
 	_materials[kind] = m
 	return m

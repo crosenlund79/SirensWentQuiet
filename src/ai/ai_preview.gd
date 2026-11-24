@@ -159,11 +159,11 @@ func _place_player(p: Vector2, look_at: Vector2) -> void:
 	player.rig.rotation.y = atan2(-to.x, -to.z)
 
 
-func _frame(at: Vector2, dist: float) -> void:
+func _frame(at: Vector2, dist: float, cut_at_focus := true) -> void:
 	focus.global_position = Vector3(at.x, 0, at.y)
 	camera.target = focus
 	camera.set_distance(dist)
-	_focus_cut = true
+	_focus_cut = cut_at_focus
 
 
 func _door(at: Vector2) -> WorldObject:
@@ -185,14 +185,15 @@ func _weaken_south_wall() -> void:
 func _scenario() -> void:
 	match scenario:
 		"lineup":
-			_place_player(Vector2(10.6, 12.4), Vector2(6.0, 12.0))
+			_place_player(Vector2(12.0, 12.3), Vector2(8.0, 12.0))
 			var i := 0
 			for k in EnemyDefs.KINDS:
-				var e: AIEnemy = roster.spawn_type(k, Vector2(3.4 + 1.75 * i, 11.9), {"facing": PI})
+				var e: AIEnemy = roster.spawn_type(k, Vector2(3.2 + 2.2 * i, 11.8))
+				e.set_physics_process(false)
 				_ref[k] = e
 				i += 1
-			_frame(Vector2(6.6, 11.6), 12.5)
-			_after(0.45, func(): _pose_lineup())
+			_frame(Vector2(7.4, 11.6), 12.5)
+			_after(0.1, func(): _pose_lineup())
 		"close":
 			_place_player(Vector2(7.5, 12.2), Vector2(4.0, 12.2))
 			var e: AIEnemy = roster.spawn_type(kind, Vector2(2.8, 12.6))
@@ -211,13 +212,20 @@ func _scenario() -> void:
 			_frame(Vector2(13.4, 6.6), 13.0)
 			_cond = func(): return r.plan_pos().distance_to(Vector2(14.3, 6.5)) < 0.45
 		"brute_barricade":
-			var bar := world.place_object("barricade", Vector2(6.5, 9.0), 2)
+			# A yard wall (y = 11, x 3..10) with a barricade in it; the brute
+			# behind it, the player in front of it.
+			var segs := []
+			for x in range(3, 10):
+				if x != 6:
+					segs.append(Vector3i(0, 11, x))
+			world.build_walls(segs)
+			var bar := world.place_object("barricade", Vector2(6.5, 11.0), 2)
 			_ref["bar"] = bar
-			_place_player(Vector2(6.6, 7.7), Vector2(6.5, 9.0))
-			var b: AIEnemy = roster.spawn_type("brute", Vector2(6.4, 12.4))
+			_place_player(Vector2(6.6, 12.8), Vector2(6.5, 11.0))
+			var b: AIEnemy = roster.spawn_type("brute", Vector2(6.0, 9.8))
 			_ref["e"] = b
-			_frame(Vector2(6.5, 10.0), 11.0)
-			_cond = func(): return is_instance_valid(bar) and bar.hp <= bar.max_hp - 6 and b.rig.swing > 0.2 and b.rig.swing < 0.55
+			_frame(Vector2(6.5, 11.6), 11.0, false)
+			_cond = func(): return is_instance_valid(bar) and bar.hp <= bar.max_hp - 6 and b.rig.swing > 0.45 and b.rig.swing < 0.8
 		"bomber_walk", "bomber_fuse", "bomber_hole":
 			_weaken_south_wall()
 			_place_player(Vector2(9.0, 11.2), Vector2(7.0, 13.0))
@@ -247,16 +255,17 @@ func _after(secs: float, f: Callable) -> void:
 
 
 func _pose_lineup() -> void:
+	var yaws := {"psycho": 2.7, "runner": 2.5, "brute": 2.9, "bomber": 0.55}
+	var phase := 0.0
 	for k in _ref:
 		var e: AIEnemy = _ref[k]
-		e.set_physics_process(false)
-	get_tree().create_timer(0.05, false).timeout.connect(func():
-		for k in _ref:
-			var e: AIEnemy = _ref[k]
-			e.set_facing(PI)
-			e.rig.speed = 0.9
-			e.rig.animate(0.05)
-		_cond = func(): return true)
+		e.set_facing(float(yaws.get(k, PI)))
+		e.rig.speed = 1.1
+		e.rig.walk_phase = phase
+		e.rig.animate(0.0)
+		phase += 1.3
+	EnemyLooks.sync_night()
+	_cond = func(): return true
 
 
 # --- per frame ---------------------------------------------------------------------------
@@ -382,6 +391,7 @@ func _on_detonated(at: Vector3, radius: float, damage: float) -> void:
 # --- capture -------------------------------------------------------------------------------
 
 func _capture() -> void:
+	EnemyLooks.sync_night()
 	world.update_view(focus.global_position if _focus_cut else player.global_position, camera, 0.0)
 	world.chunks.flush(100000.0)
 	camera.snap()

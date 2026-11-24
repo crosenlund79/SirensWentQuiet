@@ -49,7 +49,7 @@ const DEFS := {
 		"bash_weight": 4.0, "wall_strikes": 3, "player_damage": 1.8,
 		"attack_range": 1.0, "attack_interval": 1.6, "reach": 0.95,
 		"knockback": 0.12, "stagger": 0.3,
-		"looks": [3], "scale": Vector3(1.4, 1.28, 1.4), "tint": Color(0.42, 0.24, 0.2, 0.35), "shade": 0.55,
+		"looks": [3], "scale": Vector3(1.4, 1.28, 1.4), "tint": Color(0.34, 0.31, 0.3, 0.82), "shade": 0.78,
 		"xray": Color(0.95, 0.32, 0.25, 0.42), "hunch": 0.48, "moan": true,
 	},
 	"bomber": {
