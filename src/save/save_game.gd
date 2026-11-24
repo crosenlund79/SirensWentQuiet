@@ -12,9 +12,17 @@ extends RefCounted
 ## Writes go to <path>.tmp, are re-read and verified, the previous good save is
 ## rotated to <path>.bak, then the tmp file is renamed into place. A crash at
 ## any step leaves the last good save readable (as the main file or the .bak).
+##
+## Schema 2 (Experiment 003): the same layout; "state" now carries difficulty,
+## equipment, weapons and the region, "world" is HouseWorld save version 2.
+## Schema 1 files (Experiment 002) still load: read() returns them with
+## "migrated_from": 1 and the data marked schema 2 (GameState.from_dict and
+## HouseWorld.load_data take the version 1 contents as they are); the game
+## re-saves at once, so the file on disk becomes schema 2.
 
 const PATH := "user://savegame.dat"
-const SCHEMA := 1
+const SCHEMA := 2
+const MIN_SCHEMA := 1                  ## the oldest schema read() still accepts (and migrates)
 const GAME_ID := "sirens_went_quiet"
 const FORMAT := 1
 const MAGIC := "SWQS"
@@ -110,18 +118,32 @@ static func write(data: Dictionary) -> Error:
 	return OK
 
 
-## {"ok", "error", "data", "restored_from_backup"}. Falls back to the .bak when
-## the main file is missing or unusable ("backup_reason" then says why).
+## {"ok", "error", "data", "restored_from_backup", "migrated_from"}. Falls back
+## to the .bak when the main file is missing or unusable ("backup_reason" then
+## says why). "migrated_from" is the file's schema when it was older than
+## SCHEMA (the data is migrated; the caller should save again), else 0.
 static func read() -> Dictionary:
 	var p := _path()
 	var main := _load(p, true) if FileAccess.file_exists(p) else {}
 	if main.get("ok", false):
-		return {"ok": true, "error": "", "data": main["data"], "restored_from_backup": false}
+		return {"ok": true, "error": "", "data": main["data"], "restored_from_backup": false, "migrated_from": main["migrated_from"]}
 	var bak := _load(p + ".bak", true) if FileAccess.file_exists(p + ".bak") else {}
 	if bak.get("ok", false):
 		var why: String = main.get("error", "The latest save file is missing.")
-		return {"ok": true, "error": "", "data": bak["data"], "restored_from_backup": true, "backup_reason": why}
-	return {"ok": false, "error": _first_error(p, main, bak), "data": {}, "restored_from_backup": false}
+		return {"ok": true, "error": "", "data": bak["data"], "restored_from_backup": true, "backup_reason": why, "migrated_from": bak["migrated_from"]}
+	return {"ok": false, "error": _first_error(p, main, bak), "data": {}, "restored_from_backup": false, "migrated_from": 0}
+
+
+## Brings a decoded older save up to SCHEMA in place. Schema 1 -> 2 needs no
+## change of the contents: an Experiment 002 state (no equipment or weapons)
+## and a version 1 world are migrated by GameState.from_dict and
+## HouseWorld.load_data. Returns the schema it came from.
+static func migrate(data: Dictionary) -> int:
+	var from := int(data.get("schema", SCHEMA))
+	if from < SCHEMA:
+		data["schema"] = SCHEMA
+		data["migrated_from"] = from
+	return from
 
 
 ## Cheap slot check for the main menu: reads the header, summary and checksum,
@@ -161,7 +183,7 @@ static func delete_save() -> void:
 ## Reads and checks one file. `full` also decompresses and decodes the payload.
 ## {"ok", "error", "data", "raw", "summary", "schema", "saved_at"}.
 static func _load(path: String, full: bool) -> Dictionary:
-	var out := {"ok": false, "error": "", "data": {}, "raw": PackedByteArray(), "summary": {}, "schema": 0, "saved_at": 0}
+	var out := {"ok": false, "error": "", "data": {}, "raw": PackedByteArray(), "summary": {}, "schema": 0, "saved_at": 0, "migrated_from": 0}
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		out["error"] = "The save file could not be opened."
@@ -187,7 +209,7 @@ static func _load(path: String, full: bool) -> Dictionary:
 	var schema := buf.decode_u32(8)
 	out["schema"] = schema
 	out["saved_at"] = buf.decode_u64(12)
-	if format != FORMAT or schema != SCHEMA:
+	if format != FORMAT or schema < MIN_SCHEMA or schema > SCHEMA:
 		var newer := format > FORMAT or schema > SCHEMA
 		out["error"] = "The save is from a %s version of the game." % ("newer" if newer else "older")
 		return out
@@ -217,9 +239,13 @@ static func _load(path: String, full: bool) -> Dictionary:
 		return out
 	var data = bytes_to_var(raw)
 	var why := _validate(data)
+	if why == "" and int(data["schema"]) != schema:
+		why = "The save file is damaged (its versions disagree)."
 	if why != "":
 		out["error"] = why
 		return out
+	var from := migrate(data)
+	out["migrated_from"] = from if from < SCHEMA else 0
 	out["data"] = data
 	out["raw"] = raw
 	out["ok"] = true
@@ -234,7 +260,7 @@ static func _validate(data) -> String:
 		return "This is not a Sirens Went Quiet save file."
 	if typeof(data.get("schema")) != TYPE_INT:
 		return "The save file is damaged (no version)."
-	if data["schema"] != SCHEMA:
+	if data["schema"] < MIN_SCHEMA or data["schema"] > SCHEMA:
 		return "The save is from a %s version of the game." % ("newer" if data["schema"] > SCHEMA else "older")
 	if typeof(data.get("state")) != TYPE_DICTIONARY:
 		return "The save file is damaged (the survival state is missing)."

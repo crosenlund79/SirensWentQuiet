@@ -2,6 +2,8 @@ extends Control
 ## Main menu, the project's main scene (SPEC §2). Owner: U.
 ## New Game · Continue · Settings · Visual Experiments · Quit over a silent
 ## suburban street in drifting fog, with an abandoned siren mast.
+## New Game asks for the difficulty (DifficultyDialog; Experiment 003) and
+## hands it over in GameLaunch.difficulty.
 ## Keyboard (arrows, Enter, Esc) and mouse. Shows GameLaunch.notice once.
 
 const BG_SHADER := """
@@ -134,6 +136,7 @@ var save_info := {}
 var _buttons := {}
 var _status: Label
 var _confirm: ConfirmDialog
+var _difficulty: DifficultyDialog
 var _settings: SettingsPanel
 var _bg: ColorRect
 var _fader: ColorRect
@@ -188,7 +191,7 @@ func refresh_save_info() -> void:
 
 
 func new_game() -> void:
-	if _leaving or _confirm.is_open:
+	if _leaving or _confirm.is_open or _difficulty.is_open:
 		return
 	if SaveGame.info().get("exists", false):
 		_confirm.ask("This will overwrite your current survival run.", "Start a new run", "Cancel", "New game")
@@ -196,6 +199,12 @@ func new_game() -> void:
 		if not yes:
 			_focus(_buttons["NewGame"])
 			return
+	_difficulty.ask(GameLaunch.difficulty)
+	var level: String = await _difficulty.answered
+	if level == "":
+		_focus(_buttons["NewGame"])
+		return
+	GameLaunch.difficulty = Difficulty.valid(level)
 	GameLaunch.mode = "new"
 	_leave(GameLaunch.GAME_SCENE)
 
@@ -310,7 +319,7 @@ func _build() -> void:
 	_status.name = "SaveStatus"
 	menu.add_child(_status)
 
-	var foot := UiTheme.make_label("Experiment 002 · The First Days · %s" % str(ProjectSettings.get_setting("application/config/version", "")), 12, UiTheme.TEXT_FAINT)
+	var foot := UiTheme.make_label("Experiment 003 · Foundations of Survival · %s" % str(ProjectSettings.get_setting("application/config/version", "")), 12, UiTheme.TEXT_FAINT)
 	foot.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	foot.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	foot.offset_left = 128
@@ -333,6 +342,9 @@ func _build() -> void:
 	_confirm = ConfirmDialog.new()
 	_confirm.name = "Confirm"
 	add_child(_confirm)
+	_difficulty = DifficultyDialog.new()
+	_difficulty.name = "Difficulty"
+	add_child(_difficulty)
 	_settings = SettingsPanel.new()
 	_settings.name = "Settings"
 	add_child(_settings)
@@ -352,3 +364,7 @@ func settings_panel() -> SettingsPanel:
 
 func confirm_dialog() -> ConfirmDialog:
 	return _confirm
+
+
+func difficulty_dialog() -> DifficultyDialog:
+	return _difficulty

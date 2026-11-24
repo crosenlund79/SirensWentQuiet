@@ -11,7 +11,10 @@ extends Node3D
 ## things happen: launch, the clock and its events, firing, interactions, the
 ## sleep / expedition / pause / death flows, saving and autosave, the developer
 ## menu API and a debug API for tests and the playtest.
-## See docs/experiment-002/game.md.
+## Experiment 003 wiring lives in small helpers too: game_combat.gd (weapons,
+## enemy blows, the bomber's fuse and blast), game_map.gd (the region map and
+## its table), game_dev.gd (the new F10 tools).
+## See docs/experiment-002/game.md and docs/experiment-003/game.md.
 
 signal sleep_finished(plan: Dictionary)
 signal invasion_started
@@ -25,12 +28,13 @@ const Finder := preload("res://src/game/interaction_finder.gd")
 const RunSave := preload("res://src/game/run_save.gd")
 const GameUI := preload("res://src/game/game_ui.gd")
 const GameInput := preload("res://src/game/game_input.gd")
+const Combat := preload("res://src/game/game_combat.gd")
+const MapLink := preload("res://src/game/game_map.gd")
+const Dev := preload("res://src/game/game_dev.gd")
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
 const NOTICE_PREFIX := "The save could not be loaded: "
-const DRY_FIRE_INTERVAL := 0.45
-const NUDGE_NEAR := 6.0                        ## m: wall bashes this close shake the camera
 
 var state: GameState
 var lighting: VoxelLighting
@@ -45,6 +49,9 @@ var roster: Node3D                     ## enemy_roster.gd
 var director := Director.new()
 var ui: Node                           ## game_ui.gd
 var hud: GameHud
+var combat: Node                       ## game_combat.gd (owns the WeaponHandler)
+var map: Node                          ## game_map.gd (the region map and its table)
+var dev: Node                          ## game_dev.gd (Experiment 003 F10 tools)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -63,12 +70,10 @@ var last_expedition := {}
 var shots_fired := 0
 
 var _ok := false
-var _modal := ""                       ## "" | intro | pause | inventory | sleep | sleeping | expedition | death
+var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death
 var _loaded := {}
 var _trigger := false
-var _fire_cd := 0.0
-var _dry_cd := 0.0
-var _ammo_toast_cd := 0.0
+var _migrated_from := 0                ## schema of an older save that was loaded (re-saved at once)
 var _steps := Footsteps.new()
 var _focus: Node3D
 var _prompt := ""
@@ -124,7 +129,7 @@ func _read_user_args() -> void:
 ## Creates or loads the state and the house. Returns "" or a readable error.
 func _launch() -> String:
 	if GameLaunch.mode != "continue":
-		state = GameState.new_run(GameLaunch.seed)
+		state = GameState.new_run(GameLaunch.seed, Difficulty.valid(GameLaunch.difficulty))
 		world.build_new()
 		return ""
 	var r: Dictionary = SaveGame.read()
@@ -133,6 +138,7 @@ func _launch() -> String:
 	if r.get("restored_from_backup", false):
 		_backup_notice = "The save was damaged (%s), so the backup was loaded." % str(r.get("backup_reason", "unknown reason"))
 		GameLaunch.notice = _backup_notice
+	_migrated_from = int(r.get("migrated_from", 0))
 	var p: Dictionary = RunSave.parse(r.get("data", {}))
 	if not p["ok"]:
 		return p["error"]
@@ -177,8 +183,6 @@ func _assemble() -> void:
 	roster.name = "Enemies"
 	roster.setup(world, player, seed)
 	add_child(roster)
-	roster.wall_swing.connect(_on_wall_swing)
-	roster.player_swing.connect(_on_player_swing)
 	build = BuildMode.new()
 	build.name = "Build"
 	build.setup(world, state, camera, player)
@@ -203,6 +207,20 @@ func _assemble() -> void:
 	ui.death_screen.main_menu_requested.connect(request_main_menu)
 	ui.expedition.finished.connect(_on_expedition_finished)
 	ui.expedition.cancelled.connect(_on_expedition_cancelled)
+	combat = Combat.new()
+	combat.name = "Combat"
+	add_child(combat)
+	combat.setup(self)
+	hud.set_weapons(combat.weapons)
+	map = MapLink.new()
+	map.name = "Map"
+	add_child(map)
+	map.setup(self)
+	dev = Dev.new()
+	dev.name = "Dev"
+	add_child(dev)
+	dev.setup(self)
+	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
 	input.game = self
@@ -243,10 +261,14 @@ func _begin_continue() -> void:
 			_stragglers_done[int(n)] = true
 	_update_cursor()
 	if state.run.get("invasion_active", false):
-		_start_invasion()     # defensive: saves are refused during invasions
+		start_invasion()      # defensive: saves are refused during invasions
 	toast("Day %d, %s" % [state.day(), state.clock_text()])
 	if _backup_notice != "":
 		toast(_backup_notice, "warn")
+	if _migrated_from > 0 and _migrated_from < SaveGame.SCHEMA:
+		# An older save (Experiment 002): loaded with defaults, re-saved in the current format.
+		toast("Save from an earlier version loaded (%s difficulty)." % Difficulty.name_of(state.difficulty), "info")
+		_autosave("migrated")
 
 
 func _place_player(pos: Vector3, yaw: float) -> void:
@@ -297,20 +319,16 @@ func _process(delta: float) -> void:
 		Sfx.play(step, null, -4.0)
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if not _ok:
 		return
-	_fire_cd -= delta
-	_dry_cd -= delta
-	_ammo_toast_cd -= delta
 	if not Input.is_action_pressed("fire") or not _can_fire():
 		_trigger = false
 	if _modal == "" and aim_with_mouse and is_inside_tree():
 		var mp := get_viewport().get_mouse_position()
 		player.aim_point = world.aim_ray(camera.project_ray_origin(mp), camera.project_ray_normal(mp))
-	if _trigger and _fire_cd <= 0.0:
-		_fire_cd = Tuning.FIRE_INTERVAL
-		_fire(player.aim_point)
+	if _trigger:
+		combat.fire(player.aim_point)      # the weapon owns the fire interval and the dry clicks
 
 
 ## All game input arrives here (game_input.gd), also while paused.
@@ -344,6 +362,11 @@ func _on_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("build_mode"):
 		_handled()
 		_set_build(not build.active)
+	elif event.is_action_pressed("open_map"):
+		_handled()
+		open_map()
+	elif not build.active and combat.handle_input(event):
+		_handled()                          # R, Q, 1, 2 (in build mode they belong to BuildMode)
 	elif event.is_action_pressed("zoom_in"):
 		camera.zoom(-1.0)
 	elif event.is_action_pressed("zoom_out"):
@@ -382,22 +405,14 @@ func _process_events(events: Array) -> void:
 				if save_reason == "":
 					save_reason = "new_day"
 			"invasion_due":
-				_start_invasion()
+				start_invasion()
 	if save_reason != "":
 		_autosave(save_reason)
 
 
 func _on_dawn(at: float) -> void:
 	var collectors := world.count_objects("rain_collector")
-	var water := 0
-	if state.has_method("on_dawn"):
-		var r = state.on_dawn(collectors, at)      # {"water": n} or {}
-		if typeof(r) == TYPE_DICTIONARY:
-			water = int(r.get("water", 0))
-		elif typeof(r) == TYPE_INT or typeof(r) == TYPE_FLOAT:
-			water = int(r)
-	elif collectors > 0:
-		water = state.inventory.add("water", collectors)
+	var water := int(state.on_dawn(collectors, at).get("water", 0))
 	if water > 0:
 		toast("The rain collectors gave %d water." % water, "good")
 	Sfx.play("stinger/dawn")
@@ -409,13 +424,16 @@ func _on_dawn(at: float) -> void:
 
 # --- invasions and stragglers ----------------------------------------------------------
 
-func _start_invasion() -> void:
+## The night's invasion: a threat-budget wave for the run's difficulty and
+## invasion index, or exactly `kinds` (dev menu).
+func start_invasion(kinds: Array = []) -> void:
 	if director.active:
 		return
 	if not state.run.get("invasion_active", false):
 		state.start_invasion()
+	sync_roster()
 	var seed := int(state.run.get("seed", 0)) * 31 + int(state.run.get("invasions_done", 0))
-	director.begin(state.invasion_size(), state.invasion_enemy_hp(), state.invasion_speed_scale(), seed)
+	director.begin_wave(state.difficulty, state.invasion_index(), seed, kinds)
 	Sfx.play("stinger/invasion")
 	ambience.set_tension(1.0)
 	toast("They're coming.", "bad")
@@ -425,8 +443,8 @@ func _start_invasion() -> void:
 func _run_director(delta: float) -> void:
 	if not director.active:
 		return
-	for i in director.tick(delta):
-		roster.spawn(director.pick_spawn(player.plan_pos()), director.hp, director.speed, true)
+	for k in director.tick_kinds(delta):
+		roster.spawn_type(k, director.pick_spawn(player.plan_pos()), director.spawn_opts(k))
 	if director.all_spawned() and roster.invaders_alive() == 0:
 		_end_invasion("cleared")
 
@@ -434,6 +452,7 @@ func _run_director(delta: float) -> void:
 func _end_invasion(reason: String) -> void:
 	director.finish()
 	state.end_invasion(true)
+	sync_roster()
 	ambience.set_tension(0.0)
 	if reason == "dawn":
 		toast("Dawn. They slink back into the fog… for now.", "good")
@@ -445,29 +464,7 @@ func _end_invasion(reason: String) -> void:
 
 ## Straggler time (absolute minutes) for the night that starts on `day`, or -1.
 func _straggler_time(day: int) -> float:
-	var next := float(state.run.get("next_invasion_at", INF))
-	var seed := int(state.run.get("seed", 0))
-	if state.has_method("roll_straggler"):
-		var r = state.roll_straggler(day)
-		match typeof(r):
-			TYPE_FLOAT, TYPE_INT:
-				return float(r)
-			TYPE_BOOL:
-				return Director.straggler_at(seed, day, next, true) if r else -1.0
-			TYPE_DICTIONARY:
-				return float(r.get("at", -1.0))
-	return Director.straggler_at(seed, day, next)
-
-
-## The first straggler time in (t0, t1], or -1.
-func _straggler_between(t0: float, t1: float) -> float:
-	for d in range(int(floor(t0 / DAY_MIN)), int(floor(t1 / DAY_MIN)) + 2):
-		if _stragglers_done.has(d):
-			continue
-		var s := _straggler_time(d)
-		if s > t0 and s <= t1:
-			return s
-	return -1.0
+	return state.roll_straggler(day)
 
 
 func _check_stragglers(t0: float, t1: float) -> void:
@@ -483,7 +480,7 @@ func _check_stragglers(t0: float, t1: float) -> void:
 		# Not during an invasion, and not if a long skip already ended the night.
 		if state.run.get("invasion_active", false) or not state.is_night():
 			continue
-		roster.spawn(director.pick_spawn(player.plan_pos()), Tuning.ENEMY_HP, 1.0, false)
+		roster.spawn_type("psycho", director.pick_spawn(player.plan_pos()), {"level": state.difficulty, "invasion": state.invasion_index()})
 		toast("Something is moving out there.", "warn")
 
 
@@ -495,57 +492,10 @@ func _can_fire() -> bool:
 	return _ok and _modal == "" and not state.dead and player.input_enabled and not build.handles_input()
 
 
-## One trigger pull at `target`. Returns world.shoot's result, or {"kind": "dry"}.
-func _fire(target: Vector3) -> Dictionary:
-	if not state.use_ammo():
-		if _dry_cd <= 0.0:
-			_dry_cd = DRY_FIRE_INTERVAL
-			Sfx.play("weapon/dry_fire")
-		if _ammo_toast_cd <= 0.0:
-			_ammo_toast_cd = 2.0
-			toast("Out of ammo", "warn")
-		return {"kind": "dry"}
-	shots_fired += 1
-	var origin := Vector3(player.global_position.x, Tuning.MUZZLE_HEIGHT, player.global_position.z)
-	var dir := target - origin
-	if Vector2(dir.x, dir.z).length() < 0.3:
-		dir = -player.rig.global_transform.basis.z
-		dir.y = -0.3
-	dir = dir.normalized()
-	var muzzle := player.rig.muzzle_global()
-	var res: Dictionary = world.shoot(origin, dir, [player.get_rid()], muzzle)
-	if world.fx != null:
-		world.fx.muzzle(muzzle)
-		world.fx.casing(muzzle - dir * 0.15, player.rig.global_transform.basis.x)
-	player.on_fired()
-	Sfx.play("weapon/handgun_fire", muzzle)
-	if str(res.get("kind", "")) == "enemy":
-		var e = res.get("collider")
-		Sfx.play("enemy/hit", res.get("pos", muzzle))
-		if e is VoxelEnemy and not (e as VoxelEnemy).alive:
-			Sfx.play("enemy/death", (e as VoxelEnemy).global_position)
-	return res
-
-
-## The world bites the wall or bashes the door and object, and plays the
-## impact, bash and break sounds itself.
-func _on_wall_swing(e: VoxelEnemy, target: Vector2) -> void:
-	world.enemy_strike(e.global_position, target)
-	if e.global_position.distance_to(player.global_position) < NUDGE_NEAR:
-		camera.nudge(0.35)
-
-
-func _on_player_swing(e: VoxelEnemy) -> void:
-	if state.dead:
-		return
-	Sfx.play("enemy/attack", e.global_position + Vector3(0, 1.2, 0))
-	camera.nudge(1.0)
-	var before := state.health
-	state.damage(state.enemy_damage(), "psycho")
-	if state.health < before:
-		Sfx.play("player/hurt")
-		if hud.has_method("flash_damage"):
-			hud.flash_damage()
+## The roster's defaults for spawn_type follow the run (difficulty, invasion index).
+func sync_roster() -> void:
+	roster.level = state.difficulty
+	roster.invasion = state.invasion_index()
 
 
 # --- interactions ----------------------------------------------------------------------
@@ -554,7 +504,7 @@ func _update_prompt() -> void:
 	var p := ""
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(world.interactables(), player.plan_pos())
+		_focus = Finder.nearest(world.interactables() + map.interactables(), player.plan_pos())
 		p = str(_focus.interact_prompt()) if _focus != null else boundary.prompt_text()
 	if p != _prompt:
 		_prompt = p
@@ -625,6 +575,8 @@ func _on_escape() -> void:
 		"sleep":
 			GameUI.close(ui.sleep_dialog)
 			_on_sleep_closed()
+		"map":
+			map.close()
 		"":
 			if build.active:
 				_set_build(false)
@@ -632,7 +584,7 @@ func _on_escape() -> void:
 				ui.dev_menu.toggle()
 			elif not state.dead:
 				_set_modal("pause", true)
-				ui.pause_menu.open(can_save())
+				ui.pause_menu.open(can_save(), "%s difficulty · Day %d" % [Difficulty.name_of(state.difficulty), state.day()])
 
 
 func _resume() -> void:
@@ -657,6 +609,21 @@ func _open_inventory() -> void:
 
 func _on_inventory_closed() -> void:
 	if _modal == "inventory":
+		_set_modal("", false)
+
+
+## The region map (M, or the map on the dining table). The world pauses while it is open.
+func open_map() -> void:
+	if not _ok or _modal != "" or state.dead:
+		return
+	if build.active:
+		_set_build(false)
+	_set_modal("map", true)
+	map.open()
+
+
+func _on_map_closed() -> void:
+	if _modal == "map":
 		_set_modal("", false)
 
 
@@ -688,13 +655,7 @@ func _threats() -> bool:
 func _sleep_block_reason() -> String:
 	if _threats():
 		return "You can't sleep with them out there"
-	if state.has_method("can_sleep"):
-		var r = state.can_sleep()
-		if typeof(r) == TYPE_STRING and r != "":
-			return r
-		if typeof(r) == TYPE_BOOL and not r:
-			return "You can't sleep right now."
-	return ""
+	return state.can_sleep()
 
 
 ## The bed calls this (SPEC §7.3).
@@ -732,13 +693,7 @@ func _sleep(minutes: float) -> Dictionary:
 		return {}
 	_set_modal("sleeping", true)
 	var plan: Dictionary = state.plan_sleep(minutes).duplicate()
-	var t0 := state.total_minutes
-	if not state.has_method("roll_straggler"):     # GameState's plan_sleep stops at stragglers itself
-		var s := _straggler_between(t0, t0 + float(plan["minutes"]))
-		if s >= 0.0:
-			plan["minutes"] = s - t0
-			plan["interrupted"] = true
-			plan["reason"] = "straggler"
+	var t0 := state.total_minutes      # plan_sleep stops at invasions, stragglers and empty needs
 	Sfx.play("player/sleep")
 	await ui.fade.fade_to(1.0, fade_time)
 	var events: Array = state.advance(float(plan["minutes"]), true)
@@ -755,8 +710,11 @@ func _sleep(minutes: float) -> Dictionary:
 	if not state.dead and _modal == "sleeping":
 		_set_modal("", false)
 		if plan["interrupted"]:
-			var line := "You wake to something at the door." if plan["reason"] != "straggler" else str(plan.get("text", "Something is moving outside."))
-			toast(line, "bad")
+			# GameState's own line for every reason ("needs": hunger or thirst, not the door).
+			var line := str(plan.get("text", ""))
+			if plan["reason"] == "invasion" or line == "":
+				line = "You wake to something at the door."
+			toast(line, "bad" if plan["reason"] != "needs" else "warn")
 		else:
 			_autosave("wake")
 	sleep_finished.emit(plan)
@@ -781,10 +739,18 @@ func _on_exit_requested(at: Vector3) -> void:
 func _on_expedition_finished(result: Dictionary) -> void:
 	if _modal != "expedition":
 		return                         # applied exactly once, only while the screen is open
+	apply_expedition_result(result)
+
+
+## Applies an expedition result (the screen's `finished`, or F10's instant
+## mission): the survival state once (by the result id), then the region
+## (stock, discoveries, the used plan; once-only too), then home through the fog.
+func apply_expedition_result(result: Dictionary) -> void:
 	var t0 := state.total_minutes
 	var events: Array = state.apply_expedition(result)
-	last_expedition = {"result": result, "from": t0, "to": state.total_minutes}
-	var back := boundary.return_point(_exit_at)
+	var region_applied := ExpeditionData.apply_region(state, result)
+	last_expedition = {"result": result, "from": t0, "to": state.total_minutes, "region_applied": region_applied}
+	var back := boundary.return_point(_exit_at if _modal == "expedition" else player.global_position)
 	var c := FogBoundary.LOT.get_center()
 	_place_player(back, atan2(-(c.x - back.x), -(c.y - back.z)))
 	if state.dead:
@@ -816,6 +782,7 @@ func _on_died(cause: String) -> void:
 	_trigger = false
 	if build.active:
 		build.set_active(false)
+	map.close()
 	ui.close_all()
 	hud.set_mode("hidden")
 	_set_modal("death", false)
@@ -904,9 +871,8 @@ func dev_trigger_invasion() -> void:
 	if director.active:
 		toast("An invasion is already under way.", "warn")
 		return
-	if state.has_method("force_invasion_now"):
-		state.force_invasion_now()
-	_start_invasion()
+	state.force_invasion_now()
+	start_invasion()
 
 
 func dev_repair_house() -> void:
@@ -941,6 +907,7 @@ func dev_info() -> String:
 		"Straggler tonight: %s" % (_hhmm(tonight) if tonight >= 0.0 else "none"),
 		"House: %d voxels missing, %d objects damaged · crates %d" % [int(dmg.get("missing_voxels", 0)), int(dmg.get("damaged_objects", 0)), world.count_objects("crate")],
 		"Save: %s" % (can_save() if can_save() != "" else "allowed"),
+		dev.info(),
 	]
 	return "\n".join(lines)
 
@@ -993,10 +960,14 @@ func debug_teleport_player(p: Vector2) -> void:
 	player.velocity = Vector3.ZERO
 
 
-## Pulls the trigger at a plan point and height (respects ammo, like LMB).
+## Pulls the trigger at a plan point and height through the weapon in hand
+## (respects ammo, like LMB). Waits out the weapon's shot interval first, as a
+## player tapping the trigger would. Returns WeaponHandler.try_fire's result.
 func debug_fire_at(target: Vector2, height := 1.1) -> Dictionary:
 	player.aim_point = Vector3(target.x, height, target.y)
-	return _fire(player.aim_point)
+	if combat.weapons.cooldown() > 0.0:
+		combat.weapons.tick(combat.weapons.cooldown())
+	return combat.fire(player.aim_point)
 
 
 func debug_spawn_enemy(p: Vector2, invader := false) -> Node:
@@ -1015,7 +986,7 @@ func debug_kill_enemies() -> int:
 	return roster.kill_all()
 
 
-## Opens "pause" | "inventory" | "sleep" | "settings" | "dev" | "build" as the keys would.
+## Opens "pause" | "inventory" | "map" | "sleep" | "settings" | "dev" | "build" as the keys would.
 func debug_open(panel: String) -> void:
 	match panel:
 		"pause":
@@ -1024,6 +995,8 @@ func debug_open(panel: String) -> void:
 		"inventory":
 			if _modal == "":
 				_open_inventory()
+		"map":
+			open_map()
 		"sleep":
 			open_sleep()
 		"settings":

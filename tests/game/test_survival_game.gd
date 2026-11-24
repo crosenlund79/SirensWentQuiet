@@ -91,11 +91,8 @@ func test_firing_consumes_ammo_stops_at_zero_and_the_cheat_keeps_it() -> void:
 	g.debug_teleport_player(FRONT_YARD)
 	await frames(2)
 	var ground := FRONT_YARD + Vector2(0, 2.5)
-	s.cheats["unlimited"] = true
-	for i in 3:
-		g.debug_fire_at(ground, 0.0)
-	check_eq(s.magazine("handgun"), 9, "unlimited cheat: no ammo used")
-	s.cheats["unlimited"] = false
+	check_eq(s.magazine("handgun"), 9, "nine rounds in the handgun")
+	check_eq(s.reserve("handgun"), 0, "and none in reserve")
 	# Real input path: the fire action through _unhandled_input.
 	_action("fire", true)
 	await physics_frames(3)
@@ -104,13 +101,21 @@ func test_firing_consumes_ammo_stops_at_zero_and_the_cheat_keeps_it() -> void:
 	check_eq(s.magazine("handgun"), 8, "one trigger pull through the fire action uses one round")
 	for i in 8:
 		var r: Dictionary = g.debug_fire_at(ground, 0.0)
-		check(r.get("kind", "") != "dry", "shot %d fires" % (i + 2))
+		check(r.get("ok", false), "shot %d fires" % (i + 2))
 	check_eq(s.magazine("handgun"), 0, "nine rounds, nine shots")
 	var r: Dictionary = g.debug_fire_at(ground, 0.0)
-	check_eq(r.get("kind", ""), "dry", "an empty gun clicks")
+	check_eq(r.get("reason", ""), "empty", "an empty gun clicks")
+	check(not r.get("reloading", true), "no reserve: no reload")
 	check_eq(s.magazine("handgun"), 0, "never negative")
 	check_eq(g.last_toast, "Out of ammo", "toast")
-	check_eq(g.shots_fired, 12, "shots fired (3 free + 9)")
+	check_eq(g.shots_fired, 9, "shots fired")
+	# The unlimited cheat keeps the magazine full (WeaponHandler) and spends nothing.
+	s.cheats["unlimited"] = true
+	for i in 3:
+		check(g.debug_fire_at(ground, 0.0).get("ok", false), "unlimited shot %d" % (i + 1))
+	check_eq(s.magazine("handgun"), 12, "unlimited cheat: the magazine stays full")
+	check_eq(s.inventory.count("ammo"), 0, "and the reserve untouched")
+	check_eq(g.shots_fired, 12, "shots fired (9 + 3 free)")
 
 
 func test_no_firing_while_a_panel_or_build_mode_is_open() -> void:
@@ -417,7 +422,12 @@ func test_dev_api() -> void:
 	check(info.contains("Day 2") and info.contains("invasion"), "dev_info (%s)" % info)
 	g.dev_trigger_invasion()
 	check(s.run.get("invasion_active", false) and g.debug_director().active, "dev_trigger_invasion")
-	check_eq(g.debug_director().total, s.invasion_size(), "invasion size")
+	# Experiment 003: the threat-budget wave for the difficulty and invasion index.
+	var d = g.debug_director()
+	check_eq(d.total, d.wave.size(), "the wave's size")
+	var seed := int(s.run.get("seed", 0)) * 31 + int(s.run.get("invasions_done", 0))
+	check_eq(d.wave, Director.compose(s.difficulty, s.invasion_index(), seed), "composed from the budget (%s)" % [d.wave])
+	check(d.total >= 1 and d.total <= Director.max_count(s.difficulty, s.invasion_index()), "a small first wave (%d)" % d.total)
 
 
 # --- invasions -------------------------------------------------------------------------

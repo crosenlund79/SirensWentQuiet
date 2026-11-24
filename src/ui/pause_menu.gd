@@ -23,6 +23,7 @@ signal main_menu_requested
 
 var page := ""              ## "main" | "confirm" (tests)
 var save_block_reason := ""
+var subtitle := ""          ## a line under the title, e.g. "Hard difficulty · Day 3"
 var _status: Label
 var _settings: SettingsPanel
 var _save_error := ""
@@ -34,8 +35,9 @@ func _init() -> void:
 	layer = 70
 
 
-func open(reason: String) -> void:
+func open(reason: String, sub := "") -> void:
 	save_block_reason = reason
+	subtitle = sub
 	_main_page()
 	_show()
 
@@ -53,6 +55,10 @@ func report_save(error := "") -> void:
 func _main_page(focus_name := "") -> void:
 	page = "main"
 	var box := _begin("Paused", 380)
+	if subtitle != "":
+		var sub := UiTheme.make_caption(subtitle, 344, UiTheme.TEXT_DIM)
+		sub.name = "Subtitle"
+		box.add_child(sub)
 	var resume := _menu_button("Resume")
 	resume.name = "Resume"
 	resume.pressed.connect(_resume)

@@ -2,26 +2,33 @@ class_name GameHud
 extends CanvasLayer
 ## In-game HUD (SPEC §7.8). Owner: U. Small and legible over day and night.
 ##
-## Top left: clock card (sun/moon glyph, "Day N · HH:MM", period) with four
-## stat bars and warning words. Top centre: banner (invasions) and stacked
-## toasts. Top right: the CHEATS ACTIVE badge. Bottom centre: interaction
-## prompt ("[E] Sleep" becomes a key chip). Bottom right: ammo. Bottom left:
-## controls hint and the F3 frame-rate line (off by default).
+## Top left: clock card (sun/moon glyph, "Day N · HH:MM", period and
+## difficulty) with four stat bars, warning words and the construction
+## resources (wood, stone, iron). Top centre: banner (invasions), an alert line
+## (a bomber's fuse) and stacked toasts. Top right: the CHEATS ACTIVE badge.
+## Bottom centre: interaction prompt ("[E] Sleep" becomes a key chip). Bottom
+## right: the weapon in hand (name, magazine / capacity, reserve, a reload
+## bar, the other weapon). Bottom left: controls hint and the F3 frame-rate
+## line (off by default).
 ##
-## API: setup(state), set_prompt(text), toast(text, kind), set_banner(text),
-## set_mode("play" | "build" | "hidden"), flash_damage(), toggle_fps(),
-## toggle_help(). The HUD handles F3 (toggle_stats) and H/F1 (toggle_help)
-## itself. In build mode the bottom centre stays clear for the build palette.
+## API: setup(state), set_weapons(handler), set_prompt(text), toast(text, kind),
+## set_banner(text), alert(text, seconds), set_mode("play" | "build" | "hidden"),
+## flash_damage(), toggle_fps(), toggle_help(). The HUD handles F3
+## (toggle_stats) and H/F1 (toggle_help) itself. In build mode the bottom
+## centre stays clear for the build palette.
 
 const TOAST_MAX := 4
 const TOAST_LIFE := 3.2
 const CHEAT_NAMES := {"invulnerable": "Invulnerable", "unlimited": "Unlimited resources"}
 const HELP := [
-	["W A S D", "Move"], ["LMB", "Shoot"], ["Wheel", "Zoom"], ["E", "Interact"],
-	["I / Tab", "Inventory"], ["B", "Build"], ["Esc", "Pause"], ["F10", "Developer"],
+	["W A S D", "Move"], ["LMB", "Shoot"], ["R", "Reload"], ["1 / 2 / Q", "Weapons"],
+	["Wheel", "Zoom"], ["E", "Interact"], ["I / Tab", "Inventory"], ["M", "Region map"],
+	["B", "Build"], ["Esc", "Pause"], ["F10", "Developer"],
 ]
+const MATERIALS := [["wood", "Wood"], ["stone", "Stone"], ["iron", "Iron"]]
 
 var state: GameState
+var weapons: Node                       ## WeaponHandler (duck-typed: current()); null = read the state
 var mode := "play"
 var show_fps := false
 
@@ -42,7 +49,15 @@ var _badge_list: Label
 var _ammo_card: PanelContainer
 var _ammo_icon: UiIcon
 var _ammo_count: Label
+var _ammo_cap: Label
 var _ammo_note: Label
+var _weapon_name: Label
+var _weapon_other: Label
+var _reload_bar: ProgressBar
+var _materials: Label
+var _alert: PanelContainer
+var _alert_label: Label
+var _alert_t := 0.0
 var _prompt_card: PanelContainer
 var _prompt_holder: HBoxContainer
 var _bottom_left: VBoxContainer
@@ -55,6 +70,7 @@ var _clock_key := ""
 var _warn_key := "~"
 var _cheat_key := "~"
 var _ammo_key := "~"
+var _mat_key := "~"
 var _last_health := -1.0
 var _flash_tween: Tween
 var _mode_tween: Tween
@@ -84,8 +100,15 @@ func setup(s: GameState) -> void:
 	_warn_key = "~"
 	_cheat_key = "~"
 	_ammo_key = "~"
+	_mat_key = "~"
 	if _root != null:
 		_refresh(true)
+
+
+## The weapon runtime to read (WeaponHandler.current()); null reads the state.
+func set_weapons(handler: Node) -> void:
+	weapons = handler
+	_ammo_key = "~"
 
 
 # --- public API ---------------------------------------------------------------
@@ -184,6 +207,21 @@ func set_banner(text: String) -> void:
 		_banner.create_tween().tween_property(_banner, "modulate:a", 1.0, 0.3)
 
 
+## A pulsing warning line under the banner for `seconds` (a bomber's fuse);
+## "" hides it at once.
+func alert(text: String, seconds := 3.0) -> void:
+	if _alert == null:
+		return
+	if text == "":
+		_alert.visible = false
+		_alert_t = 0.0
+		return
+	_alert_label.text = text.to_upper()
+	_alert_t = maxf(seconds, 0.5)
+	_alert.visible = true
+	_alert.modulate.a = 1.0
+
+
 ## "play" (default), "build" (stats dimmed; prompt, ammo and hints hidden so
 ## the bottom centre is free for the build palette) or "hidden".
 func set_mode(m: String) -> void:
@@ -235,7 +273,9 @@ func debug_texts() -> Dictionary:
 			warns.append(t.text)
 	return {
 		"clock": _clock.text, "period": _period.text, "night_glyph": _moon.modulate.a > 0.5,
-		"ammo": _ammo_count.text, "ammo_note": _ammo_note.text,
+		"ammo": _ammo_count.text, "ammo_note": _ammo_note.text, "ammo_cap": _ammo_cap.text,
+		"weapon": _weapon_name.text, "weapon_other": _weapon_other.text, "reloading": _reload_bar.visible,
+		"materials": _materials.text, "alert": _alert_label.text if _alert.visible else "",
 		"prompt": _prompt_text, "prompt_visible": _prompt_card.visible,
 		"banner": _banner_label.text if _banner.visible else "",
 		"cheats_visible": _badge.visible, "cheats": _badge_list.text,
@@ -267,6 +307,11 @@ func _process(delta: float) -> void:
 			sb.border_color.a = 0.45 + 0.35 * (0.5 + 0.5 * sin(_banner_t * 3.0))
 	if show_fps and _fps != null:
 		_fps.text = "%d fps" % Engine.get_frames_per_second()
+	if _alert != null and _alert.visible:
+		_alert_t -= delta
+		_alert.modulate.a = 0.6 + 0.4 * (0.5 + 0.5 * sin(_alert_t * 14.0))
+		if _alert_t <= 0.0:
+			_alert.visible = false
 	_refresh(false)
 
 
@@ -281,12 +326,12 @@ func _refresh(force: bool) -> void:
 	_status_card.visible = true
 	_ammo_card.visible = mode != "build"
 	# clock
-	var key := "%d %s" % [state.day(), state.clock_text()]
+	var key := "%d %s %s" % [state.day(), state.clock_text(), state.difficulty]
 	var n := state.night_amount()
 	if key != _clock_key or force:
 		_clock_key = key
 		_clock.text = UiTheme.day_time_text(state.day(), state.clock_text())
-		_period.text = period_name(state.minute_of_day())
+		_period.text = "%s · %s" % [period_name(state.minute_of_day()), Difficulty.name_of(state.difficulty)]
 	_sun.modulate.a = 1.0 - n
 	_moon.modulate.a = n
 	# stats
@@ -301,27 +346,16 @@ func _refresh(force: bool) -> void:
 	if wkey != _warn_key or force:
 		_warn_key = wkey
 		_set_warnings(warns)
-	# ammo
-	var ammo := state.magazine(state.active_weapon()) + state.reserve(state.active_weapon())
-	var unlimited := bool(state.cheats.get("unlimited", false))
-	var akey := "%d %s" % [ammo, unlimited]
-	if akey != _ammo_key or force:
-		_ammo_key = akey
-		_ammo_count.text = str(ammo)
-		var col := UiTheme.TEXT
-		var note := "rounds" if ammo != 1 else "round"
-		if unlimited:
-			note = "unlimited"
-			col = UiTheme.ACCENT
-		elif ammo <= 0:
-			col = UiTheme.BAD
-			note = "out of ammo"
-		elif ammo <= 3:
-			col = UiTheme.WARN
-		_ammo_count.add_theme_color_override("font_color", col)
-		_ammo_icon.color = col
-		_ammo_note.text = note
-		_ammo_note.add_theme_color_override("font_color", col if col != UiTheme.TEXT else UiTheme.TEXT_DIM)
+	# the weapon in hand
+	_refresh_weapon(force)
+	# construction resources
+	var mats := PackedStringArray()
+	for m in MATERIALS:
+		mats.append("%s %d" % [m[1], state.inventory.count(m[0])])
+	var mkey := " · ".join(mats)
+	if mkey != _mat_key or force:
+		_mat_key = mkey
+		_materials.text = mkey
 	# cheats
 	var cheats := active_cheats(state)
 	var ckey := ", ".join(cheats)
@@ -329,6 +363,70 @@ func _refresh(force: bool) -> void:
 		_cheat_key = ckey
 		_badge.visible = not cheats.is_empty()
 		_badge_list.text = " · ".join(cheats)
+
+
+## The weapon in hand: WeaponHandler.current() when set, else from the state.
+func weapon_info() -> Dictionary:
+	if weapons != null and is_instance_valid(weapons) and weapons.has_method("current"):
+		return weapons.current()
+	var id := state.active_weapon()
+	var ammo_id := WeaponDefs.ammo_of(id)
+	return {"id": id, "name": WeaponDefs.name_of(id), "loaded": state.magazine(id), "capacity": WeaponDefs.capacity(id),
+		"reserve": state.reserve(id), "ammo": ammo_id, "ammo_name": Items.name_of(ammo_id) if ammo_id != "" else "",
+		"reloading": false, "reload_progress": 0.0, "unlimited": bool(state.cheats.get("unlimited", false))}
+
+
+func _refresh_weapon(force: bool) -> void:
+	var w := weapon_info()
+	var other := ""
+	for slot in Equipment.WEAPON_SLOTS:
+		var id := state.equipped(slot)
+		if id != "" and id != str(w.get("id", "")):
+			other = WeaponDefs.name_of(id)
+	var reloading := bool(w.get("reloading", false))
+	var akey := "%s %d %d %d %s %s %s %.2f" % [w.get("id", ""), int(w.get("loaded", 0)), int(w.get("capacity", 0)), int(w.get("reserve", 0)),
+		w.get("unlimited", false), other, reloading, float(w.get("reload_progress", 0.0)) if reloading else 0.0]
+	if akey == _ammo_key and not force:
+		return
+	_ammo_key = akey
+	var loaded := int(w.get("loaded", 0))
+	var reserve := int(w.get("reserve", 0))
+	var unlimited := bool(w.get("unlimited", false))
+	var has_weapon := str(w.get("id", "")) != ""
+	_weapon_name.text = str(w.get("name", "")) if has_weapon else "Unarmed"
+	_ammo_count.text = str(loaded)
+	_ammo_cap.text = "/ %d" % int(w.get("capacity", 0)) if has_weapon else ""
+	_weapon_other.text = ("Q  %s" % other) if other != "" else ""
+	_weapon_other.visible = other != ""
+	var col := UiTheme.TEXT
+	var note := "%d %s spare" % [reserve, _short_ammo(str(w.get("ammo", "")))]
+	if unlimited:
+		note = "unlimited"
+		col = UiTheme.ACCENT
+	elif not has_weapon:
+		note = "no weapon"
+		col = UiTheme.TEXT_DIM
+	elif loaded <= 0 and reserve <= 0:
+		col = UiTheme.BAD
+		note = "out of ammo"
+	elif reloading:
+		note = "reloading"
+		col = UiTheme.WARN
+	elif loaded <= 0:
+		col = UiTheme.WARN
+		note = "empty · R reload"
+	elif loaded <= 2:
+		col = UiTheme.WARN
+	_ammo_count.add_theme_color_override("font_color", col)
+	_ammo_icon.color = col
+	_ammo_note.text = note
+	_ammo_note.add_theme_color_override("font_color", col if col != UiTheme.TEXT else UiTheme.TEXT_DIM)
+	_reload_bar.visible = reloading
+	_reload_bar.value = float(w.get("reload_progress", 0.0))
+
+
+static func _short_ammo(ammo_id: String) -> String:
+	return {"ammo": "9 mm", "shells": "shells"}.get(ammo_id, Items.name_of(ammo_id).to_lower() if ammo_id != "" else "")
 
 
 ## Warning words derived from the stats (or GameState.warnings() when S adds
@@ -507,6 +605,9 @@ func _build() -> void:
 	_warn_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_warn_box.visible = false
 	col.add_child(_warn_box)
+	_materials = UiTheme.make_hud_label("", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
+	_materials.name = "Materials"
+	col.add_child(_materials)
 
 	# top centre: banner + toasts
 	var top := VBoxContainer.new()
@@ -537,6 +638,32 @@ func _build() -> void:
 	_banner_label.add_theme_font_override("font", UiTheme.tracked_font(4))
 	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.add_child(_banner_label)
+	_alert = PanelContainer.new()
+	_alert.name = "Alert"
+	var asb := StyleBoxFlat.new()
+	asb.bg_color = Color(0.16, 0.07, 0.01, 0.85)
+	asb.border_color = Color(UiTheme.ACCENT, 0.95)
+	asb.set_border_width_all(2)
+	asb.set_corner_radius_all(3)
+	asb.content_margin_left = 22
+	asb.content_margin_right = 22
+	asb.content_margin_top = 6
+	asb.content_margin_bottom = 7
+	_alert.add_theme_stylebox_override("panel", asb)
+	_alert.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_alert.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_alert.visible = false
+	top.add_child(_alert)
+	var arow0 := HBoxContainer.new()
+	arow0.add_theme_constant_override("separation", 9)
+	arow0.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_alert.add_child(arow0)
+	var aicon := UiTheme.make_icon("warn", 16, UiTheme.ACCENT)
+	aicon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	arow0.add_child(aicon)
+	_alert_label = UiTheme.make_hud_label("", 16, Color(1.0, 0.82, 0.55))
+	_alert_label.add_theme_font_override("font", UiTheme.tracked_font(3))
+	arow0.add_child(_alert_label)
 	_toasts = VBoxContainer.new()
 	_toasts.name = "Toasts"
 	_toasts.add_theme_constant_override("separation", 6)
@@ -593,22 +720,65 @@ func _build() -> void:
 	_ammo_card.offset_bottom = -20
 	_root.add_child(_ammo_card)
 	var arow := HBoxContainer.new()
-	arow.add_theme_constant_override("separation", 8)
+	arow.add_theme_constant_override("separation", 9)
 	arow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ammo_card.add_child(arow)
 	_ammo_icon = UiTheme.make_icon("ammo", 22)
 	_ammo_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	arow.add_child(_ammo_icon)
+	var wcol := VBoxContainer.new()
+	wcol.add_theme_constant_override("separation", 0)
+	wcol.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	arow.add_child(wcol)
+	var whead := HBoxContainer.new()
+	whead.add_theme_constant_override("separation", 12)
+	whead.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wcol.add_child(whead)
+	_weapon_name = UiTheme.make_hud_label("", 12, UiTheme.TEXT)
+	_weapon_name.name = "WeaponName"
+	_weapon_name.add_theme_font_override("font", UiTheme.tracked_font(2))
+	_weapon_name.uppercase = true
+	whead.add_child(_weapon_name)
+	_weapon_other = UiTheme.make_hud_label("", 11, UiTheme.TEXT_FAINT)
+	_weapon_other.name = "WeaponOther"
+	_weapon_other.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_weapon_other.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	whead.add_child(_weapon_other)
+	var nrow := HBoxContainer.new()
+	nrow.add_theme_constant_override("separation", 6)
+	nrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wcol.add_child(nrow)
 	_ammo_count = UiTheme.make_hud_label("", 26)
 	_ammo_count.name = "AmmoCount"
-	arow.add_child(_ammo_count)
+	nrow.add_child(_ammo_count)
+	_ammo_cap = UiTheme.make_hud_label("", 15, UiTheme.TEXT_DIM)
+	_ammo_cap.name = "AmmoCap"
+	_ammo_cap.size_flags_vertical = Control.SIZE_SHRINK_END
+	_ammo_cap.custom_minimum_size.y = 28
+	_ammo_cap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nrow.add_child(_ammo_cap)
 	_ammo_note = UiTheme.make_hud_label("", 12, UiTheme.TEXT_DIM)
 	_ammo_note.add_theme_font_override("font", UiTheme.tracked_font(2))
 	_ammo_note.uppercase = true
 	_ammo_note.size_flags_vertical = Control.SIZE_SHRINK_END
-	_ammo_note.custom_minimum_size.y = 26
+	_ammo_note.custom_minimum_size = Vector2(150, 28)
 	_ammo_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	arow.add_child(_ammo_note)
+	nrow.add_child(_ammo_note)
+	_reload_bar = ProgressBar.new()
+	_reload_bar.name = "ReloadBar"
+	_reload_bar.show_percentage = false
+	_reload_bar.min_value = 0.0
+	_reload_bar.max_value = 1.0
+	_reload_bar.custom_minimum_size = Vector2(0, 4)
+	_reload_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rbg := StyleBoxFlat.new()
+	rbg.bg_color = Color(1, 1, 1, 0.1)
+	var rfg := StyleBoxFlat.new()
+	rfg.bg_color = UiTheme.WARN
+	_reload_bar.add_theme_stylebox_override("background", rbg)
+	_reload_bar.add_theme_stylebox_override("fill", rfg)
+	_reload_bar.visible = false
+	wcol.add_child(_reload_bar)
 
 	# bottom centre: interaction prompt
 	var pc := CenterContainer.new()

@@ -10,6 +10,10 @@ extends CanvasLayer
 ## else goes through the game's duck-typed dev API, each call guarded by
 ## has_method: dev_spawn(n), dev_trigger_invasion(), dev_repair_house(),
 ## dev_advance(minutes), dev_skip_to(hour), dev_set_time_scale(x), dev_info().
+## Experiment 003 (the game's `dev` helper, src/game/game_dev.gd, when it has
+## the method, else the game itself): dev_spawn_type(kind), dev_wave(kinds),
+## dev_instant_mission(id, approach), dev_reveal_map(), dev_set_difficulty(level),
+## dev_fill_magazines(). Packs add weapons, shells, gear, stone and iron.
 ## The HUD shows the CHEATS ACTIVE badge while any cheat is on.
 
 const WIDTH := 344.0
@@ -17,10 +21,14 @@ const NEED_LEVELS := [0, 25, 50, 100]
 const SUPPLY_PACKS := {
 	"food": {"canned_food": 3, "snacks": 2, "water": 4},
 	"ammo": {"ammo": 10},
-	"materials": {"wood": 20, "nails": 40, "scrap": 10},
+	"weapons": {"shotgun": 1, "shells": 10},
+	"materials": {"wood": 20, "stone": 20, "iron": 10, "nails": 40, "scrap": 10},
 	"medical": {"bandage": 2, "medkit": 1},
 	"tools": {"hammer": 1, "crowbar": 1, "flashlight": 1, "backpack": 1},
+	"gear": {"vest": 1, "backpack": 1, "flashlight": 1, "crowbar": 1},
+	"wood": {"wood": 10}, "stone": {"stone": 10}, "iron": {"iron": 10}, "scrap": {"scrap": 10},
 }
+const WAVE_MAX := 4                     ## per kind in a chosen wave
 
 var state: GameState
 var game: Node
@@ -37,6 +45,11 @@ var _status: Label
 var _refresh_t := 0.0
 var _save_info := {}
 var _save_t := 0.0
+var wave := {"psycho": 1, "runner": 0, "brute": 0, "bomber": 1}   ## the chosen composition
+var _wave_buttons := {}
+var _difficulty_buttons := {}
+var _mission_place: OptionButton
+var _mission_approach: OptionButton
 
 
 func _init() -> void:
@@ -88,7 +101,7 @@ func add_pack(pack: String) -> void:
 	var refused := false
 	for id in SUPPLY_PACKS[pack]:
 		var want: int = SUPPLY_PACKS[pack][id]
-		if Items.category(id) == "tool" and state.inventory.count(id) > 0:
+		if Items.is_unique(id) and state.inventory.count(id) > 0:
 			continue
 		var n := state.inventory.add(id, want)
 		if n > 0:
@@ -141,12 +154,82 @@ func repair_house() -> void:
 		_say("House repaired")
 
 
+func spawn_type(kind: String) -> void:
+	if _call("dev_spawn_type", [kind]):
+		_say("Spawned a %s" % EnemyDefs.get_def(kind)["name"].to_lower())
+
+
+## Cycles the count of `kind` in the chosen wave (0 .. WAVE_MAX).
+func bump_wave(kind: String) -> void:
+	wave[kind] = (int(wave.get(kind, 0)) + 1) % (WAVE_MAX + 1)
+	_sync()
+
+
+## The chosen composition as spawn order (bombers last, as the director would).
+func wave_kinds() -> Array:
+	var out := []
+	for k in ["psycho", "runner", "brute", "bomber"]:
+		for i in int(wave.get(k, 0)):
+			out.append(k)
+	return out
+
+
+func start_wave() -> void:
+	var kinds := wave_kinds()
+	if kinds.is_empty():
+		_say("The wave is empty", true)
+		return
+	if _call("dev_wave", [kinds]):
+		_say("Invasion: %s" % ", ".join(kinds))
+
+
+func set_difficulty(level: String) -> void:
+	if _call("dev_set_difficulty", [level]):
+		_say("Difficulty %s" % Difficulty.name_of(level))
+	elif state != null:
+		state.set_difficulty(level)
+	_sync()
+
+
+func fill_magazines() -> void:
+	if _call("dev_fill_magazines", []):
+		_say("Magazines filled")
+
+
+func reveal_map() -> void:
+	if _call("dev_reveal_map", []):
+		_say("All map locations revealed")
+
+
+func run_mission(id := "", approach := "") -> void:
+	if id == "" and _mission_place != null and _mission_place.selected >= 0:
+		id = str(_mission_place.get_item_metadata(_mission_place.selected))
+	if approach == "" and _mission_approach != null and _mission_approach.selected >= 0:
+		approach = str(_mission_approach.get_item_metadata(_mission_approach.selected))
+	if approach == "":
+		approach = "general"
+	if _call("dev_instant_mission", [id, approach]):
+		_say("Mission: %s (%s)" % [RegionLocations.name_of(id), approach])
+
+
+## The object that answers a dev method: the game's `dev` helper when it has
+## it (Experiment 003), else the game root.
+func _target(method: String) -> Object:
+	if game == null or not is_instance_valid(game):
+		return null
+	var d = game.get("dev")
+	if d is Object and is_instance_valid(d) and d.has_method(method):
+		return d
+	return game if game.has_method(method) else null
+
+
 ## Calls a game dev method if it exists. Returns false (and says so) if not.
 func _call(method: String, args: Array) -> bool:
-	if game == null or not is_instance_valid(game) or not game.has_method(method):
+	var t := _target(method)
+	if t == null:
 		_say("The game has no %s()" % method, true)
 		return false
-	game.callv(method, args)
+	t.callv(method, args)
 	_refresh_inspect()
 	return true
 
@@ -249,6 +332,10 @@ func _sync() -> void:
 	for x in _speed_buttons:
 		var b: Button = _speed_buttons[x]
 		b.set_pressed_no_signal(is_equal_approx(float(x), time_scale))
+	for k in _wave_buttons:
+		(_wave_buttons[k] as Button).text = "%s ×%d" % [EnemyDefs.get_def(k)["name"], int(wave.get(k, 0))]
+	for lv in _difficulty_buttons:
+		(_difficulty_buttons[lv] as Button).set_pressed_no_signal(lv == state.difficulty)
 
 
 # --- construction -------------------------------------------------------------
@@ -314,9 +401,14 @@ func _build() -> void:
 
 	box.add_child(UiTheme.make_section("Supplies"))
 	box.add_child(_grid(2, [
-		["+ Food & water", add_pack.bind("food")], ["+ 10 ammo", add_pack.bind("ammo")],
-		["+ Materials", add_pack.bind("materials")], ["+ Medical", add_pack.bind("medical")],
-		["All tools", add_pack.bind("tools")],
+		["+ Food & water", add_pack.bind("food")], ["+ Medical", add_pack.bind("medical")],
+		["+ 10 ammo", add_pack.bind("ammo")], ["+ Shotgun & shells", add_pack.bind("weapons")],
+		["Fill magazines", fill_magazines], ["+ Vest & gear", add_pack.bind("gear")],
+		["+ Materials", add_pack.bind("materials")], ["All tools", add_pack.bind("tools")],
+	]))
+	box.add_child(_grid(4, [
+		["+10 planks", add_pack.bind("wood")], ["+10 stone", add_pack.bind("stone")],
+		["+10 iron", add_pack.bind("iron")], ["+10 scrap", add_pack.bind("scrap")],
 	]))
 
 	box.add_child(UiTheme.make_section("Needs"))
@@ -351,11 +443,64 @@ func _build() -> void:
 		_speed_buttons[x] = b
 	box.add_child(speed)
 
+	box.add_child(UiTheme.make_section("Difficulty"))
+	var dg := ButtonGroup.new()
+	var drow := HBoxContainer.new()
+	drow.add_theme_constant_override("separation", 5)
+	for lv in Difficulty.LEVELS:
+		var db := _small(Difficulty.name_of(lv), set_difficulty.bind(lv))
+		db.name = "Difficulty_" + lv
+		db.toggle_mode = true
+		db.button_group = dg
+		db.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		drow.add_child(db)
+		_difficulty_buttons[lv] = db
+	box.add_child(drow)
+
 	box.add_child(UiTheme.make_section("Threats"))
 	box.add_child(_grid(2, [
 		["Next invasion", trigger_invasion], ["Repair house", repair_house],
 		["Spawn 1 psycho", spawn.bind(1)], ["Spawn 3 psychos", spawn.bind(3)],
 	]))
+	var spawn_items := []
+	for k in EnemyDefs.KINDS:
+		spawn_items.append(["+ " + EnemyDefs.get_def(k)["name"], spawn_type.bind(k)])
+	box.add_child(_grid(4, spawn_items))
+	box.add_child(UiTheme.make_caption("Invasion with a chosen wave (click a type to change its count):", WIDTH - 52, UiTheme.TEXT_FAINT))
+	var wave_items := []
+	for k in EnemyDefs.KINDS:
+		wave_items.append(["%s ×%d" % [EnemyDefs.get_def(k)["name"], int(wave.get(k, 0))], bump_wave.bind(k)])
+	var wg := _grid(4, wave_items)
+	for i in EnemyDefs.KINDS.size():
+		var wb := wg.get_child(i) as Button
+		wb.name = "Wave_" + EnemyDefs.KINDS[i]
+		_wave_buttons[EnemyDefs.KINDS[i]] = wb
+	box.add_child(wg)
+	box.add_child(_grid(1, [["Start this wave", start_wave]]))
+
+	box.add_child(UiTheme.make_section("Map and missions"))
+	_mission_place = OptionButton.new()
+	_mission_place.name = "MissionPlace"
+	_mission_place.focus_mode = Control.FOCUS_NONE
+	_mission_place.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	for id in RegionLocations.ids():
+		_mission_place.add_item(RegionLocations.name_of(id))
+		_mission_place.set_item_metadata(_mission_place.item_count - 1, id)
+	_mission_approach = OptionButton.new()
+	_mission_approach.name = "MissionApproach"
+	_mission_approach.focus_mode = Control.FOCUS_NONE
+	_mission_approach.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	for a in ExpeditionData.approaches():
+		_mission_approach.add_item(str(a["name"]))
+		_mission_approach.set_item_metadata(_mission_approach.item_count - 1, a["id"])
+	var mrow := HBoxContainer.new()
+	mrow.add_theme_constant_override("separation", 5)
+	_mission_place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mission_approach.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mrow.add_child(_mission_place)
+	mrow.add_child(_mission_approach)
+	box.add_child(mrow)
+	box.add_child(_grid(2, [["Run mission now", run_mission.bind("", "")], ["Reveal all places", reveal_map]]))
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"

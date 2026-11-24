@@ -23,7 +23,7 @@ func test_hud_reflects_state() -> void:
 	t = hud.debug_texts()
 	check_eq(t["clock"], "Day 1 · 22:00", "clock advanced")
 	check(t["night_glyph"], "moon at night")
-	check_eq(t["period"], "Night", "period")
+	check_eq(t["period"], "Night · Normal", "period and difficulty")
 	# warnings derived from the stats
 	state.hunger = 10.0
 	state.hydration = 0.0
