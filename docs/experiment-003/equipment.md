@@ -371,6 +371,8 @@ Screenshot mode: `--weapon=handgun|shotgun --shot-at=<s>` fires once at the near
 CAPTURE_ENGINE_ARGS="--fixed-fps 30" LP_NUM_THREADS=1 tools/capture.sh res://src/combat/weapon_preview.tscn /abs/shotgun.png 2.0 --weapon=shotgun --shot-at=1.5
 ```
 
+Two day captures were taken this way (lavapipe), one per weapon: `k_handgun_day.png` and `k_shotgun_day.png`. They show the muzzle flash, the tracers and the hit psycho flashing; in the shotgun one, several pellet tracers and the placeholder's long barrel. They are handed to the lead with the report (not committed).
+
 ## Known limitations
 
 - The shotgun model is a placeholder of boxes on the rig's arm. Its `StandardMaterial3D` isn't part of the night material list, so at night it is lit only by the scene's lights.
