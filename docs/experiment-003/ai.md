@@ -85,21 +85,18 @@ The psycho keeps Experiment 002's feel and numbers exactly: same speed, HP, atta
 
 It **ignores the player**: its brain has `attack_goal = false` and `bash = false`, and its goal is never the player.
 
-1. **Target.** It walks `world.weak_points(from)` in order and takes the first usable one. It skips:
-   - an open door (it is no longer a defence);
-   - a wall section below 25 % integrity (already breached);
-   - a point whose outside face is inside the house or outside the yard;
-   - a face its planner can't reach;
-   - a target another bomber has claimed (several bombers spread out).
+1. **Target.** It calls `world.weak_points(from, player_pos)`. The player's position only feeds C's proximity bonus, which raises defences near the player; the player is never a target. It takes the first usable entry. C's entries carry the stand point on the outside face (`pos`), the `target`, `seg` and `object`. It skips:
+   - an open or broken object;
+   - a walk-through target;
+   - a stand point inside the house;
+   - a stand point its planner can't reach;
+   - a target another bomber has claimed.
 
-   The **outside face** is derived from the segment (`HouseWorld.nearest_seg`) and `outer_sign`. The stand point is 0.6 m out from the wall line. It **commits** to the target and re-picks only if the target is gone (object destroyed, wall breached) before it arrives.
-2. **Fuse.** At the stand point it stops and faces the wall. `fuse_started(enemy, at, 2.5)` fires (the roster forwards it for the HUD). The pack light pulses faster and faster (3 → 11 Hz), the rig trembles, and a beep plays through `Sfx.play` with gaps shrinking from 0.7 s to 0.25 s.
+   It **commits** to the target and re-picks only if the target is destroyed or becomes walk-through before it arrives (tested). The foundation format (`pos` = the target) is still understood as a fallback.
+2. **Fuse.** At the stand point it stops and faces the target. `fuse_started(enemy, at, 2.5)` fires (the roster forwards it for the HUD). The pack light pulses faster and faster (3 → 11 Hz), the rig trembles, and a beep plays through `Sfx.play` with gaps shrinking from 0.7 s to 0.25 s.
    - The sound name is `enemy/bomber_fuse` once it exists. Until then it uses the existing `ui/error` (see Requests).
    - If it stalls twice (5 s) without reaching the face but is within 1.3 m of a wall, it fuses at that wall instead.
-3. **Blast.** `world.explode(at, 1.5, 24)` runs at the wall face (0.15 m out from the wall line, 1.0 m high). With the foundation `explode`, objects within 2.25 m take 24 at the centre (a door has 18 HP, a barricade 12). Then:
-   - a flash light, sparks and smoke;
-   - `enemy/bomber_blast` if it exists, else `structure/break`;
-   - `detonated(at, 4.0, blast_damage)`.
+3. **Blast.** `world.explode(stand point at 1.0 m, 1.6, 24)`, C's recommended use: one blast breaches a wooden or house wall or a wooden door; stone needs two. The world draws the flash, fireball, debris, dust and scorch and plays its own sounds; `enemy/bomber_blast` is added if it exists. The result is kept in `behaviour.last_blast` (`breach`, `opened`, …). Then `detonated(at, 4.0, blast_damage)` fires.
 
    The roster hurts the other enemies: 8 hits at the centre, falling linearly to 0 at 4 m. A psycho 1 m away dies; a brute is hurt. The game hurts the player (Integration). The bomber vanishes.
 4. **Killed early** (the design choice):
@@ -109,7 +106,9 @@ It **ignores the player**: its brain has `attack_goal = false` and `bash = false
    Shooting it early is always worth it. `roster.kill_all()` (dev) kills it quietly: no pop.
 5. **Fair warning:** the glowing orange pack and pulsing light (very visible at night), a bright orange x-ray silhouette through walls, no moaning, the beeping fuse, `fuse_started` for a HUD warning, and `roster.enemy_spawned(e, "bomber")` for an early "bomber!" notice.
 
-Its targeting is demonstrably different. In `test_ai_bomber_goes_for_a_wall_not_the_player_unlike_a_psycho`, with both doors open and the player 0.1 m from its path, the bomber walks past and blows the first usable weak wall: a walk-only path through the hole afterwards. A psycho from the same spot attacks the player.
+Its targeting is demonstrably different. In `test_ai_bomber_goes_for_a_wall_not_the_player_unlike_a_psycho`, with both doors open and the player 0.1 m from its path, the bomber walks past and blows the world's first usable weak point, a weakened wall. Afterwards `breach` is true, the target point is walk-through, and a walk-only path leads in. A psycho from the same spot attacks the player.
+
+On the intact house the world ranks the closed front door first. One blast destroys the door and opens the doorway; the wooden-framed wall beside it holds.
 
 ## Director (`src/game/invasion_director.gd`)
 
@@ -168,6 +167,8 @@ New:
   - `fuse_started(enemy, at, seconds)`;
   - `detonated(at, radius, damage)`.
 - **`wall_swing` fires once per strike**, so a brute's swing is three `world.enemy_strike` calls with no change in the game.
+  - This is the one way the brute is counted: the game keeps calling `world.enemy_strike(e.global_position, target)` with the default strength 1.
+  - Don't also pass C's `strength` 3, or a brute hits 3 × 3.
 - Blasts damage the other enemies before `detonated` is re-emitted.
 - At dawn a bomber whose fuse burns doesn't retreat: it is committed.
 
@@ -269,8 +270,8 @@ Scenarios: `lineup`, `close --kind=<k>`, `runner_door`, `brute_barricade`, `bomb
   - a chaser uses a newly opened door at once;
   - `WeightedNav` is shared, patched incrementally and matches a fresh layer.
 - **`tests/ai/test_ai_bomber.gd`**, on a real HouseWorld:
-  - it ignores a nearby player, fuses for 2.5 s at the front door's outside face and detonates; the door is gone, voxels are removed and the breach is walkable and wider than the doorway;
-  - **it goes for the first usable weak wall while a psycho from the same spot attacks the player** (a hole and a walk-only path through it);
+  - it ignores a nearby player, takes the world's first weak point (the front door), fuses for 2.5 s at its stand point and detonates: `breach` is true, the door is gone, voxels are removed and a walk-only path leads in;
+  - **it goes for the world's first usable weak point (a weakened wall) while a psycho from the same spot attacks the player** (`breach`, the target point walk-through, a walk-only path in);
   - **killed before the fuse: it fizzles** (no blast, the house untouched);
   - **killed during the fuse: it pops** (1.6 m, 15 damage, no structural damage, no later full blast);
   - the blast hurts nearby enemies, not far ones;
@@ -286,10 +287,7 @@ Scenarios: `lineup`, `close --kind=<k>`, `runner_door`, `brute_barricade`, `bomb
 
   Both are picked up automatically once `Sfx.has(name)`.
 - **Lead (GridNav):** a public read-only accessor for the raw occupancy (e.g. `raw_bytes() -> PackedByteArray`) or a `changed(rect)` signal. `WeightedNav` reads `_raw` through `get()` today, with a full-rebuild fallback.
-- **C (world):**
-  - `weak_points()` returns `pos` on the wall line, while its comment says "outside face". The bomber derives the face from `nearest_seg` and `outer_sign`. Returning `seg` and an outward `normal` per entry would make that explicit.
-  - In the foundation scoring a closed door always outranks every wall, so with closed doors bombers always go for a door. SPEC §4 suggests preferring a weak wall near the player and avoiding sheathed or stone sections.
-  - `explode()` is used with radius 1.5 and power 24; tune them together.
+- **C (world):** resolved in the merge. The bomber uses C's `weak_points(from, near)` entries and the recommended blast (radius 1.6, power 24 at the stand point).
 - **Phase B:** the Integration steps above, and the test update in step 2.
 
 ## Known issues and limitations
@@ -297,7 +295,7 @@ Scenarios: `lineup`, `close --kind=<k>`, `runner_door`, `brute_barricade`, `bomb
 - No human play. Balance (costs, weights, HP, blast numbers) is a first pass from the tests and the composition tables.
 - Chasers converge on the same cheapest bash point (no spreading, apart from bomber claims), so crowds stack at one wall spot.
 - The brute's collision radius (0.29 m) exceeds the nav clearance (0.25 m). In a tight gap it relies on the progress rule to bash it wider.
-- The blast carves a breach about 3 m wide with radius 1.5. That is readable but large; tune with C.
+- Blast size follows C's measured numbers: one blast breaches wood and the house frame, two are needed for stone.
 - Until Phase B connects `detonated`, a blast in the game damages the house and enemies but not the player.
 - A runner bashes when no opening exists: it then takes the cheapest bash point at its high cost.
 - Spawn gaps are real seconds, as in Experiment 002.
