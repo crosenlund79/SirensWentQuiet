@@ -582,6 +582,7 @@ func _show_list() -> void:
 			continue
 		var sec := UiTheme.make_section(str(RegionLocations.CATEGORIES.get(cat, cat)))
 		sec.custom_minimum_size.y = 24
+		sec.set_meta("category", cat)
 		list.add_child(sec)
 		for id in in_cat:
 			var d := D.destination(id)

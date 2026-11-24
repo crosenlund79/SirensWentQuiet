@@ -1,6 +1,7 @@
 extends "res://tests/test_case.gd"
-## Expedition data and resolution (E): invariants, gating, departure window,
-## event option effects, determinism.
+## Expedition data and resolution (Experiment 002 rules, kept for Experiment
+## 003): invariants, gating, departure window, event option effects,
+## determinism. Rounds only count with an owned handgun (SPEC-003 §2).
 
 const D := preload("res://src/expedition/expedition_data.gd")
 
@@ -8,6 +9,7 @@ const D := preload("res://src/expedition/expedition_data.gd")
 func _state(seed := 11, minute := 8 * 60.0) -> GameState:
 	var s := GameState.new_run(seed)
 	s.total_minutes = minute
+	s.inventory.add("handgun", 1)
 	return s
 
 
@@ -35,7 +37,8 @@ func _check_result(r: Dictionary, s: GameState, gear: Dictionary, ctx: String) -
 			return
 	check(typeof(r["id"]) == TYPE_STRING and r["id"] != "", "%s: id is a non-empty string" % ctx)
 	check(typeof(r["minutes"]) == TYPE_INT and r["minutes"] >= D.MIN_MINUTES, "%s: integer minutes (%s)" % [ctx, r["minutes"]])
-	check(typeof(r["damage"]) == TYPE_FLOAT and r["damage"] >= 0.0 and r["damage"] <= D.MAX_DAMAGE, "%s: damage bounded (%s)" % [ctx, r["damage"]])
+	var max_dmg := float(D.destination(r["destination"]).get("max_damage", D.MAX_DAMAGE))
+	check(typeof(r["damage"]) == TYPE_FLOAT and r["damage"] >= 0.0 and r["damage"] <= max_dmg, "%s: damage bounded (%s)" % [ctx, r["damage"]])
 	for k in ["gained", "consumed", "lost", "left_behind"]:
 		for id in r[k]:
 			var n = r[k][id]
@@ -43,16 +46,18 @@ func _check_result(r: Dictionary, s: GameState, gear: Dictionary, ctx: String) -
 			check(typeof(n) == TYPE_INT and n > 0, "%s: %s[%s] is a positive int (%s)" % [ctx, k, id, n])
 	for id in r["gained"]:
 		var cap := s.inventory.cap(id)
+		var lost := int(r["lost"].get(id, 0))
 		if cap > 0:
-			check(s.inventory.count(id) + int(r["gained"][id]) <= cap, "%s: gained %s respects the cap" % [ctx, id])
-		if Items.category(id) == "tool":
-			check(r["gained"][id] == 1 and s.inventory.count(id) == 0 or r["lost"].has(id), "%s: a tool only when missing (%s)" % [ctx, id])
+			check(s.inventory.count(id) - lost + int(r["gained"][id]) <= cap, "%s: gained %s respects the cap" % [ctx, id])
+		if D.is_unique(id):
+			check(r["gained"][id] == 1 and (not D.owns(s, id) or lost > 0), "%s: a unique item only when missing (%s)" % [ctx, id])
 	for id in r["left_behind"]:
 		check(s.inventory.cap(id) > 0, "%s: only capped items are left behind (%s)" % [ctx, id])
-		check(s.inventory.count(id) + int(r["gained"].get(id, 0)) == s.inventory.cap(id), "%s: left behind only once full (%s)" % [ctx, id])
+		check(s.inventory.count(id) - int(r["lost"].get(id, 0)) + int(r["gained"].get(id, 0)) == s.inventory.cap(id), "%s: left behind only once full (%s)" % [ctx, id])
 	for k in ["consumed", "lost"]:
 		for id in r[k]:
-			check(int(r[k][id]) <= s.inventory.count(id), "%s: %s %s within owned" % [ctx, k, id])
+			var owned := D.rounds_owned(s, id) if D.AMMO_TYPES.has(id) else s.inventory.count(id)
+			check(int(r[k][id]) <= owned, "%s: %s %s within owned" % [ctx, k, id])
 			check(int(r[k][id]) <= int(gear.get(id, 0)), "%s: %s %s within brought" % [ctx, k, id])
 	for line in r["events"]:
 		check(typeof(line) == TYPE_STRING and line != "", "%s: event lines are strings" % ctx)
@@ -84,11 +89,12 @@ func test_data_is_consistent() -> void:
 		check(opts.size() >= 2 and opts.size() <= 3, "%s has 2-3 options" % ev_id)
 		var free := false
 		for o in opts:
-			free = free or not o.has("needs")
+			free = free or (not o.has("needs") and not o.has("shots"))
 			for need in o.get("needs", {}):
-				check(need == "ammo" or need in D.BRINGABLE_TOOLS, "%s needs bringable gear (%s)" % [ev_id, need])
-			if o.has("ammo"):
-				check(int(o.get("needs", {}).get("ammo", 0)) >= int(o["ammo"]), "%s: an option that spends rounds needs them" % ev_id)
+				check(need in D.BRINGABLE_GEAR, "%s needs bringable gear (%s)" % [ev_id, need])
+			check(not o.has("ammo"), "%s: rounds are spent through 'shots'" % ev_id)
+			if o.has("mark"):
+				check(D.FLAGS.has(o["mark"][0]) and int(o["mark"][1]) > 0, "%s: a known mark" % ev_id)
 			if o.has("bonus") and typeof(o["bonus"]) == TYPE_ARRAY:
 				for e in o["bonus"]:
 					check(Items.has(e[0]), "%s bonus item %s" % [ev_id, e[0]])
