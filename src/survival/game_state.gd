@@ -1,13 +1,16 @@
 class_name GameState
 extends RefCounted
-## The whole survival state of one run (SPEC §7.1). Owner: S. Pure data: no
-## nodes, no scene access. One clock (`total_minutes`); day and time derive
-## from it. Every time skip goes through `advance`, which integrates the stats
-## exactly once (piecewise linear, split at every threshold) and reports the
-## events it crossed. Rules and numbers: docs/experiment-002/survival.md.
+## The whole survival state of one run (SPEC §7.1, SPEC-003 §2). Owner: K. Pure
+## data: no nodes, no scene access. One clock (`total_minutes`); day and time
+## derive from it. Every time skip goes through `advance`, which integrates the
+## stats exactly once (piecewise linear, split at every threshold) and reports
+## the events it crossed. Experiment 003 adds equipment slots with real effects,
+## weapon magazines and difficulty semantics. Rules and numbers:
+## docs/experiment-002/survival.md and docs/experiment-003/equipment.md.
 
 signal changed
 signal died(cause: String)
+signal equipment_changed
 
 const T := preload("res://src/survival/survival_tuning.gd")
 const DAY_MIN := 1440.0
@@ -45,14 +48,20 @@ var inventory: Inventory:
 		inventory = v if v != null else Inventory.new()
 		inventory.changed.connect(_on_inventory_changed)
 var cheats := {"invulnerable": false, "unlimited": false}
-## Experiment 003 (foundation; K owns the semantics):
-var difficulty := Difficulty.DEFAULT            ## "easy" | "normal" | "hard"
-var equipment := {}                             ## slot -> item id (SPEC-003 §2)
-var weapons := {}                               ## weapon id -> {"loaded": int} (magazine contents)
+## Experiment 003 (K):
+var difficulty := Difficulty.DEFAULT            ## "easy" | "normal" | "hard" (set_difficulty reschedules)
+var equipment := {}                             ## slot -> item id (Equipment.SLOTS); only owned items
+var weapons := {}                               ## owned weapon id -> {"loaded": int} (magazine contents)
+var active_weapon_slot := "primary"             ## the weapon in hand: "primary" | "secondary"
 var region := RegionState.new_region()          ## the world outside the lot (SPEC-003 §3)
 var run := {}
 var dead := false
 var death_cause := ""
+## Newly acquired gear goes into its slot when that slot is free (not saved).
+var auto_equip := true
+
+var _quiet := false                             ## restoring: no equipment sync
+var _gear_seen := {}                            ## equippable ids owned at the last sync
 
 
 func _init() -> void:
@@ -60,26 +69,33 @@ func _init() -> void:
 	run = _default_run(0)
 
 
+## A fresh run: Day 1 07:00, the starting stats and items, the handgun equipped
+## as the primary weapon holding the difficulty's `start_rounds` and no reserve.
 static func new_run(run_seed := 0, level := Difficulty.DEFAULT) -> GameState:
 	var s := GameState.new()
 	s.difficulty = Difficulty.valid(level)
 	s.total_minutes = T.START_MINUTE
 	for k in T.START_STATS:
 		s.set(k, T.START_STATS[k])
+	s._quiet = true
 	for id in T.START_ITEMS:
 		s.inventory.add(id, T.START_ITEMS[id])
-	s.run = _default_run(run_seed if run_seed != 0 else int(Time.get_unix_time_from_system()) & 0x7fffffff)
+	s._quiet = false
+	s._sync_equipment(false)
+	s.equip("handgun", "primary")
+	s.set_magazine("handgun", int(Difficulty.get_value(s.difficulty, "start_rounds")))
+	s.run = _default_run(run_seed if run_seed != 0 else int(Time.get_unix_time_from_system()) & 0x7fffffff, s.difficulty)
 	return s
 
 
-static func _default_run(run_seed: int) -> Dictionary:
+static func _default_run(run_seed: int, level := Difficulty.DEFAULT) -> Dictionary:
 	return {
 		"seed": run_seed,
 		"invasions_done": 0,
 		"invasion_active": false,
 		"invasion_announced": false,   # invasion_due was reported; waiting for start_invasion()
 		"invasion_forced": false,      # dev: due now, reported by the next advance
-		"next_invasion_at": _invasion_slot_after(-1.0),
+		"next_invasion_at": _invasion_slot_after(-1.0, level),
 		"expeditions": 0,
 		"applied_expeditions": [],
 		"dawn_collected_day": 0,
@@ -88,6 +104,8 @@ static func _default_run(run_seed: int) -> Dictionary:
 
 
 func _on_inventory_changed() -> void:
+	if not _quiet:
+		_sync_equipment()
 	changed.emit()
 
 
@@ -229,12 +247,14 @@ static func _snap_stat(v: float) -> float:
 
 # --- health ----------------------------------------------------------------------
 
-## Any damage source (enemies, starvation, expeditions). Blocked by the
-## invulnerable cheat and after death. Emits `died` once.
+## Any damage source (enemies, blasts, expeditions). Blocked by the
+## invulnerable cheat and after death. Emits `died` once. An equipped vest
+## takes 35 % off every cause except starvation and dehydration
+## (`damage_factor`); the reduction applies before the 1000 bound.
 func damage(amount: float, cause: String) -> void:
 	if dead or not (amount > 0.0) or cheats.get("invulnerable", false):
 		return
-	health -= minf(amount, 1000.0)
+	health -= minf(amount * damage_factor(cause), 1000.0)
 	if health <= 1e-6:
 		health = 0.0
 		_die(cause)
@@ -291,6 +311,262 @@ func warnings() -> Array:
 	return out
 
 
+# --- equipment (SPEC-003 §2) -------------------------------------------------------
+
+## Puts owned gear into a slot. `slot` "" picks one: the slot it fits, for a
+## weapon the first free weapon slot (both taken: the weapon in hand is
+## replaced). A weapon moved to the other weapon slot swaps places. Returns ""
+## on success (also when it was already there) or a readable reason.
+func equip(id, slot := "") -> String:
+	if dead:
+		return "You're dead."
+	if not Items.has(id):
+		return "Unknown item."
+	id = str(id)
+	var fits := Equipment.slots_for(id)
+	if fits.is_empty():
+		return "%s can't be equipped." % Items.name_of(id)
+	if slot != "" and not slot in fits:
+		return "%s doesn't go in the %s slot." % [Items.name_of(id), str(Equipment.SLOT_NAMES.get(slot, slot)).to_lower()]
+	if inventory.count(id) <= 0:
+		return "You don't have a %s." % Items.name_of(id).to_lower()
+	var current := slot_of(id)
+	if slot == "":
+		if current != "":
+			return ""
+		slot = fits[0]
+		for f in fits:
+			if equipped(f) == "":
+				slot = f
+				break
+		if equipped(slot) != "" and fits.size() > 1 and active_weapon_slot in fits:
+			slot = active_weapon_slot
+	if current == slot:
+		return ""
+	var prev := equipped(slot)
+	if current != "":
+		if prev != "":
+			equipment[current] = prev
+		else:
+			equipment.erase(current)
+	equipment[slot] = id
+	_equipment_changed()
+	return ""
+
+
+## Empties a slot (the item stays in the inventory). False if it was empty.
+func unequip(slot) -> bool:
+	if not Equipment.is_slot(slot) or equipped(slot) == "":
+		return false
+	equipment.erase(slot)
+	_equipment_changed()
+	return true
+
+
+## The item id in `slot`, or "" (empty, unknown slot, or no longer owned).
+func equipped(slot) -> String:
+	var id = equipment.get(slot, "") if Equipment.is_slot(slot) else ""
+	return str(id) if typeof(id) == TYPE_STRING and id != "" and inventory.count(id) > 0 else ""
+
+
+func has_equipped(id) -> bool:
+	return slot_of(id) != ""
+
+
+## The slot `id` is equipped in, or "".
+func slot_of(id) -> String:
+	for slot in Equipment.SLOTS:
+		if equipped(slot) == str(id) and str(id) != "":
+			return slot
+	return ""
+
+
+## Damage multiplier for `cause`: Equipment.VEST_FACTOR with the vest equipped,
+## except for starvation and dehydration; 1 otherwise.
+func damage_factor(cause: String) -> float:
+	if has_equipped("vest") and not cause in Equipment.UNARMORED_CAUSES:
+		return Equipment.VEST_FACTOR
+	return 1.0
+
+
+## Expedition carrying capacity (loot) multiplier: 1.5 with the backpack
+## equipped, else 1. Household material caps don't change.
+func carry_multiplier() -> float:
+	return Equipment.BACKPACK_CARRY if has_equipped("backpack") else 1.0
+
+
+## Why the player can't build ("" = they can): the household needs a hammer
+## (owned; it needn't be equipped). The unlimited cheat builds without one.
+func can_build() -> String:
+	if cheats.get("unlimited", false) or inventory.count("hammer") > 0:
+		return ""
+	return "You need a hammer."
+
+
+func _equipment_changed() -> void:
+	_fix_active_slot()
+	equipment_changed.emit()
+	changed.emit()
+
+
+## Keeps equipment, magazines and the weapon in hand consistent with the
+## inventory: gear no longer owned leaves its slot, a weapon no longer owned
+## takes its magazine with it, a newly owned weapon gets an empty magazine,
+## and newly acquired gear goes into a free slot (auto_equip; not the hammer).
+func _sync_equipment(notify := true) -> void:
+	var eq_changed := false
+	for slot in equipment.keys():
+		var id = equipment[slot]
+		if not Equipment.is_slot(slot) or typeof(id) != TYPE_STRING or inventory.count(id) <= 0 or not Equipment.fits(id, slot):
+			equipment.erase(slot)
+			eq_changed = true
+	for id in weapons.keys():
+		if not WeaponDefs.has(id) or inventory.count(id) <= 0:
+			weapons.erase(id)
+	for id in WeaponDefs.ids():
+		if inventory.count(id) > 0 and not weapons.has(id):
+			weapons[id] = {"loaded": 0}
+	for id in Items.DEFS:
+		if not Equipment.is_equippable(id):
+			continue
+		var owned := inventory.count(id) > 0
+		if owned and not _gear_seen.has(id) and auto_equip and not id in Equipment.NO_AUTO_EQUIP and slot_of(id) == "":
+			for slot in Equipment.slots_for(id):
+				if equipped(slot) == "":
+					equipment[slot] = id
+					eq_changed = true
+					break
+		if owned:
+			_gear_seen[id] = true
+		else:
+			_gear_seen.erase(id)
+	if eq_changed:
+		_fix_active_slot()
+		if notify:
+			equipment_changed.emit()
+
+
+func _fix_active_slot() -> void:
+	if not active_weapon_slot in Equipment.WEAPON_SLOTS:
+		active_weapon_slot = "primary"
+	if equipped(active_weapon_slot) == "":
+		for slot in Equipment.WEAPON_SLOTS:
+			if equipped(slot) != "":
+				active_weapon_slot = slot
+				return
+
+
+# --- weapons: magazines and reserve -------------------------------------------------
+
+## The weapon in hand ("" = none): the active weapon slot, else the other one.
+func active_weapon() -> String:
+	_fix_active_slot()
+	return equipped(active_weapon_slot)
+
+
+## Makes `slot`'s weapon the one in hand. False if that slot is empty.
+func set_active_weapon_slot(slot: String) -> bool:
+	if not slot in Equipment.WEAPON_SLOTS or equipped(slot) == "":
+		return false
+	if slot != active_weapon_slot:
+		active_weapon_slot = slot
+		changed.emit()
+	return true
+
+
+## Rounds in `id`'s magazine (0 when not owned).
+func magazine(id) -> int:
+	if not WeaponDefs.has(id) or inventory.count(id) <= 0:
+		return 0
+	var w = weapons.get(str(id), {})
+	var n := Inventory.to_count(w.get("loaded", 0)) if typeof(w) == TYPE_DICTIONARY else 0
+	return clampi(n, 0, WeaponDefs.capacity(id))
+
+
+## Sets the magazine directly (start, migration, dev). Clamped to the capacity;
+## ignored for weapons not owned.
+func set_magazine(id, n: int) -> void:
+	if WeaponDefs.has(id) and inventory.count(id) > 0:
+		_set_loaded(str(id), n)
+		changed.emit()
+
+
+func _set_loaded(id: String, n: int) -> void:
+	weapons[id] = {"loaded": clampi(n, 0, WeaponDefs.capacity(id))}
+
+
+## Rounds for `id` in the inventory (its ammo item).
+func reserve(id) -> int:
+	return inventory.count(WeaponDefs.ammo_of(id)) if WeaponDefs.has(id) else 0
+
+
+## Moves up to `n` rounds (-1: as many as fit) from the reserve into `id`'s
+## magazine. The unlimited cheat loads without taking from the reserve.
+## Returns how many were loaded.
+func load_rounds(id, n := -1) -> int:
+	if dead or not WeaponDefs.has(id) or inventory.count(id) <= 0:
+		return 0
+	var room := WeaponDefs.capacity(id) - magazine(id)
+	var want := room if n < 0 else mini(n, room)
+	var unlimited: bool = cheats.get("unlimited", false)
+	var k := want if unlimited else mini(want, reserve(id))
+	if k <= 0:
+		return 0
+	_set_loaded(str(id), magazine(id) + k)
+	if not unlimited:
+		inventory.remove(WeaponDefs.ammo_of(id), k)
+	else:
+		changed.emit()
+	return k
+
+
+## Spends one round from `id`'s magazine for one trigger pull. False when it is
+## empty. The unlimited cheat keeps the magazine full instead.
+func spend_round(id) -> bool:
+	if dead or not WeaponDefs.has(id) or inventory.count(id) <= 0:
+		return false
+	if cheats.get("unlimited", false):
+		if magazine(id) < WeaponDefs.capacity(id):
+			_set_loaded(str(id), WeaponDefs.capacity(id))
+			changed.emit()
+		return true
+	var n := magazine(id)
+	if n <= 0:
+		return false
+	_set_loaded(str(id), n - 1)
+	changed.emit()
+	return true
+
+
+## Every round of `ammo_id` the player has: the reserve plus the magazines of
+## the owned weapons that take it (what an expedition can bring).
+func rounds_carried(ammo_id: String) -> int:
+	var n := inventory.count(ammo_id)
+	for w in WeaponDefs.using_ammo(ammo_id):
+		n += magazine(w)
+	return n
+
+
+## Spends up to `n` rounds of `ammo_id`: the reserve first, then the magazines
+## (the weapon in hand last). Returns how many were spent.
+func _consume_rounds(ammo_id: String, n: int) -> int:
+	var k := mini(n, inventory.count(ammo_id))
+	if k > 0:
+		inventory.remove(ammo_id, k)
+	var left := n - k
+	var order := WeaponDefs.using_ammo(ammo_id)
+	order.sort_custom(func(a, b): return a != active_weapon() and b == active_weapon())
+	for w in order:
+		if left <= 0:
+			break
+		var take := mini(left, magazine(w))
+		if take > 0:
+			_set_loaded(w, magazine(w) - take)
+			left -= take
+			k += take
+	return k
+
+
 # --- inventory use and costs -------------------------------------------------------
 
 func can_pay(cost: Dictionary) -> bool:
@@ -304,12 +580,25 @@ func pay(cost: Dictionary) -> bool:
 	return inventory.remove_all(cost)
 
 
+## Experiment 002 API, kept for the old firing path: spends `n` 9 mm rounds,
+## from the handgun's magazine first, then the reserve (all or nothing). The
+## unlimited cheat spends nothing. The weapon runtime uses spend_round instead.
 func use_ammo(n := 1) -> bool:
 	if n < 0:
 		return false
 	if cheats.get("unlimited", false):
 		return true
-	return inventory.remove("ammo", n)
+	var loaded := magazine("handgun")
+	if loaded + inventory.count("ammo") < n:
+		return false
+	var from_mag := mini(loaded, n)
+	if from_mag > 0:
+		_set_loaded("handgun", loaded - from_mag)
+	if n > from_mag:
+		inventory.remove("ammo", n - from_mag)
+	elif from_mag > 0:
+		changed.emit()
+	return true
 
 
 ## Why `id` can't be used right now ("" = it can).
@@ -420,18 +709,47 @@ func _is_invasion_night(d: int) -> bool:
 	var due: float = run.get("next_invasion_at", INF)
 	if is_finite(due) and int(floorf(due / DAY_MIN)) + 1 == d:
 		return true
-	return d >= T.FIRST_INVASION_DAY and (d - T.FIRST_INVASION_DAY) % T.INVASION_INTERVAL_DAYS == 0
+	var first := first_invasion_day()
+	return d >= first and (d - first) % invasion_interval_days() == 0
 
 
 # --- invasions ---------------------------------------------------------------------
 
-## Invasion slots are Day 3, 6, 9... at 22:00. Returns the first slot after `t`.
-static func _invasion_slot_after(t: float) -> float:
-	var first := (T.FIRST_INVASION_DAY - 1) * DAY_MIN + T.INVASION_HOUR * 60.0
-	var step := T.INVASION_INTERVAL_DAYS * DAY_MIN
+## Invasion slots are at 22:00 on the difficulty's first invasion day and then
+## every `invasion_interval_days` (Normal: Day 3, 6, 9...; Easy: 4, 8, 12...;
+## Hard: 2, 4, 6...). Returns the first slot after `t`.
+static func _invasion_slot_after(t: float, level := Difficulty.DEFAULT) -> float:
+	var first := (int(Difficulty.get_value(level, "first_invasion_day")) - 1) * DAY_MIN + T.INVASION_HOUR * 60.0
+	var step := maxi(int(Difficulty.get_value(level, "invasion_interval_days")), 1) * DAY_MIN
 	if t < first:
 		return first
 	return first + (floorf((t - first) / step) + 1.0) * step
+
+
+func first_invasion_day() -> int:
+	return int(Difficulty.get_value(difficulty, "first_invasion_day"))
+
+
+func invasion_interval_days() -> int:
+	return maxi(int(Difficulty.get_value(difficulty, "invasion_interval_days")), 1)
+
+
+## A value from this run's Difficulty row (e.g. "loot", "scavenge_danger").
+func difficulty_value(key: String) -> Variant:
+	return Difficulty.get_value(difficulty, key)
+
+
+## Changes the difficulty mid-run (dev menu). An invasion that is not yet due
+## moves onto the new grid: the first slot from now on.
+func set_difficulty(level: String) -> void:
+	var lv := Difficulty.valid(level)
+	if lv == difficulty:
+		return
+	difficulty = lv
+	if not _invasion_pending():
+		run["next_invasion_at"] = _invasion_slot_after(total_minutes, difficulty)
+	_log("Difficulty: %s" % Difficulty.name_of(difficulty))
+	changed.emit()
 
 
 ## Announced (due) or forced, or running.
@@ -454,20 +772,32 @@ func invasion_due_soon() -> bool:
 	return due >= total_minutes and due - total_minutes <= (T.INVASION_HOUR - T.INVASION_WARNING_HOUR) * 60.0
 
 
+## Experiment 002 wave size (the old director), scaled by the difficulty's
+## enemy_count (Normal x1). The threat-budget director (AI) reads Difficulty.
 func invasion_size() -> int:
-	return mini(T.INVASION_BASE_SIZE + T.INVASION_SIZE_STEP * (invasion_index() - 1), T.INVASION_MAX_SIZE)
+	var base := mini(T.INVASION_BASE_SIZE + T.INVASION_SIZE_STEP * (invasion_index() - 1), T.INVASION_MAX_SIZE)
+	return maxi(roundi(base * float(difficulty_value("enemy_count"))), 1)
 
 
+## Psycho HP in this invasion, scaled by the difficulty's enemy_hp (Normal x1).
 func invasion_enemy_hp() -> int:
-	return T.INVASION_BASE_HP + (invasion_index() - 1) / 2
+	return maxi(roundi((T.INVASION_BASE_HP + (invasion_index() - 1) / 2) * float(difficulty_value("enemy_hp"))), 1)
+
+
+## Multiply an archetype's base HP by this (AI's EnemyDefs).
+func enemy_hp_scale() -> float:
+	return float(difficulty_value("enemy_hp"))
 
 
 func invasion_speed_scale() -> float:
 	return 1.0 + T.INVASION_SPEED_STEP * (invasion_index() - 1)
 
 
+## One psycho hit on the player: 12, +10 % per invasion, x the difficulty's
+## enemy_damage (Easy 0.7, Normal 1, Hard 1.3). The vest applies later, in
+## `damage`. Other archetypes multiply this by their own factor.
 func enemy_damage() -> float:
-	return T.ENEMY_DAMAGE * (1.0 + T.INVASION_DAMAGE_STEP * (invasion_index() - 1))
+	return T.ENEMY_DAMAGE * (1.0 + T.INVASION_DAMAGE_STEP * (invasion_index() - 1)) * float(difficulty_value("enemy_damage"))
 
 
 func start_invasion() -> void:
@@ -492,7 +822,7 @@ func end_invasion(survived: bool) -> void:
 	run["invasion_announced"] = false
 	run["invasion_forced"] = false
 	run["invasions_done"] = invasion_index()
-	run["next_invasion_at"] = _invasion_slot_after(maxf(total_minutes, float(run.get("next_invasion_at", total_minutes))))
+	run["next_invasion_at"] = _invasion_slot_after(maxf(total_minutes, float(run.get("next_invasion_at", total_minutes))), difficulty)
 	changed.emit()
 
 

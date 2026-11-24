@@ -34,7 +34,7 @@ const SPENT_SPEED := 0.6               ## energy <= 0
 const NOT_TIRED_ENERGY := 95.0         ## by day, no sleep at or above this energy
 
 const START_STATS := {"health": 100.0, "hunger": 75.0, "hydration": 70.0, "energy": 85.0}
-const START_ITEMS := {"ammo": 9, "canned_food": 3, "snacks": 2, "water": 4, "wood": 6, "nails": 12, "bandage": 1, "hammer": 1}
+const START_ITEMS := {"handgun": 1, "canned_food": 3, "snacks": 2, "water": 4, "wood": 6, "nails": 12, "bandage": 1, "hammer": 1}
 
 # --- invasions ----------------------------------------------------------------
 const FIRST_INVASION_DAY := 3
