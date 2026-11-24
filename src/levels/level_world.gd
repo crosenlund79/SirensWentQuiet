@@ -448,7 +448,7 @@ func is_cut(c: Vector3i) -> bool:
 ## As HouseWorld.aim_ray; in the basement the ray starts at its ceiling (the
 ## ground floor above is hidden and must not catch it), and the fallback plane
 ## is the basement floor.
-func aim_ray(from: Vector3, dir: Vector3) -> Vector3:
+func aim_ray(from: Vector3, dir: Vector3, low := false) -> Vector3:
 	var start := from
 	var top := base_y + 2.7
 	if storey == Levels.BASEMENT and from.y > top and dir.y < -0.001:
@@ -457,7 +457,7 @@ func aim_ray(from: Vector3, dir: Vector3) -> Vector3:
 	var vh := grid.raycast(start, dir, best, _bullet_skip, is_cut)
 	if not vh.is_empty():
 		best = vh["dist"]
-	var q := PhysicsRayQueryParameters3D.create(start, start + dir * best, 1 | 8)
+	var q := PhysicsRayQueryParameters3D.create(start, start + dir * best, 1 | 8 | (16 if low else 0))
 	q.exclude = _hidden_bodies
 	var ph := get_world_3d().direct_space_state.intersect_ray(q)
 	if not ph.is_empty():
