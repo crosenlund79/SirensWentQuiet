@@ -159,6 +159,12 @@ func _process(_delta: float) -> void:
 	if camera == null or not is_instance_valid(camera):
 		return
 	var cam := camera.global_position
+	# Refinement 01: the view can turn in quarter turns; everything below is
+	# placed along the camera's own forward / right on the ground plane.
+	var b := camera.global_transform.basis
+	var fwd := Vector3(-b.z.x, 0.0, -b.z.z).normalized()
+	var right := Vector3(b.x.x, 0.0, b.x.z).normalized()
+	var yaw := atan2(-fwd.x, -fwd.z)
 	# The ground point a few degrees inside the top edge of the frame: the
 	# curtains stand there, so their bright lower edge shows above the fog line.
 	var top := deg_to_rad(-VoxelCamera.PITCH_DEG - camera.fov * 0.5 + 5.0)
@@ -166,7 +172,11 @@ func _process(_delta: float) -> void:
 	for i in ribbons.size():
 		var spec: Dictionary = RIBBONS[i]
 		var mi := ribbons[i]
-		mi.global_position = Vector3(cam.x + float(spec["x"]), float(spec["height"]) * 0.5 - 0.6, cam.z - reach - float(spec["back"]))
+		var at := cam + right * float(spec["x"]) + fwd * (reach + float(spec["back"]))
+		mi.global_position = Vector3(at.x, float(spec["height"]) * 0.5 - 0.6, at.z)
+		mi.rotation.y = yaw
 	if snow != null:
-		# over the camera's focus (pitch 56 degrees), a little to the north
-		snow.global_position = Vector3(cam.x, 11.0, cam.z - (cam.y - 1.0) * 0.674 - 2.0)
+		# over the camera's focus (pitch 56 degrees), a little ahead of it
+		var f := cam + fwd * ((cam.y - 1.0) * 0.674 + 2.0)
+		snow.global_position = Vector3(f.x, 11.0, f.z)
+		snow.rotation.y = yaw

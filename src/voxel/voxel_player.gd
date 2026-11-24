@@ -24,6 +24,8 @@ const SPRINT_SCALE := 1.6
 var sprint_allowed := true
 var sprinting := false
 var _last_pos := Vector3.INF          ## Refinement 01: last frame's position, for the gait
+## Refinement 01: the camera's yaw (rad); WASD moves relative to the screen.
+var move_yaw := 0.0
 
 
 func _ready() -> void:
@@ -84,7 +86,7 @@ func _physics_process(delta: float) -> void:
 		dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	sprinting = input_enabled and sprint_allowed and dir != Vector2.ZERO and InputMap.has_action("sprint") \
 			and Input.is_action_pressed("sprint")
-	var want := Vector3(dir.x, 0, dir.y) * Tuning.PLAYER_SPEED * speed_scale * (SPRINT_SCALE if sprinting else 1.0)
+	var want := Vector3(dir.x, 0, dir.y).rotated(Vector3.UP, move_yaw) * Tuning.PLAYER_SPEED * speed_scale * (SPRINT_SCALE if sprinting else 1.0)
 	var v := Vector3(velocity.x, 0, velocity.z)
 	v = v.move_toward(want, Tuning.PLAYER_ACCEL * delta)
 	velocity = v

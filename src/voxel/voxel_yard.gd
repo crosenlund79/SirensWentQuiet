@@ -42,6 +42,7 @@ var _roof_fade := 1.0
 ## collapsed (HouseSupport; set before or after the roof is built).
 var roof_grid: VoxelGrid
 var roof_holes: Array = []
+var hide_roof := false            ## Refinement 01: the game's roof toggle (V) keeps the roof hidden
 var _rng := RandomNumberGenerator.new()
 ## Experiment 003: plan rects where no grass grows (stone foundations). Set
 ## before the yard enters the tree, or call set_tuft_avoid() later.
@@ -657,7 +658,7 @@ func update_roof(player_pos: Vector3, delta: float, instant := false) -> void:
 	if roof == null:
 		return
 	var inside := HousePlan.FOOTPRINT.grow(0.4).has_point(Vector2(player_pos.x, player_pos.z))
-	var goal := 0.0 if inside else 1.0
+	var goal := 0.0 if inside or hide_roof else 1.0
 	_roof_fade = goal if instant else move_toward(_roof_fade, goal, minf(delta, 0.05) / 0.35)
 	roof_mat.set_shader_parameter("fade", _roof_fade)
 	roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if _roof_fade > 0.0 else GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY

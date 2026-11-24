@@ -78,6 +78,8 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | M | Region map (Esc or M closes it) |
 | B | Build mode (see below) |
 | Mouse wheel | Zoom |
+| Z / C | Turn the view 90° left / right around you (WASD follows the screen) |
+| V | Roofs: hide them (and the floors above you) or let them fade automatically when you go inside |
 | Esc | Close a panel or leave build mode, otherwise pause (Resume, Save, Settings, Main Menu) |
 | H / F1 | Controls hint |
 | F3 | FPS line |
@@ -87,7 +89,7 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 
 | Key | Class | Variants |
 |---|---|---|
-| 1 | Walls | wood, stone |
+| 1 | Walls | wood, stone; build straight over a wall of another material to replace it |
 | 2 | Barricades | wood, iron, window boards (on a window) |
 | 3 | Doors | wood, reinforced, metal |
 | 4 | Doorway | |
@@ -99,6 +101,8 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | 0 | Floors & levels | stone foundation, wooden floor, stairs up, stairs down, upper floor, excavate (needs a shovel) |
 
 **R** rotates, **RMB** cancels, click-drag for wall runs.
+
+**Replacing walls:** pick the other material and build over an existing wall (yours or the house's). It is one action: the old wall comes down with its usual refund (yours in full, the house's as salvage), the new one is paid, and only the difference changes hands. If you can't pay the difference, or the new wall can't stand there, nothing changes. Iron plating stays on. In a run, empty sections are built, other walls replaced, and doors, windows and walls already of that material are skipped. It works upstairs too.
 
 ### Developer menu (F10)
 

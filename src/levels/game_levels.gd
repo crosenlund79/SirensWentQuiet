@@ -50,6 +50,9 @@ var _moving := false
 var _cooldown := 0.0
 var _blocked := ""                     ## stairs the player stands on that lead nowhere yet (one toast)
 var _roof_base := INF
+## Refinement 01: the roof toggle (V): the yard roof and the storeys above the
+## player stay hidden, also while the player is outside the house.
+var roofs_hidden := false
 
 
 func setup(g: Node) -> void:
@@ -122,6 +125,15 @@ func _raise_roof() -> void:
 	if _roof_base == INF:
 		_roof_base = yard.roof.position.y
 	yard.roof.position.y = _roof_base + (Levels.HEIGHT if upper != null else 0.0)
+
+
+## Refinement 01: the roof toggle (V).
+func set_roofs_hidden(on: bool) -> void:
+	roofs_hidden = on
+	var yard: VoxelYard = game.world.yard
+	if yard != null:
+		yard.hide_roof = on
+	_update_visibility()
 
 
 ## Digs one basement cell; creates the basement on the first. False if it was dug.
@@ -412,7 +424,7 @@ func _storey_shown(storey: int) -> bool:
 		Levels.UPPER:
 			if player_storey == Levels.UPPER:
 				return true
-			return player_storey == Levels.GROUND and not HousePlan.FOOTPRINT.grow(0.4).has_point(game.player.plan_pos())
+			return player_storey == Levels.GROUND and not roofs_hidden and not HousePlan.FOOTPRINT.grow(0.4).has_point(game.player.plan_pos())
 	return true
 
 

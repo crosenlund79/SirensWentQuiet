@@ -204,7 +204,7 @@ func _build_level(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list
 	for e in built_list:
 		var s := Vector3i(int(e[0]), int(e[1]), int(e[2]))
 		built[s] = true
-		if not sections.has(s):
+		if not sections.has(s) or sections[s]["orig"]:      # Refinement 01: a wall built where a house wall was knocked out
 			sections[s] = _new_section(false, "stone" if stone.has(s) else "wood")
 		_mark_struct_zone(s)
 	for e in upgraded_list:
@@ -418,8 +418,11 @@ static func _near_wall_line(p: Vector2) -> bool:
 
 func update_view(player_pos: Vector3, camera: Camera3D, delta: float) -> void:
 	super(player_pos, camera, delta)
+	# Refinement 01: seen from a storey below (the yard, with the camera turned
+	# to any side), the cutaway goes through this storey's floor too.
+	var floor_y := minf(base_y, Levels.base_y(Levels.storey_at(player_pos.y)))
 	for m in cut_materials:
-		m.set_shader_parameter("cut_floor", base_y + 0.45)
+		m.set_shader_parameter("cut_floor", floor_y + 0.45)
 
 
 func _update_mesh_cut() -> void:

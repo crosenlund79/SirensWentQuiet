@@ -29,6 +29,7 @@ const RUN_MAX := 12
 const GHOST_OK := Color(0.35, 1.0, 0.5, 0.36)
 const GHOST_BAD := Color(1.0, 0.28, 0.22, 0.4)
 const GHOST_TOOL := {"repair": Color(1.0, 0.72, 0.3, 0.32), "upgrade": Color(0.55, 0.75, 1.0, 0.34), "demolish": Color(1.0, 0.45, 0.25, 0.34)}
+const GHOST_REPLACE := Color(0.35, 0.85, 1.0, 0.4)      ## Refinement 01: a wall segment that replaces another
 const SEAL_REASON := "That would seal the last way out."
 const FOUNDATION_REASON := "Stone walls need a foundation: the house floor or a stone foundation."
 ## Pieces placed by dragging along a line, and pieces that follow the ground
@@ -65,6 +66,7 @@ var _eval_age := 0.0
 var _mats := {}
 var _slot_pick := {}            # palette slot -> LIST index last used in it
 var _ptr_furniture := ""        # furniture piece under the demolish pointer (aim ray)
+var _ghost_label: Label3D       # Refinement 01: "Replace wood → stone" over a replacing ghost
 
 
 func setup(w: HouseWorld, s: GameState, cam: Camera3D, p: Node3D) -> void:
@@ -213,7 +215,14 @@ func _is_run_piece() -> bool:
 func _pointer() -> Vector2:
 	if camera == null or not is_inside_tree() or world == null:
 		return Vector2.INF
-	var mp := get_viewport().get_mouse_position()
+	return pointer_at(get_viewport().get_mouse_position())
+
+
+## The plan point `_pointer()` picks for screen point `mp` (Refinement 01:
+## split out so tests can aim through the real camera).
+func pointer_at(mp: Vector2) -> Vector2:
+	if camera == null or world == null:
+		return Vector2.INF
 	var o := camera.project_ray_origin(mp)
 	var d := camera.project_ray_normal(mp)
 	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES or (ext != null and ext.uses_plane(piece_id())):
@@ -336,33 +345,123 @@ func _run(from: Vector2, p: Vector2) -> Array:
 
 
 func _eval_run(r: Dictionary, id: String, segs: Array) -> void:
+	var is_wall := id == "wall" or id == "stone_wall"
+	if is_wall:
+		segs = _wall_actions(r, id, segs)      # Refinement 01: replace other walls, skip doors and windows
 	r["segs"] = segs
 	r["cost"] = BuildPieces.times(BuildPieces.LIST[piece]["cost"], segs.size())
 	r["bad"] = []
 	var extra := {}
+	var reps: Dictionary = r.get("replace", {})
 	for s in segs:
-		var why := _check_line_piece(id, s)
+		var why := _check_line_piece(id, s, reps.has(s))
 		if why != "":
 			r["bad"].append(s)
 			if r["reason"] == "":
 				r["reason"] = why
-		var is_wall := id == "wall" or id == "stone_wall"
 		var cells := world.nav.cells_in_rect(HouseWorld.seg_rect(s, 0.125, 0.125) if is_wall else WorldObject.footprint_of("barricade", HouseWorld.seg_center(s), world.seg_rot(s)))
 		for c in cells:
 			extra[c] = GridNav.WALL
 	if r["reason"] == "" and not world.exit_path_exists(extra):
 		r["reason"] = SEAL_REASON
 		r["bad"] = segs.duplicate()
+	if is_wall and not reps.is_empty():
+		_net_replace_cost(r)
 
 
-func _check_line_piece(id: String, s: Vector3i) -> String:
+## Refinement 01, direct wall replacement: sorts a wall run's segments. An
+## empty line is built as before; a wall of another material (the player's
+## own wood or stone, or an original house wall) is replaced in the same
+## action; windows, doors and other objects on the line and walls of the
+## same material are skipped in a run (a single segment says why). Fills
+## r["replace"] (segment -> {"from", "refund", "plated"}) and r["skipped"];
+## returns the segments to build on.
+func _wall_actions(r: Dictionary, id: String, segs: Array) -> Array:
+	var mat := "stone" if id == "stone_wall" else "wood"
+	var out := []
+	var reps := {}
+	var skip_reason := ""
+	var skipped := 0
+	for s in segs:
+		var why := ""
+		var info := world.section_info(s)
+		if not HouseWorld.LOT.encloses(HouseWorld.seg_rect(s, 0.1)):
+			out.append(s)                      # _check_line_piece says why
+			continue
+		if info["glass"]:
+			why = "There's a window here."
+		elif not info["objects"].is_empty():
+			why = "Something is already standing here."
+		elif info["coverage"] >= 0.3:
+			var from := wall_material(s)
+			if from == "":
+				why = "There's already a wall here."
+			elif from == mat:
+				why = "There's already a %s wall here (Repair mends it)." % ("stone" if mat == "stone" else "wooden")
+			else:
+				reps[s] = {"from": from, "refund": wall_refund(s), "plated": info["upgraded"]}
+		if why != "":
+			skipped += 1
+			if skip_reason == "":
+				skip_reason = why
+			continue
+		out.append(s)
+	r["replace"] = reps
+	r["skipped"] = skipped
+	if out.is_empty() and skip_reason != "":
+		r["reason"] = skip_reason
+		r["bad"] = segs.duplicate()
+		return segs
+	return out
+
+
+## "wood" or "stone" for the player's own wall on segment s, "house" for an
+## original wall section, "" if no wall section stands there.
+func wall_material(s: Vector3i) -> String:
+	if world.built.has(s):
+		return str(world.sections.get(s, {}).get("material", "wood"))
+	return "house" if world.sections.has(s) else ""
+
+
+## What taking wall section s down gives back (Demolish, and the wall it
+## replaces): the player's own wall its full cost; an original wall or window
+## section salvage by its integrity (BuildPieces.original_salvage).
+func wall_refund(s: Vector3i) -> Dictionary:
+	if world.built.has(s):
+		return BuildPieces.wall_cost(world.sections.get(s, {}).get("material", "wood")).duplicate()
+	var info := world.section_info(s)
+	return BuildPieces.original_salvage("window" if info["glass"] else "wall", info["integrity"])
+
+
+## Replacement pays the new walls minus what the old ones give back, per
+## resource: r["cost"] is what is still paid, r["refund"] what comes back,
+## r["gross_cost"] / r["gross_refund"] the two sides.
+func _net_replace_cost(r: Dictionary) -> void:
+	var back := {}
+	for s in r["replace"]:
+		back = BuildPieces.add(back, r["replace"][s]["refund"])
+	r["gross_cost"] = r["cost"]
+	r["gross_refund"] = back
+	var pay := {}
+	var got := {}
+	for k in BuildPieces.add(r["cost"], back):
+		var n := int(r["cost"].get(k, 0)) - int(back.get(k, 0))
+		if n > 0:
+			pay[k] = n
+		elif n < 0:
+			got[k] = -n
+	r["cost"] = pay
+	r["refund"] = got
+
+
+func _check_line_piece(id: String, s: Vector3i, replacing := false) -> String:
 	var rect := HouseWorld.seg_rect(s, HouseWorld.STONE_HALF if id == "stone_wall" else 0.1)
 	if not HouseWorld.LOT.encloses(rect):
 		return "Outside the lot: the fog starts there."
 	var info := world.section_info(s)
 	if info["glass"]:
 		return "There's a window here."
-	if info["coverage"] >= 0.3:
+	if info["coverage"] >= 0.3 and not replacing:
 		return "There's already a wall here." if id == "wall" or id == "stone_wall" else "There's a wall here."
 	if not world.objects_in(HouseWorld.seg_rect(s, 0.12)).is_empty():
 		return "Something is already standing here."
@@ -591,14 +690,14 @@ func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 	var bearing: String = world.bearing_warning(s) if world.has_method("bearing_warning") else ""   # Refinement 01 (S)
 	if world.built.has(s):
 		r["bearing"] = bearing
-		r["refund"] = BuildPieces.wall_cost(world.sections.get(s, {}).get("material", "wood")).duplicate()
+		r["refund"] = wall_refund(s)
 		return
 	var info := world.section_info(s)
 	if info["exists"] and (info["wall"] or info["glass"]):
 		r["opening"] = true
 		r["bearing"] = bearing
 		r["window"] = info["glass"]
-		r["refund"] = BuildPieces.original_salvage("window" if info["glass"] else "wall", info["integrity"])
+		r["refund"] = wall_refund(s)
 		if world.bodies_in(HouseWorld.seg_rect(s, 0.2)):
 			r["reason"] = "Someone is standing there."
 		return
@@ -635,8 +734,32 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 	match r["piece"]:
 		"wall", "stone_wall":
 			var stone: bool = r["piece"] == "stone_wall"
+			var reps: Dictionary = r.get("replace", {})
+			# Refinement 01: walls of another material come down first, through
+			# the demolish path (the player's own: demolish_wall; the house's:
+			# knocked out), and the new walls go up over all segments at once.
+			var froms := PackedStringArray()
+			for s in reps:
+				var fname: String = {"wood": "wooden wall", "stone": "stone wall"}.get(reps[s]["from"], "house wall")
+				if not froms.has(fname):
+					froms.append(fname)
+				if world.built.has(s):
+					world.demolish_wall(s)
+				else:
+					world.cut_opening(s, true)
 			world.build_walls(r["segs"], "stone" if stone else "wood")
-			text = "Built %d m of %s wall (%s)." % [r["segs"].size(), "stone" if stone else "wooden", BuildPieces.cost_text(r["cost"])]
+			for s in reps:
+				if reps[s]["plated"]:
+					world.upgrade_section(s)       # the iron plating stays on the new wall
+			if reps.is_empty():
+				text = "Built %d m of %s wall (%s)." % [r["segs"].size(), "stone" if stone else "wooden", BuildPieces.cost_text(r["cost"])]
+			else:
+				var fresh: int = r["segs"].size() - reps.size()
+				text = "Replaced %d m of %s with %s wall%s (paid %s)." % [reps.size(), " and ".join(froms), "stone" if stone else "wooden",
+					(", built %d m" % fresh) if fresh > 0 else "", BuildPieces.cost_text(r["cost"])]
+				text += _give_back(r.get("refund", {}))
+			if int(r.get("skipped", 0)) > 0:
+				text += " Skipped %d m (doors, windows, walls already of that kind)." % int(r["skipped"])
 			Sfx.play("build/place", at)
 			Sfx.play("build/hammer", at)
 		"foundation":
@@ -723,14 +846,7 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 			else:
 				world.demolish_wall(r["segs"][0])
 				text = "Wall taken down."
-			if not refund.is_empty() and state != null and not state.cheats.get("unlimited", false):
-				var got := {}
-				for k in refund:
-					var n := state.inventory.add(k, refund[k])
-					if n > 0:
-						got[k] = n
-				if not got.is_empty():
-					text += " Got back %s." % BuildPieces.cost_text(got)
+			text += _give_back(refund)
 			Sfx.play("build/demolish", at)
 	if r.get("ext", false) and ext != null:      # Experiment 004 (L)
 		text = ext.apply(self, r)
@@ -738,6 +854,19 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 	message.emit(text, true)
 	changed.emit()
 	return true
+
+
+## Adds a refund to the inventory (not with the unlimited cheat). Returns
+## " Got back ..." for what fitted, or "".
+func _give_back(refund: Dictionary) -> String:
+	if refund.is_empty() or state == null or state.cheats.get("unlimited", false):
+		return ""
+	var got := {}
+	for k in refund:
+		var n := state.inventory.add(k, refund[k])
+		if n > 0:
+			got[k] = n
+	return " Got back %s." % BuildPieces.cost_text(got) if not got.is_empty() else ""
 
 
 func _where(r: Dictionary) -> Vector3:
@@ -803,15 +932,22 @@ func _show_ghost(r: Dictionary) -> void:
 			if at != Vector2.INF:
 				items.append([kind, d["size"], Vector3(at.x, float(d.get("y0", 0.0)), at.y), WorldObject.YAW[rr], col_ok if r["ok"] else GHOST_BAD, ""])
 		"wall", "stone_wall", "barricade", "iron_barricade", "door", "iron_door", "metal_door", "doorway", "foundation":
+			var reps: Dictionary = r.get("replace", {})
 			for s in r["segs"]:
 				var bad: bool = not r["ok"] and (r.get("bad", []).has(s) or not r.has("bad"))
 				var c := HouseWorld.seg_center(s)
 				var yaw := 0.0 if s.x == 0 else PI * 0.5
 				var type := "wall_ghost"
 				var size := Vector3(1.0, 2.6, 0.2)
+				var col := GHOST_BAD if bad else col_ok
 				match id:
-					"stone_wall":
-						size = Vector3(1.0, 2.6, 0.3)
+					"wall", "stone_wall":
+						if id == "stone_wall":
+							size = Vector3(1.0, 2.6, 0.3)
+						if reps.has(s):            # Refinement 01: over the old wall, so it shows
+							size = Vector3(1.02, 2.66, maxf(size.z, 0.3) + 0.08)
+							if not bad:
+								col = GHOST_REPLACE
 					"foundation":
 						size = Vector3(1.0, 0.06, 0.98)
 					"barricade", "iron_barricade":
@@ -824,7 +960,7 @@ func _show_ghost(r: Dictionary) -> void:
 						yaw = WorldObject.YAW[world.seg_rot(s)]
 					"doorway":
 						size = Vector3(1.0, 2.1, 0.42)
-				items.append([type, size, Vector3(c.x, 0, c.y), yaw, GHOST_BAD if bad else col_ok, style])
+				items.append([type, size, Vector3(c.x, 0, c.y), yaw, col, style])
 		"crate", "rain_collector", "workbench":
 			if r["pos"] != Vector2.INF:
 				items.append([_kind(), WorldObject.DEFS[_kind()]["size"], Vector3(r["pos"].x, 0, r["pos"].y), WorldObject.YAW[rot], col_ok if r["ok"] else GHOST_BAD, ""])
@@ -869,13 +1005,61 @@ func _show_ghost(r: Dictionary) -> void:
 		var m := _ghost_material(items[k][4])
 		for gi in g.find_children("*", "GeometryInstance3D", true, false):
 			(gi as GeometryInstance3D).material_override = m
+	_show_replace_label(r)
+
+
+## Refinement 01: a floating "Replace wood → stone" over the first wall a run replaces.
+func _show_replace_label(r: Dictionary) -> void:
+	var reps: Dictionary = r.get("replace", {})
+	if reps.is_empty() or not r["piece"] in ["wall", "stone_wall"]:
+		if _ghost_label != null:
+			_ghost_label.visible = false
+		return
+	if _ghost_label == null:
+		_ghost_label = Label3D.new()
+		_ghost_label.name = "ReplaceLabel"
+		_ghost_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_ghost_label.no_depth_test = true
+		_ghost_label.pixel_size = 0.01
+		_ghost_label.font_size = 26
+		_ghost_label.outline_size = 8
+		_ghost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_ghost_label.modulate = Color(0.85, 0.97, 1.0)
+		_ghost_root.add_child(_ghost_label)
+	_ghost_label.text = replace_text(r).replace(": ", "\n")
+	_ghost_label.modulate = Color(0.85, 0.97, 1.0) if r["ok"] else Color(1.0, 0.6, 0.55)
+	var first: Vector3i = reps.keys()[0]
+	var c := HouseWorld.seg_center(first)
+	_ghost_label.position = Vector3(c.x, plane_y + 3.0, c.y)
+	_ghost_label.visible = true
+
+
+## "Replace wood → stone" for a wall run that replaces walls (with its net cost).
+func replace_text(r: Dictionary) -> String:
+	var reps: Dictionary = r.get("replace", {})
+	if reps.is_empty():
+		return ""
+	var froms := PackedStringArray()
+	for s in reps:
+		var f: String = {"wood": "wood", "stone": "stone"}.get(reps[s]["from"], "house wall")
+		if not froms.has(f):
+			froms.append(f)
+	var to := "stone" if r["piece"] == "stone_wall" else "wood"
+	var t := "Replace %s → %s" % ["/".join(froms), to]
+	if reps.size() > 1:
+		t += " (%d m)" % reps.size()
+	var parts := PackedStringArray()
+	parts.append("pay " + BuildPieces.cost_text(r["cost"]) if not r["cost"].is_empty() else "nothing to pay")
+	if not r.get("refund", {}).is_empty():
+		parts.append("back " + BuildPieces.cost_text(r["refund"]))
+	return t + ": " + ", ".join(parts)
 
 
 func _refresh_palette() -> void:
 	if palette == null:
 		return
 	var p: Dictionary = BuildPieces.LIST[piece]
-	var cost: Dictionary = last_eval.get("cost", p["cost"])
+	var cost: Dictionary = last_eval.get("gross_cost", last_eval.get("cost", p["cost"]))   # Refinement 01: a replacing run's own cost
 	var cost_txt := ""
 	match tool():
 		"place":
@@ -902,6 +1086,10 @@ func _refresh_palette() -> void:
 	var status := "Ready: click to %s." % ("build" if tool() == "place" else tool())
 	if not last_eval.is_empty() and not last_eval["ok"]:
 		status = last_eval["reason"]
+	elif not last_eval.get("replace", {}).is_empty():
+		status = "Ready: " + replace_text(last_eval) + "."        # Refinement 01
+		if int(last_eval.get("skipped", 0)) > 0:
+			status += " Skips %d m (doors, windows, walls already of that kind)." % int(last_eval["skipped"])
 	elif last_eval.get("window", false):
 		status = "Ready: knocks out this window."
 	elif last_eval.get("opening", false):

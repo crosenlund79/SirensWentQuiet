@@ -288,6 +288,8 @@ func _begin_continue() -> void:
 	levels.restore(_loaded.get("world", {}), int(_loaded.get("storey", 0)), pos)   # Experiment 004 (L)
 	var g: Dictionary = _loaded.get("game", {})
 	time_scale = clampf(float(g.get("time_scale", 1.0)), 0.0, 600.0)
+	camera.set_turns(int(g.get("camera_turns", 0)) if typeof(g.get("camera_turns")) in [TYPE_INT, TYPE_FLOAT] else 0)   # Refinement 01
+	levels.set_roofs_hidden(typeof(g.get("roofs_hidden")) == TYPE_BOOL and g["roofs_hidden"])
 	var d = g.get("director", {})
 	if typeof(d) == TYPE_DICTIONARY:
 		for n in d.get("stragglers_done", []):
@@ -345,6 +347,7 @@ func _process(delta: float) -> void:
 		boundary.set_night_amount(n)
 		ambience.set_night_amount(n)
 	player.speed_scale = state.move_speed_scale()
+	player.move_yaw = camera.yaw          # Refinement 01: WASD follows the turned view
 	world.update_view(player.global_position, camera, delta)
 	listener.global_position = player.global_position + Vector3(0, 1.7, 0)
 	_update_prompt()
@@ -401,6 +404,12 @@ func _on_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("open_map"):
 		_handled()
 		open_map()
+	elif event.is_action_pressed("camera_left") or event.is_action_pressed("camera_right"):
+		_handled()                          # Refinement 01: Z / C turn the view a quarter turn
+		turn_camera(-1 if event.is_action_pressed("camera_left") else 1)
+	elif event.is_action_pressed("toggle_roof"):
+		_handled()                          # Refinement 01: V hides the roofs (and the storeys above you)
+		toggle_roofs()
 	elif not build.active and bar.handle_input(event):
 		_handled()                          # 1-8, X, Q (Experiment 004, E: the quick-access bar)
 	elif not build.active and combat.handle_input(event):
@@ -409,6 +418,20 @@ func _on_input(event: InputEvent) -> void:
 		camera.zoom(-1.0)
 	elif event.is_action_pressed("zoom_out"):
 		camera.zoom(1.0)
+
+
+## Refinement 01: turns the view a quarter turn around the player (-1 left, +1 right).
+func turn_camera(dir: int) -> void:
+	camera.turn(dir)
+	if build != null:
+		build.set("_eval_key", "")
+
+
+## Refinement 01: V. Hidden: the roof and the storeys above the player stay
+## hidden, also from outside; automatic: they fade only while you're inside.
+func toggle_roofs() -> void:
+	levels.set_roofs_hidden(not levels.roofs_hidden)
+	toast("Roofs hidden (V shows them)." if levels.roofs_hidden else "Roofs shown; they fade while you're inside (V hides them).", "info")
 
 
 func _handled() -> void:
@@ -865,7 +888,8 @@ func save_now() -> String:
 	var why := can_save()
 	if why != "":
 		return why
-	var extra := {"time_scale": time_scale, "director": {"stragglers_done": _stragglers_done.keys()}}
+	var extra := {"time_scale": time_scale, "director": {"stragglers_done": _stragglers_done.keys()},
+		"camera_turns": camera.turns, "roofs_hidden": levels.roofs_hidden}      # Refinement 01
 	var data: Dictionary = RunSave.compose(state, levels.world_save(world.save_data()), player.global_position, player.rig.rotation.y, extra,
 		levels.player_storey)          # Experiment 004 (L): storeys in the world save, the player's in "game"
 	var err := SaveGame.write(data)

@@ -15,6 +15,8 @@ const CONTROLS := [
 	["R", "Reload"],
 	["Q / 1 / 2", "Next weapon / primary / secondary"],
 	["Wheel", "Zoom"],
+	["Z / C", "Turn the view 90° left / right"],
+	["V", "Roofs: hide / automatic"],
 	["E", "Interact"],
 	["I / Tab", "Inventory and equipment"],
 	["M", "Region map"],

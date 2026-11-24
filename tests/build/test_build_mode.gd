@@ -28,7 +28,9 @@ func test_placement_validity_and_refusal_reasons() -> void:
 	var b: BuildMode = setup[2]
 	check_eq(_reason(b, "wall", Vector2(0.5, 11.0)), "", "a wall segment in the open yard is valid")
 	check(_reason(b, "wall", Vector2(-4.9, 5.0)).begins_with("Outside the lot"), "outside the lot")
-	check_eq(_reason(b, "wall", Vector2(8.5, 9.0)), "There's already a wall here.", "over a house wall")
+	b.select_id("wall")
+	var hw := b.evaluate(Vector2(8.5, 9.0))
+	check(hw["ok"] and hw["replace"].size() == 1, "over a house wall it replaces it (Refinement 01: %s)" % hw["reason"])
 	check_eq(_reason(b, "wall", Vector2(4.5, 7.0)), "Furniture is in the way.", "through the sofa")
 	check_eq(_reason(b, "wall", Vector2(4.5, 9.0)), "Something is already standing here.", "on the front door")
 	check_eq(_reason(b, "wall", Vector2(1.5, 9.0)), "There's a window here.", "over a window")
@@ -73,7 +75,8 @@ func test_exit_rule_refuses_sealing_the_house() -> void:
 	check_eq(_reason(b, "barricade", Vector2(4.5, 10.0)), "", "a barricade outside the front door")
 	# crates around the bed's foot can't wall it in
 	b.select_id("wall")
-	check(b.apply(Vector2(3.6, 4.0), Vector2(0.2, 4.0)) == false, "a run over the existing bedroom wall is refused")
+	check(b.apply(Vector2(3.6, 4.0), Vector2(0.2, 4.0)) == false, "a run over the bedroom wall and its doorway is refused")
+	check_eq(b.last_eval["reason"], BuildMode.SEAL_REASON, "it would seal the doorway")
 
 
 func test_costs_are_paid_and_the_unlimited_cheat_is_free() -> void:

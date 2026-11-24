@@ -450,7 +450,7 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	for e in built_list:
 		var s := Vector3i(int(e[0]), int(e[1]), int(e[2]))
 		built[s] = true
-		if not sections.has(s):
+		if not sections.has(s) or sections[s]["orig"]:      # Refinement 01: a wall built where a house wall was knocked out
 			sections[s] = _new_section(false, "stone" if stone.has(s) else "wood")
 		_mark_struct_zone(s)
 	for e in upgraded_list:
