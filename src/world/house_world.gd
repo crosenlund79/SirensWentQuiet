@@ -1470,7 +1470,7 @@ func is_founded(s: Vector3i) -> bool:
 		for x in range(b[0].x, b[1].x):
 			n += 1
 			var m := design.get_mat(x, VoxelHouse.FLOOR_ROW, z)
-			if m == VoxelMat.FLOOR or m == VoxelMat.THRESHOLD or m == VoxelMat.PAVING:
+			if m == VoxelMat.FLOOR or m == VoxelMat.SCREED or m == VoxelMat.THRESHOLD or m == VoxelMat.PAVING:
 				on += 1
 	return n > 0 and on >= n * 0.85
 
