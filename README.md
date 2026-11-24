@@ -57,10 +57,11 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | Input | Action |
 |---|---|
 | WASD / arrows | Move |
+| Shift (hold) | Sprint (×1.6 speed; drains energy faster) |
 | Mouse / LMB | Aim / fire |
 | R | Reload |
 | Q / 1 / 2 | Next weapon / primary / secondary |
-| E | Use the bed, a door, a crate, a collector, the workbench or the map table; at the lot edge, head into the fog |
+| E | Use the bed, a door, a crate, a collector, the workbench or the map table; light or put out the fireplace (relighting costs a plank); a room's wall switch or a lamp; drink at the kitchen sink, eat from the fridge; at the lot edge, head into the fog |
 | I / Tab | Inventory and equipment |
 | M | Region map (Esc or M closes it) |
 | B | Build mode (see below) |

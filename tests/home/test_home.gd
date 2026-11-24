@@ -137,6 +137,8 @@ func test_home_in_the_game() -> void:
 	check(h != null and h.fireplace.lit, "the fireplace is lit on a new game")
 	check(g.lighting.northern and g.lighting.electric, "northern palette and electric lights")
 	check(g.lighting.practical_on("living_lamp"), "the floor lamp shines (no fuse box API yet = mains on)")
+	var nav: GridNav = g.debug_world().nav
+	check(not nav.is_walkable(nav.cell_of(Fireplace.RECT.get_center())), "enemies path around the fireplace")
 	# the fireplace
 	var fp: Vector2 = Vector2(Fireplace.RECT.get_center().x, Fireplace.RECT.end.y + 0.5)
 	check_eq(await _at(g, fp), "[E] Put out the fire")

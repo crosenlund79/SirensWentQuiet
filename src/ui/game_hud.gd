@@ -24,6 +24,7 @@ const HELP := [
 	["W A S D", "Move"], ["LMB", "Shoot / use"], ["R", "Reload"], ["1-8 / Q", "Quick bar"], ["X", "Empty hands"],
 	["Wheel", "Zoom"], ["E", "Interact"], ["I / Tab", "Inventory"], ["M", "Region map"],
 	["B", "Build"], ["Esc", "Pause"], ["F10", "Developer"],
+	["Shift", "Sprint"],
 ]
 const MATERIALS := [["wood", "Wood"], ["stone", "Stone"], ["iron", "Iron"]]
 
