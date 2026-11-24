@@ -118,6 +118,19 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Verification:** basic only (build, launch, new game, systems reachable, no fatal errors, save/load). The user playtests.
 - **Supersedes in practice:** the earlier, not-started Experiment 004 directive below. Its overlapping parts (upper floor, basement, stairs) are delivered here in the player-built form this milestone asks for.
 
+### Experiment 004 — Playtest Refinement 01 (approved 2026-11-24)
+
+- **Approval:** the user's message "Experiment 004 — Playtest Refinement 01" (Rapid Delivery, minimal testing). Baseline `playtest/exp004-house-home` (`fa31537`), which stays unchanged. Work goes on the new branch `exp004/refinement-01`.
+- **The seven fixes:**
+  1. walking animation matched to movement;
+  2. the fireplace moved off the kitchen opening;
+  3. no floating attachments after demolition;
+  4. simplified structural support (roof and upper floor need their outer walls; inner walls carry nothing);
+  5. a rotatable camera (Z / C);
+  6. upstairs building and roof visibility (V roof toggle);
+  7. direct wall replacement.
+- **Out of scope:** Windows builds, GitHub Actions builds, audio work, long playthroughs, extensive reports. No merge to `main`.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
