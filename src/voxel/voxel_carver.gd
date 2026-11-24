@@ -158,23 +158,27 @@ static func _carve_blocks(g: VoxelGrid, center: Vector3, radius: float, seed: in
 ## reach is used up by what lies in between: VoxelMat.BLAST gives, per
 ## material, the metres of reach one metre of it absorbs; the block itself
 ## costs half a block's thickness of its own mean armour. The reach is ragged
-## (±15 % per block). So a timber wall goes over a wide area, a stone wall
-## loses its face and keeps its core, and sheet metal shields what is behind
-## it. Paths are measured on the grid before anything is removed. Glass
-## panes within the reach shatter whole; FOUNDATION never goes. Returns a
-## change like carve_sphere (crumble included).
-static func carve_blast(g: VoxelGrid, center: Vector3, radius: float, seed: int, quantum := 2) -> Dictionary:
+## (±15 % per block); vertical distances count `v_scale` (a blast at body
+## height also tears the wall down to the floor). So a timber wall goes over
+## a wide area, a stone wall loses its face and keeps its core, and sheet
+## metal shields what is behind it. Paths are measured on the grid before
+## anything is removed. Glass panes within the reach shatter whole;
+## FOUNDATION never goes. Returns a change like carve_sphere (crumble included).
+static func carve_blast(g: VoxelGrid, center: Vector3, radius: float, seed: int, quantum := 2, v_scale := 0.75) -> Dictionary:
+	var t0 := Time.get_ticks_usec()
 	var ch := empty_change()
 	if radius <= 0.0:
 		return ch
 	var q := maxi(quantum, 1)
 	var r_max := radius * 1.15 + g.vs * q
-	var lo := g.cell_of(center - Vector3.ONE * r_max).clamp(Vector3i.ONE, Vector3i(g.sx - 2, g.sy - 2, g.sz - 2))
-	var hi := (g.cell_of(center + Vector3.ONE * r_max) + Vector3i.ONE).clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
+	var r_up := r_max / maxf(v_scale, 0.1)
+	var lo := g.cell_of(center - Vector3(r_max, r_up, r_max)).clamp(Vector3i.ONE, Vector3i(g.sx - 2, g.sy - 2, g.sz - 2))
+	var hi := (g.cell_of(center + Vector3(r_max, r_up, r_max)) + Vector3i.ONE).clamp(Vector3i.ONE, Vector3i(g.sx - 1, g.sy - 1, g.sz - 1))
 	var b0 := Vector3i(lo.x / q, lo.y / q, lo.z / q)
 	var b1 := Vector3i((hi.x - 1) / q, (hi.y - 1) / q, (hi.z - 1) / q)
 	var flags := VoxelMat.FLAGS
 	var armour := VoxelMat.BLAST
+	var scale := Vector3(1.0, v_scale, 1.0)
 	var half := float(q) * 0.5
 	var own_depth := g.vs * q * 0.5
 	var doomed := PackedInt32Array()
@@ -183,7 +187,7 @@ static func carve_blast(g: VoxelGrid, center: Vector3, radius: float, seed: int,
 		for bz in range(b0.z, b1.z + 1):
 			for bx in range(b0.x, b1.x + 1):
 				var bc := g.origin + (Vector3(bx * q, by * q, bz * q) + Vector3.ONE * half) * g.vs
-				var d := bc.distance_to(center)
+				var d := ((bc - center) * scale).length()
 				var reach := radius * (0.85 + 0.3 * VoxelArt.hash3(bx, by, bz, seed))
 				if d >= reach:
 					continue
@@ -217,8 +221,15 @@ static func carve_blast(g: VoxelGrid, center: Vector3, radius: float, seed: int,
 	for i in panes:
 		if g.mat[i] == VoxelMat.GLASS:
 			merge(ch, shatter_glass(g, i))
-	crumble(g, ch, lo - Vector3i.ONE, hi + Vector3i.ONE)
+	var t1 := Time.get_ticks_usec()
+	if not doomed.is_empty():
+		crumble(g, ch, ch["lo"] - Vector3i.ONE, ch["hi"] + Vector3i.ONE)
+	last_blast_ms = Vector2((t1 - t0) / 1000.0, (Time.get_ticks_usec() - t1) / 1000.0)
 	return ch
+
+
+## Timing of the last carve_blast: (evaluate and remove, crumble) in ms.
+static var last_blast_ms := Vector2.ZERO
 
 
 ## Blast armour (metres of reach used up) of the material between `a` and `b`,

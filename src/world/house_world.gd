@@ -46,7 +46,8 @@ const SECTION_ACROSS := 0.2            ## half-width of a 1 m wall section acros
 ## barely penetrate); stone walls are three voxels (0.3 m) thick.
 const STONE_CARVE := 0.55
 const STONE_STRETCH := 1.1
-const STONE_BITE := 0.5
+const STONE_BITE := 0.6
+const SHEET_BITE := 0.55               ## Experiment 002 used SHEET_CARVE + 0.2 = 0.65
 const STONE_HALF := 0.15
 const FOUNDATION_HALF := 0.5           ## a foundation tile is 1 m x 1 m centred on its segment
 ## Wall materials of the 1 m sections: "strength" is the measured resistance
@@ -55,7 +56,7 @@ const FOUNDATION_HALF := 0.5           ## a foundation tile is 1 m x 1 m centred
 ## coarse support estimate (section_load_hint). Iron plating multiplies both.
 const SECTION_MATERIALS := {
 	"frame": {"name": "House wall", "strength": 1.0, "load": 1.0},
-	"wood": {"name": "Wooden wall", "strength": 1.0, "load": 0.6},
+	"wood": {"name": "Wooden wall", "strength": 0.9, "load": 0.6},
 	"stone": {"name": "Stone wall", "strength": 3.0, "load": 2.5},
 }
 const PLATED_FACTOR := 2.0
@@ -64,11 +65,14 @@ const UNFOUNDED_LOAD := 0.5            ## support factor of a wall without a fou
 const BLAST_OBJECT_REACH := 1.5
 const SCORCH_REACH := 1.35
 const SCARS_MAX := 24
+## Meshing time spent on the blast's own frame (the rest follows over the next frames).
+const BLAST_MESH_BUDGET_MS := 30.0
 const SOOT := 0x1f1b18
 const STONE_TONES := [0x7f7a73, 0x8c867c, 0x746f69, 0x99928a, 0x6b6762, 0x857d70, 0x8a8278]
 const MORTAR_TONE := 0xaca493
 const PAVING_TONES := [0x8b867e, 0x7e7a74, 0x948f86, 0x87827a, 0x7a756d]
 const PAVING_JOINT := 0x57524b
+const PLATE_TONES := [0x5d6366, 0x686d70, 0x54595c, 0x6e6c68, 0x60666a]
 
 ## Plan facing -> node yaw (front faces -Z before rotation).
 const FACING_YAW := {"N": 0.0, "E": -PI * 0.5, "S": PI, "W": PI * 0.5}
@@ -716,14 +720,19 @@ func _apply_damage(ch: Dictionary) -> void:
 ## An enemy swing at nav cell `target`: damages a door or barricade standing
 ## there, otherwise bites the voxels still blocking the passage. `strength`
 ## (Experiment 003, e.g. 3 for a brute) multiplies the object damage
-## (rounded) and the bitten volume (the bite radius grows with its cube
-## root). Bites into masonry are much smaller, into sheet metal smaller.
+## (rounded) and the bites (that many bites in one swing; below 1 a smaller
+## bite). Bites into masonry and iron plate are much smaller.
 func enemy_strike(attacker_pos: Vector3, target: Vector2, strength := 1.0) -> void:
 	strength = clampf(strength, 0.1, 20.0)
 	var o: WorldObject = _obj_cells.get(nav.cell_of(target))
 	if o != null and o.bashable():
 		damage_object(o, maxi(1, roundi(Tuning.ENEMY_WALL_DAMAGE * strength)), attacker_pos)
 		return
+	for k in maxi(1, roundi(strength)):
+		_bite(attacker_pos, target, minf(strength, 1.0))
+
+
+func _bite(attacker_pos: Vector3, target: Vector2, strength: float) -> void:
 	var h := _rng.randf_range(0.2, 1.5)
 	var aim := target
 	var to_t := target - Vector2(attacker_pos.x, attacker_pos.z)
@@ -746,7 +755,7 @@ func enemy_strike(attacker_pos: Vector3, target: Vector2, strength := 1.0) -> vo
 		n = vh["normal"]
 	var r := BITE_RADIUS * pow(strength, 1.0 / 3.0)
 	if m == VoxelMat.METAL_SHEET:
-		r *= SHEET_CARVE + 0.2
+		r *= SHEET_BITE
 	elif m == VoxelMat.MASONRY or m == VoxelMat.MORTAR:
 		r *= STONE_BITE
 	var ch := VoxelCarver.carve_sphere(grid, center, r, _rng.randi(), Vector3.ZERO, 1.0, damage_quantum)
@@ -876,7 +885,9 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 		var f := (1.0 - 0.6 * d / reach) * clampf(1.0 - shield / reach, 0.0, 1.0)
 		if f > 0.0:
 			hits.append([o, f])
+	var t1 := Time.get_ticks_usec()
 	var ch := VoxelCarver.carve_blast(grid, center, radius, _rng.randi(), damage_quantum)
+	var t2 := Time.get_ticks_usec()
 	var cells: PackedInt32Array = ch["cells"]
 	var mats: PackedByteArray = ch["mats"]
 	out["voxels"] = cells.size()
@@ -888,7 +899,9 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 				touched[s] = true
 	out["sections"] = touched.keys()
 	_apply_damage(ch)
+	var t3 := Time.get_ticks_usec()
 	_scorch(center, radius)
+	var t4 := Time.get_ticks_usec()
 	var splinters := PackedColorArray()
 	for h in hits:
 		var o: WorldObject = h[0]
@@ -908,7 +921,11 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 			if before[c][1] == GridNav.WALL:
 				out["breach"] = true
 	# the crater shows in the same frame as the flash
-	chunks.flush(60.0)
+	var t5 := Time.get_ticks_usec()
+	chunks.flush(BLAST_MESH_BUDGET_MS)
+	var t6 := Time.get_ticks_usec()
+	stats["blast"] = {"prep_ms": (t1 - t0) / 1000.0, "carve_ms": (t2 - t1) / 1000.0, "apply_ms": (t3 - t2) / 1000.0,
+		"scorch_ms": (t4 - t3) / 1000.0, "objects_ms": (t5 - t4) / 1000.0, "mesh_ms": (t6 - t5) / 1000.0}
 	_add_scar(center.x, center.z, radius * 1.15)
 	if fx != null:
 		fx.blast(center, radius, ch, splinters)
@@ -1785,7 +1802,8 @@ func cut_opening(s: Vector3i, full_height := false) -> void:
 	_edited(b[0], b[1])
 
 
-## Metal sheathing: the outermost structural voxel of every (along, row) of
+## Iron plating (Experiment 002 "metal sheathing", the same METAL_SHEET
+## voxels): the outermost structural voxel of every (along, row) of
 ## the section becomes sheet metal in the design; standing voxels in the
 ## current grid change with it (missing ones come back as metal on repair).
 func upgrade_section(s: Vector3i) -> void:
@@ -1806,10 +1824,19 @@ func upgrade_section(s: Vector3i) -> void:
 				var i := design.idx(x, y, z)
 				if not VoxelMat.is_struct(design.mat[i]):
 					continue
-				var corr := 0x7d858a if (a % 2 == 0) else 0x666e73      # corrugation
-				var rust := VoxelArt.hash3(a / 2, y / 3, s.y, 21)
-				if rust > 0.82 or (y <= VoxelHouse.BASE_ROW + 2 and rust > 0.4):
-					corr = VoxelArt.mix(corr, 0x7b4a2c, 0.55)
+				# riveted iron plates 0.5 m x 0.6 m: a tone per plate, dark
+				# seams, light rivets inside the corners, rust runs near the ground
+				var row := y - VoxelHouse.BASE_ROW
+				var pa := posmod(a, 5)
+				var pr := posmod(row, 6)
+				var corr: int = PLATE_TONES[int(VoxelArt.hash3(floori(a / 5.0), row / 6, s.y, 23) * PLATE_TONES.size()) % PLATE_TONES.size()]
+				if pa == 0 or pr == 0:
+					corr = VoxelArt.scale(corr, 0.7)
+				elif (pa == 1 or pa == 4) and (pr == 1 or pr == 5):
+					corr = VoxelArt.scale(corr, 1.35)
+				var rust := VoxelArt.hash3(a, row / 4, s.y, 21)
+				if rust > 0.86 or (row <= 2 and rust > 0.35):
+					corr = VoxelArt.mix(corr, 0x7b4a2c, 0.5)
 				var pc := VoxelArt.jitter(corr, x, y, z, 0.03)
 				var pm := design.pmask[i] | (1 << out_dir)
 				var body := VoxelArt.jitter(0xa9aeb2, x, y, z, 0.03)
