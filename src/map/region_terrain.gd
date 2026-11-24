@@ -72,8 +72,8 @@ const HOME_PLOT := Vector2(3, 3)
 const WALLS := [Color(0.78, 0.74, 0.66), Color(0.85, 0.83, 0.78), Color(0.62, 0.66, 0.68), Color(0.66, 0.69, 0.6),
 	Color(0.8, 0.73, 0.56), Color(0.6, 0.45, 0.37), Color(0.52, 0.56, 0.6), Color(0.74, 0.68, 0.62)]
 const ROOFS := [Color(0.3, 0.31, 0.33), Color(0.42, 0.31, 0.27), Color(0.5, 0.33, 0.27), Color(0.36, 0.38, 0.42), Color(0.26, 0.27, 0.3)]
-const CITY := [Color(0.68, 0.67, 0.64), Color(0.58, 0.58, 0.58), Color(0.74, 0.7, 0.62), Color(0.5, 0.53, 0.58),
-	Color(0.62, 0.5, 0.42), Color(0.45, 0.48, 0.53), Color(0.8, 0.78, 0.74), Color(0.56, 0.6, 0.62)]
+const CITY := [Color(0.66, 0.65, 0.62), Color(0.55, 0.55, 0.55), Color(0.7, 0.64, 0.54), Color(0.47, 0.5, 0.55),
+	Color(0.6, 0.46, 0.38), Color(0.42, 0.44, 0.48), Color(0.78, 0.76, 0.72), Color(0.53, 0.57, 0.58), Color(0.62, 0.55, 0.47), Color(0.36, 0.38, 0.42)]
 const SHEDS := [Color(0.52, 0.56, 0.6), Color(0.6, 0.58, 0.54), Color(0.55, 0.43, 0.35), Color(0.66, 0.66, 0.64), Color(0.42, 0.48, 0.52)]
 const CARS := [Color(0.62, 0.62, 0.64), Color(0.32, 0.34, 0.38), Color(0.55, 0.28, 0.24), Color(0.3, 0.38, 0.5), Color(0.8, 0.8, 0.78), Color(0.45, 0.5, 0.4)]
 const CONTAINERS := [Color(0.58, 0.3, 0.25), Color(0.3, 0.42, 0.55), Color(0.36, 0.5, 0.38), Color(0.72, 0.5, 0.28), Color(0.6, 0.6, 0.6)]
@@ -377,10 +377,10 @@ func _land_height(x: float, y: float) -> float:
 	var h := 9.0 + hills * 4.5 + detail * 1.0
 	h += (1.0 - smoothstep(16.0, 64.0, y)) * 3.0
 	# the north-west mountains
-	var dm := Vector2(x, y).distance_to(Vector2(4, 2)) + _n_warp.get_noise_2d(x, y) * 9.0
-	var m := 1.0 - smoothstep(10.0, 54.0, dm)
+	var dm := Vector2(x, y).distance_to(Vector2(9, 7)) + _n_warp.get_noise_2d(x, y) * 9.0
+	var m := 1.0 - smoothstep(8.0, 52.0, dm)
 	var ridge := clampf(_n_ridge.get_noise_2d(x, y) * 0.5 + 0.5, 0.0, 1.0)
-	h += m * m * (18.0 + ridge * 15.0)
+	h += m * m * (21.0 + ridge * 17.0)
 	# the southern hills and the headlands of the bay
 	h += _bump(x, y, 18, 94, 21) * 7.0 + _bump(x, y, 4, 116, 16) * 6.0 + _bump(x, y, 30, 74, 13) * 4.0 + _bump(x, y, 48, 120, 10) * 3.0
 	h += _bump(x, y, 142, 28, 20) * 4.0 + _bump(x, y, 147, 110, 12) * 3.0 + _bump(x, y, 120, 10, 22) * 3.0
@@ -815,7 +815,7 @@ func _land_cover() -> void:
 			var fy := y + 0.5
 			var fn := _n_forest.get_noise_2d(fx, fy)
 			var cv := C_GRASS if _n_detail.get_noise_2d(fx * 1.7, fy * 1.7) > -0.1 else C_MEADOW
-			if h >= 37 + int(fn * 3.0):
+			if h >= 39 + int(fn * 3.0):
 				cv = C_SNOW
 			elif h >= 26 + int(fn * 4.0) or _slope(c) >= 4:
 				cv = C_ROCK
@@ -972,21 +972,25 @@ func _suburb_houses() -> void:
 			if district_at(c) != "suburbs" or not _free(c):
 				continue
 			var d := _road_dir(c)
-			if d == Vector2i.ZERO or _rng.randf() > 0.86:
+			if d == Vector2i.ZERO:
 				continue
 			plot[idx(c)] = 2
 			var along_x := d.y != 0
-			var w := 0.5 + _rng.randf() * 0.14
-			var dd := 0.4 + _rng.randf() * 0.08
-			var ctr := Vector3(x + 0.5, _gy(c), y + 0.5) + Vector3(d.x, 0, d.y) * 0.1
-			if along_x:
-				_house(ctr, w, dd, 0.3 + _rng.randf() * 0.12, _pick(WALLS), _pick(ROOFS), true)
-			else:
-				_house(ctr, dd, w, 0.3 + _rng.randf() * 0.12, _pick(WALLS), _pick(ROOFS), false)
-			if _rng.randf() < 0.35:
-				# a car in the drive
-				var p := ctr + Vector3(d.x, 0, d.y) * 0.38 + (Vector3(0.28, 0, 0) if along_x else Vector3(0, 0, 0.28))
-				_car(p, along_x)
+			var side := Vector3(1, 0, 0) if along_x else Vector3(0, 0, 1)
+			var ctr := Vector3(x + 0.5, _gy(c), y + 0.5) + Vector3(d.x, 0, d.y) * 0.12
+			for k in 2:
+				if _rng.randf() > 0.8:
+					continue
+				var w := 0.34 + _rng.randf() * 0.08
+				var dd := 0.3 + _rng.randf() * 0.08
+				var q := ctr + side * (-0.24 + k * 0.48)
+				var hgt := 0.22 + _rng.randf() * 0.1
+				if along_x:
+					_house(q, w, dd, hgt, _pick(WALLS), _pick(ROOFS), true)
+				else:
+					_house(q, dd, w, hgt, _pick(WALLS), _pick(ROOFS), false)
+			if _rng.randf() < 0.3:
+				_car(ctr + Vector3(d.x, 0, d.y) * 0.3, along_x)
 
 
 func _car(p: Vector3, along_x: bool) -> void:
@@ -1327,7 +1331,7 @@ func _trees() -> void:
 			var chance := 0.0
 			match cv:
 				C_FOREST:
-					n = 1 + (1 if _rng.randf() < 0.55 else 0)
+					n = 1 + (1 if _rng.randf() < 0.3 else 0)
 				C_LAWN:
 					chance = 0.32
 				C_PARK:
