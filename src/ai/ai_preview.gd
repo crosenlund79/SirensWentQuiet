@@ -245,7 +245,11 @@ func _scenario() -> void:
 			director.gap_override = Vector2(4.0, 6.0)
 			director.begin_wave(level, invasion, 1123)
 			_frame(Vector2(6.5, 9.5), 22.0)
-			_cond = func(): return director.all_spawned() and _t > 30.0
+			_ref["all_t"] = -1.0
+			_cond = func():
+				if director.all_spawned() and float(_ref["all_t"]) < 0.0:
+					_ref["all_t"] = _t
+				return float(_ref["all_t"]) >= 0.0 and _t - float(_ref["all_t"]) > 3.5
 		_:
 			push_warning("ai_preview: unknown scenario %s" % scenario)
 

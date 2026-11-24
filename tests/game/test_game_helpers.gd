@@ -95,3 +95,40 @@ func test_invasion_director_paces_the_wave() -> void:
 	check(Director.fog_points().size() >= 4, "enough fog points")
 	var pick := d.pick_spawn(Vector2(6.5, 7.8))
 	check(pick.distance_to(Vector2(6.5, 7.8)) >= Director.MIN_SPAWN_DISTANCE - 0.6, "spawns away from the player")
+
+
+## The Experiment 003 wave contract the game uses (docs/experiment-003/ai.md,
+## "Integration"): director.begin_wave -> tick_kinds -> pick_spawn ->
+## spawn_opts -> roster.spawn_type; members are invaders of the right kinds.
+func test_threat_budget_wave_through_the_roster() -> void:
+	var Roster := load("res://src/game/enemy_roster.gd")
+	var w := HouseWorld.new()
+	add(w)
+	w.build_new()
+	var p := VoxelPlayer.new()
+	p.input_enabled = false
+	add(p)
+	p.global_position = Vector3(6.5, 0, 7.8)
+	var roster: Node3D = Roster.new()
+	roster.setup(w, p, 3)
+	add(roster)
+	await physics_frames(2)
+	var d := Director.new()
+	d.gap_override = Vector2(0.05, 0.1)
+	d.begin_wave("hard", 3, 11)
+	var spawned := []
+	var t := 0.0
+	while t < 30.0 and not d.all_spawned():
+		for k in d.tick_kinds(0.1):
+			var e: AIEnemy = roster.spawn_type(k, d.pick_spawn(p.plan_pos()), d.spawn_opts(k))
+			spawned.append(e)
+		t += 0.1
+	check(d.all_spawned(), "the whole wave spawned")
+	check_eq(spawned.map(func(e): return e.kind), d.wave, "the wave's kinds, in order")
+	check_eq(roster.invaders_alive(), d.total, "all invaders")
+	for e in spawned:
+		check_eq(e.hp, EnemyDefs.stats(e.kind, "hard", 3)["hp"], "%s hp for Hard invasion 3" % e.kind)
+		var at: Vector2 = e.plan_pos()
+		check(not FogBoundary.LOT.has_point(at) and HousePlan.YARD.grow(1.0).has_point(at), "%s spawned in the fog band (%s)" % [e.kind, at])
+	check_eq(roster.kill_all(), d.total, "kill_all")
+	check_eq(roster.invaders_alive(), 0, "none left")
