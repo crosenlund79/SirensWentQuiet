@@ -359,8 +359,8 @@ func _blast_effect_nodes() -> void:
 	var sph := SphereMesh.new()
 	sph.radius = 1.0
 	sph.height = 2.0
-	sph.radial_segments = 16
-	sph.rings = 8
+	sph.radial_segments = 9
+	sph.rings = 5
 	_fireball.mesh = sph
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -378,10 +378,11 @@ func _blast_effect_nodes() -> void:
 func _update_blast(t: float) -> void:
 	var f := clampf(t / BLAST_TIME, 0.0, 1.0)
 	_blast_light.light_energy = 14.0 * pow(1.0 - f, 2.0)
-	var s := _blast_r * (0.35 + 0.75 * sqrt(f))
+	var s := _blast_r * (0.3 + 0.6 * sqrt(f))
 	_fireball.scale = Vector3(s, s * 0.8, s)
+	_fireball.rotation.y = f * 1.3
 	var m := _fireball.material_override as StandardMaterial3D
-	m.albedo_color = Color(1.0, lerpf(0.85, 0.45, f), lerpf(0.55, 0.2, f), pow(1.0 - f, 1.5) * 0.85)
+	m.albedo_color = Color(1.0, lerpf(0.62, 0.32, f), lerpf(0.28, 0.1, f), pow(1.0 - f, 1.5) * 0.5)
 
 
 func ground_hit(pos: Vector3, dir: Vector3) -> void:
