@@ -1,32 +1,72 @@
 class_name ExpeditionData
 extends RefCounted
-## Static data for simulated expeditions (SPEC §7.7): destinations, events and
-## the small rules shared by the resolver (ExpeditionRun) and the screen.
-## Owner: E. Pure data and pure helpers; nothing here touches the scene or
-## mutates a GameState.
+## The destination framework for simulated expeditions (SPEC-002 §7.7,
+## SPEC-003 §3). Owner: X. Pure data and pure helpers: nothing here touches
+## the scene or mutates a GameState, except `apply_region`, which records an
+## expedition's region consequences once per result id.
 ##
-## Loot entries are [item_id, min, max, chance]. Tools (category "tool") are
-## found at most once and never when already owned.
+## Places come from RegionLocations (the ONE list: names, categories,
+## positions, travel times). This file adds the gameplay data, keyed by the
+## same ids, without per-location code:
+##   PROFILES    shared loot tables per kind of place (main + "locked" table)
+##               with default danger, search time, events and depletion
+##   LOCATIONS   per place: its profile plus small variations (mods, extra
+##               entries), danger, search minutes, requirements, preparation
+##               effects, event pool and depletion overrides
+##   APPROACHES  general / targeted / careful / raid
+##   EVENTS      short decision events with 2-3 options
+## `destination(id)` merges a place with its profile into one Dictionary.
+##
+## Loot entries are [item_id, min, max, chance]. Unique items (cap 1 in
+## Items.DEFS: tools, weapons, the vest) are found at most once and never when
+## already owned; multipliers scale their chance (capped). Stackable items
+## scale their amounts (stochastic rounding).
+##
+## Location fields (all optional except profile; the profile supplies the rest):
+##   profile     key of PROFILES
+##   danger      injury scale (1.0 = moderate); risk_floor: minimum after gear
+##   search      minutes on site for a general search (travel comes from RegionLocations)
+##   place       word used in event text ("the supermarket's storage-room door")
+##   mods        {item: factor}: stackables x amounts, uniques x chance, 0 removes
+##   extra       more loot entries for this place
+##   locked      replaces the profile's locked table (opened by a brought crowbar)
+##   events      {event_id: weight} replaces the profile's pool; two_events: chance of a second
+##   requires    [item ids] that must be owned (and are always brought)
+##   prep        {"vest"|"flashlight"|"shots": factor}: the trip's danger x factor when
+##               brought (shots: at least prep_shots rounds; a shell counts as SHELL_SHOTS)
+##   deplete, regen, floor   stock lost per general visit, regained per day, minimum
+##   max_damage  health one trip can cost at most here
 ##
 ## Event option fields (all optional):
 ##   label    button text
-##   needs    {"crowbar": 1 | "flashlight": 1 | "ammo": n}: brought gear required
-##   ammo     rounds spent (the option needs at least as many)
+##   needs    {"crowbar"|"flashlight"|"backpack"|"vest": 1}: brought gear required
+##   shots    rounds fired (needs at least as many; a shell counts as two)
 ##   minutes  time added (negative: the trip is cut short)
 ##   loot     multiplier on the main search
-##   bonus    "locked" (the destination's locked table), "cache" (half the
-##            main table) or an Array of loot entries
-##   hurt     [chance, min, max]: injury roll (scaled by the destination's danger)
-##   lose     [tool_id, chance]: a brought tool can be lost
+##   bonus    "locked" (the place's locked table), "cache" (half the main
+##            table) or an Array of loot entries
+##   hurt     [chance, min, max]: injury roll (scaled by the trip's danger)
+##   hurt_loot  loot multiplier when the injury happens (a fight gone badly)
+##   lose     [item_id, chance]: a brought tool can be lost
+##   mark     [flag, days]: a lasting consequence for the place (see FLAGS)
+##   discover n places found on the way (if any are left)
 ##   outcome  text after choosing; hurt_text / lose_text are appended when they happen
 ##   log      one line for the report
+## Event fields: title, text (may contain %s for the place), tags (fight, dark),
+## only ([approach ids]: the event only happens on those approaches).
 
 const T := preload("res://src/survival/survival_tuning.gd")
 
 ## Gear that can be taken along (the hammer stays home: building needs it).
-const BRINGABLE_TOOLS := ["crowbar", "flashlight", "backpack"]
+const BRINGABLE_GEAR := ["crowbar", "flashlight", "backpack", "vest"]
+const BRINGABLE_TOOLS := BRINGABLE_GEAR       ## Experiment 002 name
+## Ammunition -> the weapon that fires it (SPEC-003 §2). Rounds only count
+## when you own that weapon (in the inventory or equipped).
+const AMMO_TYPES := {"ammo": "handgun", "shells": "shotgun"}
+const SHELL_SHOTS := 2               ## a shell is worth two 9 mm rounds in a simulated fight
 const BACKPACK_BONUS := 0.5          ## +50 % on stackable loot
-const MAX_DAMAGE := 40.0             ## health one expedition can cost at most
+const VEST_DAMAGE := 0.65            ## injuries in fights with the vest (SPEC-003 §2: -35 %)
+const MAX_DAMAGE := 40.0             ## health one expedition can cost at most (default)
 const MIN_MINUTES := 60
 const TRAVEL_JITTER := Vector2i(-15, 15)
 const LOOT_MULT_RANGE := Vector2(0.3, 1.6)
@@ -34,90 +74,250 @@ const LOW_ENERGY := 15.0             ## exhausted: risk up
 const LOW_ENERGY_DANGER := 1.25
 const DARK_FLASHLIGHT_SCALE := 0.5   ## injury chance in dark places with a flashlight
 const FIGHT_AMMO_SCALE := 0.5        ## damage when you fire to get clear (1 round)
+const UNIQUE_CHANCE_MAX := 0.95
+const DEFAULT_ROUNDS := 12           ## the gear screen suggests up to this many 9 mm rounds
+const DEFAULT_SHELLS := 6
 
 const RISK_NAMES := ["Low", "Moderate", "High", "Severe"]
 const RISK_BOUNDS := [0.9, 1.15, 1.45]
 
-const DESTINATIONS := {
-	"homes": {
-		"name": "Nearby Homes",
-		"place": "house",
-		"desc": "The houses along the road, left in a hurry. Pantries, garages, bathroom cabinets. Close by, and mostly quiet.",
-		"minutes": 150,
-		"danger": 0.8,
-		"requires": [],
-		"recommends": ["backpack"],
-		"rewards": "Food, water, planks and nails, sometimes a bandage. Rarely ammo, a crowbar, a flashlight or a backpack.",
+## Category display order (RegionLocations.CATEGORIES has the names).
+const CATEGORY_ORDER := ["residential", "food", "medical", "construction", "weapons"]
+
+## Display order (grouped by category); the same ids as RegionLocations.
+const ORDER := [
+	"homes", "cul_de_sac", "trailer_park", "farmhouse",
+	"convenience", "grocery", "diner", "restaurant", "fast_food",
+	"drugstore", "clinic", "vet_clinic", "hospital",
+	"hardware", "logging", "sawmill", "quarry", "construction_site", "scrapyard", "warehouse",
+	"gun_shop", "shooting_range", "police", "military",
+]
+
+# --- loot profiles ---------------------------------------------------------------------
+
+const PROFILES := {
+	"residential": {
+		"place": "house", "danger": 0.8, "search": 130, "two_events": 0.4,
 		"loot": [
 			["canned_food", 1, 2, 0.85], ["snacks", 1, 3, 0.7], ["water", 1, 3, 0.85],
 			["wood", 2, 5, 0.55], ["nails", 4, 10, 0.5], ["bandage", 1, 1, 0.35],
 			["ammo", 2, 4, 0.15], ["crowbar", 1, 1, 0.12], ["flashlight", 1, 1, 0.2], ["backpack", 1, 1, 0.15],
 		],
 		"locked": [["wood", 3, 5, 0.8], ["nails", 6, 12, 0.7], ["scrap", 1, 3, 0.5], ["canned_food", 1, 2, 0.5]],
-		"locked_name": "locked garages",
-		"locked_text": "The crowbar opened a locked garage.",
+		"locked_name": "locked garages", "locked_text": "The crowbar opened a locked garage.",
 		"events": {"boarded_house": 3, "collapsed_floor": 2, "locked_car": 2, "dogs": 2, "lone_psycho": 1, "tracks": 1, "fog_bank": 1},
-		"two_events": 0.4,
+		"deplete": 0.2, "regen": 0.03, "floor": 0.15,
 	},
-	"grocery": {
-		"name": "Grocery Store",
-		"place": "supermarket",
-		"desc": "The supermarket at the crossroads. The shelves by the doors are bare; the back aisles and the storage room might not be.",
-		"minutes": 210,
-		"danger": 1.0,
-		"requires": [],
-		"recommends": ["backpack", "crowbar"],
-		"rewards": "Canned food, snacks and bottled water in quantity; sometimes bandages, rarely a backpack.",
-		"loot": [
-			["canned_food", 2, 4, 0.95], ["snacks", 2, 4, 0.85], ["water", 2, 4, 1.0], ["bandage", 1, 1, 0.2], ["backpack", 1, 1, 0.08],
-		],
+	"food": {
+		"place": "shop", "danger": 1.0, "search": 170, "two_events": 0.6,
+		"loot": [["canned_food", 2, 4, 0.95], ["snacks", 2, 4, 0.85], ["water", 2, 4, 1.0], ["bandage", 1, 1, 0.2], ["backpack", 1, 1, 0.08]],
 		"locked": [["water", 2, 3, 0.85], ["canned_food", 1, 3, 0.75], ["snacks", 1, 2, 0.5]],
-		"locked_name": "the stockroom",
-		"locked_text": "The crowbar opened the stockroom.",
+		"locked_name": "the stockroom", "locked_text": "The crowbar opened the stockroom.",
 		"events": {"storage_door": 3, "lone_psycho": 2, "dogs": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1},
-		"two_events": 0.65,
+		"deplete": 0.25, "regen": 0.02, "floor": 0.1,
 	},
-	"hardware": {
-		"name": "Hardware Store",
-		"place": "hardware store",
-		"desc": "A builders' merchant on the edge of town. Timber, fixings, sheet metal, and tools nobody thought to take.",
-		"minutes": 240,
-		"danger": 1.0,
-		"requires": [],
-		"recommends": ["crowbar", "backpack"],
-		"rewards": "Planks, nails and scrap metal; a crowbar or a hammer if you lack one, sometimes a flashlight.",
-		"loot": [
-			["wood", 6, 12, 1.0], ["nails", 8, 16, 0.95], ["scrap", 2, 5, 0.75],
-			["crowbar", 1, 1, 0.5], ["hammer", 1, 1, 0.6], ["flashlight", 1, 1, 0.25],
-		],
-		"locked": [["scrap", 3, 6, 0.9], ["nails", 8, 14, 0.8], ["wood", 5, 9, 0.75]],
-		"locked_name": "the stockroom",
-		"locked_text": "The crowbar opened the stockroom.",
-		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1},
-		"two_events": 0.55,
-	},
-	"clinic": {
-		"name": "Medical Clinic",
-		"place": "clinic",
-		"desc": "The health centre past the school. Windowless corridors, a pharmacy, and whatever happened in the waiting room.",
-		"minutes": 300,
-		"danger": 1.3,
-		"requires": ["flashlight"],
-		"recommends": ["ammo", "crowbar"],
-		"rewards": "Bandages and first-aid kits; sometimes ammo from a guard's locker.",
-		"loot": [
-			["bandage", 2, 4, 1.0], ["medkit", 1, 2, 0.6], ["ammo", 3, 6, 0.3], ["water", 1, 2, 0.4],
-		],
+	"medical": {
+		"place": "clinic", "danger": 1.1, "search": 180, "two_events": 0.7,
+		"loot": [["bandage", 2, 4, 1.0], ["medkit", 1, 2, 0.6], ["ammo", 3, 6, 0.3], ["water", 1, 2, 0.4]],
 		"locked": [["medkit", 1, 1, 0.9], ["bandage", 1, 3, 0.7], ["ammo", 2, 5, 0.4]],
-		"locked_name": "the drug cage",
-		"locked_text": "The crowbar opened the drug cage.",
-		"events": {"dark_pharmacy": 4, "waiting_room": 3, "dogs": 1, "tracks": 1, "fog_bank": 1},
-		"two_events": 1.0,
+		"locked_name": "the drug cage", "locked_text": "The crowbar opened the drug cage.",
+		"events": {"dark_pharmacy": 4, "waiting_room": 2, "dogs": 1, "tracks": 1, "fog_bank": 1},
+		"deplete": 0.3, "regen": 0.015, "floor": 0.1,
+	},
+	"construction_wood": {
+		"place": "timber yard", "danger": 0.95, "search": 190, "two_events": 0.55,
+		"loot": [
+			["wood", 6, 12, 1.0], ["nails", 6, 12, 0.8], ["scrap", 1, 4, 0.5],
+			["hammer", 1, 1, 0.4], ["crowbar", 1, 1, 0.35], ["flashlight", 1, 1, 0.2],
+		],
+		"locked": [["wood", 5, 9, 0.8], ["nails", 8, 14, 0.75], ["scrap", 2, 5, 0.6]],
+		"locked_name": "the stockroom", "locked_text": "The crowbar opened the stockroom.",
+		"events": {"timber_rack": 3, "heavy_load": 2, "storage_door": 1, "lone_psycho": 1, "tracks": 1, "fog_bank": 1},
+		"deplete": 0.22, "regen": 0.03, "floor": 0.15,
+	},
+	"construction_stone": {
+		"place": "site", "danger": 1.0, "search": 200, "two_events": 0.5,
+		"loot": [
+			["stone", 4, 8, 1.0], ["scrap", 1, 3, 0.45], ["iron", 1, 2, 0.3], ["nails", 2, 6, 0.35],
+			["wood", 1, 3, 0.3], ["flashlight", 1, 1, 0.12], ["crowbar", 1, 1, 0.12],
+		],
+		"locked": [["stone", 3, 6, 0.85], ["iron", 1, 3, 0.5], ["nails", 4, 8, 0.5]],
+		"locked_name": "the site container", "locked_text": "The crowbar opened the site container.",
+		"events": {"heavy_load": 3, "lone_psycho": 1, "dogs": 1, "tracks": 1, "fog_bank": 2},
+		"deplete": 0.12, "regen": 0.06, "floor": 0.4,
+	},
+	"construction_iron": {
+		"place": "yard", "danger": 1.05, "search": 190, "two_events": 0.6,
+		"loot": [["scrap", 3, 7, 1.0], ["iron", 1, 3, 0.7], ["nails", 4, 10, 0.5], ["wood", 1, 3, 0.3], ["crowbar", 1, 1, 0.2]],
+		"locked": [["iron", 2, 4, 0.8], ["scrap", 3, 6, 0.8], ["nails", 6, 10, 0.5]],
+		"locked_name": "the locked shed", "locked_text": "The crowbar opened the locked shed.",
+		"events": {"heavy_load": 3, "dogs": 2, "lone_psycho": 1, "locked_car": 2, "fog_bank": 1},
+		"deplete": 0.15, "regen": 0.05, "floor": 0.3,
+	},
+	"weapons": {
+		"place": "shop", "danger": 1.45, "search": 150, "two_events": 0.75,
+		"loot": [
+			["ammo", 3, 8, 0.7], ["shells", 2, 5, 0.45], ["bandage", 1, 1, 0.3],
+			["flashlight", 1, 1, 0.2], ["vest", 1, 1, 0.08], ["shotgun", 1, 1, 0.06],
+		],
+		"locked": [["ammo", 4, 10, 0.85], ["shells", 2, 6, 0.6], ["shotgun", 1, 1, 0.15], ["vest", 1, 1, 0.15]],
+		"locked_name": "the locked cabinet", "locked_text": "The crowbar opened a locked cabinet.",
+		"events": {"armoury": 3, "lone_psycho": 2, "patrol": 2, "storage_door": 1, "fog_bank": 1},
+		"deplete": 0.35, "regen": 0.01, "floor": 0.05,
+		"max_damage": 50.0, "risk_floor": 0.9,
+	},
+	"military": {
+		"place": "outpost", "danger": 2.6, "search": 260, "two_events": 1.0,
+		"loot": [
+			["ammo", 6, 12, 0.75], ["shells", 3, 6, 0.55], ["vest", 1, 1, 0.3], ["shotgun", 1, 1, 0.18],
+			["medkit", 1, 1, 0.5], ["bandage", 1, 2, 0.5], ["flashlight", 1, 1, 0.3],
+			["canned_food", 1, 3, 0.5], ["water", 1, 3, 0.5], ["iron", 1, 2, 0.3],
+		],
+		"locked": [["ammo", 8, 14, 0.8], ["shells", 3, 6, 0.7], ["vest", 1, 1, 0.35], ["shotgun", 1, 1, 0.25], ["medkit", 1, 2, 0.5]],
+		"locked_name": "a sealed container", "locked_text": "The crowbar opened a sealed container.",
+		"events": {"outpost_gate": 5, "patrol": 3, "armoury": 3, "fog_bank": 1},
+		"deplete": 0.3, "regen": 0.02, "floor": 0.15,
+		"max_damage": 60.0, "risk_floor": 1.0,
 	},
 }
 
-## Display order.
-const ORDER := ["homes", "grocery", "hardware", "clinic"]
+# --- locations (keyed by RegionLocations ids) --------------------------------------------
+
+const LOCATIONS := {
+	# family houses: small variations of the residential profile
+	"homes": {"profile": "residential", "place": "house", "danger": 0.8, "search": 130, "deplete": 0.15},
+	"cul_de_sac": {"profile": "residential", "place": "house", "danger": 0.85, "search": 150,
+		"mods": {"nails": 1.3, "canned_food": 0.8},
+		"extra": [["bandage", 1, 2, 0.5], ["medkit", 1, 1, 0.25], ["hammer", 1, 1, 0.2], ["crowbar", 1, 1, 0.2], ["flashlight", 1, 1, 0.15]],
+		"events": {"locked_car": 3, "boarded_house": 2, "collapsed_floor": 2, "dogs": 1, "lone_psycho": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.45},
+	"trailer_park": {"profile": "residential", "place": "trailer", "danger": 0.95, "search": 140,
+		"mods": {"canned_food": 0.7, "wood": 0.6, "backpack": 0.7},
+		"extra": [["shells", 1, 3, 0.25], ["scrap", 1, 3, 0.4]],
+		"events": {"dogs": 3, "lone_psycho": 2, "locked_car": 2, "collapsed_floor": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.5},
+	"farmhouse": {"profile": "residential", "place": "farmhouse", "danger": 0.85, "search": 160,
+		"mods": {"water": 0.8, "nails": 0.6},
+		"extra": [["canned_food", 1, 3, 0.7], ["wood", 3, 6, 0.7], ["shells", 1, 2, 0.15], ["shotgun", 1, 1, 0.07]],
+		"events": {"collapsed_floor": 3, "dogs": 2, "tracks": 2, "boarded_house": 1, "fog_bank": 2},
+		"two_events": 0.45, "deplete": 0.25, "regen": 0.025},
+	# food and water
+	"convenience": {"profile": "food", "place": "corner shop", "danger": 0.8, "search": 90,
+		"mods": {"canned_food": 0.6, "snacks": 0.9, "water": 0.7},
+		"extra": [["bandage", 1, 1, 0.15], ["flashlight", 1, 1, 0.08]],
+		"events": {"storage_door": 2, "lone_psycho": 2, "locked_car": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.35, "deplete": 0.35},
+	"grocery": {"profile": "food", "place": "supermarket", "danger": 1.0, "search": 170},
+	"diner": {"profile": "food", "place": "diner", "danger": 0.85, "search": 120,
+		"mods": {"canned_food": 0.8, "snacks": 0.7, "water": 0.8},
+		"extra": [["wood", 1, 3, 0.3], ["nails", 2, 5, 0.3]],
+		"events": {"storage_door": 3, "locked_car": 2, "collapsed_floor": 1, "lone_psycho": 1, "fog_bank": 1},
+		"two_events": 0.45},
+	"restaurant": {"profile": "food", "place": "restaurant", "danger": 1.05, "search": 150,
+		"mods": {"water": 1.3, "canned_food": 1.1, "snacks": 0.5},
+		"events": {"storage_door": 3, "dogs": 2, "lone_psycho": 2, "fog_bank": 2, "tracks": 1}},
+	"fast_food": {"profile": "food", "place": "restaurant", "danger": 0.95, "search": 110,
+		"mods": {"water": 1.1, "canned_food": 0.5, "snacks": 1.2},
+		"events": {"storage_door": 3, "lone_psycho": 2, "dogs": 1, "locked_car": 1, "fog_bank": 1},
+		"two_events": 0.5},
+	# medical
+	"drugstore": {"profile": "medical", "place": "pharmacy", "danger": 1.05, "search": 120,
+		"mods": {"medkit": 0.6, "ammo": 0.0, "water": 0.8},
+		"extra": [["snacks", 1, 2, 0.4]],
+		"events": {"dark_pharmacy": 3, "storage_door": 2, "lone_psycho": 2, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.6},
+	"clinic": {"profile": "medical", "place": "clinic", "danger": 1.3, "search": 250,
+		"requires": ["flashlight"], "requires_text": "The clinic has no windows.",
+		"events": {"dark_pharmacy": 4, "waiting_room": 3, "dogs": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 1.0},
+	"vet_clinic": {"profile": "medical", "place": "vet's", "danger": 0.9, "search": 150,
+		"mods": {"medkit": 0.5, "ammo": 0.4, "bandage": 0.8},
+		"events": {"dark_pharmacy": 3, "dogs": 3, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.55},
+	"hospital": {"profile": "medical", "place": "hospital", "danger": 1.6, "search": 300,
+		"mods": {"medkit": 1.6, "bandage": 1.5, "ammo": 0.7},
+		"extra": [["water", 1, 3, 0.4]],
+		"events": {"ward": 4, "waiting_room": 3, "dark_pharmacy": 2, "patrol": 2, "fog_bank": 1},
+		"two_events": 1.0, "prep": {"flashlight": 0.85, "shots": 0.85}, "prep_shots": 3,
+		"max_damage": 50.0, "risk_floor": 0.9},
+	# construction
+	"hardware": {"profile": "construction_wood", "place": "hardware store", "danger": 1.0, "search": 210,
+		"mods": {"nails": 1.3, "scrap": 1.3, "hammer": 1.5, "crowbar": 1.4},
+		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1}},
+	"logging": {"profile": "construction_wood", "place": "clearing", "danger": 0.9, "search": 180,
+		"mods": {"wood": 1.5, "nails": 0.0, "scrap": 0.4, "hammer": 0.0, "flashlight": 0.0, "crowbar": 0.5},
+		"locked": [["wood", 6, 10, 0.9], ["scrap", 1, 2, 0.4]],
+		"locked_name": "the timber shed", "locked_text": "The crowbar opened the timber shed.",
+		"events": {"heavy_load": 3, "timber_rack": 2, "dogs": 2, "fog_bank": 2, "tracks": 1},
+		"deplete": 0.1, "regen": 0.08, "floor": 0.5},
+	"sawmill": {"profile": "construction_wood", "place": "sawmill", "danger": 0.95, "search": 180,
+		"mods": {"wood": 1.2, "nails": 0.8},
+		"events": {"timber_rack": 3, "heavy_load": 2, "storage_door": 1, "lone_psycho": 1, "fog_bank": 1}},
+	"quarry": {"profile": "construction_stone", "place": "quarry", "danger": 1.0, "search": 200,
+		"mods": {"stone": 1.4, "wood": 0.0},
+		"deplete": 0.08, "regen": 0.1, "floor": 0.6},
+	"construction_site": {"profile": "construction_stone", "place": "site", "danger": 1.1, "search": 190,
+		"mods": {"stone": 0.9},
+		"extra": [["wood", 3, 6, 0.8], ["iron", 1, 3, 0.55]],
+		"events": {"scaffold": 4, "heavy_load": 2, "lone_psycho": 2, "dogs": 1, "fog_bank": 1},
+		"two_events": 0.65, "deplete": 0.2, "regen": 0.03, "floor": 0.2},
+	"scrapyard": {"profile": "construction_iron", "place": "scrapyard", "danger": 1.05, "search": 180,
+		"mods": {"scrap": 1.4}},
+	"warehouse": {"profile": "construction_iron", "place": "warehouse", "danger": 1.1, "search": 200,
+		"mods": {"scrap": 0.7, "iron": 0.8},
+		"extra": [["wood", 3, 6, 0.7], ["stone", 2, 4, 0.4], ["canned_food", 1, 2, 0.35], ["water", 1, 2, 0.35]],
+		"events": {"storage_door": 3, "heavy_load": 2, "lone_psycho": 2, "collapsed_floor": 1, "fog_bank": 1},
+		"deplete": 0.22, "regen": 0.02, "floor": 0.15},
+	# weapons and ammunition (dangerous)
+	"gun_shop": {"profile": "weapons", "place": "gun shop", "danger": 1.45, "search": 140,
+		"mods": {"ammo": 1.2, "shells": 1.3, "shotgun": 1.5},
+		"prep": {"shots": 0.85}, "prep_shots": 3,
+		"deplete": 0.4, "regen": 0.01, "floor": 0.05},
+	"shooting_range": {"profile": "weapons", "place": "range", "danger": 1.2, "search": 170,
+		"mods": {"ammo": 1.3, "vest": 2.0, "shotgun": 0.5},
+		"events": {"armoury": 3, "lone_psycho": 2, "dogs": 1, "patrol": 1, "fog_bank": 1},
+		"two_events": 0.6, "risk_floor": 0.0},
+	"police": {"profile": "weapons", "place": "station", "danger": 1.6, "search": 220,
+		"mods": {"vest": 2.5, "shotgun": 1.5},
+		"extra": [["medkit", 1, 1, 0.25], ["flashlight", 1, 1, 0.2]],
+		"events": {"armoury": 4, "patrol": 3, "waiting_room": 1, "lone_psycho": 1, "fog_bank": 1},
+		"two_events": 1.0, "prep": {"vest": 0.85, "shots": 0.85}, "prep_shots": 3},
+	"military": {"profile": "military", "place": "outpost",
+		"requires": ["flashlight"], "requires_text": "The bunkers are pitch dark.",
+		"prep": {"vest": 0.75, "shots": 0.7}, "prep_shots": 4},
+}
+
+# --- mission approaches ----------------------------------------------------------------------
+
+## search / loot / danger / deplete: multipliers. discover: chances of finding
+## a new place (one roll per entry). events: added to the place's pool;
+## two_events: added to the chance of a second event. needs_shots: rounds that
+## must be brought. mark: [flag, days] left on the place.
+const APPROACHES := {
+	"general": {"name": "General scavenging", "short": "A bit of everything",
+		"desc": "Search the place for whatever is useful.",
+		"search": 1.0, "loot": 1.0, "danger": 1.0, "deplete": 1.0, "discover": [0.1]},
+	"targeted": {"name": "Targeted collection", "short": "Much more of one thing",
+		"desc": "Go straight for one resource: much more of it, little of anything else.",
+		"search": 1.0, "loot": 1.0, "danger": 1.0, "deplete": 0.9, "discover": [],
+		"target_mult": 1.8, "target_chance": 0.9, "other_mult": 0.4},
+	"careful": {"name": "Careful exploration", "short": "Slower, safer, finds new places",
+		"desc": "Slow and quiet: safer, a little less loot, and a good chance to find new places for the map.",
+		"search": 1.5, "loot": 0.9, "danger": 0.65, "deplete": 0.8, "discover": [0.75, 0.3],
+		"events": {"lookout": 3}, "two_events": -0.15},
+	"raid": {"name": "High-risk raid", "short": "Fast and loud: more loot, more danger",
+		"desc": "In fast and loud with a loaded weapon: more loot in less time, far more danger, and they remember.",
+		"search": 0.55, "loot": 1.4, "danger": 1.6, "deplete": 1.3, "discover": [],
+		"events": {"alarm": 3}, "two_events": 0.25, "needs_shots": 3, "mark": ["guarded", 2]},
+}
+const APPROACH_ORDER := ["general", "targeted", "careful", "raid"]
+
+## Lasting consequences on a place (RegionState notes): danger x while active.
+## Setting one clears the flags it lists in "clears".
+const FLAGS := {
+	"guarded": {"danger": 1.3, "clears": ["cleared"], "text": "Guarded since your raid (until day %d)."},
+	"cleared": {"danger": 0.8, "clears": ["guarded"], "text": "Quieter: you thinned them out (until day %d)."},
+}
 
 const STASH := [["ammo", 2, 5, 0.5], ["water", 2, 3, 0.6], ["canned_food", 1, 2, 0.5]]
 const CAR_BAG := [["ammo", 2, 4, 0.35], ["water", 1, 2, 0.7], ["snacks", 1, 3, 0.7], ["bandage", 1, 1, 0.3]]
@@ -146,15 +346,15 @@ const EVENTS := {
 	},
 	"dogs": {
 		"title": "Dogs",
-		"text": "A pack of dogs blocks the street ahead, ribs showing. The lead dog hasn't decided about you yet.",
+		"text": "A pack of dogs blocks the way ahead, ribs showing. The lead dog hasn't decided about you yet.",
 		"tags": ["fight"],
 		"options": [
 			{"label": "Back away and go around", "minutes": 25, "hurt": [0.1, 4, 8],
 				"outcome": "You take the long way round, through gardens and over fences.",
 				"hurt_text": "One of them follows you over a fence.",
 				"log": "Went around a pack of dogs."},
-			{"label": "Fire a warning shot", "needs": {"ammo": 1}, "ammo": 1,
-				"outcome": "The shot cracks off the house fronts. The pack scatters into the fog.",
+			{"label": "Fire a warning shot", "shots": 1,
+				"outcome": "The shot cracks off the walls. The pack scatters into the fog.",
 				"log": "Scattered a pack of dogs with a warning shot."},
 			{"label": "Walk straight through", "hurt": [0.5, 8, 16],
 				"outcome": "You keep your eyes down and your pace steady.",
@@ -167,7 +367,7 @@ const EVENTS := {
 		"text": "One of them stands in your way, swaying, its face to the wall. It hasn't noticed you yet.",
 		"tags": ["fight"],
 		"options": [
-			{"label": "Shoot it", "needs": {"ammo": 2}, "ammo": 2, "loot": 1.15, "hurt": [0.08, 5, 10],
+			{"label": "Shoot it", "shots": 2, "loot": 1.15, "hurt": [0.08, 5, 10],
 				"outcome": "Two shots. It folds. Nobody else comes, and you search at leisure.",
 				"hurt_text": "It doesn't go down at once.",
 				"log": "Shot one of them and searched in peace."},
@@ -203,8 +403,8 @@ const EVENTS := {
 		"text": "The waiting room isn't empty. Three of them, slumped in plastic chairs. One lifts its head.",
 		"tags": ["fight", "dark"],
 		"options": [
-			{"label": "Fight your way through", "needs": {"ammo": 3}, "ammo": 3, "loot": 1.1, "hurt": [0.25, 8, 16],
-				"outcome": "Three rounds, three bodies. The ringing in your ears takes longer to fade.",
+			{"label": "Fight your way through", "shots": 3, "loot": 1.1, "hurt": [0.25, 8, 16], "mark": ["cleared", 3],
+				"outcome": "Three shots, three bodies. The ringing in your ears takes longer to fade.",
 				"hurt_text": "The third one gets close first.",
 				"log": "Shot your way through the waiting room."},
 			{"label": "Run for the side corridor", "minutes": 10, "hurt": [0.45, 10, 20], "lose": ["flashlight", 0.3],
@@ -213,9 +413,9 @@ const EVENTS := {
 				"lose_text": "The flashlight is somewhere on the floor back there.",
 				"log": "Ran through the waiting room."},
 			{"label": "Back out and leave", "minutes": -60, "loot": 0.5, "hurt": [0.12, 5, 10],
-				"outcome": "You back out the way you came, slowly, and don't stop until the school.",
+				"outcome": "You back out the way you came, slowly, and don't stop until you're outside.",
 				"hurt_text": "One of them follows you out.",
-				"log": "Backed out of the clinic."},
+				"log": "Backed out of the building."},
 		],
 	},
 	"tracks": {
@@ -319,20 +519,284 @@ const EVENTS := {
 				"log": "Backed away from a sagging timber rack."},
 		],
 	},
+	# --- Experiment 003: new kinds of places and approach-specific events ------------------
+	"heavy_load": {
+		"title": "Too much to carry",
+		"text": "There's more here than you can carry, and the way home is long.",
+		"tags": [],
+		"options": [
+			{"label": "Load up anyway", "minutes": 30, "loot": 1.25, "hurt": [0.25, 4, 10],
+				"outcome": "You stagger home under the weight, resting every few hundred metres.",
+				"hurt_text": "Something in your back gives.",
+				"log": "Carried more than was comfortable."},
+			{"label": "Pack it properly", "needs": {"backpack": 1}, "minutes": 15, "loot": 1.3,
+				"outcome": "Heavy things at the bottom, straps tight. It works.",
+				"log": "Packed the backpack to the brim."},
+			{"label": "Take what's easy", "minutes": -15, "loot": 0.85,
+				"outcome": "You take what you can carry without a struggle.",
+				"log": "Took only what was easy to carry."},
+		],
+	},
+	"scaffold": {
+		"title": "The scaffolding",
+		"text": "Rebar and a pallet of blocks sit on the second level of the scaffolding. The whole frame sways in the wind.",
+		"tags": [],
+		"options": [
+			{"label": "Climb up for the rebar", "minutes": 20, "bonus": [["iron", 1, 3, 0.9], ["stone", 2, 4, 0.6]], "hurt": [0.35, 6, 14],
+				"outcome": "Hand over hand, up the swaying frame.",
+				"hurt_text": "A board slides out from under you.",
+				"log": "Climbed the scaffolding for rebar."},
+			{"label": "Lever the pallet down with the crowbar", "needs": {"crowbar": 1}, "minutes": 25, "bonus": [["stone", 3, 6, 1.0], ["iron", 1, 2, 0.8]], "hurt": [0.08, 4, 8],
+				"outcome": "Block by block, the pallet comes down where you want it.",
+				"hurt_text": "One block doesn't.",
+				"log": "Levered a pallet of blocks off the scaffolding."},
+			{"label": "Stay on the ground", "loot": 0.9,
+				"outcome": "You search the ground floor and leave the scaffolding alone.",
+				"log": "Left the scaffolding alone."},
+		],
+	},
+	"outpost_gate": {
+		"title": "The gate",
+		"text": "The outpost gate hangs open. Between the containers, several of them move together, like they remember drills.",
+		"tags": ["fight"],
+		"options": [
+			{"label": "Fight your way in", "shots": 4, "loot": 1.2, "hurt": [0.4, 10, 25], "hurt_loot": 0.6, "mark": ["cleared", 3],
+				"outcome": "You pick them off from behind a truck, one by one, then walk in.",
+				"hurt_text": "There were more than you counted. You get out with what you can carry.",
+				"log": "Fought your way into the outpost."},
+			{"label": "Slip in along the fence", "needs": {"flashlight": 1}, "minutes": 40, "hurt": [0.35, 10, 22], "hurt_loot": 0.6,
+				"outcome": "Through a gap in the fence and into the bunkers, the light cupped in your hand.",
+				"hurt_text": "One of them was waiting in the dark. You run for it.",
+				"log": "Slipped into the outpost along the fence."},
+			{"label": "Turn back", "minutes": -60, "loot": 0.3, "hurt": [0.1, 5, 10],
+				"outcome": "Not today. You take what's lying outside the fence and go.",
+				"hurt_text": "One of them follows you into the trees.",
+				"log": "Turned back at the outpost gate."},
+		],
+	},
+	"armoury": {
+		"title": "The armoury",
+		"text": "A steel door at the back, its lock still holding. Through the slot you can see a rack that isn't quite empty.",
+		"tags": ["fight"],
+		"options": [
+			{"label": "Pry the door open", "needs": {"crowbar": 1}, "minutes": 30, "bonus": "locked", "hurt": [0.3, 8, 18],
+				"outcome": "It takes everything you have. The door gives with a bang that carries.",
+				"hurt_text": "The bang brings them.",
+				"log": "Pried open the armoury door."},
+			{"label": "Search the lockers instead", "minutes": 15, "bonus": [["ammo", 2, 5, 0.6], ["shells", 1, 3, 0.4], ["bandage", 1, 1, 0.4]], "hurt": [0.15, 5, 12],
+				"outcome": "Locker after locker: most empty, a few not.",
+				"hurt_text": "One locker wasn't empty in the wrong way.",
+				"log": "Searched the lockers by the armoury."},
+			{"label": "Leave it", "minutes": -10,
+				"outcome": "Steel needs tools. You move on.",
+				"log": "Left the armoury door shut."},
+		],
+	},
+	"ward": {
+		"title": "The stairwell",
+		"text": "The supply rooms are three floors up. The stairwell is pitch dark, and something is moving on the second landing.",
+		"tags": ["dark", "fight"],
+		"options": [
+			{"label": "Climb with the flashlight", "needs": {"flashlight": 1}, "minutes": 35, "bonus": [["medkit", 1, 2, 0.8], ["bandage", 2, 4, 0.9]], "hurt": [0.25, 8, 16],
+				"outcome": "Floor by floor in a circle of light. The supply room is half full.",
+				"hurt_text": "The light draws it down the stairs to you.",
+				"log": "Climbed to the supply rooms by flashlight."},
+			{"label": "Climb in the dark", "minutes": 35, "bonus": [["medkit", 1, 2, 0.8], ["bandage", 2, 4, 0.9]], "hurt": [0.55, 10, 22], "hurt_loot": 0.7,
+				"outcome": "One hand on the rail, counting the steps.",
+				"hurt_text": "It finds you before you find it. You come down faster than you went up.",
+				"log": "Climbed the dark stairwell."},
+			{"label": "Search the ground floor", "loot": 0.85,
+				"outcome": "You keep to the ground floor, where the light gets in.",
+				"log": "Kept to the ground floor."},
+		],
+	},
+	"patrol": {
+		"title": "A pack of them",
+		"text": "Five or six of them, moving together down the corridor, heading your way.",
+		"tags": ["fight"],
+		"options": [
+			{"label": "Open fire", "shots": 3, "loot": 1.1, "hurt": [0.25, 10, 20], "mark": ["cleared", 3],
+				"outcome": "The first shots scatter them. The rest don't come back.",
+				"hurt_text": "Not all of them scatter.",
+				"log": "Opened fire on a pack of them."},
+			{"label": "Hide and let them pass", "minutes": 30, "hurt": [0.3, 10, 24], "hurt_loot": 0.7,
+				"outcome": "You hold your breath in a cupboard while they shuffle past.",
+				"hurt_text": "One of them opens the cupboard.",
+				"log": "Hid from a pack of them."},
+			{"label": "Run for the exit", "minutes": -45, "loot": 0.5, "hurt": [0.2, 6, 14],
+				"outcome": "You run, and keep running until the fog closes behind you.",
+				"hurt_text": "One of them is faster than you.",
+				"log": "Ran from a pack of them."},
+		],
+	},
+	"alarm": {
+		"title": "Too loud",
+		"text": "You went in fast, and it was loud. Somewhere inside, things are waking up.",
+		"tags": ["fight"],
+		"only": ["raid"],
+		"options": [
+			{"label": "Grab and go", "minutes": -20, "loot": 0.85,
+				"outcome": "Bags full of whatever was closest, and out.",
+				"log": "Grabbed what you could before they came."},
+			{"label": "Hold your ground", "shots": 2, "loot": 1.15, "hurt": [0.2, 8, 16],
+				"outcome": "They come in ones and twos. You're ready for each.",
+				"hurt_text": "One gets close.",
+				"log": "Held your ground against what the noise brought."},
+			{"label": "Keep searching", "loot": 1.2, "hurt": [0.45, 8, 18],
+				"outcome": "You ignore the noises and keep filling bags.",
+				"hurt_text": "They find you mid-search.",
+				"log": "Kept searching while they came."},
+		],
+	},
+	"lookout": {
+		"title": "A view",
+		"text": "A ladder leads up to a high vantage point. Up there the fog thins, and the land spreads out below you.",
+		"tags": [],
+		"only": ["careful"],
+		"options": [
+			{"label": "Climb up and map what you see", "minutes": 25, "discover": 1, "hurt": [0.1, 4, 8],
+				"outcome": "Rooftops, a water tower, roads you didn't know. You sketch it all.",
+				"hurt_text": "A rusted rung snaps under you.",
+				"log": "Mapped the area from a high point."},
+			{"label": "Keep your head down",
+				"outcome": "Up there, anyone could see you too.",
+				"log": "Stayed off the high ground."},
+		],
+	},
 }
+
+static var _cache := {}
 
 
 # --- lookups ------------------------------------------------------------------------
 
+static func has_destination(id: String) -> bool:
+	return LOCATIONS.has(id) and RegionLocations.has(id)
+
+
+## The place merged with its profile and its RegionLocations entry (cached):
+## id, name, desc, category, district, place, danger, search, travel, minutes
+## (general round trip), loot, locked, locked_name, locked_text, events,
+## two_events, requires, requires_text, prep, prep_shots, deplete, regen,
+## floor, max_damage, risk_floor, rewards, recommends. {} for an unknown id.
 static func destination(id: String) -> Dictionary:
-	return DESTINATIONS.get(id, {})
+	if _cache.has(id):
+		return _cache[id]
+	if not has_destination(id):
+		return {}
+	var loc: Dictionary = LOCATIONS[id]
+	var p: Dictionary = PROFILES[loc["profile"]]
+	var d := {
+		"place": "place", "danger": 1.0, "search": 150, "two_events": 0.5, "requires": [], "requires_text": "",
+		"prep": {}, "prep_shots": 3, "max_damage": MAX_DAMAGE, "risk_floor": 0.0,
+		"locked_name": "locked doors", "locked_text": "The crowbar opened a locked door.",
+	}
+	for k in p:
+		d[k] = p[k]
+	for k in loc:
+		if not k in ["mods", "extra", "locked"]:
+			d[k] = loc[k]
+	var mods: Dictionary = loc.get("mods", {})
+	var loot := _apply_mods(p["loot"], mods)
+	for e in loc.get("extra", []):
+		loot.append((e as Array).duplicate())
+	d["loot"] = loot
+	d["locked"] = _apply_mods(loc["locked"], {}) if loc.has("locked") else _apply_mods(p["locked"], mods)
+	var r := RegionLocations.get_def(id)
+	d["id"] = id
+	d["name"] = str(r["name"])
+	d["desc"] = str(r["desc"])
+	d["category"] = str(r["category"])
+	d["district"] = str(r["district"])
+	d["travel"] = RegionLocations.travel_minutes(id)
+	d["minutes"] = 2 * int(d["travel"]) + int(d["search"])
+	d["rewards"] = _rewards_text(d)
+	d["recommends"] = []
+	_cache[id] = d
+	d["recommends"] = _recommends(id)
+	return d
+
+
+static func _apply_mods(table: Array, mods: Dictionary) -> Array:
+	var out := []
+	for e in table:
+		var f := float(mods.get(e[0], 1.0))
+		if f <= 0.0:
+			continue
+		if is_unique(e[0]):
+			out.append([e[0], 1, 1, minf(float(e[3]) * f, UNIQUE_CHANCE_MAX)])
+		else:
+			var lo := maxi(int(round(float(e[1]) * f)), 1)
+			out.append([e[0], lo, maxi(int(round(float(e[2]) * f)), lo), float(e[3])])
+	return out
 
 
 static func event(id: String) -> Dictionary:
 	return EVENTS.get(id, {})
 
 
-## Every item a destination can yield (main, locked and event bonus tables).
+static func approach_def(id: String) -> Dictionary:
+	return APPROACHES.get(id, {})
+
+
+## The four mission approaches for the map and the screen, in order:
+## [{id, name, short, desc, search, loot, danger, discovers, needs_shots}].
+static func approaches() -> Array:
+	var out := []
+	for id in APPROACH_ORDER:
+		var a: Dictionary = APPROACHES[id]
+		out.append({"id": id, "name": a["name"], "short": a["short"], "desc": a["desc"],
+			"search": a["search"], "loot": a["loot"], "danger": a["danger"],
+			"discovers": not (a.get("discover", []) as Array).is_empty(), "needs_shots": int(a.get("needs_shots", 0))})
+	return out
+
+
+## "careful", "targeted:stone" -> {"approach": .., "target": ..}. Unknown
+## approaches become "general"; the target is only kept for "targeted".
+static func parse_purpose(purpose: String) -> Dictionary:
+	var parts := purpose.strip_edges().split(":", true, 1)
+	var a := parts[0] if parts.size() > 0 else ""
+	if not APPROACHES.has(a):
+		a = "general"
+	var t := parts[1] if parts.size() > 1 and a == "targeted" else ""
+	return {"approach": a, "target": t}
+
+
+## The inverse of parse_purpose: "targeted:stone", "careful".
+static func purpose_of(approach: String, target := "") -> String:
+	return approach + (":" + target if approach == "targeted" and target != "" else "")
+
+
+## The place's event pool for an approach: its own events plus the
+## approach's, without events reserved for other approaches.
+static func event_pool(id: String, approach := "general") -> Dictionary:
+	var pool := {}
+	var d := destination(id)
+	var own: Dictionary = d.get("events", {})
+	for e in own:
+		pool[e] = own[e]
+	var extra: Dictionary = approach_def(approach).get("events", {})
+	for e in extra:
+		pool[e] = float(pool.get(e, 0)) + float(extra[e])
+	for e in pool.keys():
+		var only: Array = event(e).get("only", [])
+		if not only.is_empty() and not approach in only:
+			pool.erase(e)
+	return pool
+
+
+static func two_events_chance(id: String, approach := "general") -> float:
+	return clampf(float(destination(id).get("two_events", 0.5)) + float(approach_def(approach).get("two_events", 0.0)), 0.0, 1.0)
+
+
+static func has_tag(id: String, tag: String, approach := "general") -> bool:
+	for e in event_pool(id, approach):
+		if tag in event(e).get("tags", []):
+			return true
+	return false
+
+
+## Every item a destination can yield from its search and its locked table.
 static func possible_rewards(dest_id: String) -> Array:
 	var d := destination(dest_id)
 	var out := []
@@ -341,6 +805,42 @@ static func possible_rewards(dest_id: String) -> Array:
 			if not e[0] in out:
 				out.append(e[0])
 	return out
+
+
+## Item ids for the map and the screen, most plentiful first (the main table,
+## then what only the locked table has).
+static func resources(id: String) -> Array:
+	var d := destination(id)
+	var scored := []
+	for e in d.get("loot", []):
+		scored.append([e[0], float(e[3]) * (float(e[1]) + float(e[2])) * 0.5 * (4.0 if is_unique(e[0]) else 1.0)])
+	scored.sort_custom(func(a, b): return a[1] > b[1])
+	var out := []
+	for s in scored:
+		if not s[0] in out:
+			out.append(s[0])
+	for e in d.get("locked", []):
+		if not e[0] in out:
+			out.append(e[0])
+	return out
+
+
+## What targeted collection can go for here: stackable items of the main
+## table, most plentiful first (at most 6).
+static func targets(id: String) -> Array:
+	var out := []
+	var loot: Array = destination(id).get("loot", [])
+	for item in resources(id):
+		if not is_unique(item) and _in_table(loot, item):
+			out.append(item)
+	return out.slice(0, 6)
+
+
+static func _in_table(table: Array, item: String) -> bool:
+	for e in table:
+		if e[0] == item:
+			return true
+	return false
 
 
 ## True if some event at this destination can cost the given tool.
@@ -352,23 +852,126 @@ static func can_lose(dest_id: String, tool: String) -> bool:
 	return false
 
 
+## Unique items (cap 1): tools, weapons, the vest.
+static func is_unique(item: String) -> bool:
+	return Items.has(item) and int(Items.DEFS[item].get("cap", 0)) == 1
+
+
+# --- ownership (inventory, equipment, magazines) -------------------------------------------
+
+## Owned: in the inventory or equipped (K's equipment, when present).
+static func owns(state: GameState, item: String) -> bool:
+	if state == null:
+		return false
+	if state.inventory.count(item) > 0:
+		return true
+	if state.has_method("has_equipped") and bool(state.call("has_equipped", item)):
+		return true
+	var eq = state.get("equipment")
+	return typeof(eq) == TYPE_DICTIONARY and item in (eq as Dictionary).values()
+
+
+## Rounds in a weapon's magazine (GameState.weapons[weapon].loaded), 0 if unknown.
+static func loaded_rounds(state: GameState, weapon: String) -> int:
+	if state == null:
+		return 0
+	var w = state.get("weapons")
+	if typeof(w) != TYPE_DICTIONARY:
+		return 0
+	var e = (w as Dictionary).get(weapon)
+	if typeof(e) == TYPE_DICTIONARY:
+		return maxi(Inventory.to_count((e as Dictionary).get("loaded", 0)), 0)
+	return 0
+
+
+## Rounds of an ammunition type you can bring: the reserve in the inventory
+## plus the weapon's magazine, and only if you own the weapon that fires them.
+static func rounds_owned(state: GameState, ammo_id: String) -> int:
+	if state == null or not AMMO_TYPES.has(ammo_id) or not owns(state, AMMO_TYPES[ammo_id]):
+		return 0
+	return state.inventory.count(ammo_id) + loaded_rounds(state, AMMO_TYPES[ammo_id])
+
+
+## Fight value of brought ammunition: 9 mm rounds plus SHELL_SHOTS per shell.
+static func shots_of(gear: Dictionary) -> int:
+	return maxi(int(gear.get("ammo", 0)), 0) + SHELL_SHOTS * maxi(int(gear.get("shells", 0)), 0)
+
+
 # --- risk -------------------------------------------------------------------------------
 
-## Effective danger for a destination and the gear brought (the screen shows its tier).
+static func _difficulty(state: GameState, key: String, fallback: float) -> float:
+	var level := Difficulty.DEFAULT if state == null else str(state.get("difficulty"))
+	var v = Difficulty.get_value(level, key)
+	return float(v) if typeof(v) in [TYPE_INT, TYPE_FLOAT] else fallback
+
+
+## Difficulty `loot` multiplier for a state (1.0 for null).
+static func loot_scale(state: GameState) -> float:
+	return _difficulty(state, "loot", 1.0)
+
+
+## Danger x from the place's lasting flags (guarded, cleared) today.
+static func flag_factor(state: GameState, id: String) -> float:
+	if state == null or state.region == null:
+		return 1.0
+	var k := 1.0
+	for f in FLAGS:
+		if state.region.has_flag(id, f, state.day()):
+			k *= float(FLAGS[f]["danger"])
+	return k
+
+
+## Danger x from the place's preparation rules for the gear brought.
+static func prep_factor(id: String, gear: Dictionary) -> float:
+	var d := destination(id)
+	var p: Dictionary = d.get("prep", {})
+	var k := 1.0
+	if p.has("vest") and int(gear.get("vest", 0)) > 0:
+		k *= float(p["vest"])
+	if p.has("flashlight") and int(gear.get("flashlight", 0)) > 0:
+		k *= float(p["flashlight"])
+	if p.has("shots") and shots_of(gear) >= int(d.get("prep_shots", 3)):
+		k *= float(p["shots"])
+	return k
+
+
+## The trip's danger: it scales every injury chance on the trip. Place x
+## approach x preparation x flags (at least the place's risk floor) x
+## difficulty `scavenge_danger` x exhaustion.
+static func trip_danger(state: GameState, id: String, approach := "general", gear := {}) -> float:
+	return _danger(state, id, approach, gear, false, state.energy if state != null else 100.0)
+
+
+## The risk shown to the player: the trip's danger with the per-event gear
+## effects folded in (rounds and the vest in fights, the flashlight in dark
+## places), unless the place's preparation rule already counts that gear.
+static func danger_for(state: GameState, id: String, gear := {}, approach := "general") -> float:
+	return _danger(state, id, approach, gear, true, state.energy if state != null else 100.0)
+
+
+## Experiment 002 signature (Normal difficulty, general approach, no flags).
 static func danger(dest_id: String, gear: Dictionary, energy := 100.0) -> float:
-	var d := destination(dest_id)
-	var k: float = d.get("danger", 1.0)
-	var fights := false
-	var dark := false
-	for e in d.get("events", {}):
-		var tags: Array = event(e).get("tags", [])
-		fights = fights or "fight" in tags
-		dark = dark or "dark" in tags
-	var ammo := int(gear.get("ammo", 0))
-	if fights:
-		k *= 0.78 if ammo >= 3 else (0.9 if ammo >= 1 else 1.0)
-	if dark and int(gear.get("flashlight", 0)) > 0:
-		k *= 0.9
+	return _danger(null, dest_id, "general", gear, true, energy)
+
+
+static func _danger(state: GameState, id: String, approach: String, gear: Dictionary, shown: bool, energy: float) -> float:
+	var d := destination(id)
+	if d.is_empty():
+		return 1.0
+	var k := float(d["danger"]) * float(approach_def(approach).get("danger", 1.0))
+	k *= prep_factor(id, gear) * flag_factor(state, id)
+	if shown:
+		var p: Dictionary = d.get("prep", {})
+		if has_tag(id, "fight", approach):
+			var shots := shots_of(gear)
+			if not p.has("shots"):
+				k *= 0.78 if shots >= 3 else (0.9 if shots >= 1 else 1.0)
+			if int(gear.get("vest", 0)) > 0 and not p.has("vest"):
+				k *= 0.85
+		if has_tag(id, "dark", approach) and int(gear.get("flashlight", 0)) > 0 and not p.has("flashlight"):
+			k *= 0.9
+	k = maxf(k, float(d.get("risk_floor", 0.0)))
+	k *= _difficulty(state, "scavenge_danger", 1.0)
 	if energy <= LOW_ENERGY:
 		k *= LOW_ENERGY_DANGER
 	return k
@@ -385,13 +988,36 @@ static func risk_name(danger_value: float) -> String:
 	return RISK_NAMES[risk_tier(danger_value)]
 
 
+# --- time -------------------------------------------------------------------------------
+
+## Minutes on site for an approach (rounded to 5, at least 30).
+static func search_minutes(id: String, approach := "general") -> int:
+	var d := destination(id)
+	if d.is_empty():
+		return 0
+	return maxi(int(round(float(d["search"]) * float(approach_def(approach).get("search", 1.0)) / 5.0)) * 5, 30)
+
+
+## Nominal trip length: travel there and back (RegionLocations) plus the search.
+static func nominal_minutes(id: String, approach := "general") -> int:
+	var d := destination(id)
+	if d.is_empty():
+		return 0
+	return 2 * int(d["travel"]) + search_minutes(id, approach)
+
+
 # --- departure rules ---------------------------------------------------------------------
 
-## {"ok": bool, "reason": String} for setting out now to `dest_id` (pure).
-static func availability(state: GameState, dest_id: String) -> Dictionary:
+## {"ok": bool, "reason": String} for setting out now to `dest_id` with an
+## approach (pure). Checks the departure window (05:00-18:00, back by 20:00 with
+## this approach's nominal time), invasions, required gear and the approach's
+## needs against what you own. Discovery is the screen's and the map's concern.
+static func availability(state: GameState, dest_id: String, approach := "general") -> Dictionary:
 	var d := destination(dest_id)
 	if d.is_empty():
 		return {"ok": false, "reason": "Unknown place."}
+	if not APPROACHES.has(approach):
+		return {"ok": false, "reason": "Unknown approach."}
 	if state.dead:
 		return {"ok": false, "reason": "You're dead."}
 	if state.run.get("invasion_active", false):
@@ -401,46 +1027,217 @@ static func availability(state: GameState, dest_id: String) -> Dictionary:
 		return {"ok": false, "reason": "It's still dark out there. You can set out from %s." % clock(T.EXPEDITION_DEPART_FROM)}
 	if m > T.EXPEDITION_DEPART_UNTIL:
 		return {"ok": false, "reason": "Too late to set out. You'd be coming back in the dark."}
-	var back := m + float(d["minutes"])
+	var mins := float(nominal_minutes(dest_id, approach))
+	var back := m + mins
 	if back > T.EXPEDITION_RETURN_BY:
-		return {"ok": false, "reason": "You'd be coming back in the dark (around %s). Leave by %s." % [clock(back), clock(T.EXPEDITION_RETURN_BY - float(d["minutes"]))]}
+		return {"ok": false, "reason": "You'd be coming back in the dark (around %s). Leave by %s." % [clock(back), clock(T.EXPEDITION_RETURN_BY - mins)]}
 	for id in d.get("requires", []):
-		if state.inventory.count(id) <= 0:
-			return {"ok": false, "reason": "Needs a %s. %s" % [Items.name_of(id).to_lower(), "The clinic has no windows." if dest_id == "clinic" else ""]}
+		if not owns(state, id):
+			return {"ok": false, "reason": ("Needs a %s. %s" % [Items.name_of(id).to_lower(), d.get("requires_text", "")]).strip_edges()}
+	var need := int(approach_def(approach).get("needs_shots", 0))
+	if need > 0 and rounds_owned(state, "ammo") + SHELL_SHOTS * rounds_owned(state, "shells") < need:
+		return {"ok": false, "reason": "A raid needs a loaded weapon: %s." % shots_text(need)}
 	return {"ok": true, "reason": ""}
 
 
-## Clamps a gear request to what the player owns; required tools are always brought.
+## {"ok", "reason"} for the approach with the gear actually brought.
+static func approach_state(state: GameState, dest_id: String, approach: String, gear: Dictionary) -> Dictionary:
+	var av := availability(state, dest_id, approach)
+	if not av["ok"]:
+		return av
+	var need := int(approach_def(approach).get("needs_shots", 0))
+	if need > 0 and shots_of(gear) < need:
+		return {"ok": false, "reason": "Bring a loaded weapon: %s." % shots_text(need)}
+	if approach == "targeted" and targets(dest_id).is_empty():
+		return {"ok": false, "reason": "Nothing here worth targeting."}
+	return {"ok": true, "reason": ""}
+
+
+## "3 rounds (or 2 shells)".
+static func shots_text(n: int) -> String:
+	var shells := int(ceil(float(n) / SHELL_SHOTS))
+	return "%d round%s (or %d shell%s)" % [n, "" if n == 1 else "s", shells, "" if shells == 1 else "s"]
+
+
+## Clamps a gear request to what the player owns; required gear is always
+## brought. Always has "ammo" and "shells" (rounds, 0..owned).
 static func sanitize_gear(state: GameState, dest_id: String, gear: Dictionary) -> Dictionary:
-	var out := {"ammo": clampi(int(gear.get("ammo", 0)), 0, state.inventory.count("ammo"))}
+	var out := {}
+	for a in AMMO_TYPES:
+		var v = gear.get(a, 0)
+		out[a] = clampi(int(v) if typeof(v) in [TYPE_INT, TYPE_FLOAT] else 0, 0, rounds_owned(state, a))
 	var req: Array = destination(dest_id).get("requires", [])
-	for id in BRINGABLE_TOOLS:
-		if state.inventory.count(id) > 0 and (int(gear.get(id, 0)) > 0 or id in req):
+	for id in BRINGABLE_GEAR:
+		var want = gear.get(id, 0)
+		if owns(state, id) and ((typeof(want) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and int(want) > 0) or id in req):
 			out[id] = 1
 	return out
 
 
-## The gear the screen suggests: every owned tool and up to six rounds.
+## The gear the screen suggests: everything owned, and up to DEFAULT_ROUNDS /
+## DEFAULT_SHELLS rounds.
 static func default_gear(state: GameState, dest_id: String) -> Dictionary:
-	var g := {"ammo": mini(state.inventory.count("ammo"), 6)}
-	for id in BRINGABLE_TOOLS:
+	var g := {"ammo": mini(rounds_owned(state, "ammo"), DEFAULT_ROUNDS), "shells": mini(rounds_owned(state, "shells"), DEFAULT_SHELLS)}
+	for id in BRINGABLE_GEAR:
 		g[id] = 1
 	return sanitize_gear(state, dest_id, g)
 
 
-## Short effect line for a piece of gear (gear screen).
+## The best gear you could bring (for "with the right gear" hints).
+static func best_gear() -> Dictionary:
+	return {"ammo": DEFAULT_ROUNDS, "shells": DEFAULT_SHELLS, "crowbar": 1, "flashlight": 1, "backpack": 1, "vest": 1}
+
+
+## Short effect line for a piece of gear at a place. `id` may be a gear id,
+## an ammunition id or a weapon id ("handgun"/"shotgun" describe their rounds).
 static func gear_effect(id: String, dest_id: String) -> String:
 	var d := destination(dest_id)
+	var p: Dictionary = d.get("prep", {})
+	var req: Array = d.get("requires", [])
 	match id:
-		"ammo":
-			return "In a fight you fire to get clear: injuries halved, 1 round each time. Some options need rounds."
+		"ammo", "handgun":
+			return "In a fight you fire to get clear: injuries halved, one round each time. Some options need rounds." + (" %d or more sharply lower the risk here." % int(d.get("prep_shots", 3)) if p.has("shots") else "")
+		"shells", "shotgun":
+			return "Each shell counts as %d rounds in a fight." % SHELL_SHOTS + (" Enough firepower sharply lowers the risk here." if p.has("shots") else "")
 		"crowbar":
 			return "Opens %s (more loot) and unlocks forced-entry options.%s" % [d.get("locked_name", "locked doors"), " It can be lost here." if can_lose(dest_id, id) else ""]
 		"flashlight":
-			return ("Required here. " if "flashlight" in d.get("requires", []) else "") + "Halves the risk of injury in dark places." + (" It can be lost here." if can_lose(dest_id, id) else "")
+			return ("Required here. " if "flashlight" in req else "") + "Halves the risk of injury in dark places." + (" Lowers the risk here." if p.has("flashlight") else "") + (" It can be lost here." if can_lose(dest_id, id) else "")
 		"backpack":
 			return "+50 % on everything you carry back."
+		"vest":
+			return "Injuries in fights -35 %." + (" Sharply lowers the risk here." if p.has("vest") else "")
 	return ""
+
+
+## Gear that matters at a place, most important first: required gear,
+## preparation gear, then the rest that the place's events or tables use.
+static func relevant_equipment(id: String) -> Array:
+	var d := destination(id)
+	if d.is_empty():
+		return []
+	var p: Dictionary = d.get("prep", {})
+	var out := []
+	for r in d.get("requires", []):
+		out.append(r)
+	if p.has("shots"):
+		out.append_array(["handgun", "shotgun"])
+	if p.has("vest"):
+		out.append("vest")
+	if p.has("flashlight"):
+		out.append("flashlight")
+	if has_tag(id, "fight", "general"):
+		out.append_array(["handgun", "vest"])
+	if has_tag(id, "dark", "general"):
+		out.append("flashlight")
+	if not (d.get("locked", []) as Array).is_empty():
+		out.append("crowbar")
+	out.append("backpack")
+	var uniq := []
+	for x in out:
+		if not x in uniq:
+			uniq.append(x)
+	return uniq
+
+
+static func _recommends(id: String) -> Array:
+	var out := []
+	for g in relevant_equipment(id):
+		if g in destination(id).get("requires", []) or g == "shotgun":
+			continue
+		out.append("ammo" if g == "handgun" else g)
+	return out.slice(0, 3)
+
+
+# --- region (discovery, stock, consequences) ----------------------------------------------
+
+static func regen_per_day(id: String) -> float:
+	return float(destination(id).get("regen", 0.0))
+
+
+## Stock today (0..1), with the slow recovery since the last visit.
+static func stock_now(state: GameState, id: String) -> float:
+	if state == null or state.region == null:
+		return 1.0
+	return state.region.stock_on(id, state.day())
+
+
+static func stock_text(stock: float, visits := 0) -> String:
+	if stock >= 0.85:
+		return "Untouched" if visits == 0 else "Plenty left"
+	if stock >= 0.5:
+		return "Picked over"
+	if stock >= 0.25:
+		return "Mostly stripped"
+	return "Picked clean"
+
+
+## Lines about a place's state for the map and the screen.
+static func notes_text(state: GameState, id: String) -> Array:
+	var out := []
+	if state == null or state.region == null:
+		return out
+	var v: int = state.region.visits(id)
+	if v > 0:
+		out.append("Visited %d time%s, last on day %d." % [v, "" if v == 1 else "s", state.region.last_day(id)])
+	var s := stock_now(state, id)
+	if s < 0.85 or v > 0:
+		out.append("%s (%d %% left)." % [stock_text(s, v), int(round(s * 100.0))])
+	for f in FLAGS:
+		if state.region.has_flag(id, f, state.day()):
+			out.append(str(FLAGS[f]["text"]) % state.region.flag_until(id, f))
+	return out
+
+
+## Records an expedition's region consequences (discoveries, stock, visits,
+## flags, the used plan) exactly once per result id. Returns true when applied.
+## The game calls it right after GameState.apply_expedition(result).
+static func apply_region(state: GameState, result: Dictionary) -> bool:
+	if state == null or state.region == null:
+		return false
+	return state.region.apply_result(result)
+
+
+## Everything the map shows for a place (SPEC-003 §6); see
+## docs/experiment-003/scavenging.md. `state` may be null (a fresh run).
+static func location_summary(id: String, state: GameState) -> Dictionary:
+	var d := destination(id)
+	if d.is_empty():
+		return {}
+	var s := state if state != null else GameState.new()
+	var gear := default_gear(s, id)
+	var shown := danger_for(s, id, gear, "general")
+	var bare := danger_for(s, id, sanitize_gear(s, id, {}), "general")
+	var aps := []
+	for a in APPROACH_ORDER:
+		var st := approach_state(s, id, a, gear)
+		var dv := danger_for(s, id, gear, a)
+		aps.append({"id": a, "name": APPROACHES[a]["name"], "short": APPROACHES[a]["short"], "desc": APPROACHES[a]["desc"],
+			"available": st["ok"], "reason": st["reason"],
+			"minutes": nominal_minutes(id, a), "search_minutes": search_minutes(id, a),
+			"risk_name": risk_name(dv), "risk_value": dv})
+	var eq := []
+	for g in relevant_equipment(id):
+		eq.append({"id": g, "name": Items.name_of(g), "effect": gear_effect(g, id), "have": owns(s, g),
+			"required": g in d.get("requires", [])})
+	var av_now := availability(s, id, "general")
+	var stock := stock_now(s, id)
+	return {
+		"id": id, "name": d["name"], "category": d["category"],
+		"category_name": str(RegionLocations.CATEGORIES.get(d["category"], d["category"])),
+		"district": d["district"], "desc": d["desc"],
+		"risk_name": risk_name(shown), "risk_value": shown,
+		"risk_bare_name": risk_name(bare), "risk_bare_value": bare,
+		"travel_minutes": int(d["travel"]), "search_minutes": search_minutes(id, "general"),
+		"minutes": nominal_minutes(id, "general"),
+		"resources": resources(id), "rewards": d["rewards"], "targets": targets(id),
+		"equipment": eq, "requires": (d.get("requires", []) as Array).duplicate(),
+		"approaches": aps,
+		"stock": stock, "stock_text": stock_text(stock, s.region.visits(id)),
+		"discovered": s.region.is_discovered(id),
+		"notes": notes_text(s, id),
+		"available": av_now["ok"], "reason": av_now["reason"],
+	}
 
 
 # --- formatting ---------------------------------------------------------------------------
@@ -463,7 +1260,9 @@ static func duration(minutes: float) -> String:
 const COUNT_NAMES := {
 	"canned_food": ["can of food", "cans of food"], "snacks": ["pack of snacks", "packs of snacks"],
 	"water": ["bottle of water", "bottles of water"], "ammo": ["round", "rounds"],
+	"shells": ["shell", "shells"],
 	"wood": ["plank", "planks"], "nails": ["nail", "nails"], "scrap": ["piece of scrap metal", "pieces of scrap metal"],
+	"stone": ["block of stone", "blocks of stone"], "iron": ["iron bar", "iron bars"],
 	"bandage": ["bandage", "bandages"], "medkit": ["first-aid kit", "first-aid kits"],
 }
 
@@ -482,3 +1281,41 @@ static func items_text(counts: Dictionary) -> String:
 		if n > 0:
 			parts.append(count_text(id, n))
 	return ", ".join(parts)
+
+
+## Short item name for lists: "stone", "9 mm rounds", "a shotgun".
+static func reward_name(id: String) -> String:
+	if is_unique(id):
+		var n := Items.name_of(id).to_lower()
+		return ("an " if n.substr(0, 1) in ["a", "e", "i", "o", "u"] else "a ") + n
+	if id == "water":
+		return "bottled water"
+	if id == "stone" or id == "iron":
+		return id
+	return str(COUNT_NAMES.get(id, [Items.name_of(id).to_lower(), Items.name_of(id).to_lower()])[1])
+
+
+## "Cans of food, packs of snacks and bottled water; sometimes bandages; rarely a backpack."
+static func _rewards_text(d: Dictionary) -> String:
+	var tiers := [[], [], []]
+	for e in d.get("loot", []):
+		var c := float(e[3])
+		var i := 0 if c >= 0.6 else (1 if c >= 0.25 else 2)
+		var nm := reward_name(e[0])
+		if not nm in tiers[i]:
+			tiers[i].append(nm)
+	var parts := []
+	if not tiers[0].is_empty():
+		parts.append(_and_list(tiers[0]))
+	if not tiers[1].is_empty():
+		parts.append("sometimes " + _and_list(tiers[1]))
+	if not tiers[2].is_empty():
+		parts.append("rarely " + _and_list(tiers[2]))
+	var s := "; ".join(parts) + "."
+	return s.substr(0, 1).to_upper() + s.substr(1)
+
+
+static func _and_list(names: Array) -> String:
+	if names.size() == 1:
+		return names[0]
+	return ", ".join(names.slice(0, names.size() - 1)) + " and " + names[-1]
