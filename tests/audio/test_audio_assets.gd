@@ -14,6 +14,9 @@ const SPEC_NAMES := [
 	"ui/click", "ui/hover", "ui/open", "ui/close", "ui/error",
 	"stinger/invasion", "stinger/dawn",
 	"music/menu",
+	# Experiment 003
+	"weapon/shotgun_fire", "weapon/reload", "weapon/reload_done", "weapon/shell_load", "weapon/switch",
+	"enemy/bomber_fuse", "enemy/bomber_blast", "structure/blast",
 ]
 const LOOPS := ["ambient/wind_day", "ambient/night", "ambient/tension", "music/menu"]
 const BUDGET_BYTES := 6 * 1024 * 1024

@@ -68,6 +68,11 @@ Every logical name, what it is, its bus, loop or one-shot, and its metadata (pit
 | `player/death` | Collapse and thud, a low dissonant swell, faint ringing | SFX | one-shot | — | 2 s | 1 | no |
 | `weapon/handgun_fire` | Sharp crack, punchy body and low thump, slide clack, short room tail and slap echo | SFX | one-shot | 3 % | 0.05 s | 4 | yes |
 | `weapon/dry_fire` | Trigger and hammer click on an empty chamber | SFX | one-shot | 4 % | 0.12 s | 1 | yes |
+| `weapon/shotgun_fire` | Experiment 003. A heavier, lower 12-gauge blast with a longer room tail, then the pump racked back and forward | SFX | one-shot | 3 % | 0.1 s | 3 | yes |
+| `weapon/reload` | Experiment 003. Magazine released, dropped in the hand, a fresh one seated (also starts a shell reload) | SFX | one-shot | 3 % | 0.3 s | 1 | yes |
+| `weapon/reload_done` | Experiment 003. Slide or pump snapping forward: ready | SFX | one-shot | 3 % | 0.1 s | 1 | yes |
+| `weapon/shell_load` | Experiment 003. One shell pushed into the tube | SFX | one-shot | 5 % | 0.08 s | 2 | yes |
+| `weapon/switch` | Experiment 003. Cloth and sling, then a light handling click | SFX | one-shot | 4 % | 0.15 s | 1 | yes |
 | `impact/wood` | Splintery knock | SFX | one-shot | 10 % | 0.03 s | 4 | yes |
 | `impact/plaster` | Dull thud with a dusty crumble | SFX | one-shot | 10 % | 0.03 s | 4 | yes |
 | `impact/glass` | Crack and a tinkle of shards | SFX | one-shot | 8 % | 0.05 s | 3 | yes |
@@ -84,11 +89,14 @@ Every logical name, what it is, its bus, loop or one-shot, and its metadata (pit
 | `door/bash` | Heavy blow on a door, rattling frame | SFX | one-shot | 8 % | 0.12 s | 3 | yes |
 | `structure/break` | A wall section breaking: crack, splinters, debris, low rumble | SFX | one-shot | 6 % | 0.1 s | 3 | yes |
 | `structure/crumble` | Plaster and debris trickling down | SFX | one-shot | 8 % | 0.08 s | 3 | yes |
+| `structure/blast` | Experiment 003. A wall blown apart: crack, timber and masonry chunks, dust settling (HouseWorld.explode) | SFX | one-shot | 5 % | 0.2 s | 2 | yes (far) |
 | `enemy/moan_1` | Low, unstable, breathy groan falling into vocal fry | SFX | one-shot | 8 % | 1.2 s (group) | 3 (skip) | yes |
 | `enemy/moan_2` | Breathy rising groan ending in a throat rattle | SFX | one-shot | 8 % | 1.2 s (group) | 3 (skip) | yes |
 | `enemy/attack` | Swipe whoosh with a guttural snarl | SFX | one-shot | 8 % | 0.2 s | 3 | yes |
 | `enemy/hit` | Short choked grunt | SFX | one-shot | 8 % | 0.1 s | 3 | yes |
 | `enemy/death` | Long falling groan and rattle, then a body slump | SFX | one-shot | 6 % | 0.1 s | 3 | yes |
+| `enemy/bomber_fuse` | Experiment 003. One harsh two-tone electronic beep; the bomber repeats it faster and faster (0.7 s to 0.25 s apart) | SFX | one-shot | — | 0.15 s | 2 (skip) | yes |
+| `enemy/bomber_blast` | Experiment 003. The detonation: a deep boom and pressure wave, sizzling air, a long rumble | SFX | one-shot | 4 % | 0.3 s | 2 | yes (far) |
 | `ambient/wind_day` | Day wind: filtered noise with gusts, a faint whistle, leaves in the gusts (48 s) | Ambient | **loop** | — | — | — | no (Ambience) |
 | `ambient/night` | Night bed: low wind, house creaks, a far dog, one hesitant cricket (52 s) | Ambient | **loop** | — | — | — | no (Ambience) |
 | `ambient/tension` | *Added.* Low beating drone with a slow pulse for invasions (24 s) | Ambient | **loop** | — | — | — | no (Ambience) |
@@ -151,7 +159,7 @@ Match the templates so the mix stays balanced (the in-game volume per name is se
 
 `tools/audio/make_sounds.py` (Python 3 + numpy, no scipy; ffmpeg with libvorbis) synthesises every sound from scratch; no recordings or sample libraries are used. `tools/audio/dsp.py` holds the toolkit: exact biquad responses applied in the frequency domain, resonator banks (modal synthesis for wood, metal, glass and doors), granular debris, stick-slip friction for creaks, a source-filter voice (jittery glottal source + breath + vocal fry through moving formants) for the vocal sounds, stiff-string additive synthesis for the piano-like notes, synthetic room responses, and a look-ahead limiter.
 
-- **Normalisation:** each sound is high-passed at 22 Hz, scaled to its category's active RMS target, and limited to −1.5 dBFS (at most 6 dB of limiting; 9 dB for the gunshot). After encoding, the file is decoded again and re-encoded quieter if the decoded peak exceeds −1 dBFS.
+- **Normalisation:** each sound is high-passed at 22 Hz, scaled to its category's active RMS target, and limited to −1.5 dBFS (at most 6 dB of limiting; 9 dB for the gunshots and the bomber's blast). After encoding, the file is decoded again and re-encoded quieter if the decoded peak exceeds −1 dBFS.
 - **Seamless loops:** the loops are built from exactly periodic parts (noise generated in the frequency domain over the loop length, periodic gust and swell envelopes, tones with a whole number of cycles, events and reverb tails wrapped around the end), so before encoding the end flows into the start to within −70 dBFS or better. Lossy coding then adds its own small error, which is smooth inside the file but not across the wrap-around: the end and the start come from unrelated blocks, so the seam gets a step about the size of Vorbis's local coding noise (−50 to −70 dBFS here; higher quality settings barely change it). To keep that step small, each loop is rotated to start at a quiet, slow point, choosing among 16 candidates by measuring the decoded seam.
 - **Encoding:** Ogg Vorbis, quality 4–5 for one-shots, 3 for music and distant noises, 2 for the noise beds. 44.1 kHz; mono one-shots, stereo beds, stingers and music. Every `.import` file sets `loop` (true for the four loops).
 
@@ -171,6 +179,11 @@ python3 tools/audio/analyze.py [--png DIR] [--check]
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | `weapon/handgun_fire` | 0.69 | 1 | 7.9 | -1.2 | -0.9 | -14.4 | -19.7 | 520 | 0.2 | 0.9 | — |
 | `weapon/dry_fire` | 0.05 | 1 | 4.7 | -2.0 | -1.9 | -24.3 | -21.9 | 4816 | 0.0 | 12.4 | — |
+| `weapon/shotgun_fire` | 1.32 | 1 | 12.1 | -1.4 | -1.1 | -12.6 | -20.1 | 365 | 1.9 | 0.6 | — |
+| `weapon/reload` | 0.99 | 1 | 10.9 | -2.2 | -2.2 | -23.9 | -27.7 | 1434 | 0.1 | 0.5 | — |
+| `weapon/reload_done` | 0.08 | 1 | 5.0 | -2.0 | -2.0 | -22.8 | -21.0 | 3721 | 0.0 | 5.3 | — |
+| `weapon/shell_load` | 0.09 | 1 | 5.0 | -3.5 | -3.5 | -24.0 | -21.7 | 3555 | 0.0 | 4.4 | — |
+| `weapon/switch` | 0.30 | 1 | 8.6 | -4.7 | -4.7 | -26.2 | -25.2 | 2018 | 0.0 | 0.3 | — |
 | `impact/wood` | 0.27 | 1 | 5.7 | -1.4 | -1.4 | -19.1 | -20.5 | 841 | 0.7 | 0.9 | — |
 | `impact/plaster` | 0.77 | 1 | 12.2 | -1.4 | -1.4 | -21.9 | -23.5 | 1776 | 0.3 | 3.4 | — |
 | `impact/glass` | 0.83 | 1 | 12.0 | -3.5 | -3.5 | -19.1 | -18.5 | 6010 | 0.0 | 18.6 | — |
@@ -197,11 +210,14 @@ python3 tools/audio/analyze.py [--png DIR] [--check]
 | `door/bash` | 0.43 | 1 | 7.0 | -2.7 | -2.7 | -16.0 | -19.3 | 522 | 1.0 | 0.1 | — |
 | `structure/break` | 2.20 | 1 | 25.6 | -1.6 | -1.5 | -16.7 | -19.3 | 599 | 5.7 | 0.6 | — |
 | `structure/crumble` | 1.78 | 1 | 23.0 | -2.5 | -2.3 | -21.0 | -22.6 | 2041 | 1.6 | 5.8 | — |
+| `structure/blast` | 2.72 | 1 | 32.0 | -1.3 | -1.2 | -17.6 | -17.1 | 2083 | 0.0 | 2.4 | — |
 | `enemy/moan_1` | 2.71 | 1 | 15.5 | -5.7 | -5.7 | -20.0 | -21.1 | 220 | 0.1 | 0.0 | — |
 | `enemy/moan_2` | 2.40 | 1 | 17.7 | -5.6 | -5.6 | -20.0 | -21.2 | 222 | 0.1 | 0.0 | — |
 | `enemy/attack` | 0.43 | 1 | 6.4 | -6.9 | -6.9 | -17.0 | -18.3 | 310 | 0.0 | 0.0 | — |
 | `enemy/hit` | 0.33 | 1 | 5.5 | -8.3 | -8.3 | -17.8 | -19.4 | 211 | 0.3 | 0.0 | — |
 | `enemy/death` | 2.44 | 1 | 16.2 | -1.3 | -1.3 | -18.1 | -20.4 | 205 | 0.5 | 0.0 | — |
+| `enemy/bomber_fuse` | 0.13 | 1 | 4.5 | -13.5 | -13.5 | -19.8 | -18.5 | 2334 | 0.0 | 0.1 | — |
+| `enemy/bomber_blast` | 3.80 | 1 | 30.3 | -1.4 | -1.4 | -13.1 | -16.2 | 229 | 0.2 | 0.1 | — |
 | `ambient/wind_day` | 48.00 | 2 | 532.1 | -11.7 | -11.7 | -30.1 | -28.0 | 1176 | 2.0 | 4.9 | step -69 dBFS (6.7x local), level 0.3 dB |
 | `ambient/night` | 52.00 | 2 | 458.9 | -14.6 | -14.6 | -33.1 | -32.2 | 124 | 2.8 | 0.0 | step -78 dBFS (0.5x local), level 1.3 dB |
 | `ambient/tension` | 24.00 | 2 | 103.3 | -16.0 | -16.0 | -28.1 | -28.7 | 73 | 0.3 | 0.0 | step -69 dBFS (1.9x local), level 0.4 dB |
@@ -217,7 +233,7 @@ python3 tools/audio/analyze.py [--png DIR] [--check]
 | `stinger/dawn` | 7.40 | 2 | 51.1 | -8.8 | -8.8 | -21.0 | -18.7 | 241 | 0.0 | 0.0 | — |
 | `music/menu` | 72.01 | 2 | 684.3 | -11.1 | -11.1 | -24.0 | -23.0 | 128 | 0.1 | 0.0 | step -67 dBFS (1.0x local), level 0.6 dB |
 
-Total: 47 files, 2364 KB (2.31 MB).
+Total: 55 files, 2473 KB (2.41 MB) (Experiment 003 added eight sounds).
 
 **Results:** `--check` passes. No file clips; every decoded peak is at or below −1 dBFS; no DC offset; the sub-40 Hz share is small everywhere; all loops keep their exact length through encoding, and every seam step is more than 30 dB below its loop's level. This is a technical check, not a listening test.
 

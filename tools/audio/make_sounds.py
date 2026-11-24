@@ -1,4 +1,4 @@
-"""Generates the template sounds for Sirens Went Quiet (Experiment 002).
+"""Generates the template sounds for Sirens Went Quiet (Experiments 002 and 003).
 
 Run from the project root:
     python3 tools/audio/make_sounds.py            # everything
@@ -151,6 +151,138 @@ def dry_fire(rng):
     tick = pad_to(np.roll(tick, secs(0.03)), n)
     out = 0.45 * norm(trig) + norm(ham) + 0.35 * norm(tick)
     return trim_tail(out, -55)
+
+
+# ---------------------------------------------------------------- weapons (Experiment 003)
+
+def metal_click(n, rng, at, base=2600, gain=1.0, q=26):
+    """A small steel part snapping home: a stiff resonant click."""
+    exc = impulse(n, at) + 0.35 * impulse(n, at + 0.0016)
+    return gain * norm(resonators(exc, [(base, q, 1.0), (base * 1.63, q + 6, 0.6), (base * 2.71, q + 10, 0.35), (base * 0.52, q - 10, 0.45)],
+                                  keep_tail=False))
+
+
+def shotgun_fire(rng):
+    """A 12-gauge pump: a heavier, lower blast than the handgun with a long
+    room tail, then the pump racked back and forward."""
+    n = secs(2.2)
+    t = taxis(n)
+    crack = norm(filt(white(n, rng) * np.exp(-t / 0.004), [("hp", 700), ("peak", 2300, 0.8, 5)]))
+    body = norm(filt(white(n, rng) * env_ad(n, 0.0004, 0.06),
+                     [("lp", 3200), ("hp", 90), ("peak", 700, 0.8, 5), ("peak", 240, 1.0, 5)]))
+    f = 40 + 70 * np.exp(-t / 0.02)
+    thump = np.sin(2 * np.pi * osc_phase(f)) * env_ad(n, 0.0006, 0.07)
+    dry = 1.0 * crack + 1.2 * body + 0.85 * thump
+    dry = softclip(dry * 3.4, 1.0)
+    ir = reverb_ir(1.3, rng, predelay=0.006, bright=0.6)
+    wet = convolve(filt(dry, [("lp", 3000)]), ir)[:n]
+    slap = np.zeros(n)
+    place(slap, filt(dry, [("lp", 1400), ("hp", 150)]), 0.11, undb(-11))
+    place(slap, filt(dry, [("lp", 900), ("hp", 150)]), 0.26, undb(-18))
+    pump = np.zeros(n)
+    for at, base in ((0.42, 1900.0), (0.58, 2300.0)):           # pump back, pump forward
+        slide = filt(white(n, rng) * env_points(n, [(0, 0), (at - 0.06, 0), (at - 0.03, 0.35), (at, 0.0)]), [("bp", 2600, 1.4)])
+        pump += 0.25 * norm(slide) + metal_click(n, rng, at, base, 1.0, 22)
+    out = dry + wet * undb(-9) + slap + undb(-15) * norm(pump)
+    return trim_tail(out, -60, 0.1)
+
+
+def weapon_reload(rng):
+    """A magazine released and a fresh one seated (also the start of a shell reload)."""
+    n = secs(1.15)
+    out = metal_click(n, rng, 0.0, 2200, 0.6)                     # release
+    slide = filt(white(n, rng) * env_points(n, [(0, 0), (0.02, 0.25), (0.09, 0.0)]), [("bp", 1900, 3.0), ("lp", 4500)])
+    out += 0.18 * norm(slide)
+    thunk = filt(white(n, rng) * env_ad(n, 0.001, 0.02), [("lp", 900), ("peak", 420, 1.2, 6)])
+    out += 0.4 * norm(pad_to(np.roll(thunk, secs(0.22)), n))     # the old one in the hand
+    rub = filt(white(n, rng) * env_points(n, [(0, 0), (0.7, 0), (0.78, 0.3), (0.84, 0)]), [("bp", 1400, 3.0), ("lp", 4000)])
+    out += 0.15 * norm(rub)
+    out += metal_click(n, rng, 0.84, 1700, 1.0, 20) + metal_click(n, rng, 0.852, 3300, 0.4, 30)   # seated
+    ir = reverb_ir(0.35, rng, bright=0.7)
+    return trim_tail(add_reverb(out, ir, -20)[:n], -60, 0.04)
+
+
+def weapon_reload_done(rng):
+    """The slide or pump snapping forward: ready."""
+    n = secs(0.3)
+    slide = filt(white(n, rng) * env_points(n, [(0, 0), (0.025, 0.4), (0.05, 0.0)]), [("bp", 2400, 1.3)])
+    out = 0.3 * norm(slide) + metal_click(n, rng, 0.05, 2050, 1.0, 20) + metal_click(n, rng, 0.056, 3900, 0.45, 32)
+    return trim_tail(out, -60, 0.02)
+
+
+def weapon_shell_load(rng):
+    """One shell pushed into the tube: a brass-and-plastic click with a short slide."""
+    n = secs(0.22)
+    push = filt(white(n, rng) * env_points(n, [(0, 0), (0.02, 0.3), (0.06, 0.0)]), [("bp", 3200, 1.6)])
+    out = 0.35 * norm(push) + metal_click(n, rng, 0.06, 1450, 0.9, 14) + metal_click(n, rng, 0.064, 2900, 0.5, 24)
+    return trim_tail(out, -60, 0.02)
+
+
+def weapon_switch(rng):
+    """Cloth and a sling, then the other weapon in hand."""
+    n = secs(0.42)
+    cloth = filt(white(n, rng) * smooth_random(n, rng, 40) ** 2 * env_points(n, [(0, 0), (0.05, 0.6), (0.22, 0.3), (0.3, 0.0)]),
+                 [("bp", 1400, 0.7), ("lp", 5000)])
+    out = 0.8 * norm(cloth) + metal_click(n, rng, 0.27, 1300, 0.55, 12)
+    return trim_tail(out, -60, 0.03)
+
+
+# ---------------------------------------------------------------- the bomber and blasts (Experiment 003)
+
+def bomber_fuse(rng):
+    """One beep of the bomber's fuse: a harsh, slightly detuned two-tone
+    electronic chirp that cuts through. The behaviour repeats it, faster and
+    faster (0.7 s down to 0.25 s apart)."""
+    n = secs(0.16)
+    t = taxis(n)
+    f = 2150 + 180 * np.exp(-t / 0.02)
+    ph = osc_phase(f)
+    sq = np.tanh(3.0 * np.sin(2 * np.pi * ph)) + 0.35 * np.tanh(3.0 * np.sin(2 * np.pi * ph * 1.006 + 1.3))
+    env = env_points(n, [(0, 0), (0.003, 1.0), (0.085, 0.9), (0.1, 0.0)])
+    out = filt(sq * env, [("lp", 7000), ("hp", 600)])
+    return trim_tail(out, -60, 0.01)
+
+
+def bomber_blast(rng):
+    """The detonation itself: a deep boom and pressure wave, sizzling air and
+    a long rolling rumble outside (the wall's debris is structure/blast)."""
+    n = secs(3.8)
+    t = taxis(n)
+    crack = norm(filt(white(n, rng) * np.exp(-t / 0.006), [("lp", 5200), ("hp", 300)]))
+    f = 52 + 70 * np.exp(-t / 0.06)
+    boom = np.sin(2 * np.pi * osc_phase(f)) * env_ad(n, 0.002, 0.3)
+    body = norm(filt(white(n, rng) * env_ad(n, 0.001, 0.22), [("lp", 900), ("hp", 60), ("peak", 140, 1.0, 6)]))
+    sizzle = norm(filt(white(n, rng), [("hp", 3000)])) * env_points(n, [(0, 0), (0.02, 0.25), (0.6, 0.08), (1.6, 0.0)])
+    rumble = norm(filt(white(n, rng) * smooth_random(n, rng, 3.0) ** 2, [("lp", 170), ("hp", 55)])) * env_points(n, [(0, 0), (0.08, 1.0), (1.5, 0.5), (3.6, 0.0)])
+    dry = 0.8 * crack + 1.1 * boom + 1.3 * body + 0.3 * sizzle + 0.6 * rumble
+    dry = filt(softclip(dry * 2.6, 1.0), [("hp", 45, 0.7)])
+    ir = reverb_ir(2.2, rng, predelay=0.02, bright=0.45)
+    out = add_reverb(dry, ir, -9)[:n]
+    return trim_tail(out, -60, 0.3)
+
+
+def structure_blast(rng):
+    """A wall section blown apart: a splintering, crumbling crack, a shower of
+    masonry and timber, and dust settling."""
+    n = secs(3.0)
+    crack = norm(filt(white(n, rng) * env_ad(n, 0.0003, 0.03), [("lp", 4200), ("hp", 120)]))
+    snap = wood_knock(n, rng, 0.004, 150, 5, 0.01, 1.0)
+    spl = norm(splinters(n, rng, 120, 0.09, 3000))
+    debris = np.zeros(n)
+    for _ in range(110):
+        at = 0.05 + rng.exponential(0.45)
+        if at < 2.6:
+            g = rng.uniform(0.15, 0.7) * np.exp(-at / 1.0)
+            if rng.random() < 0.55:
+                debris += wood_knock(n, rng, at, rng.uniform(220, 1100), 5, 0.002, g)
+            else:                                                     # stone and plaster chunks
+                debris += g * norm(filt(pad_to(np.concatenate([np.zeros(secs(at)), white(secs(0.04), rng) * env_ad(secs(0.04), 0.0005, 0.008)]), n),
+                                        [("bp", rng.uniform(500, 1800), 2.5)]))
+    dust = norm(grains(n, rng, 220, 0.1, 0.6, 700, 4200, decay_t=1.0))
+    out = crack + 0.8 * snap + 0.7 * spl + 0.7 * norm(debris) + 0.35 * dust
+    ir = reverb_ir(0.9, rng, bright=0.6)
+    out = add_reverb(softclip(out * 1.5), ir, -12)[:n]
+    return trim_tail(out, -60, 0.2)
 
 
 # ---------------------------------------------------------------- impacts
@@ -980,6 +1112,14 @@ def music_menu(rng):
 SOUNDS = {
     "weapon/handgun_fire": (handgun, "weapon", -12.0, False, 5),
     "weapon/dry_fire": (dry_fire, "weapon", -24.0, False, 5),
+    "weapon/shotgun_fire": (shotgun_fire, "weapon", -11.0, False, 5),
+    "weapon/reload": (weapon_reload, "weapon", -23.0, False, 5),
+    "weapon/reload_done": (weapon_reload_done, "weapon", -22.0, False, 5),
+    "weapon/shell_load": (weapon_shell_load, "weapon", -24.0, False, 5),
+    "weapon/switch": (weapon_switch, "weapon", -26.0, False, 5),
+    "enemy/bomber_fuse": (bomber_fuse, "enemy", -19.0, False, 5),
+    "enemy/bomber_blast": (bomber_blast, "enemy", -12.0, False, 4),
+    "structure/blast": (structure_blast, "structure", -14.0, False, 4),
     "impact/wood": (impact_wood, "impact", -18.0, False, 4),
     "impact/plaster": (impact_plaster, "impact", -19.0, False, 4),
     "impact/glass": (impact_glass, "impact", -19.0, False, 5),
@@ -1032,7 +1172,7 @@ SEAM_SEARCH = {"music/menu": (-6.0, 1.3)}
 
 PEAK_CEILING = -1.5      # dBFS before encoding
 MAX_LIMIT_DB = 6.0       # never squash more than this to reach the RMS target
-LIMIT_DB = {"weapon/handgun_fire": 9.0}  # a gunshot's crack takes heavier limiting
+LIMIT_DB = {"weapon/handgun_fire": 9.0, "weapon/shotgun_fire": 9.0, "enemy/bomber_blast": 9.0}  # gunshots and blasts take heavier limiting
 DECODED_PEAK_MAX = -1.0  # dBFS after decoding
 
 

@@ -47,6 +47,12 @@ const DEFS := {
 	"player/death": {"cd": 2.0, "max": 1, "pos": false},
 	"weapon/handgun_fire": {"pitch": 0.03, "cd": 0.05, "max": 4},
 	"weapon/dry_fire": {"pitch": 0.04, "cd": 0.12, "max": 1},
+	# Experiment 003: the shotgun, reloading and switching (WeaponHandler plays these).
+	"weapon/shotgun_fire": {"pitch": 0.03, "cd": 0.1, "max": 3},
+	"weapon/reload": {"pitch": 0.03, "cd": 0.3, "max": 1},
+	"weapon/reload_done": {"pitch": 0.03, "cd": 0.1, "max": 1},
+	"weapon/shell_load": {"pitch": 0.05, "cd": 0.08, "max": 2},
+	"weapon/switch": {"pitch": 0.04, "cd": 0.15, "max": 1},
 	"impact/wood": {"pitch": 0.1, "cd": 0.03, "max": 4},
 	"impact/plaster": {"pitch": 0.1, "cd": 0.03, "max": 4},
 	"impact/glass": {"pitch": 0.08, "cd": 0.05, "max": 3},
@@ -67,6 +73,10 @@ const DEFS := {
 	"enemy/attack": {"pitch": 0.08, "cd": 0.2, "max": 3},
 	"enemy/hit": {"pitch": 0.08, "cd": 0.1, "max": 3},
 	"enemy/death": {"pitch": 0.06, "cd": 0.1, "max": 3},
+	# Experiment 003: the bomber (positional; the fuse beep repeats faster and faster).
+	"enemy/bomber_fuse": {"cd": 0.15, "max": 2, "steal": false},
+	"enemy/bomber_blast": {"pitch": 0.04, "cd": 0.3, "max": 2, "far": true},
+	"structure/blast": {"pitch": 0.05, "cd": 0.2, "max": 2, "far": true},
 	"ambient/wind_day": {"bus": "Ambient", "pos": false, "loop": true},
 	"ambient/night": {"bus": "Ambient", "pos": false, "loop": true},
 	"ambient/tension": {"bus": "Ambient", "pos": false, "loop": true},
