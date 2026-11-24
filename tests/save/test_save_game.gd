@@ -291,3 +291,140 @@ func test_stale_tmp_does_not_block_saving() -> void:
 	check_eq(SaveGame.write(_data("B")), OK, "overwritten by the next save")
 	check_eq(_tag(SaveGame.read()), "B", "new save")
 	_done()
+
+
+# --- schema 2 and Experiment 002 saves (schema 1) ---------------------------------------
+
+const FIXTURE_V1 := "res://tests/save/fixtures/exp002_save_v1.dat"
+const RunSave := preload("res://src/game/run_save.gd")
+
+
+## A file in SaveGame's layout with an explicit header schema (as SaveGame v1 wrote it).
+func _write_with_schema(data: Dictionary, header_schema: int) -> void:
+	var d := data.duplicate()
+	d["game_id"] = SaveGame.GAME_ID
+	d["saved_at"] = 1234
+	var raw := var_to_bytes(d)
+	var summary := var_to_bytes(d.get("summary", {}))
+	var payload := raw.compress(FileAccess.COMPRESSION_ZSTD)
+	var h := PackedByteArray()
+	h.resize(SaveGame.HEADER_SIZE)
+	h.fill(0)
+	for i in 4:
+		h[i] = SaveGame.MAGIC.unicode_at(i)
+	h.encode_u32(4, SaveGame.FORMAT)
+	h.encode_u32(8, header_schema)
+	h.encode_u64(12, 1234)
+	h.encode_u32(20, SaveGame.CODEC_ZSTD)
+	h.encode_u32(24, raw.size())
+	h.encode_u32(28, summary.size())
+	h.encode_u32(32, payload.size())
+	var digest := SaveGame._digest(summary, payload)
+	for i in 16:
+		h[36 + i] = digest[i]
+	_put(path, h + summary + payload)
+
+
+func test_schema_is_2_and_new_saves_carry_the_experiment_003_state() -> void:
+	_fresh()
+	check_eq(SaveGame.SCHEMA, 2, "schema 2")
+	var s := GameState.new_run(7, "hard")
+	s.inventory.add("shotgun", 1)
+	s.inventory.add("vest", 1)
+	s.region.plan("hardware", "careful")
+	check_eq(SaveGame.write({"summary": s.summary(), "state": s.to_dict(), "world": {}, "game": {}}), OK, "written")
+	var r := SaveGame.read()
+	check(r["ok"] and int(r["migrated_from"]) == 0, "read back, no migration")
+	check_eq(SaveGame.info()["schema"], 2, "header schema 2")
+	var t := GameState.from_dict(r["data"]["state"])
+	check(t != null and t.difficulty == "hard", "difficulty")
+	check(t.has_equipped("vest") and t.equipped("secondary") == "shotgun", "equipment")
+	check_eq(t.region.planned, "hardware", "region plan")
+	check_eq(SaveGame.info()["summary"].get("difficulty", ""), "hard", "the summary names the difficulty")
+	_done()
+
+
+## A real Experiment 002 save (written by the 4c87cd6 game, SaveGame schema 1):
+## a new run played to Day 1 12:30 with food eaten, 19 rounds of which 4 were
+## shot into the south wall, 20 planks, 42 nails, 6 scrap, a built crate and
+## barricade, the player in the living room.
+func test_experiment_002_save_loads_migrates_and_resaves_as_schema_2() -> void:
+	_fresh()
+	var bytes := FileAccess.get_file_as_bytes(FIXTURE_V1)
+	check(bytes.size() > 100, "fixture present (%d bytes)" % bytes.size())
+	check_eq(bytes.decode_u32(8), 1, "the fixture's header says schema 1")
+	_put(path, bytes)
+	var info := SaveGame.info()
+	check(info["valid"] and info["schema"] == 1, "info: a valid schema 1 save (Continue is offered)")
+	check_eq(info["summary"].get("clock", ""), "12:30", "its summary")
+	var r := SaveGame.read()
+	check(r["ok"], "read: %s" % r["error"])
+	check_eq(int(r["migrated_from"]), 1, "migrated from schema 1")
+	check_eq(r["data"]["schema"], SaveGame.SCHEMA, "the data is schema 2 now")
+	var p := RunSave.parse(r["data"])
+	check(p["ok"], "RunSave parses it: %s" % p["error"])
+	var s: GameState = p["state"]
+	check_eq(s.difficulty, "normal", "Normal")
+	check_eq(s.equipped("primary"), "handgun", "handgun equipped")
+	check_eq(s.magazine("handgun"), 12, "magazine from the 15 rounds")
+	check_eq(s.inventory.count("ammo"), 3, "3 in reserve")
+	for id in [["wood", 20], ["nails", 42], ["scrap", 6], ["canned_food", 2], ["water", 3], ["hammer", 1]]:
+		check_eq(s.inventory.count(id[0]), id[1], id[0])
+	check_eq(s.region.layout, "region-v1", "the default region")
+	check(not s.region.discovered.is_empty(), "with the starting places known")
+	var pos = p["player_pos"]
+	check(pos is Vector3 and (pos as Vector3).distance_to(Vector3(6.0, 0, 8.2)) < 0.01, "player position")
+	var w := HouseWorld.new()
+	add(w)
+	check_eq(int(p["world"].get("version", 0)), 1, "a version 1 world inside")
+	check(w.load_data(p["world"]), "the version 1 house loads")
+	check_eq(w.count_objects("crate"), 1, "crate")
+	check_eq(w.count_objects("barricade"), 1, "barricade")
+	check_eq(int(w.damage_summary()["missing_voxels"]), 156, "the shot wall")
+	# The game re-saves at once: schema 2, world version 2.
+	check_eq(SaveGame.write(RunSave.compose(s, w.save_data(), pos, float(p["yaw"]))), OK, "re-saved")
+	check_eq(SaveGame.info()["schema"], 2, "the file is schema 2")
+	var again := SaveGame.read()
+	check(again["ok"] and int(again["migrated_from"]) == 0, "no migration the second time")
+	check_eq(int(again["data"]["world"].get("version", 0)), 2, "world version 2")
+	check(again["data"]["state"].has("equipment") and again["data"]["state"].has("region"), "state with equipment and region")
+	var t := GameState.from_dict(again["data"]["state"])
+	check(t.magazine("handgun") == 12 and t.inventory.count("ammo") == 3, "the migration is not applied twice")
+	_done()
+
+
+func test_damaged_schema_1_saves_give_readable_errors() -> void:
+	_fresh()
+	var good := GameState.new_run(3).to_dict()
+	good.erase("equipment")
+	good.erase("weapons")
+	good.erase("difficulty")
+	good.erase("region")
+	# no survival state at all
+	_write_with_schema({"schema": 1, "summary": {}, "world": {}, "game": {}}, 1)
+	var r := SaveGame.read()
+	check(not r["ok"] and r["error"].contains("survival state is missing"), "missing state: %s" % r["error"])
+	# a state that isn't one
+	_write_with_schema({"schema": 1, "summary": {}, "state": {"bogus": 1}, "world": {}, "game": {}}, 1)
+	r = SaveGame.read()
+	check(r["ok"], "the file itself is fine")
+	var p := RunSave.parse(r["data"])
+	check(not p["ok"] and p["error"] == "the survival state is damaged.", "readable: %s" % p["error"])
+	# a broken house in a good schema 1 state
+	_write_with_schema({"schema": 1, "summary": {}, "state": good, "world": {"version": 1, "grid": "nonsense"}, "game": {}}, 1)
+	r = SaveGame.read()
+	p = RunSave.parse(r["data"])
+	check(p["ok"], "the state still parses (%s)" % p["error"])
+	var w := HouseWorld.new()
+	add(w)
+	check(not w.load_data(p["world"]), "the house is refused, no crash")
+	# header and contents disagree
+	_write_with_schema({"schema": 2, "summary": {}, "state": good, "world": {}, "game": {}}, 1)
+	r = SaveGame.read()
+	check(not r["ok"] and r["error"].contains("versions disagree"), "mismatch: %s" % r["error"])
+	# schema 0 is too old, 3 too new
+	_write_with_schema({"schema": 0, "summary": {}, "state": good, "world": {}, "game": {}}, 0)
+	check(SaveGame.read()["error"].contains("older version"), "schema 0 refused")
+	_write_with_schema({"schema": 3, "summary": {}, "state": good, "world": {}, "game": {}}, 3)
+	check(SaveGame.read()["error"].contains("newer version"), "schema 3 refused")
+	_done()

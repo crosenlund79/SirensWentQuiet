@@ -13,6 +13,17 @@ class FakeGame extends Node:
 	func dev_skip_to(hour: int) -> void: calls.append(["skip", hour])
 	func dev_set_time_scale(x: float) -> void: calls.append(["scale", x])
 	func dev_info() -> String: return "fake game: 0 enemies"
+	var dev := FakeDev.new()
+
+
+class FakeDev extends RefCounted:
+	var calls := []
+	func dev_spawn_type(kind: String) -> void: calls.append(["type", kind])
+	func dev_wave(kinds: Array) -> void: calls.append(["wave", kinds])
+	func dev_instant_mission(id: String, approach: String) -> void: calls.append(["mission", id, approach])
+	func dev_reveal_map() -> void: calls.append(["reveal"])
+	func dev_set_difficulty(level: String) -> void: calls.append(["difficulty", level])
+	func dev_fill_magazines() -> void: calls.append(["fill"])
 
 
 func _press(m: DevMenu, text: String) -> void:
@@ -89,3 +100,42 @@ func test_dev_menu_without_game_methods_does_not_crash() -> void:
 	_press(m, "Spawn 3 psychos")
 	check(m.last_status.contains("dev_spawn"), "explains the missing method")
 	check(m.next_invasion_text().contains("Day 3") and m.next_invasion_text().contains("22:00"), "next invasion shown (%s)" % m.next_invasion_text())
+
+
+func test_dev_menu_experiment_003_tools_reach_the_game_helper() -> void:
+	var state := GameState.new_run(2)
+	var game: FakeGame = add(FakeGame.new())
+	var m: DevMenu = add(DevMenu.new())
+	m.setup(state, game)
+	m.toggle()
+	await frames(2)
+	for k in ["Psycho", "Runner", "Brute", "Bomber"]:
+		_press(m, "+ " + k)
+	(m.find_child("Wave_brute", true, false) as Button).pressed.emit()
+	(m.find_child("Wave_bomber", true, false) as Button).pressed.emit()
+	check_eq(m.wave_kinds(), ["psycho", "brute", "bomber", "bomber"], "the chosen wave (bombers last)")
+	check_eq((m.find_child("Wave_bomber", true, false) as Button).text, "Bomber ×2", "counts shown")
+	_press(m, "Start this wave")
+	_press(m, "Hard")
+	_press(m, "Fill magazines")
+	_press(m, "Reveal all places")
+	var place: OptionButton = m.find_child("MissionPlace", true, false)
+	var approach: OptionButton = m.find_child("MissionApproach", true, false)
+	check(place.item_count == RegionLocations.ids().size(), "every place listed (%d)" % place.item_count)
+	place.select(RegionLocations.ids().find("quarry"))
+	approach.select(1)
+	_press(m, "Run mission now")
+	check_eq(game.dev.calls, [["type", "psycho"], ["type", "runner"], ["type", "brute"], ["type", "bomber"],
+		["wave", ["psycho", "brute", "bomber", "bomber"]], ["difficulty", "hard"], ["fill"], ["reveal"], ["mission", "quarry", "targeted"]], "helper calls")
+	check(game.calls.is_empty(), "nothing went to the game root")
+	# packs through the real inventory
+	_press(m, "+ Shotgun & shells")
+	check(state.inventory.count("shotgun") == 1 and state.inventory.count("shells") == 10, "shotgun and shells")
+	check_eq(state.equipped("secondary"), "shotgun", "and it auto-equips")
+	_press(m, "+ Vest & gear")
+	check(state.has_equipped("vest") and state.has_equipped("backpack") and state.has_equipped("flashlight"), "gear equipped")
+	for id in ["stone", "iron"]:
+		var n := state.inventory.count(id)
+		_press(m, "+10 %s" % id)
+		check_eq(state.inventory.count(id), n + 10, "+10 %s" % id)
+	m.toggle()

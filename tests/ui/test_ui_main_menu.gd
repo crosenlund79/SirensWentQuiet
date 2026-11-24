@@ -1,7 +1,7 @@
 extends "res://tests/test_case.gd"
 ## Main menu: Continue follows SaveGame.info(), New Game confirms before
-## overwriting, the hand-off through GameLaunch, the one-shot notice, and the
-## Visual Experiments screen.
+## overwriting and asks for the difficulty, the hand-off through GameLaunch,
+## the one-shot notice, and the Visual Experiments screen.
 
 const U := preload("res://tests/ui/ui_test_util.gd")
 const MENU := "res://src/menu/main_menu.tscn"
@@ -29,6 +29,17 @@ func _restore() -> void:
 	SaveGame.path_override = ""
 	GameLaunch.mode = "new"
 	GameLaunch.notice = ""
+	GameLaunch.difficulty = "normal"
+
+
+## Answers the difficulty dialog with the button of `level`.
+func _choose(m: Control, level: String) -> void:
+	var dlg: DifficultyDialog = m.difficulty_dialog()
+	check(dlg.is_open, "the difficulty dialog is open")
+	var b := dlg.find_child("Difficulty_" + level, true, false) as Button
+	if check(b != null, "a %s button" % level):
+		b.pressed.emit()
+	await frames(1)
 
 
 func _write_valid_save() -> Dictionary:
@@ -79,10 +90,12 @@ func test_new_game_confirms_when_a_save_exists() -> void:
 	var changes := []
 	var m := _menu(changes)
 	await frames(2)
-	# no save: straight in
+	# no save: no confirmation, straight to the difficulty
 	m.button("NewGame").pressed.emit()
 	await frames(1)
-	check_eq(changes, [GameLaunch.GAME_SCENE], "no save: no confirmation")
+	check(not m.confirm_dialog().is_open, "no save: no confirmation")
+	await _choose(m, "normal")
+	check_eq(changes, [GameLaunch.GAME_SCENE], "then the game")
 	check_eq(GameLaunch.mode, "new", "mode new")
 	m.queue_free()
 	await frames(2)
@@ -103,8 +116,38 @@ func test_new_game_confirms_when_a_save_exists() -> void:
 	await frames(1)
 	U.find_button(dlg, "Start a new run").pressed.emit()
 	await frames(1)
+	check(changes.is_empty(), "confirmed: the difficulty comes next")
+	await _choose(m2, "hard")
 	check_eq(changes, [GameLaunch.GAME_SCENE], "confirmed: game scene")
 	check_eq(GameLaunch.mode, "new", "mode new")
+	check_eq(GameLaunch.difficulty, "hard", "the chosen difficulty is handed over")
+	_restore()
+
+
+func test_difficulty_choice_lists_three_levels_and_esc_backs_out() -> void:
+	_clear_save()
+	var changes := []
+	var m := _menu(changes)
+	await frames(2)
+	m.button("NewGame").pressed.emit()
+	await frames(2)
+	var dlg: DifficultyDialog = m.difficulty_dialog()
+	check(dlg.is_open and dlg.visible, "New Game asks")
+	var text := U.all_label_text(dlg)
+	for lv in Difficulty.LEVELS:
+		check(dlg.find_child("Difficulty_" + lv, true, false) is Button, "%s button" % lv)
+		check(text.contains(Difficulty.desc_of(lv)), "%s's one-line description" % lv)
+	check(UiTheme.caption_of(dlg.find_child("Difficulty_hard", true, false) as Button).contains("Day 2"), "when the invasions come")
+	check_eq(m.get_viewport().gui_get_focus_owner(), dlg.find_child("Difficulty_normal", true, false), "focus on the last choice (Normal)")
+	U.key(tree, KEY_ESCAPE)
+	await frames(2)
+	check(not dlg.is_open, "Esc backs out")
+	check(changes.is_empty(), "nothing started")
+	m.button("NewGame").pressed.emit()
+	await frames(1)
+	await _choose(m, "easy")
+	check_eq(GameLaunch.difficulty, "easy", "Easy handed over")
+	check_eq(changes, [GameLaunch.GAME_SCENE], "the game starts")
 	_restore()
 
 
