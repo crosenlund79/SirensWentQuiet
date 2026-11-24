@@ -13,8 +13,16 @@ extends Node3D
 ##   --globalfog=x        global volumetric fog density (debug: does volumetric fog render at all?)
 ##   --clock=HH:MM        GameState time of day (screen captures)
 ##   --screen=list|gear|confirm|event|outcome|report   open the expedition screen at that step
+##                        (gear = the plan step: approach, target, gear)
 ##   --dest=id            destination for the screen steps (default grocery)
 ##   --give=id:n,id:n     extra inventory for the screen captures
+##   --approach=id        approach on the plan step (general|targeted|careful|raid)
+##   --target=item        target for targeted collection
+##   --plan=id[:purpose]  the map's planned destination (purpose e.g. careful, targeted:stone)
+##   --discover=all|id,id places known besides the start ones
+##   --stock=id:v,id:v    a place's stock (0..1, set on the current day)
+##   --event=id[,id]      force the expedition's events (event/outcome/report steps)
+##   --difficulty=level   easy|normal|hard
 ##   --pick=i             option picked in every event (outcome/report steps)
 ##   --picks=i,j          option per event
 ##   --seed=n             run seed (default 2026)
@@ -46,6 +54,23 @@ func _ready() -> void:
 		for kv in str(_args["give"]).split(","):
 			var p := kv.split(":")
 			state.inventory.add(p[0], int(p[1]) if p.size() > 1 else 1)
+	if _args.has("difficulty"):
+		state.difficulty = Difficulty.valid(str(_args["difficulty"]))
+	if _args.has("discover"):
+		if str(_args["discover"]) == "all":
+			state.region.discover_all()
+		else:
+			for id in str(_args["discover"]).split(",", false):
+				state.region.discover(id)
+	if _args.has("stock"):
+		for kv in str(_args["stock"]).split(",", false):
+			var p := kv.split(":")
+			state.region.set_stock(p[0], float(p[1]) if p.size() > 1 else 0.5, state.day())
+			state.region.notes[p[0]]["visits"] = maxi(int(state.region.notes[p[0]]["visits"]), 1)
+	if _args.has("plan"):
+		var p := str(_args["plan"]).split(":", true, 1)
+		state.region.discover(p[0])
+		state.region.plan(p[0], p[1] if p.size() > 1 else "general")
 	lighting = VoxelLighting.new()
 	add_child(lighting)
 	world = HouseWorld.new()
@@ -103,19 +128,30 @@ func _process(delta: float) -> void:
 
 func _drive_screen(target: String) -> void:
 	screen.open(state)
-	var dest := str(_args.get("dest", "grocery"))
+	var dest := str(_args.get("dest", screen.selected if screen.preselected_plan else "grocery"))
+	state.region.discover(dest)
+	if not screen.destination_buttons.has(dest):
+		screen.open(state)
 	if target == "list":
 		screen.select_destination(dest)
 		screen.destination_buttons[dest].grab_focus()
 		return
 	screen.select_destination(dest)
 	screen.to_gear()
+	if _args.has("approach"):
+		screen.select_approach(str(_args["approach"]))
+	if _args.has("target"):
+		screen.set_target(str(_args["target"]))
 	if target == "gear":
 		return
 	screen.to_confirm()
 	if target == "confirm":
 		return
 	screen.depart()
+	if _args.has("event") and screen.run != null:
+		screen.run.event_ids.assign(Array(str(_args["event"]).split(",", false)))
+		screen.run.step = 0
+		screen._show_event()
 	if target == "event":
 		return
 	var pick := int(_args.get("pick", "-1"))

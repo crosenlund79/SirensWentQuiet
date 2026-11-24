@@ -65,6 +65,7 @@ var _travel_label: Label
 var _detail_box: VBoxContainer
 var _gear_summary: VBoxContainer
 var _approach_desc: Label
+var _list_scroll: ScrollContainer
 var _tween: Tween
 var _veil_tween: Tween
 var _veil_amount := 0.0
@@ -166,6 +167,8 @@ func select_destination(id: String) -> void:
 	selected = id
 	for k in destination_buttons:
 		_mark(destination_buttons[k], k == id)
+	if _list_scroll != null:
+		_list_scroll.call_deferred("ensure_control_visible", destination_buttons[id])
 	_fill_details()
 
 
@@ -424,6 +427,7 @@ func _begin(title: String, sub := "") -> void:
 	_detail_box = null
 	_gear_summary = null
 	_approach_desc = null
+	_list_scroll = null
 	_panel = UiTheme.make_panel()
 	_panel.custom_minimum_size = Vector2(PANEL_WIDTH, 0)
 	_panel.modulate.a = a
@@ -571,6 +575,7 @@ func _show_list() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.follow_focus = true
 	cols.add_child(scroll)
+	_list_scroll = scroll
 	var list := VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 5)
