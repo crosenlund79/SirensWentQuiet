@@ -17,6 +17,12 @@ var speed_scale := 1.0             ## survival: energy / exhaustion (GameState.m
 ## Experiment 004 storeys (owner L): height of the floor the player stands on
 ## (0 ground floor; the game's level helper sets it when changing storey).
 var floor_y := 0.0
+## Experiment 004: holding Shift ("sprint") runs SPRINT_SCALE faster while
+## moving; the game clears sprint_allowed when energy runs out and drains
+## energy while `sprinting`.
+const SPRINT_SCALE := 1.6
+var sprint_allowed := true
+var sprinting := false
 
 
 func _ready() -> void:
@@ -75,7 +81,9 @@ func _physics_process(delta: float) -> void:
 	var dir := Vector2.ZERO
 	if input_enabled:
 		dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	var want := Vector3(dir.x, 0, dir.y) * Tuning.PLAYER_SPEED * speed_scale
+	sprinting = input_enabled and sprint_allowed and dir != Vector2.ZERO and InputMap.has_action("sprint") \
+			and Input.is_action_pressed("sprint")
+	var want := Vector3(dir.x, 0, dir.y) * Tuning.PLAYER_SPEED * speed_scale * (SPRINT_SCALE if sprinting else 1.0)
 	var v := Vector3(velocity.x, 0, velocity.z)
 	v = v.move_toward(want, Tuning.PLAYER_ACCEL * delta)
 	velocity = v

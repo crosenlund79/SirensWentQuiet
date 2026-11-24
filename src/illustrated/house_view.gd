@@ -13,7 +13,8 @@ const GROUND_PROPS := {"deck": ["floor_deck", 4.0, true], "path": ["ground_concr
 	"road": ["ground_asphalt", 4.0, false], "driveway": ["ground_concrete", 4.0, true], "step": ["ground_concrete", 4.0, true]}
 ## Art name per furniture id or type (default: the type itself).
 const ART_BY_ID := {"rug_living": "rug_living", "rug_bed": "rug_bed", "bath_mat": "bath_mat"}
-const ART_BY_TYPE := {"dryer": "washer", "trash_bin_tipped": "trash_bin", "streetlight_dead": "streetlight"}
+const ART_BY_TYPE := {"dryer": "washer", "trash_bin_tipped": "trash_bin", "streetlight_dead": "streetlight",
+	"pine": "dead_tree"}   # Experiment 004 pines keep this demo's tree art
 ## Canonical (front facing +Y) visual size in meters where it differs from the footprint.
 const VISUAL_SIZE := {"dead_tree": Vector2(4.6, 4.6), "streetlight": Vector2(0.8, 4.4), "car": Vector2(2.3, 4.6)}
 ## Pieces drawn above characters (branches, lamp heads).

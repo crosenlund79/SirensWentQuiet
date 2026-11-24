@@ -8,6 +8,8 @@ extends Node3D
 ##   soft where it meets geometry, tinted by `set_night_amount`.
 ## - Walls: invisible boxes on physics layer 6 (lot_boundary). Only the player
 ##   collides with them; enemies walk in out of the fog.
+## - Look (Experiment 004, northern atmosphere): a cold palette (COLD) and
+##   `set_aurora_tint(a)`, which greens the night bank under the northern lights.
 ## - Interaction: `prompt_text()` is non-empty while the player stands within
 ##   PROMPT_DISTANCE of the edge; the game calls `request_exit()` on interact,
 ##   which emits `exit_requested`. Nothing happens just by walking up to it.
@@ -48,6 +50,15 @@ const VOLUMETRIC := {
 	"volumetric_fog_temporal_reprojection_enabled": true,
 	"volumetric_fog_temporal_reprojection_amount": 0.85,
 }
+
+## Experiment 004: the bank's colours, colder than the shader defaults.
+const COLD := {
+	"day_low": Color(0.5, 0.56, 0.64), "day_high": Color(0.84, 0.88, 0.94),
+	"night_low": Color(0.018, 0.026, 0.055), "night_high": Color(0.15, 0.19, 0.31),
+}
+const AURORA_LOW := Color(0.02, 0.07, 0.06)
+const AURORA_HIGH := Color(0.16, 0.42, 0.34)
+const VOLUME_NIGHT_EMISSION := Color(0.012, 0.018, 0.04)
 
 static var _noise_tex: ImageTexture
 
@@ -166,6 +177,8 @@ func _build_cards() -> void:
 		m.set_shader_parameter("seed_offset", 0.173 * i)
 		m.set_shader_parameter("lane_a", ln[0])
 		m.set_shader_parameter("lane_b", ln[1])
+		for k in COLD:
+			m.set_shader_parameter(k, COLD[k])
 		var mi := MeshInstance3D.new()
 		mi.name = "FogCard%d" % i
 		mi.mesh = mesh
@@ -193,6 +206,7 @@ func _build_volume() -> void:
 	volume_material.set_shader_parameter("lot_rect", Vector4(LOT.position.x, LOT.position.y, LOT.end.x, LOT.end.y))
 	volume_material.set_shader_parameter("lane_a", ln[0])
 	volume_material.set_shader_parameter("lane_b", ln[1])
+	volume_material.set_shader_parameter("emission_night", VOLUME_NIGHT_EMISSION)
 	volume.material = volume_material
 	add_child(volume)
 
@@ -227,6 +241,17 @@ func set_night_amount(t: float) -> void:
 	if environment != null and use_volumetric:
 		# Moonlight scatter: the bank takes up more ambient light at night.
 		environment.volumetric_fog_ambient_inject = lerpf(VOLUMETRIC["volumetric_fog_ambient_inject"], 1.8, night_amount)
+
+
+## Experiment 004: the northern lights in the bank (0 = none .. 1 = strong;
+## the caller scales it by the night amount).
+func set_aurora_tint(a: float) -> void:
+	a = clampf(a, 0.0, 1.0)
+	for m in card_materials:
+		m.set_shader_parameter("night_low", (COLD["night_low"] as Color).lerp(AURORA_LOW, a * 0.6))
+		m.set_shader_parameter("night_high", (COLD["night_high"] as Color).lerp(AURORA_HIGH, a * 0.55))
+	if volume_material != null:
+		volume_material.set_shader_parameter("emission_night", VOLUME_NIGHT_EMISSION.lerp(Color(0.02, 0.07, 0.05), a))
 
 
 func _process(delta: float) -> void:

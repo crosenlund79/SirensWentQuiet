@@ -41,6 +41,13 @@ uniform vec3 section_color : source_color = vec3(0.16, 0.145, 0.13);
 // Candle flames, wax and lantern diffusers: 0 = out, 1 = burning / on.
 instance uniform float lit = 0.0;
 
+// Experiment 004 (northern atmosphere): snow on upward faces outdoors, i.e.
+// outside snow_clear (x0, z0, x1, z1: the house) below snow_roof. 0 = none.
+uniform float snow = 0.0;
+uniform vec3 snow_color : source_color = vec3(0.86, 0.89, 0.93);
+uniform vec4 snow_clear = vec4(-0.3, -0.3, 14.3, 9.3);
+uniform float snow_roof = 2.75;
+
 varying vec3 v_mpos;
 varying vec3 v_mnrm;
 varying vec3 v_wpos;
@@ -293,6 +300,21 @@ void fragment() {
 			col = mix(col, srgb(dust_color), da);
 			rough = mix(rough, 1.0, da);
 			spec *= 1.0 - da * 0.6;
+		}
+		// Snow (Experiment 004): patchy on roads and paths, a full cover elsewhere.
+		if (snow > 0.0 && L != 13 && L != 14) {
+			bool indoors = v_wpos.x > snow_clear.x && v_wpos.x < snow_clear.z && v_wpos.z > snow_clear.y
+					&& v_wpos.z < snow_clear.w && v_wpos.y < snow_roof;
+			if (!indoors) {
+				float up = smoothstep(0.45, 0.9, FRONT_FACING ? wn.y : -wn.y);
+				float sn = vnoise(v_wpos.xz * 2.3) * 0.6 + vnoise(v_wpos.xz * 9.0) * 0.4;
+				float cover = (L == 8 || L == 9 || L == 19) ? smoothstep(0.42, 0.68, sn) * 0.85 : smoothstep(0.18, 0.42, sn);
+				float sa = up * snow * cover;
+				col = mix(col, srgb(snow_color) * (0.94 + 0.08 * sn), sa);
+				rough = mix(rough, 0.9, sa);
+				metal *= 1.0 - sa;
+				spec = mix(spec, 0.3, sa);
+			}
 		}
 		// Gentle contact darkening near the floor (SSAO does the rest).
 		float ao = mix(0.62, 1.0, smoothstep(0.0, 0.3, v_h));

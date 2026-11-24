@@ -128,9 +128,20 @@ const PROPS := [
 	{"id": "driveway", "type": "driveway", "room": "yard", "rect": Rect2(15.5, 8.0, 3.0, 5.5), "facing": "S", "height": 0.02, "blocks": false},
 	{"id": "back_step", "type": "step", "room": "yard", "rect": Rect2(14.15, 5.9, 0.6, 1.2), "facing": "E", "height": 0.15, "blocks": false},
 	{"id": "car", "type": "car", "room": "yard", "rect": Rect2(16.0, 8.5, 2.0, 4.4), "facing": "N", "height": 1.45, "blocks": true},
-	{"id": "tree_1", "type": "dead_tree", "room": "yard", "rect": Rect2(-4.3, 1.2, 0.6, 0.6), "facing": "N", "height": 4.5, "blocks": true},
-	{"id": "tree_2", "type": "dead_tree", "room": "yard", "rect": Rect2(18.2, -3.3, 0.6, 0.6), "facing": "N", "height": 4.0, "blocks": true},
-	{"id": "tree_3", "type": "dead_tree", "room": "yard", "rect": Rect2(-4.8, 11.0, 0.6, 0.6), "facing": "N", "height": 3.5, "blocks": true},
+	# Experiment 004 (northern atmosphere): snow-laden pines along the lot edge
+	# and in the fog band, clear of the spawn points, the paths and the lanes.
+	# More pines stand further out in the fog (visual only: VoxelYard.FOG_PINES).
+	{"id": "tree_1", "type": "pine", "room": "yard", "rect": Rect2(-4.3, 1.2, 0.6, 0.6), "facing": "N", "height": 6.2, "blocks": true},
+	{"id": "tree_2", "type": "pine", "room": "yard", "rect": Rect2(18.2, -3.3, 0.6, 0.6), "facing": "N", "height": 5.6, "blocks": true},
+	{"id": "tree_3", "type": "pine", "room": "yard", "rect": Rect2(-4.8, 11.0, 0.6, 0.6), "facing": "N", "height": 5.2, "blocks": true},
+	{"id": "tree_4", "type": "pine", "room": "yard", "rect": Rect2(-3.5, -4.7, 0.6, 0.6), "facing": "N", "height": 6.8, "blocks": true},
+	{"id": "tree_5", "type": "pine", "room": "yard", "rect": Rect2(6.5, -4.7, 0.6, 0.6), "facing": "N", "height": 7.2, "blocks": true},
+	{"id": "tree_6", "type": "pine", "room": "yard", "rect": Rect2(14.9, -4.9, 0.6, 0.6), "facing": "N", "height": 6.4, "blocks": true},
+	{"id": "tree_7", "type": "pine", "room": "yard", "rect": Rect2(19.6, 0.5, 0.6, 0.6), "facing": "N", "height": 6.0, "blocks": true},
+	{"id": "tree_8", "type": "pine", "room": "yard", "rect": Rect2(19.8, 9.1, 0.6, 0.6), "facing": "N", "height": 5.4, "blocks": true},
+	{"id": "tree_9", "type": "pine", "room": "yard", "rect": Rect2(-6.4, 2.8, 0.6, 0.6), "facing": "N", "height": 6.6, "blocks": true},
+	{"id": "tree_10", "type": "pine", "room": "yard", "rect": Rect2(-6.2, 8.6, 0.6, 0.6), "facing": "N", "height": 5.8, "blocks": true},
+	{"id": "tree_11", "type": "pine", "room": "yard", "rect": Rect2(12.6, -2.7, 0.6, 0.6), "facing": "N", "height": 4.6, "blocks": true},
 	{"id": "trash_bin", "type": "trash_bin_tipped", "room": "yard", "rect": Rect2(15.0, 0.6, 0.9, 0.6), "facing": "E", "height": 0.6, "blocks": true},
 	{"id": "mailbox", "type": "mailbox", "room": "yard", "rect": Rect2(5.6, 12.9, 0.3, 0.3), "facing": "S", "height": 1.2, "blocks": true},
 	{"id": "streetlight", "type": "streetlight_dead", "room": "yard", "rect": Rect2(9.8, 13.2, 0.25, 0.25), "facing": "S", "height": 4.5, "blocks": true},
@@ -143,7 +154,7 @@ const LIGHTS := [
 	{"id": "living_ceiling", "room": "living", "pos": Vector2(5.0, 6.2), "height": 2.5, "kind": "ceiling", "night_on": false, "flicker": false},
 	{"id": "kitchen_hood", "room": "kitchen", "pos": Vector2(12.9, 0.5), "height": 1.6, "kind": "hood", "night_on": true, "flicker": false},
 	{"id": "kitchen_ceiling", "room": "kitchen", "pos": Vector2(11.0, 2.0), "height": 2.5, "kind": "ceiling", "night_on": false, "flicker": false},
-	{"id": "bedside_lamp", "room": "bedroom", "pos": Vector2(3.05, 0.4), "height": 0.8, "kind": "table_lamp", "night_on": true, "flicker": false},
+	{"id": "bedside_lamp", "room": "bedroom", "pos": Vector2(0.92, 0.4), "height": 0.8, "kind": "table_lamp", "night_on": true, "flicker": false},
 	{"id": "bathroom_ceiling", "room": "bathroom", "pos": Vector2(6.5, 2.0), "height": 2.5, "kind": "ceiling", "night_on": true, "flicker": true},
 	{"id": "utility_bulb", "room": "utility", "pos": Vector2(12.0, 6.5), "height": 2.4, "kind": "bare_bulb", "night_on": true, "flicker": false},
 ]

@@ -503,13 +503,13 @@ func _build() -> void:
 	_build_levels_section(box)          # Experiment 004 (L)
 
 	_build_house_section(box)      # Experiment 004
-	_build_exp004_e(box)          # Experiment 004 (E)
+	_build_exp004_e(box)          # Experiment 004 (E): the car and the quick-access bar
+	_build_home_section(box)     # Experiment 004 (H)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
 	box.add_child(_status)
 
-	_build_exp004_e(box)          # Experiment 004 (E): the car and the quick-access bar
 	box.add_child(UiTheme.make_section("Inspect"))
 	_inspect = RichTextLabel.new()
 	_inspect.name = "Inspect"
@@ -635,3 +635,24 @@ func _exp004_e_kit() -> void:
 	for id in ["flashlight", "crowbar", "shovel", "hammer", "medkit", "bandage", "water", "canned_food", "snacks"]:
 		state.inventory.add(id, 1 if Items.is_unique(id) else 2)
 	_say("Bar test kit added")
+
+# --- Experiment 004 (H): the Home section --------------------------------------
+
+## Fireplace, lights, northern lights, night and snow, on the game's `home`
+## helper (src/home/game_home.gd).
+func _build_home_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Home"))
+	box.add_child(_grid(2, [
+		["Toggle fireplace", home_call.bind("dev_toggle_fire", [])], ["Northern lights tonight", home_call.bind("dev_force_aurora", [])],
+		["All lights on", home_call.bind("dev_all_lights", [true])], ["All lights off", home_call.bind("dev_all_lights", [false])],
+		["Time 23:00", home_call.bind("dev_night", [])], ["Snow on/off", home_call.bind("dev_snow", [])],
+	]))
+
+
+## Calls a method on the game's home helper and shows what it returns.
+func home_call(method: String, args: Array) -> void:
+	var h = game.get("home") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no home.%s()" % method, true)
+		return
+	_say(str(h.callv(method, args)))

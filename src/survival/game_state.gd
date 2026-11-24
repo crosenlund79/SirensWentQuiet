@@ -55,6 +55,9 @@ var weapons := {}                               ## owned weapon id -> {"loaded":
 var active_weapon_slot := "primary"             ## the weapon in hand: "primary" | "secondary"
 var region := RegionState.new_region()          ## the world outside the lot (SPEC-003 §3)
 var run := {}
+## Experiment 004 household state (fireplace, light and room switches), owned
+## by the game's home helper (src/home/game_home.gd). Optional in saves.
+var home := {}
 var dead := false
 var death_cause := ""
 ## Newly acquired gear goes into its slot when that slot is free (not saved).
@@ -1009,6 +1012,7 @@ func to_dict() -> Dictionary:
 		"difficulty": difficulty, "equipment": equipment.duplicate(), "weapons": weapons.duplicate(true),
 		"active_weapon": active_weapon_slot, "region": region.to_dict(),
 		"hotbar": hotbar.duplicate(true), "car_repaired": car_repaired,
+		"home": home.duplicate(true),
 	}
 
 
@@ -1061,6 +1065,8 @@ static func from_dict(d) -> GameState:
 	s.region = RegionState.from_dict(d.get("region", {}))
 	s.hotbar = Hotbar.clean(d.get("hotbar"))          # Experiment 004 (E), optional
 	s.car_repaired = _flag(d.get("car_repaired"))
+	var h = d.get("home", {})            # Experiment 004; older saves have none
+	s.home = (h as Dictionary).duplicate(true) if typeof(h) == TYPE_DICTIONARY else {}
 	return s
 
 

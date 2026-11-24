@@ -34,6 +34,7 @@ const Dev := preload("res://src/game/game_dev.gd")
 const GameLevels := preload("res://src/levels/game_levels.gd")   # Experiment 004 storeys (L)
 const HotbarCtl := preload("res://src/game/game_hotbar.gd")   # Experiment 004 (E)
 const CarCtl := preload("res://src/game/game_car.gd")         # Experiment 004 (E)
+const HomeLink := preload("res://src/home/game_home.gd")   # Experiment 004 (H): atmosphere, lights, household
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -58,6 +59,7 @@ var dev: Node                          ## game_dev.gd (Experiment 003 F10 tools)
 var levels: Node                       ## src/levels/game_levels.gd (Experiment 004 storeys, stairs, basement)
 var bar: Node                          ## game_hotbar.gd (Experiment 004, E: the quick-access bar)
 var car: Node                          ## game_car.gd (Experiment 004, E: the yard car)
+var home: Node                         ## src/home/game_home.gd (Experiment 004: fireplace, lights, sink, fridge, sky)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -239,6 +241,11 @@ func _assemble() -> void:
 	car.name = "Car"
 	add_child(car)
 	car.setup(self)
+	# Experiment 004 (H): northern atmosphere, electric lights, household interactions.
+	home = HomeLink.new()
+	home.name = "Home"
+	add_child(home)
+	home.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -529,7 +536,7 @@ func _update_prompt() -> void:
 	var p := ""
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables() + car.interactables()), player.plan_pos())   # + stairs, by storey (L); + the yard car (E)
+		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables() + car.interactables() + home.interactables()), player.plan_pos())   # + stairs, by storey (L); + the yard car (E); + home (H)
 		p = str(_focus.interact_prompt()) if _focus != null else boundary.prompt_text()
 	if p != _prompt:
 		_prompt = p
@@ -934,6 +941,7 @@ func dev_info() -> String:
 		"House: %d voxels missing, %d objects damaged · crates %d" % [int(dmg.get("missing_voxels", 0)), int(dmg.get("damaged_objects", 0)), world.count_objects("crate")],
 		"Save: %s" % (can_save() if can_save() != "" else "allowed"),
 		dev.info(),
+		home.info(),
 	]
 	return "\n".join(lines)
 

@@ -4,6 +4,12 @@ extends Node3D
 ## 0.1 m), voxel props from HousePlan.PROPS with collision boxes, grass tufts,
 ## and a flat voxel roof that dissolves while the player is inside the house
 ## (it keeps casting shadows, so light still enters only through windows and holes).
+##
+## Experiment 004 (northern atmosphere): the survival house's yard (HouseWorld)
+## is snowy: a snow-covered ground image with sparse dry grass poking through,
+## cleared wheel tracks on the road, snow on the roof, fewer and straw-coloured
+## tufts, and pines standing further out in the fog (FOG_PINES, visual only).
+## The Experiment 001 voxel demo keeps its autumn lawn.
 
 const VS := 0.1
 const GROUND_Y := -0.03
@@ -12,8 +18,19 @@ const IMG_SIZE := Vector2(44.0, 36.0)
 const ROOF_ORIGIN := Vector3(-0.65, 2.5, -0.65)
 
 static var _ground_tex: ImageTexture
+static var _snow_tex: ImageTexture
+
+## Pines beyond the yard, in the fog bank (north, west, east; none to the south,
+## where they would stand between the camera and the lot).
+const FOG_PINE_AREAS := [Rect2(-15.0, -17.0, 42.0, 10.0), Rect2(-15.0, -7.0, 7.6, 21.0), Rect2(21.6, -7.0, 8.0, 21.0)]
+const FOG_PINES := 46
+const SNOW := 0xe3e8ee
+const SNOW_SHADE := 0xc2cdda
 
 var demo: Node
+## Snowy yard (Experiment 004). Defaults to on for the survival house (HouseWorld).
+var snow := false
+var fog_pines: Node3D
 ## false: no voxel props (the survival world places PropKit meshes and their
 ## collision itself); ground, grass tufts and the roof stay.
 var voxel_props := true
@@ -32,6 +49,7 @@ var _tuft_state := -1
 
 func _ready() -> void:
 	_rng.seed = 4242
+	snow = snow or demo is HouseWorld
 	_build_ground()
 	prop_mat = demo._surface_material(Vector3.ZERO, VS, true)
 	if voxel_props:
@@ -39,12 +57,16 @@ func _ready() -> void:
 			_build_prop(p)
 	_build_tufts()
 	_build_roof()
+	if snow and not voxel_props:
+		_build_fog_pines()
 
 
 # --- ground ------------------------------------------------------------------------
 
 func _build_ground() -> void:
-	if _ground_tex == null:
+	if snow and _snow_tex == null:
+		_snow_tex = ImageTexture.create_from_image(_snow_image())
+	elif not snow and _ground_tex == null:
 		_ground_tex = ImageTexture.create_from_image(_ground_image())
 	var mi := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
@@ -53,7 +75,9 @@ func _build_ground() -> void:
 	mi.position = Vector3(7, GROUND_Y, 4.5)
 	var m := ShaderMaterial.new()
 	m.shader = load("res://src/voxel/shaders/voxel_ground.gdshader")
-	m.set_shader_parameter("ground_tex", _ground_tex)
+	m.set_shader_parameter("ground_tex", _snow_tex if snow else _ground_tex)
+	m.set_shader_parameter("snow", 1.0 if snow else 0.0)
+	m.set_shader_parameter("snow_color", VoxelArt.to_color(SNOW))
 	m.set_shader_parameter("lawn_tex", AssetResolver.get_texture("voxel/ground", true))
 	m.set_shader_parameter("img_origin", IMG_ORIGIN)
 	m.set_shader_parameter("img_size", IMG_SIZE)
@@ -128,6 +152,75 @@ func _ground_image() -> Image:
 	return img
 
 
+## The snowy ground (Experiment 004): snow with blue hollows and sparkle,
+## dry grass poking through, trodden paths and driveway, two cleared wheel
+## tracks on the road, less snow under the eaves, needle litter under pines.
+func _snow_image() -> Image:
+	var w := int(IMG_SIZE.x / VS)
+	var h := int(IMG_SIZE.y / VS)
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGB8)
+	var road := _rect("road")
+	var drive := _rect("driveway")
+	var path := _rect("front_path")
+	var walk := Rect2(-30, 12.5, 80, 1.0)
+	var house := HousePlan.FOOTPRINT.grow(0.15)
+	var gravel := house.grow(0.35)
+	var noise := FastNoiseLite.new()
+	noise.seed = 77
+	noise.frequency = 0.08
+	var drift := FastNoiseLite.new()
+	drift.seed = 91
+	drift.frequency = 0.22
+	for j in h:
+		for i in w:
+			var p := IMG_ORIGIN + Vector2(i + 0.5, j + 0.5) * VS
+			var hs := VoxelArt.hash3(i, j, 5)
+			var c := VoxelArt.mix(SNOW, SNOW_SHADE, clampf(drift.get_noise_2d(p.x, p.y) * 0.9 + 0.2, 0.0, 0.6))
+			if hs > 0.985:
+				c = 0xf5f8fb
+			if road.has_point(Vector2(5, p.y)):
+				var ly := p.y - road.position.y
+				var track := absf(ly - 0.5) < 0.17 or absf(ly - 1.02) < 0.17
+				if track and VoxelArt.hash3(i, j, 8) > 0.12:
+					c = VoxelArt.mix(VoxelArt.sample("asphalt", i, j), 0x3a3d42, 0.4)     # wet, cleared
+				else:
+					c = VoxelArt.mix(c, 0xb9bec4, 0.35)                                     # grey, trodden
+			elif walk.has_point(p):
+				c = VoxelArt.mix(c, 0xcfd4d9, 0.4)
+			elif drive.has_point(p) or path.has_point(p):
+				var n := noise.get_noise_2d(p.x * 2.0, p.y * 2.0)
+				c = VoxelArt.mix(VoxelArt.sample("paving", i, j), c, clampf(0.55 + n * 0.5, 0.2, 0.95))
+			elif gravel.has_point(p) and not house.has_point(p):
+				c = VoxelArt.mix(VoxelArt.sample("roof", i, j), c, 0.35 + hs * 0.2)       # under the eaves
+			else:
+				var n := noise.get_noise_2d(p.x, p.y)
+				if n > 0.42 and VoxelArt.hash3(i, j, 3) > 0.72:
+					var straw := [0x9c8c5c, 0x7d7448, 0x8a7a4c, 0x6a6440]
+					c = straw[int(VoxelArt.hash3(i, j, 9) * 4.0) % 4]
+				var dx := maxf(maxf(gravel.position.x - p.x, p.x - gravel.end.x), 0.0)
+				var dz := maxf(maxf(gravel.position.y - p.y, p.y - gravel.end.y), 0.0)
+				var d := Vector2(dx, dz).length()
+				if d < 0.6:
+					c = VoxelArt.scale(c, 0.9 + 0.1 * d / 0.6)
+			img.set_pixel(i, j, VoxelArt.to_color(c))
+	# needle litter and thin snow under the pines (a second pass, only near them)
+	for pr in HousePlan.PROPS:
+		if pr["type"] != "pine":
+			continue
+		var t := (pr["rect"] as Rect2).get_center()
+		var r := 1.3
+		for j in range(maxi(int((t.y - r - IMG_ORIGIN.y) / VS), 0), mini(int((t.y + r - IMG_ORIGIN.y) / VS) + 1, h)):
+			for i in range(maxi(int((t.x - r - IMG_ORIGIN.x) / VS), 0), mini(int((t.x + r - IMG_ORIGIN.x) / VS) + 1, w)):
+				var p := IMG_ORIGIN + Vector2(i + 0.5, j + 0.5) * VS
+				var k := 1.0 - p.distance_to(t) / r
+				if k <= 0.0:
+					continue
+				if VoxelArt.hash3(i, j, 12) < k * 0.8:
+					var litter := [0x5e5540, 0x4b4636, 0x6e6450, 0x8a8f86]
+					img.set_pixel(i, j, VoxelArt.to_color(litter[int(VoxelArt.hash3(i, j, 13) * 4.0) % 4]))
+	return img
+
+
 # --- props -------------------------------------------------------------------------
 
 func _build_prop(p: Dictionary) -> void:
@@ -138,6 +231,7 @@ func _build_prop(p: Dictionary) -> void:
 	match t:
 		"car": model = _car(r, h)
 		"dead_tree": model = _tree(r, h)
+		"pine": model = _pine(r, h)
 		"trash_bin_tipped": model = _bin(r)
 		"mailbox": model = _mailbox(r, h)
 		"streetlight_dead": model = _streetlight(r, h)
@@ -153,7 +247,7 @@ func _build_prop(p: Dictionary) -> void:
 		var tall := h >= Tuning.TALL_THRESHOLD
 		var body: StaticBody3D = demo._box_body(r, h, 1 if tall else 1 << 4)
 		var impact := VoxelMat.Impact.METAL
-		if t == "dead_tree":
+		if t == "dead_tree" or t == "pine":
 			impact = VoxelMat.Impact.WOOD
 		elif t == "trash_bin_tipped":
 			impact = VoxelMat.Impact.DUST
@@ -303,6 +397,76 @@ func _tree(r: Rect2, h: float) -> Array:
 	return [g, Vector3(c.x - base.x, GROUND_Y, c.y - base.z)]
 
 
+## A voxel spruce (Experiment 004 plan pines, in the voxel demo's yard).
+func _pine(r: Rect2, h: float) -> Array:
+	var crown := clampf(h * 0.23, 0.7, 1.5)
+	var size := Vector3(crown * 2.0 + 0.2, h + 0.1, crown * 2.0 + 0.2)
+	var g := _grid(size)
+	var cx := size.x * 0.5
+	var cz := size.z * 0.5
+	_fill(g, func(p: Vector3, x: int, y: int, z: int) -> int:
+		var rad := Vector2(p.x - cx, p.z - cz).length()
+		if rad < 0.12 and p.y < h * 0.5:
+			return _e(VoxelMat.BARK, VoxelArt.jitter(0x3b3028, x, y, z, 0.1))
+		if p.y < h * 0.16:
+			return -1
+		# saw-tooth tiers: the radius shrinks up each tier and overall toward the top
+		var k := (p.y - h * 0.16) / (h * 0.84)
+		var tier := fposmod(k * 5.0, 1.0)
+		var rr := crown * (1.0 - k * 0.85) * (1.0 - tier * 0.45)
+		if rad > rr:
+			return -1
+		if tier > 0.55 and rad > rr - 0.25 and VoxelArt.hash3(x, y, z, 6) > 0.3:
+			return _e(VoxelMat.PAINTED, VoxelArt.jitter(SNOW, x, y, z, 0.03))
+		return _e(VoxelMat.LEAF, VoxelArt.jitter(0x24352a, x, y, z, 0.1))
+	)
+	var c := r.get_center()
+	return [g, Vector3(c.x - cx, GROUND_Y, c.y - cz)]
+
+
+## Pines in the fog bank around the yard (Experiment 004): three PropKit
+## variants as MultiMeshes, no collision.
+func _build_fog_pines() -> void:
+	fog_pines = Node3D.new()
+	fog_pines.name = "FogPines"
+	add_child(fog_pines)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5151
+	var per := [[], [], []]
+	var placed: Array[Vector2] = []
+	var tries := 0
+	while placed.size() < FOG_PINES and tries < 2000:
+		tries += 1
+		var a: Rect2 = FOG_PINE_AREAS[rng.randi() % FOG_PINE_AREAS.size()]
+		var q := Vector2(rng.randf_range(a.position.x, a.end.x), rng.randf_range(a.position.y, a.end.y))
+		if HousePlan.YARD.grow(0.3).has_point(q):
+			continue
+		var ok := true
+		for o in placed:
+			if o.distance_to(q) < 2.4:
+				ok = false
+				break
+		if not ok:
+			continue
+		placed.append(q)
+		per[rng.randi() % 3].append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.25)), Vector3(q.x, 0.0, q.y)))
+	for v in 3:
+		var src := PropKit.make("pine", Vector3(0.6, [6.5, 7.5, 5.5][v], 0.6), {"seed": 90 + v})
+		var mesh: Mesh = (src.get_node("Mesh") as MeshInstance3D).mesh
+		src.free()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = per[v].size()
+		for k in per[v].size():
+			mm.set_instance_transform(k, per[v][k])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Pines%d" % v
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		fog_pines.add_child(mmi)
+
+
 func _bin(r: Rect2) -> Array:
 	var size := Vector3(r.size.x + 1.0, 0.7, r.size.y + 0.6)
 	var g := _grid(size)
@@ -394,7 +558,9 @@ func _build_tufts() -> void:
 			avoid.append((p["rect"] as Rect2).grow(0.3))
 	var extra: Array = tuft_avoid
 	var cols := [0x7d7748, 0x6b6a40, 0x8c8152, 0x59613c, 0x947a46]
-	for k in 2600:
+	if snow:
+		cols = [0x9c8c5c, 0x8a7d50, 0xa89a6a, 0x7a7048, 0xb0a070]     # dry straw through the snow
+	for k in (900 if snow else 2600):
 		var pos := Vector2(_rng.randf_range(area.position.x, area.end.x), _rng.randf_range(area.position.y, area.end.y))
 		var skip := false
 		for a in avoid:
@@ -443,16 +609,22 @@ func _build_roof() -> void:
 			var edge := x == xr.x or x == xr.y - 1 or z == zr.x or z == zr.y - 1
 			g.set_voxel(x, 1, z, VoxelMat.WOOD, VoxelArt.jitter(fascia, x, 1, z, 0.04), 0, 0)
 			var top := VoxelArt.sample("roof", x, z)
-			# rain streaks and a dark puddle
-			var pc := Vector2(x - 40, (z - 60) * 1.4).length()
-			if pc < 9.0:
-				top = VoxelArt.mix(top, 0x26282a, 0.6)
+			if snow:
+				# snow, thinner along the edges, with a few wind-scoured patches
+				top = VoxelArt.jitter(VoxelArt.mix(SNOW, SNOW_SHADE, VoxelArt.hash3(x / 6, 0, z / 6, 4) * 0.5), x, 2, z, 0.025)
+				if edge or VoxelArt.hash3(x / 3, 1, z / 3, 7) > 0.93:
+					top = VoxelArt.mix(VoxelArt.sample("roof", x, z), SNOW, 0.45)
+			else:
+				# rain streaks and a dark puddle
+				var pc := Vector2(x - 40, (z - 60) * 1.4).length()
+				if pc < 9.0:
+					top = VoxelArt.mix(top, 0x26282a, 0.6)
 			g.set_voxel(x, 2, z, VoxelMat.STONE, top, 0, 0)
 			if edge:
-				g.set_voxel(x, 3, z, VoxelMat.METAL, VoxelArt.jitter(coping, x, 3, z, 0.03), 0, 0)
+				g.set_voxel(x, 3, z, VoxelMat.METAL, VoxelArt.jitter(SNOW if snow else coping, x, 3, z, 0.03), 0, 0)
 	# A few rooftop details: vent stacks, an AC unit, a skylight frame.
 	_roof_box(g, Vector3(11.2, 2.8, 6.6), Vector3(1.0, 0.6, 0.8), VoxelMat.PAINTED, 0x8e9294)
-	_roof_box(g, Vector3(11.3, 3.4, 6.7), Vector3(0.8, 0.1, 0.6), VoxelMat.METAL, 0x3a3d40)
+	_roof_box(g, Vector3(11.3, 3.4, 6.7), Vector3(0.8, 0.1, 0.6), VoxelMat.METAL, SNOW if snow else 0x3a3d40)
 	for v in [Vector3(6.4, 2.8, 1.6), Vector3(12.6, 2.8, 1.1), Vector3(3.1, 2.8, 2.3)]:
 		_roof_box(g, v, Vector3(0.2, 0.5, 0.2), VoxelMat.METAL, 0x4a4d50)
 	_roof_box(g, Vector3(4.0, 2.8, 5.0), Vector3(2.0, 0.1, 1.2), VoxelMat.METAL, 0x2c2e31)

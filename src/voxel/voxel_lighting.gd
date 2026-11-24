@@ -4,6 +4,12 @@ extends Node3D
 ## the house's practical lights (HousePlan.LIGHTS) and material night uniforms.
 ## Day: overcast late afternoon, fixtures off. Night: moonlit blue, warm
 ## practicals with shadows, flickering bathroom bulb. Tweens over ~0.5 s.
+##
+## Experiment 004 (survival game): `set_northern(true)` swaps in the far-north
+## palette (a pale low sun by day, much darker blue nights), `set_aurora(0..1)`
+## tints the night ambient, moon and fog green toward the northern lights, and
+## `set_electric({light id: bool})` lets the house's switches and fuse box
+## drive each practical directly, day or night (HomeElectrical).
 
 const TWEEN_TIME := 0.5
 
@@ -31,6 +37,10 @@ var _flicker: OmniLight3D
 var _flicker_base := 0.0
 var _t := 0.0
 var _tween: Tween
+var northern := false
+var aurora := 0.0                 ## 0..1, the northern lights' current strength
+var electric := false             ## practicals follow set_electric(), not the night
+var _eflicker: OmniLight3D
 
 const DAY := {
 	"ambient": Color(0.6, 0.64, 0.7), "ambient_energy": 0.95,
@@ -40,6 +50,28 @@ const DAY := {
 	"bg": Color(0.42, 0.45, 0.48), "exposure": 1.0, "glow": 0.25,
 	"saturation": 0.86,
 }
+## Experiment 004: far north. Overcast pale days with a low sun; dark nights.
+const NORTH_DAY := {
+	"ambient": Color(0.6, 0.67, 0.78), "ambient_energy": 0.62,
+	"sun_color": Color(0.93, 0.94, 0.97), "sun_energy": 1.0,
+	"sun_rot": Vector3(-27.0, -62.0, 0.0),
+	"fog": Color(0.64, 0.7, 0.78), "fog_density": 0.008,
+	"bg": Color(0.5, 0.55, 0.6), "exposure": 0.92, "glow": 0.2,
+	"saturation": 0.8,
+}
+const NORTH_NIGHT := {
+	"ambient": Color(0.13, 0.17, 0.3), "ambient_energy": 0.24,
+	"sun_color": Color(0.5, 0.62, 0.95), "sun_energy": 0.16,
+	"sun_rot": Vector3(-52.0, 32.0, 0.0),
+	"fog": Color(0.022, 0.03, 0.055), "fog_density": 0.014,
+	"bg": Color(0.008, 0.012, 0.022), "exposure": 1.0, "glow": 0.75,
+	"saturation": 0.9,
+}
+## What the northern lights push the night toward (scaled by aurora × night).
+const AURORA_AMBIENT := Color(0.16, 0.52, 0.42)
+const AURORA_MOON := Color(0.45, 0.95, 0.75)
+const AURORA_FOG := Color(0.03, 0.12, 0.09)
+
 const NIGHT := {
 	"ambient": Color(0.22, 0.28, 0.45), "ambient_energy": 0.55,
 	"sun_color": Color(0.55, 0.66, 1.0), "sun_energy": 0.42,
@@ -139,33 +171,95 @@ func set_amount(t: float) -> void:
 
 func _apply(t: float) -> void:
 	night_amount = t
+	var D: Dictionary = NORTH_DAY if northern else DAY
+	var N: Dictionary = NORTH_NIGHT if northern else NIGHT
 	var e := environment
-	e.background_color = (DAY["bg"] as Color).lerp(NIGHT["bg"], t)
-	e.ambient_light_color = (DAY["ambient"] as Color).lerp(NIGHT["ambient"], t)
-	e.ambient_light_energy = lerpf(DAY["ambient_energy"], NIGHT["ambient_energy"], t)
-	e.fog_light_color = (DAY["fog"] as Color).lerp(NIGHT["fog"], t)
-	e.fog_density = lerpf(DAY["fog_density"], NIGHT["fog_density"], t)
-	e.tonemap_exposure = lerpf(DAY["exposure"], NIGHT["exposure"], t)
-	e.glow_intensity = lerpf(DAY["glow"], NIGHT["glow"], t)
-	e.adjustment_saturation = lerpf(DAY["saturation"], NIGHT["saturation"], t)
-	sun.light_color = (DAY["sun_color"] as Color).lerp(NIGHT["sun_color"], t)
-	sun.light_energy = lerpf(DAY["sun_energy"], NIGHT["sun_energy"], t)
-	var rd: Vector3 = DAY["sun_rot"]
-	var rn: Vector3 = NIGHT["sun_rot"]
+	e.background_color = (D["bg"] as Color).lerp(N["bg"], t)
+	e.ambient_light_energy = lerpf(D["ambient_energy"], N["ambient_energy"], t)
+	e.fog_density = lerpf(D["fog_density"], N["fog_density"], t)
+	e.tonemap_exposure = lerpf(D["exposure"], N["exposure"], t)
+	e.glow_intensity = lerpf(D["glow"], N["glow"], t)
+	e.adjustment_saturation = lerpf(D["saturation"], N["saturation"], t)
+	sun.light_energy = lerpf(D["sun_energy"], N["sun_energy"], t)
+	var rd: Vector3 = D["sun_rot"]
+	var rn: Vector3 = N["sun_rot"]
 	sun.rotation_degrees = rd.lerp(rn, t) if t > 0.0 and t < 1.0 else (rn if t >= 1.0 else rd)
+	_apply_colors()
 	for o in practicals:
-		var ne: float = o.get_meta("night_energy")
-		o.light_energy = ne * t
-		o.visible = ne > 0.0 and t > 0.01
+		if electric:
+			var ee: float = o.get_meta("electric_energy", 0.0)
+			o.light_energy = ee
+			o.visible = ee > 0.0
+		else:
+			var ne: float = o.get_meta("night_energy")
+			o.light_energy = ne * t
+			o.visible = ne > 0.0 and t > 0.01
 	if _flicker != null:
 		_flicker_base = _flicker.light_energy
+	if _eflicker != null:
+		_flicker_base = _eflicker.light_energy
 	for m in night_materials:
 		m.set_shader_parameter("night", t)
 
 
+## Ambient, moon and fog colours: the palette blend plus the northern lights.
+func _apply_colors() -> void:
+	var t := night_amount
+	var D: Dictionary = NORTH_DAY if northern else DAY
+	var N: Dictionary = NORTH_NIGHT if northern else NIGHT
+	var a := clampf(aurora, 0.0, 1.0) * t
+	var e := environment
+	e.ambient_light_color = (D["ambient"] as Color).lerp(N["ambient"], t).lerp(AURORA_AMBIENT, a * 0.5)
+	e.fog_light_color = (D["fog"] as Color).lerp(N["fog"], t).lerp(AURORA_FOG, a * 0.6)
+	sun.light_color = (D["sun_color"] as Color).lerp(N["sun_color"], t).lerp(AURORA_MOON, a * 0.35)
+
+
+## Experiment 004: the far-north palette (survival game).
+func set_northern(on: bool) -> void:
+	northern = on
+	_apply(night_amount)
+
+
+## Experiment 004: the northern lights' strength now (0..1); only the colours change.
+func set_aurora(strength: float) -> void:
+	strength = clampf(strength, 0.0, 1.0)
+	if absf(strength - aurora) < 0.002:
+		return
+	aurora = strength
+	_apply_colors()
+
+
+## Experiment 004: the house's electric lights by HousePlan.LIGHTS id
+## (true = shining). Switches the practicals to electric mode for good.
+func set_electric(states: Dictionary) -> void:
+	electric = true
+	_eflicker = null
+	for i in practicals.size():
+		var l: Dictionary = HousePlan.LIGHTS[i]
+		var k: Array = KINDS.get(l["kind"], KINDS["ceiling"])
+		var on: bool = states.get(l["id"], false) == true
+		practicals[i].set_meta("electric_energy", k[0] if on else 0.0)
+		if on and l["flicker"]:
+			_eflicker = practicals[i]
+	_flicker = null
+	_apply(night_amount)
+
+
+## Experiment 004: is the practical for light `id` shining (electric mode)?
+func practical_on(id: String) -> bool:
+	for i in practicals.size():
+		if HousePlan.LIGHTS[i]["id"] == id:
+			return practicals[i].visible and practicals[i].light_energy > 0.0
+	return false
+
+
 func _process(delta: float) -> void:
 	_t += delta
-	if _flicker != null and night_amount > 0.0:
+	if _eflicker != null:
+		var s := sin(_t * 23.0) * 0.18 + sin(_t * 7.3 + 1.7) * 0.22 + sin(_t * 61.0) * 0.08
+		var drop := 0.15 if sin(_t * 1.9) + sin(_t * 3.1) > 1.55 else 1.0
+		_eflicker.light_energy = _flicker_base * clampf((0.8 + s) * drop, 0.0, 1.3)
+	elif _flicker != null and night_amount > 0.0:
 		# Unstable bulb: summed sines, with an occasional near-blackout.
 		var s := sin(_t * 23.0) * 0.18 + sin(_t * 7.3 + 1.7) * 0.22 + sin(_t * 61.0) * 0.08
 		var drop := 0.15 if sin(_t * 1.9) + sin(_t * 3.1) > 1.55 else 1.0

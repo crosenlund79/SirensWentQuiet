@@ -28,6 +28,8 @@ static func build(mm: PropMesh, type: String, w: float, h: float, d: float, rng:
 			_car(mm, w, d, h, rng, damage)
 		"dead_tree":
 			_dead_tree(mm, w, d, h, rng)
+		"pine":
+			_pine(mm, w, d, h, rng)
 		"trash_bin_tipped":
 			_trash_bin_tipped(mm, w, d, h, rng)
 		"mailbox":
@@ -220,6 +222,35 @@ static func _dead_tree(mm: PropMesh, w: float, d: float, h: float, rng: RandomNu
 	for k in 4:
 		var a := TAU * k / 4.0 + rng.randf_range(-0.4, 0.4)
 		mm.tube(Vector3(0, 0.14, 0), Vector3(cos(a) * minf(0.6, w + 0.3), 0.02, sin(a) * minf(0.6, w + 0.3)), r * 0.42, r * 0.12, 5)
+
+
+## Experiment 004: a stylised snow-laden spruce. The size is the trunk (like
+## dead_tree); the crown reaches PINE_CROWN_MAX past it (PropKit.OVERHANG).
+## Stacked tiers of dark needles, each with snow lying on its upper slope.
+static func _pine(mm: PropMesh, w: float, d: float, h: float, rng: RandomNumberGenerator) -> void:
+	var r := minf(w, d) * 0.5
+	mm.set_mat(M.L_BARK, Color(0.3, 0.24, 0.2), 0.1)
+	mm.cylinder(Vector3(0, -0.02, 0), r * 0.55, r * 0.3, h * 0.4, 7)
+	var crown := clampf(h * 0.23, 0.7, 1.5)
+	var base_y := h * 0.16
+	var tiers := 5 if h > 4.0 else 4
+	for i in tiers:
+		var f := float(i) / tiers
+		var y0 := lerpf(base_y, h * 0.8, f)
+		var top := minf(y0 + (h - base_y) * 0.36 * (1.0 - f * 0.3), h)
+		var rr := crown * (1.0 - f * 0.74) * rng.randf_range(0.9, 1.0)
+		var o := Vector3(rng.randf_range(-0.04, 0.04), 0.0, rng.randf_range(-0.04, 0.04))
+		mm.set_mat(M.L_FOLIAGE, Color(0.13, 0.2, 0.16).lerp(Color(0.19, 0.27, 0.2), rng.randf()), 0.05)
+		mm.cylinder(o + Vector3(0, y0, 0), rr, rr * 0.1, top - y0, 9, true)
+		# snow on the upper slope of the tier, a little proud of the needles
+		var sy := y0 + (top - y0) * rng.randf_range(0.3, 0.45)
+		var k := (sy - y0) / (top - y0)
+		var rs := lerpf(rr, rr * 0.1, k) + 0.03
+		mm.set_mat(M.L_PLAIN, Color(0.88, 0.9, 0.94))
+		mm.cylinder(o + Vector3(0, sy, 0), rs, rr * 0.1 + 0.012, top - sy + 0.012, 9, false)
+	# a ring of snow over the roots
+	mm.set_mat(M.L_PLAIN, Color(0.86, 0.88, 0.92))
+	mm.cylinder(Vector3(0, -0.02, 0), r * 1.6, r * 0.6, 0.08, 9, true)
 
 
 static func _branch(mm: PropMesh, rng: RandomNumberGenerator, at: Vector3, dir: Vector3, length: float, r: float, depth: int, h: float) -> void:

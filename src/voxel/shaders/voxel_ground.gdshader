@@ -8,6 +8,9 @@ uniform sampler2D lawn_tex : source_color, filter_nearest_mipmap, repeat_enable;
 uniform vec2 img_origin;
 uniform vec2 img_size;
 uniform vec2 lawn_cells = vec2(128.0, 128.0);
+// Experiment 004: beyond the image the lawn swatch turns to snow (1 = snowy).
+uniform float snow = 0.0;
+uniform vec3 snow_color : source_color = vec3(0.89, 0.91, 0.93);
 
 varying vec3 wpos;
 
@@ -23,6 +26,8 @@ void fragment() {
 		c = texture(ground_tex, uv).rgb;
 	} else {
 		c = texture(lawn_tex, wpos.xz / 0.1 / lawn_cells).rgb;
+		float l = dot(c, vec3(0.3, 0.55, 0.15));
+		c = mix(c, snow_color * (0.86 + 0.5 * l), snow);
 		vec2 d = max(max(img_origin - wpos.xz, wpos.xz - (img_origin + img_size)), vec2(0.0));
 		c *= mix(1.0, 0.55, clamp(length(d) / 12.0, 0.0, 1.0));
 	}

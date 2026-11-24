@@ -27,6 +27,7 @@ extends RefCounted
 const Furniture := preload("res://src/props/prop_furniture.gd")
 const Yard := preload("res://src/props/prop_yard.gd")
 const Survival := preload("res://src/props/prop_survival.gd")
+const Home := preload("res://src/props/prop_home.gd")
 
 const FURNITURE_TYPES := [
 	"tv_stand", "sofa", "coffee_table", "rug", "armchair", "floor_lamp", "bookshelf", "dining_table",
@@ -36,10 +37,12 @@ const FURNITURE_TYPES := [
 ]
 const PROP_TYPES := [
 	"deck", "path", "road", "driveway", "step", "car", "dead_tree", "trash_bin_tipped", "mailbox",
-	"streetlight_dead",
+	"streetlight_dead", "pine",
 ]
 const SURVIVAL_TYPES := ["door", "barricade", "crate", "rain_collector", "candle", "lantern", "bush", "wall_ghost",
 	"boards", "fuse_box", "rubble"]   # Experiment 004
+## Experiment 004: electric fixtures, the wall switch and the fireplace (prop_home.gd).
+const HOME_TYPES := ["ceiling_light", "range_hood", "table_lamp", "bare_bulb", "bulb", "light_switch", "fireplace"]
 
 ## Span pieces: the longer horizontal side of `size` is the span.
 const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
@@ -47,7 +50,7 @@ const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
 const FLAT_TYPES := ["rug", "path", "road", "driveway"]
 ## Outdoor pieces weather faster (extra grime).
 const OUTDOOR := ["deck", "path", "road", "driveway", "step", "car", "dead_tree", "trash_bin_tipped",
-		"mailbox", "streetlight_dead", "barricade", "rain_collector", "bush"]
+		"mailbox", "streetlight_dead", "barricade", "rain_collector", "bush", "pine"]
 
 ## Sizes used when a component of `size` is missing (canonical w x h x d:
 ## w across the front, d front to back). Plan types use their HousePlan size.
@@ -71,12 +74,17 @@ const DEFAULT_SIZE := {
 	"road": Vector3(28.0, 0.0, 1.5), "driveway": Vector3(3.0, 0.02, 5.5),
 	"step": Vector3(1.2, 0.15, 0.6), "car": Vector3(2.0, 1.45, 4.4),
 	"dead_tree": Vector3(0.6, 4.5, 0.6), "trash_bin_tipped": Vector3(0.6, 0.6, 0.9),
+	"pine": Vector3(0.6, 6.0, 0.6),
 	"mailbox": Vector3(0.3, 1.2, 0.3), "streetlight_dead": Vector3(0.25, 4.5, 0.25),
 	"door": Vector3(1.0, 2.1, 0.2), "barricade": Vector3(1.0, 2.0, 0.2),
 	"crate": Vector3(0.9, 0.6, 0.6), "rain_collector": Vector3(1.0, 1.6, 1.0),
 	"candle": Vector3(0.2, 0.18, 0.2), "lantern": Vector3(0.2, 0.32, 0.2),
 	"bush": Vector3(1.2, 0.9, 1.0), "wall_ghost": Vector3(1.0, 2.6, 0.2),
 	"boards": Vector3(1.0, 1.3, 0.08), "fuse_box": Vector3(0.5, 0.7, 0.16), "rubble": Vector3(1.0, 0.2, 1.0),
+	"ceiling_light": Vector3(0.42, 0.2, 0.42), "range_hood": Vector3(0.75, 0.55, 0.5),
+	"table_lamp": Vector3(0.26, 0.42, 0.26), "bare_bulb": Vector3(0.12, 0.4, 0.12),
+	"bulb": Vector3(0.1, 0.12, 0.1), "light_switch": Vector3(0.09, 0.13, 0.03),
+	"fireplace": Vector3(1.5, 2.6, 0.55),
 }
 
 ## Documented reach beyond the requested size, in the canonical frame:
@@ -90,6 +98,7 @@ const OVERHANG := {
 	"water_heater": [0.0, 0.36, 0.0, 0.08],         # pipes into the wall
 	"streetlight_dead": [0.15, 0.25, 1.65, 0.15],   # arm over the road
 	"dead_tree": [2.3, 0.3, 2.3, 2.3],              # crown (the size is the trunk)
+	"pine": [1.25, 0.05, 1.25, 1.25],               # crown (the size is the trunk)
 	"car": [0.75, 0.0, 0.05, 0.05],                 # driver door hanging open
 	"trash_bin_tipped": [0.3, 0.0, 0.75, 0.1],      # spilled bags and litter
 	"mailbox": [0.04, 0.08, 0.3, 0.14],             # leaning; box and open lid past the post
@@ -106,6 +115,7 @@ const OVERHANG := {
 	"path": [0.0, 0.03, 0.0, 0.0],
 	"driveway": [0.0, 0.03, 0.0, 0.0],
 	"rug": [0.0, 0.06, 0.0, 0.0],                   # folded corner
+	"fireplace": [0.0, 0.0, 0.3, 0.0],              # the hearth slab in front
 }
 
 const DOOR_SWING := 1.65          ## radians for set_door_open(node, ±1)
@@ -124,11 +134,11 @@ static var _builds := 0
 
 
 static func types() -> PackedStringArray:
-	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES)
+	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES)
 
 
 static func has(type: String) -> bool:
-	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES
+	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES
 
 
 ## Canonical default size (w across the front, h, d front to back).
@@ -379,6 +389,8 @@ static func _parts(type: String, dims: Vector3, damage: float, seed: int, style:
 			done = Yard.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
 		if not done:
 			done = Survival.build(mm, type, dims.x, dims.y, dims.z, rng, damage, style)
+		if not done:
+			done = Home.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
 		if not done or mm.is_empty():
 			mm = _new_mesh("crate", damage)
 			Survival.build(mm, "crate", dims.x, dims.y, dims.z, rng, damage, "")

@@ -30,7 +30,7 @@ static func material_of(type: String) -> String:
 			return "metal"
 		"sofa", "armchair", "bed", "rug":
 			return "fabric"
-		"dead_tree", "deck":
+		"dead_tree", "pine", "deck":
 			return "wood"
 		"path", "driveway", "step", "road":
 			return "ground"
@@ -125,7 +125,7 @@ static func build(item: Dictionary) -> ArrayMesh:
 			_step(mm, w, d, h, rng)
 		"car":
 			_car(mm, w, d, h, rng)
-		"dead_tree":
+		"dead_tree", "pine":     # Experiment 004 pines keep this demo's tree
 			_dead_tree(mm, w, d, h, rng)
 		"trash_bin_tipped":
 			_trash_bin_tipped(mm, w, d, h, rng)
