@@ -100,7 +100,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "Make This House a Home" (Experiment 004)
 
-**Status: Approved by the user's message of 2026-11-24 ("SIRENS — Make This House a Home", execution mode: Rapid Delivery); in progress since 2026-11-24 20:30 CET.** Record: `docs/experiment-004/ASSIGNMENT.md`.
+**Status: Approved by the user's message of 2026-11-24 ("SIRENS — Make This House a Home", execution mode: Rapid Delivery). Delivered 2026-11-24 on the working branch and as the playtest checkpoint `playtest/exp004-house-home`, with a Windows build artifact from GitHub Actions; awaiting the user's playtest.** Record: `docs/experiment-004/ASSIGNMENT.md`; report: `docs/experiment-004/REPORT.md`.
 
 - **Scope (one milestone, as the user bundled it):**
   - destruction lifecycle (intact / damaged / rubble);

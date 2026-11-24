@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 003 — Foundations of Survival**, a vertical slice built on **Experiment 002 — The First Days**. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 004 — Make This House a Home**, built on Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, expand and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -12,7 +12,7 @@ The loop: **wake → assess needs → plan on the map → scavenge → return ho
 2. Open this folder in Godot (`project.godot`) and press **F5**, or run `godot --path .` from here. The first open imports the assets, which takes a minute.
 3. The main menu has New Game, Continue, Settings, Visual Experiments and Quit.
 
-No executable or installer is produced. Exports haven't been approved yet.
+**Windows build:** every push to the working branch (and to `playtest/...` branches) builds `SirensWentQuiet.exe` with GitHub Actions (workflow "Windows build"). Open the run on the repository's Actions tab and download the artifact at the bottom of the page (you need to be signed in to GitHub). Unzip it and run the `.exe`; no install is needed.
 
 ## Playing
 
@@ -32,7 +32,7 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
   - A backpack carries half as much again.
   - A flashlight and a crowbar open places and choices on expeditions.
 - **Weapons:** handgun (9 mm, magazine) and shotgun (shells loaded one by one, a spread of pellets). The shotgun is found while scavenging.
-- **The region map (M, or the map on the dining table):** a voxel miniature of the region with drifting clouds and 24 places in five kinds: homes, food, medical, construction and weapons.
+- **The region map (M, or the map on the dining table):** a voxel miniature of the region with drifting clouds and 25 places in five kinds: homes, food, medical, construction (including the Pine Woods, a wood source near home) and weapons.
   - Places you haven't found show as unknown.
   - Pick a place and a purpose to plan a trip; planning takes no game time.
 - **The fog:** walk to the edge of the lot and press **E**. The expedition screen preselects your plan.
@@ -49,6 +49,16 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
   - The **runner** is fast and looks for an open way in.
   - The **brute** is slow and smashes walls, three strikes per swing.
   - The **suicide bomber** walks to a weak point in your defences and lights a fuse. A HUD alert and a ring on the ground warn you. The blast leaves a lasting breach, so shoot it first.
+- **The house is your progression (Experiment 004):**
+  - **Demolish anything** (B, 9): furniture, original walls, windows, doors and floor tiles give salvage; whatever you built refunds in full. You can clear the house out completely.
+  - **Destruction:** furniture breaks apart under bullets, blows and blasts, then settles as rubble.
+  - **Defences:** board up windows, reinforce doors (wood → reinforced → metal), build metal doors.
+  - **Expand:** lay wooden floors, build stairs and an upper floor (40 planks, 40 nails, 4 iron), and dig a basement with a shovel (25 min and some energy per 1 m cell, +1 stone).
+  - **Electricity:** every room has a wall switch, and some lamps their own switch. Everything electric hangs on the fuse box in the utility room. Switch the mains there, protect it, and rebuild it (B, 6) if it's destroyed; without it the house is dark.
+  - **The fireplace** in the living room burns from the start and doesn't need power.
+  - **The kitchen:** drink at the sink and eat from the fridge, which uses your stored food, while they're intact.
+  - **The car** in the driveway needs a car battery, 2 fuel cans, 10 scrap, 4 iron and 6 nails. Once repaired it can come on expeditions: 1 fuel per trip, shorter travel, much more carried home.
+- **The north:** dark nights, northern lights on most of them, snow and pines. Light matters.
 - **Sleep:** use the bed. Sleep restores energy, still costs food and water, and is cut short when something arrives.
 - **Saving:** the game autosaves after waking, at dawn, after an expedition, after an invasion and after planning on the map. You can also save from the pause menu (Esc). There is one save slot. Experiment 002 saves still load and are upgraded on the spot.
 
@@ -58,11 +68,13 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 |---|---|
 | WASD / arrows | Move |
 | Shift (hold) | Sprint (×1.6 speed; drains energy faster) |
-| Mouse / LMB | Aim / fire |
+| 1–8 | Quick-access bar: take that slot's item in hand (1 and 2 hold your weapons by default) |
+| X | Empty your hands (press again to take the item back) |
+| Mouse / LMB | Aim / use the item in hand: fire a weapon, eat, drink, bandage, toggle the flashlight; the hammer and shovel open build mode |
 | R | Reload |
-| Q / 1 / 2 | Next weapon / primary / secondary |
-| E | Use the bed, a door, a crate, a collector, the workbench or the map table; light or put out the fireplace (relighting costs a plank); a room's wall switch or a lamp; drink at the kitchen sink, eat from the fridge; at the lot edge, head into the fog |
-| I / Tab | Inventory and equipment |
+| Q | Next weapon on the bar |
+| E | Use the bed, a door, a crate, a collector, the workbench, the map table or the fuse box; light or put out the fireplace (relighting costs a plank); a room's wall switch or a lamp; drink at the kitchen sink, eat from the fridge; inspect or repair the car; take the stairs; at the lot edge, head into the fog |
+| I / Tab | Inventory and equipment (1–8 + **Bar** puts an item on the quick-access bar) |
 | M | Region map (Esc or M closes it) |
 | B | Build mode (see below) |
 | Mouse wheel | Zoom |
@@ -71,10 +83,22 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | F3 | FPS line |
 | F10 | Developer (cheat) menu |
 
-**Build mode:**
-- **1** walls, **2** barricades, **3** doors, **4** doorway, **5** storage crate, **6** rain collector / workbench, **7** repair, **8** iron plating, **9** demolish, **0** stone foundation.
-- Press a class's key again to switch its material (wood → stone, wood → iron, collector → workbench).
-- **R** rotates, **RMB** cancels, click-drag for wall runs.
+**Build mode** (press a class's key again to switch its variant):
+
+| Key | Class | Variants |
+|---|---|---|
+| 1 | Walls | wood, stone |
+| 2 | Barricades | wood, iron, window boards (on a window) |
+| 3 | Doors | wood, reinforced, metal |
+| 4 | Doorway | |
+| 5 | Storage | crate |
+| 6 | Equipment | rain collector, workbench, fuse box (only when none exists) |
+| 7 | Repair | |
+| 8 | Reinforce | iron plating; on a door: wood → reinforced → metal |
+| 9 | Demolish | anything: your own pieces refund in full; furniture, original walls, windows, doors and floor tiles give salvage |
+| 0 | Floors & levels | stone foundation, wooden floor, stairs up, stairs down, upper floor, excavate (needs a shovel) |
+
+**R** rotates, **RMB** cancels, click-drag for wall runs.
 
 ### Developer menu (F10)
 
@@ -122,6 +146,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-004/REPORT.md`: the Experiment 004 report (Make This House a Home)
 - `docs/experiment-003/REPORT.md`: the Experiment 003 report (what was built, tests, the playtest, limitations, screenshots)
 - `docs/HANDOFF_EXP004.md`: the state of the code for the next milestone, and what to reuse
 - `docs/experiment-003/`:
