@@ -622,3 +622,14 @@ func test_location_summary_for_every_id() -> void:
 	check_eq(D.parse_purpose("targeted:stone"), {"approach": "targeted", "target": "stone"}, "parse targeted")
 	check_eq(D.parse_purpose("nonsense"), {"approach": "general", "target": ""}, "unknown -> general")
 	check_eq(D.purpose_of("targeted", "iron"), "targeted:iron", "purpose_of")
+
+
+func test_dev_instant_expedition_uses_the_real_resolver() -> void:
+	var s := _state(4, 22 * 60.0)          # 22:00: normally closed
+	check(ExpeditionRun.simulate(s, "military").is_empty(), "closed at night (and no flashlight)")
+	var r := ExpeditionRun.simulate(s, "military", D.default_gear(s, "military"), [], "general", "", true)
+	check(not r.is_empty(), "the developer path ignores the rules")
+	check_eq(r["location"], "military", "to the chosen place")
+	check_eq(ExpeditionRun.simulate(s, "military", D.default_gear(s, "military"), [], "general", "", true), r, "still deterministic")
+	check(ExpeditionRun.simulate(s, "nowhere", {}, [], "general", "", true).is_empty(), "unknown places still refused")
+	check(ExpeditionRun.simulate(s, "homes", {}, [], "nonsense", "", true).is_empty(), "unknown approaches still refused")

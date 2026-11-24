@@ -62,11 +62,15 @@ var _result := {}
 ## always brought). Returns null when the destination or the approach is
 ## unavailable now (or the approach's needs aren't met by the gear brought).
 ## `target` (targeted collection) defaults to the place's first target.
-static func create(state: GameState, destination_id: String, wanted_gear := {}, approach_id := "general", target_id := "") -> ExpeditionRun:
-	if not D.availability(state, destination_id, approach_id)["ok"]:
+## `ignore_rules` (developer tools only): skip the departure window, invasion,
+## requirement and approach checks; the resolver itself is unchanged.
+static func create(state: GameState, destination_id: String, wanted_gear := {}, approach_id := "general", target_id := "", ignore_rules := false) -> ExpeditionRun:
+	if not D.has_destination(destination_id) or not D.APPROACHES.has(approach_id) or state == null:
+		return null
+	if not ignore_rules and not D.availability(state, destination_id, approach_id)["ok"]:
 		return null
 	var g := D.sanitize_gear(state, destination_id, wanted_gear)
-	if not D.approach_state(state, destination_id, approach_id, g)["ok"]:
+	if not ignore_rules and not D.approach_state(state, destination_id, approach_id, g)["ok"]:
 		return null
 	var r := ExpeditionRun.new()
 	r._setup(state, destination_id, g, approach_id, target_id)
@@ -76,8 +80,9 @@ static func create(state: GameState, destination_id: String, wanted_gear := {}, 
 ## Runs a whole expedition with a fixed policy (tests, dev tools):
 ## `picks` gives option indices per event; missing or unavailable entries take
 ## the first available option. Returns the result ({} if unavailable).
-static func simulate(state: GameState, destination_id: String, wanted_gear := {}, picks := [], approach_id := "general", target_id := "") -> Dictionary:
-	var r := create(state, destination_id, wanted_gear, approach_id, target_id)
+## F10's "instant expedition": simulate(state, id, ExpeditionData.default_gear(state, id), [], approach, "", true).
+static func simulate(state: GameState, destination_id: String, wanted_gear := {}, picks := [], approach_id := "general", target_id := "", ignore_rules := false) -> Dictionary:
+	var r := create(state, destination_id, wanted_gear, approach_id, target_id, ignore_rules)
 	if r == null:
 		return {}
 	while not r.is_finished():
