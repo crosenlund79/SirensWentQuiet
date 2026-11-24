@@ -78,9 +78,9 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - the end-to-end survival playtest (`tools/survival_playtest.*`) across a real application restart;
   - screenshots from the game camera.
 
-## Current approved development objective (Experiment 003)
+## Previous objective (Experiment 003)
 
-**Status: Approved 2026-11-24 (queued behind Experiment 002, which was delivered at `4c87cd6`); in progress since 2026-11-24.**
+**Status: Approved 2026-11-24 (queued behind Experiment 002, which was delivered at `4c87cd6`). Integrated and published 2026-11-24 as the playtest checkpoint `playtest/exp003-integrated`** (report: `docs/experiment-003/REPORT.md`; suite 385/385; integrated playtest part 1 15/19, part 2 6/6 across a real restart, with the failures documented). Not merged.
 
 - **User approval:** User message of 2026-11-24, "Queued Assignment — Experiment 003: Foundations of Survival", recorded in `docs/experiment-003/ASSIGNMENT.md`.
 - **Objective (one):** A systems-first vertical slice:
@@ -97,6 +97,21 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - Phase B: one integration agent (game, UI, save v2, playtest).
 - **Out of scope:** structural collapse simulation, multi-floor construction, crafting beyond one scrap → iron example, detailed art, SirenVoxelLibrary assets, exports. No merge to `main`.
 - **Acceptance:** the 20-step vertical slice in `ASSIGNMENT.md` §13, with focused tests, an integrated playthrough and screenshots (especially the city map, enemy behaviours and construction).
+
+## Next approved objective (Experiment 004)
+
+**Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
+
+- **Objective (one, as directed):** a modest three-floor suburban house (basement: workshop, storage, stairs; ground floor: kitchen, living room, hallway, front and rear entrances, stairs; upstairs: two bedrooms, bathroom, landing) with the existing survival, combat, construction, scavenging and save systems working in it; then lightweight room visibility, event-based noise, and a structural overview (four modes, floor selection), with F10 tools for them. The previous house is preserved as an alternative.
+- **Order:** finish 003 → house → visibility → noise → overview → handoff, publishing playtest branches at playable stages. No Experiment 005.
+- **Out of scope:** observation holes, sound-wave or per-voxel acoustics, a second simulation for the overview, a continuously rendered minimap, redesigning the invasion director, exports, merges to `main`.
+- **Handoff:** `docs/HANDOFF_EXP004.md`.
+
+## Workflow decisions (user, 2026-11-24)
+
+- **Playtest checkpoints:** at each meaningful playable milestone, push a stable branch `playtest/<milestone>` and keep developing elsewhere. Never commit to, force-push or rewrite a published checkpoint. The user's directive explicitly allows these branches beyond the three-branch guideline.
+- **Human playtesting first:** brief smoke verification (import, relevant tests, a short launch check) instead of long or repeated automated playthroughs; minor defects are recorded for the user's playtest.
+- **Repository boundary:** this project's sessions work only on `crosenlund79/SirensWentQuiet`. The SirenVoxelLibrary Asset Foundry directive was sent here by mistake and is revoked for these sessions; its assets aren't imported.
 
 ## Proposals awaiting user approval
 
