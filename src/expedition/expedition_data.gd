@@ -57,15 +57,21 @@ extends RefCounted
 
 const T := preload("res://src/survival/survival_tuning.gd")
 
-## Gear that can be taken along (the hammer stays home: building needs it).
+## Gear that can be taken along: what is equipped (K's slots). The hammer
+## stays home (building needs it).
 const BRINGABLE_GEAR := ["crowbar", "flashlight", "backpack", "vest"]
 const BRINGABLE_TOOLS := BRINGABLE_GEAR       ## Experiment 002 name
+## Worn gear always comes along when equipped (it can't be left on the hook
+## for one trip); the crowbar and flashlight can be left at home so they
+## can't be lost.
+const WORN_GEAR := ["vest", "backpack"]
 ## Ammunition -> the weapon that fires it (SPEC-003 §2). Rounds only count
-## when you own that weapon (in the inventory or equipped).
+## when that weapon is equipped (reserve + magazines, GameState.rounds_carried).
 const AMMO_TYPES := {"ammo": "handgun", "shells": "shotgun"}
 const SHELL_SHOTS := 2               ## a shell is worth two 9 mm rounds in a simulated fight
-const BACKPACK_BONUS := 0.5          ## +50 % on stackable loot
-const VEST_DAMAGE := 0.65            ## injuries in fights with the vest (SPEC-003 §2: -35 %)
+const BACKPACK_BONUS := 0.5          ## fallback when the state has no carry_multiplier(): +50 % on stackable loot
+## The vest's -35 % on injuries is applied by GameState.damage when the result
+## is applied (K); the resolver only uses the vest for risk and options.
 const MAX_DAMAGE := 40.0             ## health one expedition can cost at most (default)
 const MIN_MINUTES := 60
 const TRAVEL_JITTER := Vector2i(-15, 15)
@@ -852,23 +858,42 @@ static func can_lose(dest_id: String, tool: String) -> bool:
 	return false
 
 
-## Unique items (cap 1): tools, weapons, the vest.
+## Unique items (gear, one of each): tools, utility gear, weapons, the vest.
 static func is_unique(item: String) -> bool:
-	return Items.has(item) and int(Items.DEFS[item].get("cap", 0)) == 1
+	return Items.is_unique(item)
 
 
 # --- ownership (inventory, equipment, magazines) -------------------------------------------
 
-## Owned: in the inventory or equipped (K's equipment, when present).
+## Owned: in the inventory (equipped gear stays in the inventory), or
+## equipped where a state keeps it elsewhere.
 static func owns(state: GameState, item: String) -> bool:
 	if state == null:
 		return false
 	if state.inventory.count(item) > 0:
 		return true
-	if state.has_method("has_equipped") and bool(state.call("has_equipped", item)):
-		return true
+	if state.has_method("has_equipped"):
+		return bool(state.call("has_equipped", item))
 	var eq = state.get("equipment")
 	return typeof(eq) == TYPE_DICTIONARY and item in (eq as Dictionary).values()
+
+
+## Gear a trip can take: equipped (K's slots); owned where a state has no
+## equipment system.
+static func can_bring(state: GameState, item: String) -> bool:
+	if state == null:
+		return false
+	if state.has_method("has_equipped"):
+		return bool(state.call("has_equipped", item))
+	return owns(state, item)
+
+
+## Loot multiplier of a brought backpack: GameState.carry_multiplier() (K), or
+## 1 + BACKPACK_BONUS.
+static func carry_multiplier(state: GameState) -> float:
+	if state != null and state.has_method("carry_multiplier"):
+		return maxf(float(state.call("carry_multiplier")), 1.0)
+	return 1.0 + BACKPACK_BONUS
 
 
 ## Rounds in a weapon's magazine (GameState.weapons[weapon].loaded), 0 if unknown.
@@ -885,10 +910,13 @@ static func loaded_rounds(state: GameState, weapon: String) -> int:
 
 
 ## Rounds of an ammunition type you can bring: the reserve in the inventory
-## plus the weapon's magazine, and only if you own the weapon that fires them.
+## plus the magazines (GameState.rounds_carried), and only if the weapon that
+## fires them is equipped.
 static func rounds_owned(state: GameState, ammo_id: String) -> int:
-	if state == null or not AMMO_TYPES.has(ammo_id) or not owns(state, AMMO_TYPES[ammo_id]):
+	if state == null or not AMMO_TYPES.has(ammo_id) or not can_bring(state, AMMO_TYPES[ammo_id]):
 		return 0
+	if state.has_method("rounds_carried"):
+		return maxi(int(state.call("rounds_carried", ammo_id)), 0)
 	return state.inventory.count(ammo_id) + loaded_rounds(state, AMMO_TYPES[ammo_id])
 
 
@@ -1032,8 +1060,11 @@ static func availability(state: GameState, dest_id: String, approach := "general
 	if back > T.EXPEDITION_RETURN_BY:
 		return {"ok": false, "reason": "You'd be coming back in the dark (around %s). Leave by %s." % [clock(back), clock(T.EXPEDITION_RETURN_BY - mins)]}
 	for id in d.get("requires", []):
-		if not owns(state, id):
-			return {"ok": false, "reason": ("Needs a %s. %s" % [Items.name_of(id).to_lower(), d.get("requires_text", "")]).strip_edges()}
+		if not can_bring(state, id):
+			var nm := Items.name_of(id).to_lower()
+			if owns(state, id):
+				return {"ok": false, "reason": "Needs a %s. Equip yours first." % nm}
+			return {"ok": false, "reason": ("Needs a %s. %s" % [nm, d.get("requires_text", "")]).strip_edges()}
 	var need := int(approach_def(approach).get("needs_shots", 0))
 	if need > 0 and rounds_owned(state, "ammo") + SHELL_SHOTS * rounds_owned(state, "shells") < need:
 		return {"ok": false, "reason": "A raid needs a loaded weapon: %s." % shots_text(need)}
@@ -1059,8 +1090,8 @@ static func shots_text(n: int) -> String:
 	return "%d round%s (or %d shell%s)" % [n, "" if n == 1 else "s", shells, "" if shells == 1 else "s"]
 
 
-## Clamps a gear request to what the player owns; required gear is always
-## brought. Always has "ammo" and "shells" (rounds, 0..owned).
+## Clamps a gear request to what the player has equipped; required and worn
+## gear is always brought. Always has "ammo" and "shells" (rounds, 0..carried).
 static func sanitize_gear(state: GameState, dest_id: String, gear: Dictionary) -> Dictionary:
 	var out := {}
 	for a in AMMO_TYPES:
@@ -1069,12 +1100,12 @@ static func sanitize_gear(state: GameState, dest_id: String, gear: Dictionary) -
 	var req: Array = destination(dest_id).get("requires", [])
 	for id in BRINGABLE_GEAR:
 		var want = gear.get(id, 0)
-		if owns(state, id) and ((typeof(want) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and int(want) > 0) or id in req):
+		if can_bring(state, id) and ((typeof(want) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and int(want) > 0) or id in req or id in WORN_GEAR):
 			out[id] = 1
 	return out
 
 
-## The gear the screen suggests: everything owned, and up to DEFAULT_ROUNDS /
+## The gear the screen suggests: everything equipped, and up to DEFAULT_ROUNDS /
 ## DEFAULT_SHELLS rounds.
 static func default_gear(state: GameState, dest_id: String) -> Dictionary:
 	var g := {"ammo": mini(rounds_owned(state, "ammo"), DEFAULT_ROUNDS), "shells": mini(rounds_owned(state, "shells"), DEFAULT_SHELLS)}
@@ -1104,9 +1135,9 @@ static func gear_effect(id: String, dest_id: String) -> String:
 		"flashlight":
 			return ("Required here. " if "flashlight" in req else "") + "Halves the risk of injury in dark places." + (" Lowers the risk here." if p.has("flashlight") else "") + (" It can be lost here." if can_lose(dest_id, id) else "")
 		"backpack":
-			return "+50 % on everything you carry back."
+			return "Worn: +%d %% on everything you carry back." % int(round((Equipment.BACKPACK_CARRY - 1.0) * 100.0))
 		"vest":
-			return "Injuries in fights -35 %." + (" Sharply lowers the risk here." if p.has("vest") else "")
+			return "Worn: injuries -35 %." + (" Sharply lowers the risk here." if p.has("vest") else "")
 	return ""
 
 
@@ -1219,7 +1250,7 @@ static func location_summary(id: String, state: GameState) -> Dictionary:
 	var eq := []
 	for g in relevant_equipment(id):
 		eq.append({"id": g, "name": Items.name_of(g), "effect": gear_effect(g, id), "have": owns(s, g),
-			"required": g in d.get("requires", [])})
+			"equipped": can_bring(s, g), "required": g in d.get("requires", [])})
 	var av_now := availability(s, id, "general")
 	var stock := stock_now(s, id)
 	return {

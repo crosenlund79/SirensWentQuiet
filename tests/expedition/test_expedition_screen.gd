@@ -43,6 +43,7 @@ func test_turn_back_emits_cancelled_once() -> void:
 func test_full_flow_emits_finished_once_and_never_mutates_state() -> void:
 	var s := _state()
 	s.inventory.add("backpack", 1)
+	s.inventory.add("crowbar", 1)
 	var before := s.to_dict()
 	var sc := _screen()
 	var got := []
@@ -55,11 +56,12 @@ func test_full_flow_emits_finished_once_and_never_mutates_state() -> void:
 	check(sc.ammo_slider != null and sc.ammo_slider.max_value == 9, "rounds 0..owned")
 	sc.ammo_slider.value = 3
 	check_eq(sc.brought_gear()["ammo"], 3, "slider sets the rounds")
-	check(sc.tool_boxes["backpack"].button_pressed and not sc.tool_boxes["backpack"].disabled, "owned backpack offered and ticked")
-	check(sc.tool_boxes["crowbar"].disabled, "a tool you don't own can't be ticked")
-	sc.tool_boxes["backpack"].button_pressed = false
-	check(not sc.brought_gear().has("backpack"), "unticking leaves it home")
-	sc.tool_boxes["backpack"].button_pressed = true
+	check(sc.tool_boxes["backpack"].button_pressed and sc.tool_boxes["backpack"].disabled, "the equipped backpack is worn")
+	check(sc.tool_boxes["crowbar"].button_pressed and not sc.tool_boxes["crowbar"].disabled, "the equipped crowbar offered and ticked")
+	check(sc.tool_boxes["flashlight"].disabled, "gear you don't have can't be ticked")
+	sc.tool_boxes["crowbar"].button_pressed = false
+	check(not sc.brought_gear().has("crowbar"), "unticking leaves it home")
+	sc.tool_boxes["crowbar"].button_pressed = true
 	sc.primary_button.pressed.emit()
 	check_eq(sc.step, "confirm", "confirm step")
 	sc.primary_button.pressed.emit()
@@ -86,7 +88,7 @@ func test_full_flow_emits_finished_once_and_never_mutates_state() -> void:
 		check_eq(r["brought"].get("ammo", 0), 3, "brought what was chosen")
 		for k in ["id", "name", "minutes", "gained", "consumed", "lost", "left_behind", "damage", "events", "summary"]:
 			check(r.has(k), "result has %s" % k)
-		check_eq(r, ExpeditionRun.simulate(s, "homes", {"ammo": 3, "backpack": 1}, sc.run.choices), "same result as the resolver for the same choices")
+		check_eq(r, ExpeditionRun.simulate(s, "homes", {"ammo": 3, "backpack": 1, "crowbar": 1}, sc.run.choices), "same result as the resolver for the same choices")
 		var n := s.apply_expedition(r)
 		check(typeof(n) == TYPE_ARRAY, "the game can apply it")
 		check_eq(int(s.run["expeditions"]), 1, "applied once")
@@ -233,6 +235,7 @@ func test_planned_destination_and_purpose_are_preselected() -> void:
 func test_plan_step_approaches_and_gear() -> void:
 	var s := _state()
 	s.inventory.counts.erase("ammo")
+	s.set_magazine("handgun", 0)
 	var sc := _screen()
 	sc.open(s)
 	sc.select_destination("grocery")
@@ -256,6 +259,7 @@ func test_plan_step_approaches_and_gear() -> void:
 	var s2 := _state()
 	s2.inventory.add("shotgun", 1)
 	s2.inventory.add("shells", 4)
+	check(s2.has_equipped("shotgun"), "the found shotgun is equipped")
 	var sc2 := _screen()
 	sc2.open(s2)
 	sc2.select_destination("grocery")

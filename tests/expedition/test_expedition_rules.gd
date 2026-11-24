@@ -28,6 +28,9 @@ func _random_state(rng: RandomNumberGenerator) -> GameState:
 				n = 1
 			if n > 0:
 				s.inventory.counts[id] = n
+	for id in Items.DEFS:
+		if D.is_unique(id) and s.inventory.count(id) > 0 and rng.randf() < 0.8:
+			s.equip(id)
 	return s
 
 
@@ -304,7 +307,9 @@ func test_backpack_and_caps() -> void:
 		for k in 2:
 			var s := _state(seed)
 			s.inventory.add("backpack", 1)
-			var r := ExpeditionRun.simulate(s, "grocery", {"backpack": k})
+			if k == 0:
+				s.unequip("back")
+			var r := ExpeditionRun.simulate(s, "grocery", {})
 			var n := 0
 			for id in r["gained"]:
 				n += r["gained"][id]

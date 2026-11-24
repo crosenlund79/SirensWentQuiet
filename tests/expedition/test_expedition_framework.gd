@@ -9,15 +9,6 @@ const D := preload("res://src/expedition/expedition_data.gd")
 const STATS_SEEDS := 160
 
 
-## A state that can use `has_equipped` (K's equipment API) without K's code:
-## equipped items live outside the inventory here.
-class EquippedState extends GameState:
-	var worn := {}
-
-	func has_equipped(id) -> bool:
-		return str(id) in worn.values()
-
-
 func _state(seed := 11, minute := 7 * 60.0, day := 1) -> GameState:
 	var s := GameState.new_run(seed)
 	s.total_minutes = (day - 1) * 1440.0 + minute
@@ -25,6 +16,17 @@ func _state(seed := 11, minute := 7 * 60.0, day := 1) -> GameState:
 	return s
 
 
+## No rounds at all: no reserve and empty magazines.
+func _no_rounds(s: GameState) -> GameState:
+	s.inventory.counts.erase("ammo")
+	s.inventory.counts.erase("shells")
+	for w in ["handgun", "shotgun"]:
+		if s.inventory.count(w) > 0:
+			s.set_magazine(w, 0)
+	return s
+
+
+## Every piece of gear, equipped (found gear auto-equips), with rounds.
 func _kit(s: GameState, rounds := 12) -> GameState:
 	for id in ["crowbar", "flashlight", "backpack", "vest", "shotgun"]:
 		s.inventory.add(id, 1)
@@ -127,8 +129,11 @@ func _random_state(rng: RandomNumberGenerator) -> GameState:
 			var n := rng.randi_range(0, 30) if c == 0 else rng.randi_range(maxi(c - 6, 0), c)
 			if n > 0:
 				s.inventory.counts[id] = n
-	if rng.randf() < 0.3:
-		s.weapons = {"handgun": {"loaded": rng.randi_range(0, 12)}}
+	for id in Items.DEFS:
+		if D.is_unique(id) and s.inventory.count(id) > 0 and rng.randf() < 0.8:
+			s.equip(id)
+	if rng.randf() < 0.5 and s.inventory.count("handgun") > 0:
+		s.set_magazine("handgun", rng.randi_range(0, 12))
 	for id in RegionLocations.ids():
 		if rng.randf() < 0.4:
 			s.region.discover(id)
@@ -338,35 +343,44 @@ func _avg(loc: String, gear: Dictionary, prep: Callable, field := "damage", pick
 
 func test_equipment_effects_when_owned() -> void:
 	var own := func(s: GameState): _kit(s)
-	# backpack: more loot
-	var with_bp := _avg("grocery", {"backpack": 1}, own, "loot")
-	var without := _avg("grocery", {}, own, "loot")
-	check(with_bp > without * 1.3, "backpack carries more (%.1f vs %.1f)" % [with_bp, without])
+	# backpack (worn when equipped): carry_multiplier
+	var with_bp := _avg("grocery", {}, own, "loot")
+	var without := _avg("grocery", {}, func(s: GameState):
+		_kit(s)
+		s.unequip("back"), "loot")
+	check(with_bp > without * 1.3, "an equipped backpack carries more (%.1f vs %.1f)" % [with_bp, without])
 	# crowbar: the locked table
 	var with_cb := _avg("hardware", {"crowbar": 1}, own, "loot", [2, 2])
 	var no_cb := _avg("hardware", {}, own, "loot", [2, 2])
 	check(with_cb > no_cb * 1.3, "crowbar opens the stockroom (%.1f vs %.1f)" % [with_cb, no_cb])
-	# vest: fewer injuries in fights (walking through the dogs, no rounds)
-	var hurt_vest := 0.0
-	var hurt_bare := 0.0
+	# vest: the injury is the same (no double count); GameState.damage takes 35 % off
+	var taken_vest := 0.0
+	var taken_bare := 0.0
 	for seed in range(1, STATS_SEEDS):
+		var dmg := []
 		for k in 2:
 			var s := _kit(_state(seed))
-			var r := ExpeditionRun.create(s, "homes", {"vest": k})
+			if k == 0:
+				s.unequip("body")
+			var r := ExpeditionRun.create(s, "homes", {})
 			r.event_ids.assign(["dogs"])
 			r.step = 0
 			r.choose(2)
+			var res := r.result()
+			dmg.append(res["damage"])
+			var rep := s.apply_expedition_report(res)
 			if k == 1:
-				hurt_vest += r.result()["damage"]
+				taken_vest += float(rep.get("damage_taken", 0.0))
 			else:
-				hurt_bare += r.result()["damage"]
-	check(hurt_vest < hurt_bare * 0.75 and hurt_vest > 0.0, "the vest takes the edge off (%.0f vs %.0f)" % [hurt_vest, hurt_bare])
+				taken_bare += float(rep.get("damage_taken", 0.0))
+		check_eq(dmg[0], dmg[1], "the resolver doesn't apply the vest a second time")
+	check(taken_vest < taken_bare * 0.75 and taken_vest > 0.0, "the vest takes the edge off the health lost (%.0f vs %.0f)" % [taken_vest, taken_bare])
 	# flashlight: fewer falls in dark places; required at the clinic and the outpost
 	var dark := [0, 0]
 	for seed in range(1, STATS_SEEDS):
 		for k in 2:
 			var s := _kit(_state(seed))
-			var r := ExpeditionRun.create(s, "homes", {"flashlight": k})
+			var r := ExpeditionRun.create(s, "homes", {"flashlight": k})   # 0: left at home
 			r.event_ids.assign(["collapsed_floor"])
 			r.step = 0
 			r.choose(1)
@@ -378,39 +392,57 @@ func test_equipment_effects_when_owned() -> void:
 	check(D.danger_for(s, "grocery", D.default_gear(s, "grocery")) < D.danger_for(s, "grocery", {}), "gear lowers the shown risk")
 
 
-func test_equipment_counts_when_equipped() -> void:
-	var s := EquippedState.new()
-	s.total_minutes = 8 * 60.0
-	s.worn = {"body": "vest", "utility": "flashlight", "primary": "handgun"}
-	check(D.owns(s, "vest") and D.owns(s, "flashlight"), "has_equipped counts as owned")
-	check_eq(s.inventory.count("vest"), 0, "(not in the inventory)")
-	check(D.availability(s, "clinic")["ok"], "an equipped flashlight opens the clinic")
-	var g := D.sanitize_gear(s, "homes", {"vest": 1})
-	check_eq(g.get("vest", 0), 1, "the equipped vest can be brought")
-	s.weapons = {"handgun": {"loaded": 9}}
-	check_eq(D.rounds_owned(s, "ammo"), 9, "rounds in the magazine count")
-	s.inventory.add("ammo", 3)
-	check_eq(D.rounds_owned(s, "ammo"), 12, "reserve plus magazine")
-	check_eq(D.rounds_owned(s, "shells"), 0, "no shotgun, no shells")
-	var r := ExpeditionRun.simulate(s, "homes", {"ammo": 12, "vest": 1})
-	check(not r.get("gained", {}).has("vest"), "an equipped vest is never found again")
-	# the foundation's equipment dictionary also counts
+func test_gear_counts_when_equipped() -> void:
+	var s := _state()
+	s.inventory.add("vest", 1)
+	s.inventory.add("flashlight", 1)
+	s.inventory.add("crowbar", 1)
+	check(s.has_equipped("vest") and s.has_equipped("flashlight"), "found gear auto-equips (K)")
+	check(D.can_bring(s, "vest") and D.availability(s, "clinic")["ok"], "an equipped flashlight opens the clinic")
+	check_eq(D.sanitize_gear(s, "homes", {}).get("vest", 0), 1, "worn gear always comes along")
+	check_eq(D.sanitize_gear(s, "homes", {}).get("crowbar", 0), 0, "a tool can be left at home")
+	check_eq(D.sanitize_gear(s, "homes", {"crowbar": 1}).get("crowbar", 0), 1, "or brought")
+	s.unequip(s.slot_of("flashlight"))
+	check(D.owns(s, "flashlight") and not D.can_bring(s, "flashlight"), "owned but not equipped")
+	var av := D.availability(s, "clinic")
+	check(not av["ok"] and av["reason"].contains("Equip"), "the clinic asks to equip it (%s)" % av["reason"])
+	check_eq(D.sanitize_gear(s, "homes", {"flashlight": 1}).get("flashlight", 0), 0, "unequipped gear stays home")
+	var r := ExpeditionRun.create(s, "homes", {})
+	r.event_ids.assign(["fog_bank"])
+	r.step = 0
+	check(r.option_state(2)["reason"].contains("isn't equipped"), "options say so (%s)" % r.option_state(2)["reason"])
+	# rounds: the magazine and the reserve, for an equipped weapon
 	var t := _state()
-	t.equipment = {"back": "backpack"}
-	check(D.owns(t, "backpack"), "GameState.equipment counts as owned")
-	check_eq(D.sanitize_gear(t, "homes", {"backpack": 1}).get("backpack", 0), 1, "and can be brought")
-	# no handgun: rounds can't be brought
-	var u := GameState.new_run(1)
-	u.total_minutes = 8 * 60.0
-	check_eq(D.rounds_owned(u, "ammo"), 0, "no weapon, no rounds")
-	check_eq(D.sanitize_gear(u, "homes", {"ammo": 5})["ammo"], 0, "rounds clamped to 0 without a handgun")
+	check_eq(D.rounds_owned(t, "ammo"), t.rounds_carried("ammo"), "rounds from GameState.rounds_carried")
+	check(D.rounds_owned(t, "ammo") > 0 and t.inventory.count("ammo") == 0, "the starting rounds sit in the magazine (%d)" % D.rounds_owned(t, "ammo"))
+	var mag := D.rounds_owned(t, "ammo")
+	t.inventory.add("ammo", 3)
+	check_eq(D.rounds_owned(t, "ammo"), mag + 3, "reserve plus magazine")
+	check_eq(D.rounds_owned(t, "shells"), 0, "no shotgun, no shells")
+	t.inventory.add("shells", 4)
+	check_eq(D.rounds_owned(t, "shells"), 0, "shells without a shotgun don't count")
+	var spent := ExpeditionRun.create(t, "homes", {"ammo": mag + 3})
+	spent.event_ids.assign(["lone_psycho"])
+	spent.step = 0
+	spent.choose(0)
+	var res := spent.result()
+	check(int(res["consumed"].get("ammo", 0)) >= 2, "rounds used")
+	var before := t.rounds_carried("ammo")
+	t.apply_expedition(res)
+	check_eq(t.rounds_carried("ammo"), before - int(res["consumed"]["ammo"]), "spent from the reserve and the magazine (K)")
+	t.unequip("primary")
+	check_eq(D.rounds_owned(t, "ammo"), 0, "an unequipped handgun brings no rounds")
+	var found := 0
+	for seed in range(1, 60):
+		var u := _kit(_state(seed))
+		found += 1 if ExpeditionRun.simulate(u, "police", D.default_gear(u, "police"), [], "general", "", true).get("gained", {}).has("vest") else 0
+	check_eq(found, 0, "an owned vest is never found again")
 
 
 func test_shells_fire_and_are_consumed() -> void:
-	var s := _state()
+	var s := _no_rounds(_state())
 	s.inventory.add("shotgun", 1)
 	s.inventory.add("shells", 3)
-	s.inventory.counts.erase("ammo")
 	var r := ExpeditionRun.create(s, "homes", {"shells": 3})
 	r.event_ids.assign(["lone_psycho"])
 	r.step = 0
@@ -418,8 +450,7 @@ func test_shells_fire_and_are_consumed() -> void:
 	var out := r.choose(0)
 	check_eq(out["shells"], 1, "one shell used")
 	check_eq(r.result()["consumed"].get("shells", 0), 1, "consumed as shells")
-	var t := _state()
-	t.inventory.counts.erase("ammo")
+	var t := _no_rounds(_state())
 	var r2 := ExpeditionRun.create(t, "homes", {})
 	r2.event_ids.assign(["lone_psycho"])
 	r2.step = 0
@@ -429,8 +460,7 @@ func test_shells_fire_and_are_consumed() -> void:
 # --- dangerous places ---------------------------------------------------------------------------
 
 func test_outpost_demands_preparation() -> void:
-	var s := _state()
-	s.inventory.counts.erase("ammo")      # unprepared: no rounds, no vest
+	var s := _no_rounds(_state())         # unprepared: no rounds, no vest
 	var av := D.availability(s, "military")
 	check(not av["ok"] and av["reason"].contains("flashlight"), "no flashlight, no outpost (%s)" % av["reason"])
 	s.inventory.add("flashlight", 1)
@@ -459,11 +489,10 @@ func test_outpost_demands_preparation() -> void:
 	var shotguns := 0
 	var n := 0
 	for seed in range(1, STATS_SEEDS):
-		var a := _state(seed)
-		a.inventory.counts.erase("ammo")
+		var a := _no_rounds(_state(seed))
 		a.inventory.add("flashlight", 1)
-		var ra := ExpeditionRun.simulate(a, "military", D.default_gear(a, "military"), [1, 1])
-		dmg_bare += ra["damage"]
+		var ra := ExpeditionRun.simulate(a, "military", D.default_gear(a, "military"), [0, 0])
+		dmg_bare += ra["damage"] * a.damage_factor("expedition")
 		if ra["damage"] > 0.0:
 			hurt_bare += 1
 		if ra["damage"] >= 20.0:
@@ -472,13 +501,13 @@ func test_outpost_demands_preparation() -> void:
 		b.inventory.remove("shotgun", 1)
 		b.inventory.counts.erase("shells")
 		var rb := ExpeditionRun.simulate(b, "military", D.default_gear(b, "military"), [0, 0])
-		dmg_full += rb["damage"]
+		dmg_full += rb["damage"] * b.damage_factor("expedition")     # the vest, applied by GameState
 		if rb["gained"].has("shotgun"):
 			shotguns += 1
 		n += 1
 	check(hurt_bare > n * 0.6, "unprepared, you usually get hurt (%d of %d)" % [hurt_bare, n])
 	check(badly > 0, "it can go badly (%d trips with 20+ damage)" % badly)
-	check(dmg_full < dmg_bare * 0.5, "prepared, far fewer injuries (%.0f vs %.0f)" % [dmg_full, dmg_bare])
+	check(dmg_full < dmg_bare * 0.5, "prepared, far less health lost (%.0f vs %.0f)" % [dmg_full, dmg_bare])
 	check(shotguns > 0 and shotguns < n / 2, "a shotgun is possible but not guaranteed (%d of %d trips)" % [shotguns, n])
 	check(D.destination("military")["max_damage"] > D.MAX_DAMAGE, "the outpost can cost more health")
 
@@ -606,8 +635,7 @@ func test_location_summary_for_every_id() -> void:
 			check_eq(sm["discovered"], (st if st != null else GameState.new()).region.is_discovered(id), "%s: discovered" % id)
 	check(D.location_summary("nowhere", s).is_empty(), "unknown id -> {}")
 	# equipment and rounds change the approaches
-	var bare := _state()
-	bare.inventory.counts.erase("ammo")
+	var bare := _no_rounds(_state())
 	var raid: Dictionary = D.location_summary("grocery", bare)["approaches"][3]
 	check(not raid["available"] and raid["reason"].contains("loaded weapon"), "raid needs a loaded weapon (%s)" % raid["reason"])
 	var armed := _kit(_state())

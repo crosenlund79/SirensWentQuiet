@@ -230,8 +230,10 @@ func set_shells(n: int) -> void:
 	_refresh_gear_summary()
 
 
+## Plan step: bring an equipped crowbar or flashlight, or leave it at home
+## (worn and required gear always comes along).
 func set_tool(id: String, on: bool) -> void:
-	if not D.owns(state, id) or id in D.destination(selected).get("requires", []):
+	if not D.can_bring(state, id) or id in D.destination(selected).get("requires", []) or id in D.WORN_GEAR:
 		return
 	if on:
 		gear[id] = 1
@@ -657,13 +659,13 @@ func _fill_details() -> void:
 	if not req.is_empty():
 		var parts := []
 		for id in req:
-			parts.append("%s (%s)" % [Items.name_of(id), "you have one" if D.owns(state, id) else "you have none"])
+			parts.append("%s (%s)" % [Items.name_of(id), "equipped" if D.can_bring(state, id) else ("not equipped" if D.owns(state, id) else "you have none")])
 		_detail_box.add_child(_row("Needs", ", ".join(parts), w))
 	var gear_lines := []
 	for e in sm["equipment"]:
 		if e["required"] or e["id"] == "backpack":
 			continue
-		gear_lines.append("%s%s: %s" % [e["name"], " (have)" if e["have"] else "", e["effect"]])
+		gear_lines.append("%s%s: %s" % [e["name"], " (equipped)" if e["equipped"] else (" (not equipped)" if e["have"] else ""), e["effect"]])
 		if gear_lines.size() >= 3:
 			break
 	if not gear_lines.is_empty():
@@ -745,10 +747,10 @@ func _show_gear() -> void:
 	# rounds
 	left.add_child(UiTheme.make_section("Bring"))
 	ammo_slider = _rounds_row(left, "9 mm rounds", "ammo", "AmmoCount")
-	if D.owns(state, "shotgun") or state.inventory.count("shells") > 0:
+	if D.can_bring(state, "shotgun"):
 		shells_slider = _rounds_row(left, "Shells", "shells", "ShellCount")
 	if D.rounds_owned(state, "ammo") + D.rounds_owned(state, "shells") <= 0:
-		left.add_child(_text("No loaded weapon to bring." if not (D.owns(state, "handgun") or D.owns(state, "shotgun")) else "You have no rounds to bring.", 13, UiTheme.TEXT_DIM, PLAN_LEFT))
+		left.add_child(_text("No weapon equipped to bring rounds for." if not (D.can_bring(state, "handgun") or D.can_bring(state, "shotgun")) else "You have no rounds to bring.", 13, UiTheme.TEXT_DIM, PLAN_LEFT))
 	else:
 		left.add_child(_text(D.gear_effect("ammo", selected) + (" A shell counts as %d rounds." % D.SHELL_SHOTS if shells_slider != null else ""), 13, UiTheme.TEXT_DIM, PLAN_LEFT))
 	# gear
@@ -759,17 +761,18 @@ func _show_gear() -> void:
 	grid.add_theme_constant_override("v_separation", 2)
 	left.add_child(grid)
 	for id in D.BRINGABLE_GEAR:
-		var have := D.owns(state, id)
+		var have := D.can_bring(state, id)
 		var cb := CheckBox.new()
-		cb.text = Items.name_of(id) + (" (required)" if id in req and have else "")
+		cb.text = Items.name_of(id) + (" (required)" if id in req and have else (" (worn)" if id in D.WORN_GEAR and have else ""))
 		cb.button_pressed = have and int(g.get(id, 0)) > 0
-		cb.disabled = not have or id in req
+		cb.disabled = not have or id in req or id in D.WORN_GEAR
 		cb.custom_minimum_size.x = 190
 		cb.toggled.connect(func(on: bool): set_tool(id, on))
 		_flat_check(cb)
 		grid.add_child(cb)
 		tool_boxes[id] = cb
-		var eff := _text(D.gear_effect(id, selected) if have else "You don't have one.", 13, UiTheme.TEXT_DIM, PLAN_LEFT - 200)
+		var why := "Not equipped: equip it at home to bring it." if D.owns(state, id) else "You don't have one."
+		var eff := _text(D.gear_effect(id, selected) if have else why, 13, UiTheme.TEXT_DIM, PLAN_LEFT - 200)
 		eff.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		grid.add_child(eff)
 	if D.owns(state, "hammer"):

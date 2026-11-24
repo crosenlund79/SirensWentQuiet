@@ -34,7 +34,9 @@ var lines: Array[String] = []  ## the report's "what happened"
 var _seed := 0
 var _number := 0
 var _owned := {}               ## counts at departure (rounds: reserve + magazine)
-var _has := {}                 ## unique items owned at departure (inventory or equipped)
+var _has := {}                 ## unique items owned at departure
+var _equipped := {}            ## gear that could be brought (equipped) at departure
+var _carry := 1.0              ## loot multiplier of the brought backpack
 var _space := {}               ## space_for at departure
 var _energy := 100.0
 var _danger := 1.0
@@ -115,8 +117,10 @@ func _setup(state: GameState, destination_id: String, g: Dictionary, approach_id
 		_space[id] = state.inventory.space_for(id)
 		if D.is_unique(id):
 			_has[id] = D.owns(state, id)
+			_equipped[id] = D.can_bring(state, id)
 			if _has[id]:
 				_owned[id] = maxi(int(_owned[id]), 1)
+	_carry = D.carry_multiplier(state) if int(gear.get("backpack", 0)) > 0 else 1.0
 	for a in D.AMMO_TYPES:
 		_owned[a] = D.rounds_owned(state, a)
 		_rounds[a] = int(gear.get(a, 0))
@@ -207,8 +211,10 @@ func option_state(i: int) -> Dictionary:
 			var nm := Items.name_of(id).to_lower()
 			if _lost.has(id):
 				return {"ok": false, "reason": "You lost the %s" % nm}
-			if int(_owned.get(id, 0)) > 0:
+			if _equipped.get(id, false):
 				return {"ok": false, "reason": "You left the %s at home" % nm}
+			if int(_owned.get(id, 0)) > 0:
+				return {"ok": false, "reason": "The %s isn't equipped" % nm}
 			return {"ok": false, "reason": "Needs a %s" % nm}
 	var n := maxi(int(o.get("shots", 0)), int(needs.get("ammo", 0)))
 	if n > 0 and shots_left() < n:
@@ -275,8 +281,6 @@ func choose(i: int) -> Dictionary:
 				text += " " + o.get("hurt_text", "You get hurt.") + " You fire once to get clear."
 			else:
 				text += " " + o.get("hurt_text", "You get hurt.")
-			if "fight" in tags and has_tool("vest"):
-				hurt *= D.VEST_DAMAGE
 			hurt = clampf(hurt, 0.0, maxf(_max_damage - _damage, 0.0))
 			_damage += hurt
 			_loot_mult *= float(o.get("hurt_loot", 1.0))
@@ -423,14 +427,14 @@ func result() -> Dictionary:
 	for src in [locked, _bonus]:
 		for id in src:
 			found[id] = int(found.get(id, 0)) + int(src[id])
-	# backpack: +50 % on stackables (stochastic rounding from the loot stream)
-	var backpack := has_tool("backpack")
+	# backpack: x carry multiplier on stackables (stochastic rounding from the loot stream)
+	var backpack := has_tool("backpack") and _carry > 1.0
 	var ids := found.keys()
 	ids.sort()
 	for id in ids:
 		var frac := _rng_loot.randf()
 		if backpack and not D.is_unique(id):
-			var x := float(found[id]) * (1.0 + D.BACKPACK_BONUS)
+			var x := float(found[id]) * _carry
 			found[id] = int(floor(x)) + (1 if frac < x - floor(x) else 0)
 	# unique items: one each, only when not already owned (or lost on this trip)
 	for id in ids:
