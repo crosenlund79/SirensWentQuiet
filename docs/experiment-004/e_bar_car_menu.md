@@ -92,7 +92,7 @@ Afterwards the prompt is "[E] Check the car", which shows the fuel left and blin
 `RegionLocations["forest"]`: "Pine Woods", construction category, hills district, map cell (47, 70), 5 × 6 cells. It is known from the start (`RegionState.START_KNOWN`). The map forces dense pine cover around it (`region_terrain.gd`, two small additions).
 
 **Numbers** (`ExpeditionData.LOCATIONS["forest"]`, `construction_wood` profile):
-- **Travel:** about 10 min each way; 6 min by car.
+- **Travel:** 10 min each way; 5 min by car. A general trip takes about 2 h 50 min.
 - **Search:** 150 min.
 - **Risk:** danger 0.7 ("Low").
 - **Loot:**
@@ -102,6 +102,7 @@ Afterwards the prompt is "[E] Check the car", which shows the fuel left and blin
 - **Locked table** (crowbar), a woodcutter's shed: planks 5–9 (90 %), nails 2–6 (60 %), scrap 1–2 (40 %).
 - **Events:** deadfall 3 (new), hunter's cabin 2 (new), dogs 1, tracks 1, fog bank 1; a second event 40 %.
 - **Stock:** −8 % a visit, +10 % a day, never below 50 %.
+- **Measured:** about 19 planks a trip on foot, without a backpack or crowbar (20 simulated trips).
 
 ## 4. The main menu siege
 

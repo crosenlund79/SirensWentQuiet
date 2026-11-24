@@ -25,6 +25,7 @@ var light: SpotLight3D
 var light_on := false
 var last_use := ""                     ## the last use's feedback (tests)
 var _hand := "~"                       ## the item in hand last applied
+var _applying := false                 ## apply_hand runs (its own state changes are ignored)
 
 
 func setup(g: Node) -> void:
@@ -71,6 +72,8 @@ func in_hand() -> String:
 
 
 func _on_state_changed() -> void:
+	if _applying:
+		return
 	Hotbar.fill(bar(), game.state)
 	if in_hand() != _hand:
 		apply_hand()
@@ -142,6 +145,13 @@ func next_weapon() -> void:
 ## Makes the item in hand real: the weapon drawn or holstered, the rig's pose
 ## and held item, the flashlight.
 func apply_hand() -> void:
+	_applying = true
+	_apply_hand()
+	_applying = false
+	_refresh_view(true)
+
+
+func _apply_hand() -> void:
 	var s: GameState = game.state
 	var id := in_hand()
 	var w: WeaponHandler = game.combat.weapons if game.combat != null else null
@@ -165,7 +175,6 @@ func apply_hand() -> void:
 		rig.carry = id == "flashlight" and light_on
 	light.visible = id == "flashlight" and light_on
 	_hand = id
-	_refresh_view(true)
 
 
 # --- use ---------------------------------------------------------------------------------
