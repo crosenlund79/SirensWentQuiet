@@ -30,10 +30,11 @@ func test_unlimited_is_free_but_creates_nothing() -> void:
 	check(s.can_pay({"wood": 999, "scrap": 50}), "can pay anything")
 	check(s.pay({"wood": 999, "scrap": 50}), "pays anything")
 	check(s.pay({"wood": -50}), "negative cost")
-	s.inventory.remove("ammo", 9)
+	s.set_magazine("handgun", 0)
 	check(s.use_ammo(), "fires with no ammo")
 	check(s.use_ammo(5), "fires five")
 	check_eq(s.inventory.count("ammo"), 0, "no rounds created")
+	check_eq(s.magazine("handgun"), 0, "none in the magazine either")
 	check_eq(s.inventory.count("wood"), before["counts"]["wood"], "no wood taken or created")
 	check(not s.use_ammo(-1), "negative ammo use refused")
 	s.cheats["unlimited"] = false
@@ -43,6 +44,7 @@ func test_unlimited_is_free_but_creates_nothing() -> void:
 
 func test_expedition_application() -> void:
 	var s := GameState.new_run(1)
+	s.inventory.add("ammo", 9)
 	s.inventory.add("wood", 29)   # 35 of 40
 	var r := {"id": "e1", "name": "Hardware Store", "minutes": 300, "summary": "Planks and rain.",
 		"gained": {"wood": 20, "scrap": 3, "ghost_item": 5, "water": -2},

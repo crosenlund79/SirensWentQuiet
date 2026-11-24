@@ -87,7 +87,11 @@ func test_catalogue_matches_the_spec() -> void:
 	check_eq(Items.DEFS["canned_food"]["hunger"], 30.0, "canned food")
 	check_eq(Items.DEFS["water"]["hydration"], 30.0, "water")
 	check_eq(Items.DEFS["medkit"]["health"], 50.0, "medkit")
-	check_eq(Items.ids("tool"), ["hammer", "crowbar", "flashlight", "backpack"], "tools")
+	check_eq(Items.ids("tool"), ["hammer", "crowbar"], "tools")
+	check_eq(Items.ids("utility"), ["flashlight", "backpack"], "utility gear")
+	for id in Items.DEFS:
+		check(Items.category(id) in Items.CATEGORIES, "%s has a known category" % id)
+		check_eq(Items.is_unique(id), Items.slot(id) != "", "%s: gear (cap 1) is exactly what has a slot" % id)
 	check_eq(Items.name_of("scrap"), "Scrap metal", "name")
 	check_eq(Items.name_of(3), "3", "name of junk")
 	check_eq(Items.category(null), "", "category of junk")

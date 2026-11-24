@@ -6,7 +6,9 @@ func test_new_run_starting_conditions() -> void:
 	var s := GameState.new_run(7)
 	check_eq(s.day(), 1, "day 1")
 	check_eq(s.clock_text(), "07:00", "07:00")
-	check_eq(s.inventory.count("ammo"), 9, "nine bullets")
+	check_eq(s.magazine("handgun"), 9, "nine bullets, in the handgun")
+	check_eq(s.inventory.count("ammo"), 0, "no reserve")
+	check_eq(s.equipped("primary"), "handgun", "handgun equipped as primary")
 	check(s.night_amount() < 0.01, "daylight at 07:00")
 
 
@@ -36,6 +38,7 @@ func test_expedition_applies_once() -> void:
 	s.apply_expedition(r)
 	check_eq(s.inventory.count("water"), 6, "water added once")
 	check_eq(s.inventory.count("ammo"), 0, "over-consumption clamped to what was there, never negative")
+	check_eq(s.magazine("handgun"), 0, "rounds spent on the trip come out of the magazine too")
 	check_eq(s.clock_text(), "09:00", "time advanced once")
 
 
@@ -54,5 +57,5 @@ func test_unlimited_cheat_makes_expedition_consumption_free() -> void:
 	var s := GameState.new_run(7)
 	s.cheats["unlimited"] = true
 	s.apply_expedition({"id": "u1", "minutes": 60, "consumed": {"ammo": 3}, "gained": {"water": 1}})
-	check_eq(s.inventory.count("ammo"), 9, "rounds used on the trip are free with unlimited resources")
+	check_eq(s.magazine("handgun"), 9, "rounds used on the trip are free with unlimited resources")
 	check_eq(s.inventory.count("water"), 5, "loot still arrives")

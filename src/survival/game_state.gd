@@ -660,13 +660,18 @@ func can_sleep() -> String:
 		return "You're dead."
 	if _invasion_pending():
 		return "Not with them out there."
+	if _needs_hurt() > 0.0 and health <= T.HURT_LEVEL:
+		return "You're too weak to sleep like this. Eat and drink first."
 	if energy >= T.NOT_TIRED_ENERGY and not is_night():
 		return "You're not tired."
 	return ""
 
 
 ## How long a requested sleep can last: it ends exactly at the next invasion or
-## straggler. {"minutes", "interrupted", "reason": ""|"invasion"|"straggler",
+## straggler, and early when the body is in danger: when hunger or hydration
+## runs out, or, with one already out, when health falls to the "Badly hurt"
+## level (so nobody starves or dies of thirst in their sleep).
+## {"minutes", "interrupted", "reason": ""|"invasion"|"straggler"|"needs",
 ## "text"}. Requests are clamped to 0..MAX_SLEEP_MINUTES.
 func plan_sleep(requested_minutes: float) -> Dictionary:
 	var want := clampf(requested_minutes, 0.0, T.MAX_SLEEP_MINUTES) if is_finite(requested_minutes) else 0.0
@@ -674,21 +679,59 @@ func plan_sleep(requested_minutes: float) -> Dictionary:
 		return {"minutes": 0.0, "interrupted": true, "reason": "invasion", "text": "Not with them out there."}
 	var stop := total_minutes + want
 	var reason := ""
+	var text := ""
 	var due: float = run.get("next_invasion_at", INF)
 	if due > total_minutes and due <= stop:
 		stop = due
 		reason = "invasion"
+		text = "You wake to noises in the fog. They're here."
 	for d in [day() - 1, day()]:
 		var s := roll_straggler(d)
 		if s > total_minutes + SNAP_MIN and s < stop:
 			stop = s
 			reason = "straggler"
+			text = "Something is moving outside."
+	var wake := _needs_wake()
+	if wake["at"] < stop:
+		stop = wake["at"]
+		reason = "needs"
+		text = wake["text"]
 	if reason == "":
 		return {"minutes": want, "interrupted": false, "reason": "", "text": ""}
 	# a straggler stop lands a hair past its minute so `total_minutes >= minute` holds
-	var minutes := stop - total_minutes + (1e-6 if reason == "straggler" else 0.0)
-	var text := "Something is moving outside." if reason == "straggler" else "You wake to noises in the fog. They're here."
+	var minutes := maxf(stop - total_minutes, 0.0) + (1e-6 if reason == "straggler" else 0.0)
 	return {"minutes": minutes, "interrupted": true, "reason": reason, "text": text}
+
+
+## Health lost per hour from empty needs right now (0 when fed and watered,
+## or with the invulnerable cheat).
+func _needs_hurt() -> float:
+	if cheats.get("invulnerable", false):
+		return 0.0
+	return (T.STARVING_DAMAGE if hunger <= 0.0 else 0.0) + (T.DEHYDRATED_DAMAGE if hydration <= 0.0 else 0.0)
+
+
+## When a sleep starting now must end for the body's sake: {"at", "text"}
+## (at = INF if never within reach). Asleep, hunger and hydration fall at
+## SLEEP_DECAY_SCALE of the awake rates; the damage rate is constant until the
+## next need runs out, which is itself a wake-up.
+func _needs_wake() -> Dictionary:
+	var out := {"at": INF, "text": ""}
+	if cheats.get("invulnerable", false):
+		return out
+	for need in [["hydration", T.HYDRATION_PER_HOUR, "You wake up parched. You need water."],
+			["hunger", T.HUNGER_PER_HOUR, "Hunger wakes you. You need to eat."]]:
+		var v: float = get(need[0])
+		if v > 0.0:
+			var at: float = total_minutes + v / (float(need[1]) * T.SLEEP_DECAY_SCALE) * 60.0
+			if at < out["at"]:
+				out = {"at": at, "text": need[2]}
+	var hurt := _needs_hurt()
+	if hurt > 0.0:
+		var at := total_minutes + maxf(health - T.HURT_LEVEL, 0.0) / hurt * 60.0
+		if at < out["at"]:
+			out = {"at": at, "text": "You wake up weak. You need %s." % ("water" if hydration <= 0.0 else "food")}
+	return out
 
 
 ## Total minute of the straggler on the night that starts on `day` (23:00 ..
@@ -753,8 +796,11 @@ func set_difficulty(level: String) -> void:
 
 
 ## Announced (due) or forced, or running.
+## Running, announced, forced, or overdue (its time has passed but no advance
+## has reported it yet, e.g. right after loading a save): no sleeping through it.
 func _invasion_pending() -> bool:
-	return run.get("invasion_active", false) or run.get("invasion_announced", false) or run.get("invasion_forced", false)
+	return run.get("invasion_active", false) or run.get("invasion_announced", false) or run.get("invasion_forced", false) \
+		or float(run.get("next_invasion_at", INF)) <= total_minutes
 
 
 ## 1-based index of the current (or next) invasion.

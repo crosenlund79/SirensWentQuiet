@@ -272,7 +272,7 @@ func _advance_reload(delta: float) -> void:
 		if k > 0:
 			_play("shell", _muzzle_global(d))
 		var full := state.magazine(id) >= WeaponDefs.capacity(id)
-		var dry := state.reserve(id) <= 0 and not state.cheats.get("unlimited", false)
+		var dry: bool = state.reserve(id) <= 0 and not state.cheats.get("unlimited", false)
 		if k <= 0 or full or dry:
 			_stop_reload(true)
 
