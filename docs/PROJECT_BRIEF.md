@@ -78,6 +78,10 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - the end-to-end survival playtest (`tools/survival_playtest.*`) across a real application restart;
   - screenshots from the game camera.
 
+## Queued approved objective (not started)
+
+- **Experiment 003: Foundations of Survival (systems-first vertical slice).** Approved by the user on 2026-11-24 as a queued objective. It starts only after Experiment 002 is fully delivered (integrated, playtested, documented, committed and pushed), and the two must not overlap. The full assignment is recorded in `docs/experiment-003/ASSIGNMENT.md`; the user's message remains the authority.
+
 ## Proposals awaiting user approval
 
 None.
