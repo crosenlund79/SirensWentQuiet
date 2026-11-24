@@ -426,8 +426,9 @@ static func _iron_barricade(mm: PropMesh, w: float, h: float, d: float, rng: Ran
 	for sx in [-1.0, 1.0]:
 		mm.box(Vector3(sx * px - post * 0.5, 0, -post * 0.5), Vector3(sx * px + post * 0.5, h, post * 0.5))
 		# foot plate and a gusset behind
-		mm.box(Vector3(sx * px - 0.08, 0, -d * 0.5), Vector3(sx * px + 0.08, 0.012, d * 0.5))
-		mm.obox(Transform3D(Basis(Vector3.RIGHT, -0.7), Vector3(sx * px, 0.12, -post * 0.5 - 0.07)), Vector3(0.012, 0.2, 0.012))
+		var fx: float = sx * (w * 0.5 - 0.07)
+		mm.box(Vector3(fx - 0.07, 0, -d * 0.5), Vector3(fx + 0.07, 0.012, d * 0.5))
+		mm.obox(Transform3D(Basis(Vector3.RIGHT, -0.6), Vector3(sx * px, 0.09, -post * 0.5 - 0.035)), Vector3(0.012, 0.13, 0.012))
 	var n := clampi(int(round(h / 0.22)), 4, 9)
 	var pitch := h / n
 	var order := range(n)
@@ -446,7 +447,7 @@ static func _iron_barricade(mm: PropMesh, w: float, h: float, d: float, rng: Ran
 			mm.box(Vector3(-px - post * 0.5, yc - bh * 0.5, zf), Vector3(-px + 0.14, yc + bh * 0.5, zf + 0.012))
 			if not fallen:
 				fallen = true
-				mm.obox(Transform3D(Basis(Vector3.UP, rng.randf_range(-0.2, 0.2)), Vector3(0.0, 0.008, zf + 0.25)), Vector3(w * 0.8, 0.012, bh))
+				mm.obox(Transform3D(Basis(Vector3.UP, rng.randf_range(-0.15, 0.15)), Vector3(0.0, 0.008, zf + 0.12)), Vector3(w * 0.8, 0.012, bh))
 			continue
 		var tilt := 0.0
 		if damage >= bent_at:
