@@ -623,8 +623,14 @@ func _where(r: Dictionary) -> Vector3:
 	return Vector3.ZERO
 
 
+## The survival core's rule when it has one (GameState.can_build: a hammer
+## owned, or the unlimited cheat); the same rule locally otherwise.
 func _has_hammer() -> bool:
-	return state == null or state.cheats.get("unlimited", false) or state.inventory.count("hammer") > 0
+	if state == null:
+		return true
+	if state.has_method("can_build"):
+		return state.call("can_build") == ""
+	return state.cheats.get("unlimited", false) or state.inventory.count("hammer") > 0
 
 
 # --- preview -------------------------------------------------------------------------

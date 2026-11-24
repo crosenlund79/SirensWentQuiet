@@ -629,11 +629,13 @@ func aim_ray(from: Vector3, dir: Vector3) -> Vector3:
 
 ## One bullet. Returns {"kind": "voxel"|"enemy"|"body"|"ground"|"none", "pos", "collider"}.
 ## Doors, crates, collectors and tall furniture stop bullets (impact, no
-## damage); barricades let them pass between the planks.
-func shoot(origin: Vector3, dir: Vector3, exclude: Array, muzzle := Vector3.INF) -> Dictionary:
+## damage); barricades let them pass between the planks. `max_range`
+## (Experiment 003, e.g. the shotgun's 14 m) is the ray length: nothing
+## beyond it is hit ("none", the tracer ends there).
+func shoot(origin: Vector3, dir: Vector3, exclude: Array, muzzle := Vector3.INF, max_range := Tuning.SHOT_RANGE) -> Dictionary:
 	_shots += 1
 	dir = dir.normalized()
-	var best := Tuning.SHOT_RANGE
+	var best := clampf(max_range, 0.1, Tuning.SHOT_RANGE * 4.0) if is_finite(max_range) else Tuning.SHOT_RANGE
 	var kind := "none"
 	var vh := grid.raycast(origin, dir, best, _bullet_skip)
 	if not vh.is_empty():

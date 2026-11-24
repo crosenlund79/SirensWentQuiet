@@ -339,3 +339,14 @@ func test_version_a_voxel_furniture_flag() -> void:
 	check(w.yard.voxel_props, "the yard builds its voxel props")
 	check(w.exit_path_exists(), "the same rules apply")
 	check(w.layout_id() != HouseWorld.new().layout_id(), "saves of the two looks don't mix")
+
+
+## Experiment 003: shoot's optional max_range (the shotgun's 14 m).
+func test_shoot_respects_max_range() -> void:
+	var w: HouseWorld = await _world()
+	var o := Vector3(8.5, 1.3, 25.0)
+	var far := w.shoot(o, Vector3(8.5, 1.0, 9.0) - o, [], Vector3.INF, 14.0)
+	check_eq(far["kind"], "none", "a wall 16 m away is out of a 14 m range")
+	check(far["pos"].distance_to(o) < 14.01, "the shot ends at its range")
+	var near := w.shoot(o, Vector3(8.5, 1.0, 9.0) - o, [])
+	check_eq(near["kind"], "voxel", "with the default range it hits the wall")
