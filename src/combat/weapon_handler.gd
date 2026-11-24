@@ -326,7 +326,7 @@ func select_slot(slot: String) -> String:
 
 ## Switches to the other equipped weapon. Returns its id, or "" if there is none.
 func next() -> String:
-	if state == null:
+	if state == null or state.active_weapon() == "":
 		return ""
 	var cur := state.active_weapon_slot
 	for slot in Equipment.WEAPON_SLOTS:
