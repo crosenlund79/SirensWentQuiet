@@ -38,6 +38,10 @@ var roof: MeshInstance3D
 var roof_mat: ShaderMaterial
 var prop_mat: ShaderMaterial
 var _roof_fade := 1.0
+## Refinement 01 (S): the roof's voxels, and the plan rects where it has
+## collapsed (HouseSupport; set before or after the roof is built).
+var roof_grid: VoxelGrid
+var roof_holes: Array = []
 var _rng := RandomNumberGenerator.new()
 ## Experiment 003: plan rects where no grass grows (stone foundations). Set
 ## before the yard enters the tree, or call set_tuft_avoid() later.
@@ -630,6 +634,8 @@ func _build_roof() -> void:
 	_roof_box(g, Vector3(4.0, 2.8, 5.0), Vector3(2.0, 0.1, 1.2), VoxelMat.METAL, 0x2c2e31)
 	_roof_box(g, Vector3(4.1, 2.8, 5.1), Vector3(1.8, 0.1, 1.0), VoxelMat.SCREEN, 0x34464e)
 	roof_mat = demo._surface_material(ROOF_ORIGIN, VS)
+	roof_grid = g                                  # Refinement 01 (S): kept for collapses
+	_cut_roof_holes()
 	roof = MeshInstance3D.new()
 	roof.name = "Roof"
 	roof.mesh = VoxelMesher.build_mesh(g, roof_mat)
@@ -659,3 +665,39 @@ func update_roof(player_pos: Vector3, delta: float, instant := false) -> void:
 
 func roof_visible() -> bool:
 	return _roof_fade > 0.0
+
+
+# --- Refinement 01 (S): roof collapses ---------------------------------------------------
+
+## Removes the roof (every voxel row) over the plan rects `rects` and rebuilds
+## its mesh. Holes only grow: a collapsed part never comes back.
+func set_roof_holes(rects: Array) -> void:
+	roof_holes = rects.duplicate()
+	if roof_grid == null or roof == null:
+		return                                     # applied when the roof is built
+	if _cut_roof_holes() > 0:
+		roof.mesh = VoxelMesher.build_mesh(roof_grid, roof_mat)
+
+
+## True if the roof still covers plan point p (false over a hole or off the roof).
+func roof_covers(p: Vector2) -> bool:
+	for r in roof_holes:
+		if (r as Rect2).has_point(p):
+			return false
+	return true
+
+
+func _cut_roof_holes() -> int:
+	var g := roof_grid
+	var n := 0
+	for r in roof_holes:
+		var xr := g.centre_range(0, (r as Rect2).position.x, (r as Rect2).end.x)
+		var zr := g.centre_range(2, (r as Rect2).position.y, (r as Rect2).end.y)
+		for y in g.sy:
+			for z in range(zr.x, zr.y):
+				for x in range(xr.x, xr.y):
+					var i := g.idx(x, y, z)
+					if g.mat[i] != 0:
+						g.clear_index(i)
+						n += 1
+	return n

@@ -21,6 +21,10 @@ extends Node3D
 ## boards, metal doors, door reinforcement; the fuse box (`fuse_box()`,
 ## `power_changed`); closing a door nudges the player out of the doorway;
 ## demolishing original structures and furniture for salvage.
+## Refinement 01 (S): nothing is left hanging in the air (settle(): after a
+## demolition, blast or bite, voxels without a chain to the ground fall, and
+## doors, window boards and the fuse box fall with their wall), and the roof
+## and the upper floor need their outer walls (`support`, HouseSupport).
 
 signal structure_changed
 signal object_destroyed(kind: String, at: Vector3)
@@ -156,6 +160,10 @@ var night_lights: Array = []   ## {"node", "light", "base", "phase", "geos"}
 var furniture: HouseFurniture  ## Experiment 004: furniture states (null with voxel_furniture)
 var aim_furniture := ""        ## furniture piece whose collider the last aim_ray hit
 var stats := {"build_ms": 0.0, "save_ms": 0.0, "load_ms": 0.0, "nav_ms": 0.0, "carve_ms": 0.0}
+## Refinement 01 (S): the roof's and upper floor's support zones (created by
+## the ground floor's _build; the upper storey shares the ground floor's).
+var support: HouseSupport
+var settled := 0                ## voxels dropped by settle() (tests)
 
 var _static_solid := PackedByteArray()
 var _opening_clip := {}        # nav cell -> Rect2 that clips its footprint (door gaps ignore their jambs)
@@ -172,6 +180,8 @@ var _hidden_bodies: Array[RID] = []
 var _t := 0.0
 var _house_zone := HousePlan.FOOTPRINT.grow(0.5)
 var _scar_root: Node3D
+var _settle_boxes: Array = []  # Refinement 01 (S): [lo, hi] of damage waiting for settle()
+var _settling := false
 
 
 func setup(light: VoxelLighting) -> void:
@@ -244,6 +254,8 @@ func save_data() -> Dictionary:
 		# already knows the fuse box (older saves get the pristine one)
 		"furniture": furniture.save_data() if furniture != null else {}, "exp4": 1,
 	}
+	if support != null and not support.roof_gone.is_empty():
+		d["collapsed"] = support.save_data()   # Refinement 01 (S), optional: zones whose roof came down
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return d
 
@@ -288,6 +300,8 @@ func load_data(d: Dictionary) -> bool:
 	if not d.has("exp4"):
 		objs.append(_pristine_fuse_box())        # a save from before Experiment 004
 	_build(g_design, g_cur, objs, b, u, cut, st, fd, sc)
+	if support != null:
+		support.load_data(d.get("collapsed", []))     # Refinement 01 (S)
 	if furniture != null:
 		furniture.load_data(d.get("furniture", {}))
 		_update_light_hosts()
@@ -462,6 +476,7 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	bed.name = "Bed"
 	bed.position = bed_position()
 	add_child(bed)
+	support = HouseSupport.new(self)       # Refinement 01 (S)
 	stats["build_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 
 
@@ -594,6 +609,7 @@ func night_amount() -> float:
 
 func _process(delta: float) -> void:
 	_t += delta
+	process_structure()             # Refinement 01 (S): once per frame, only after changes
 	var n := night_amount()
 	for l in night_lights:
 		var o: OmniLight3D = l["light"]
@@ -819,6 +835,8 @@ func _apply_damage(ch: Dictionary) -> void:
 		Sfx.play("structure/crumble", grid.center((ch["lo"] + ch["hi"]) / 2))
 	if furniture != null:
 		furniture.on_removed(ch)
+	if not _settling:                # Refinement 01 (S): what this left hanging falls next frame
+		_queue_settle(ch["lo"], ch["hi"])
 	structure_changed.emit()
 
 
@@ -1023,6 +1041,7 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 		for s in sections:
 			if seg_rect(s, 0.3, 0.2).intersects(crater):
 				_count_section(s)
+		settle(ch["lo"], ch["hi"])     # Refinement 01 (S): wall left hanging over the crater falls
 	var t3 := Time.get_ticks_usec()
 	_scorch(center, radius)
 	var t4 := Time.get_ticks_usec()
@@ -1902,6 +1921,7 @@ func demolish_wall(s: Vector3i) -> void:
 			else:
 				_stamp_wall(o)
 	_edited(b[0], b[1])
+	settle(b[0], b[1], true)           # Refinement 01 (S)
 
 
 ## Lays stone foundation tiles (design and current), no checks: 1 m x 1 m
@@ -2033,6 +2053,7 @@ func cut_opening(s: Vector3i, full_height := false) -> void:
 	built.erase(s)
 	upgraded.erase(s)
 	_edited(b[0], b[1])
+	settle(b[0], b[1], true)           # Refinement 01 (S): lintels, sills, window remains, doors fall
 
 
 ## Iron plating (Experiment 002 "metal sheathing", the same METAL_SHEET
@@ -2253,3 +2274,133 @@ static func _outward_rot(c: Vector2, horiz: bool) -> int:
 	if horiz:
 		return 2 if c.y > mid.y else 0
 	return 1 if c.x > mid.x else 3
+
+
+# --- Refinement 01 (S): support -----------------------------------------------------------
+
+## Margin (voxels) around a change where settle() starts looking for what it
+## left hanging (the search itself follows a piece wherever it goes).
+const SETTLE_MARGIN := 2
+const SETTLE_QUEUE := 24
+## Wall-mounted objects and the rows (m) of wall they need: [from, to, min voxels].
+const MOUNTS := {"door": [0.0, 2.6, 12], "boards": [0.85, 2.15, 12], "fuse_box": [0.9, 2.0, 8]}
+
+
+## Runs what structural changes left to do: settle() over the damage of the
+## last frame, then the support zones. Called by _process (once per frame);
+## tests call it to skip the frame.
+func process_structure() -> void:
+	var boxes := _settle_boxes
+	_settle_boxes = []
+	for b in boxes:
+		settle(b[0], b[1])
+	if support != null:
+		support.process()
+
+
+## Queues a damaged box for the next settle(); overlapping boxes merge (so a
+## bite and a shot at the same spot settle once, far-apart ones separately).
+func _queue_settle(lo: Vector3i, hi: Vector3i) -> void:
+	for b in _settle_boxes:
+		if lo.x <= b[1].x and b[0].x <= hi.x and lo.y <= b[1].y and b[0].y <= hi.y and lo.z <= b[1].z and b[0].z <= hi.z:
+			b[0] = (b[0] as Vector3i).min(lo)
+			b[1] = (b[1] as Vector3i).max(hi)
+			return
+	if _settle_boxes.size() >= SETTLE_QUEUE:
+		var last: Array = _settle_boxes[_settle_boxes.size() - 1]
+		last[0] = (last[0] as Vector3i).min(lo)
+		last[1] = (last[1] as Vector3i).max(hi)
+		return
+	_settle_boxes.append([lo, hi])
+
+
+## Issue 3: voxels near cells [lo, hi) left without a chain of solid voxels
+## to the ground (VoxelSupport) fall: removed with falling debris, and the
+## doors, window boards and fuse box whose wall went fall too.
+## `design_too` (demolition): the design loses the same hanging pieces, so
+## repair can't put them back in mid-air. Returns the voxels dropped.
+func settle(lo: Vector3i, hi: Vector3i, design_too := false) -> int:
+	if grid == null or hi.x < lo.x:
+		return 0
+	lo = (lo - Vector3i.ONE * SETTLE_MARGIN).max(Vector3i(0, VoxelHouse.BASE_ROW + 1, 0))
+	hi = hi + Vector3i.ONE * SETTLE_MARGIN
+	for k in range(_settle_boxes.size() - 1, -1, -1):          # this pass covers what was queued inside it
+		var b: Array = _settle_boxes[k]
+		if b[0].x >= lo.x and b[0].y >= lo.y and b[0].z >= lo.z and b[1].x <= hi.x and b[1].y <= hi.y and b[1].z <= hi.z:
+			_settle_boxes.remove_at(k)
+	var n := 0
+	if design_too:
+		var dl := VoxelSupport.unsupported(design, lo, hi)
+		for i in dl:
+			design.clear_index(i)
+		if not dl.is_empty():
+			var rect := _plan_rect(lo, hi)
+			for s in sections:
+				if seg_rect(s, 0.3, 0.2).intersects(rect):
+					_count_section(s)
+	var cells := VoxelSupport.unsupported(grid, lo, hi)
+	if not cells.is_empty():
+		var ch := VoxelCarver.empty_change()
+		for i in cells:
+			if grid.mat[i] != 0:
+				VoxelCarver._remove(grid, i, ch)
+		n = cells.size()
+		settled += n
+		_settling = true
+		_apply_damage(ch)
+		_settling = false
+		chunks.flush(BLAST_MESH_BUDGET_MS)
+		if fx != null:
+			HouseSupport._fall_fx(fx, grid, ch, 0.0)
+		if n >= 20:
+			Sfx.play("structure/crumble", grid.center((ch["lo"] + ch["hi"]) / 2))
+	_check_mounts(_plan_rect(lo, hi).grow(0.3))
+	return n
+
+
+## Wall-mounted objects in plan rect `rect` whose wall is gone fall (destroyed,
+## with debris; object_destroyed tells the game).
+func _check_mounts(rect: Rect2) -> void:
+	for o in objects_in(rect).duplicate():
+		if MOUNTS.has(o.kind) and not is_mounted(o):
+			damage_object(o, o.hp + 1, Vector3(o.pos.x, 2.5, o.pos.y), true)
+
+
+## True if a door, window boards or the fuse box still has wall to hang on
+## (structure around its segment's ends and lintel, or behind it).
+func is_mounted(o: WorldObject) -> bool:
+	if not MOUNTS.has(o.kind):
+		return true
+	var m: Array = MOUNTS[o.kind]
+	var rect := seg_rect(o.seg, 0.22, 0.15) if WorldObject.is_segment_kind(o.kind) else o.footprint().grow(0.3)
+	var y0 := o.position.y - grid.origin.y      # the storey's floor in grid metres (LevelWorld objects stand at base_y)
+	var rows := Vector2i(int(floor((y0 + float(m[0])) / grid.vs)), int(floor((y0 + float(m[1])) / grid.vs - 0.01)))
+	var b := _box_of(grid, rect, maxi(rows.x, VoxelHouse.BASE_ROW), mini(rows.y, VoxelHouse.TOP_ROW))
+	var st := VoxelMat.STRUCT
+	var n := 0
+	for y in range(b[0].y, b[1].y):
+		for z in range(b[0].z, b[1].z):
+			for x in range(b[0].x, b[1].x):
+				n += st[grid.mat[grid.idx(x, y, z)]]
+				if n >= int(m[2]):
+					return true
+	return false
+
+
+## True if wall (structure) stands within `reach` m of plan point p at height
+## h m above this storey's floor: wall switches and wall lights hang on it.
+func wall_at(p: Vector2, h: float, reach := 0.25) -> bool:
+	if grid == null:
+		return true
+	var row := VoxelHouse.row_of(h)
+	return grid.any_struct_in(p - Vector2.ONE * reach, p + Vector2.ONE * reach, row - 1, row + 1)
+
+
+## True if the ceiling (the roof) above plan point p still stands.
+func ceiling_at(p: Vector2) -> bool:
+	return support == null or support.roof_intact_at(p)
+
+
+## Build mode's demolish preview for wall section s: "" or what it carries.
+func bearing_warning(s: Vector3i) -> String:
+	return support.demolish_warning(self, s) if support != null else ""

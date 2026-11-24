@@ -35,6 +35,7 @@ const GameLevels := preload("res://src/levels/game_levels.gd")   # Experiment 00
 const HotbarCtl := preload("res://src/game/game_hotbar.gd")   # Experiment 004 (E)
 const CarCtl := preload("res://src/game/game_car.gd")         # Experiment 004 (E)
 const HomeLink := preload("res://src/home/game_home.gd")   # Experiment 004 (H): atmosphere, lights, household
+const SupportLink := preload("res://src/world/game_support.gd")   # Refinement 01 (S): collapses
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -60,6 +61,7 @@ var levels: Node                       ## src/levels/game_levels.gd (Experiment 
 var bar: Node                          ## game_hotbar.gd (Experiment 004, E: the quick-access bar)
 var car: Node                          ## game_car.gd (Experiment 004, E: the yard car)
 var home: Node                         ## src/home/game_home.gd (Experiment 004: fireplace, lights, sink, fridge, sky)
+var support: Node                      ## src/world/game_support.gd (Refinement 01: roof and upper-floor collapses)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -246,6 +248,10 @@ func _assemble() -> void:
 	home.name = "Home"
 	add_child(home)
 	home.setup(self)
+	support = SupportLink.new()        # Refinement 01 (S): structural support (collapse toasts, damage, F10)
+	support.name = "Support"
+	add_child(support)
+	support.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"

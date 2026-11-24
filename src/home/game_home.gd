@@ -53,6 +53,7 @@ var _mains := true
 var _refresh_t := 0.0
 var _root: Node3D
 var _place_at := Vector2.INF           ## --player-at=x,z (screenshots): placed on the first frame
+var _fallen := {}                      ## Refinement 01 (S): light id -> true: its ceiling or wall is gone
 
 
 func setup(g: Node) -> void:
@@ -103,7 +104,8 @@ func interactables() -> Array:
 	if fireplace != null:
 		out.append(fireplace)
 	for r in switches:
-		out.append(switches[r])
+		if (switches[r] as Node3D).visible:      # Refinement 01 (S): fallen with its wall
+			out.append(switches[r])
 	for id in lamps:
 		if (lamps[id] as Node3D).visible:
 			out.append(lamps[id])
@@ -173,7 +175,8 @@ func on_lamp(id: String) -> void:
 func refresh_power(force := false) -> void:
 	_mains = mains_on()
 	var s := electrical.states(_mains, _furniture_ok)
-	if not force and s == _states:
+	var fell := _apply_mounts(s)       # Refinement 01 (S): lights and switches fall with their ceiling or wall
+	if not force and s == _states and not fell:
 		return
 	_states = s
 	game.lighting.set_electric(s)
@@ -181,7 +184,7 @@ func refresh_power(force := false) -> void:
 		var n: Node3D = fixtures[id]
 		PropKit.set_lit(n, 1.0 if s.get(id, false) else 0.0)
 		var need: String = HomeElectrical.NEEDS_FURNITURE.get(id, "")
-		n.visible = need == "" or _furniture_ok(need)
+		n.visible = (need == "" or _furniture_ok(need)) and not _fallen.has(id)
 		if lamps.has(id):
 			(lamps[id] as Node3D).visible = n.visible
 	for r in switches:
@@ -409,3 +412,30 @@ class KitchenSpot extends Node3D:
 			helper.on_fridge()
 		else:
 			helper.on_sink()
+
+
+# --- Refinement 01 (S): fixtures need their ceiling or wall --------------------------------
+
+## Ceiling lights and the bare bulb fall with a collapsed roof, the range
+## hood and the wall switches with their wall section (HouseWorld.ceiling_at /
+## wall_at): fallen lights are dark and hidden, fallen switches hidden.
+func _apply_mounts(s: Dictionary) -> bool:
+	if not world.has_method("wall_at"):
+		return false
+	var before := _fallen.size()
+	_fallen.clear()
+	for l in HousePlan.LIGHTS:
+		var id: String = l["id"]
+		var p: Vector2 = l["pos"]
+		var ok := true
+		match str(l["kind"]):
+			"ceiling", "bare_bulb":
+				ok = world.ceiling_at(p)
+			"hood":
+				ok = world.wall_at(Vector2(p.x, 0.1), 2.0, 0.3)
+		if not ok:
+			_fallen[id] = true
+			s[id] = false
+	for r in switches:
+		(switches[r] as Node3D).visible = world.wall_at(SWITCHES[r]["pos"], 1.1)
+	return _fallen.size() != before          # fallen fixtures never come back up

@@ -588,12 +588,15 @@ func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 		return
 	var s := HouseWorld.nearest_seg(p)
 	r["segs"] = [s]
+	var bearing: String = world.bearing_warning(s) if world.has_method("bearing_warning") else ""   # Refinement 01 (S)
 	if world.built.has(s):
+		r["bearing"] = bearing
 		r["refund"] = BuildPieces.wall_cost(world.sections.get(s, {}).get("material", "wood")).duplicate()
 		return
 	var info := world.section_info(s)
 	if info["exists"] and (info["wall"] or info["glass"]):
 		r["opening"] = true
+		r["bearing"] = bearing
 		r["window"] = info["glass"]
 		r["refund"] = BuildPieces.original_salvage("window" if info["glass"] else "wall", info["integrity"])
 		if world.bodies_in(HouseWorld.seg_rect(s, 0.2)):
@@ -905,4 +908,6 @@ func _refresh_palette() -> void:
 		status = "Ready: knocks out this original wall section."
 	elif last_eval.has("furniture"):
 		status = "Ready: takes the %s apart." % world.furniture.display_name(last_eval["furniture"]).to_lower()
+	if tool() == "demolish" and str(last_eval.get("bearing", "")) != "":
+		status += "  " + str(last_eval["bearing"])      # Refinement 01 (S): what the wall carries
 	palette.show_state(piece, p["name"], cost_txt, mats, status, last_eval.get("ok", true), p["hint"])

@@ -505,6 +505,7 @@ func _build() -> void:
 	_build_house_section(box)      # Experiment 004
 	_build_exp004_e(box)          # Experiment 004 (E): the car and the quick-access bar
 	_build_home_section(box)     # Experiment 004 (H)
+	_build_structure_section(box)     # Refinement 01 (S)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -656,3 +657,19 @@ func home_call(method: String, args: Array) -> void:
 		_say("The game has no home.%s()" % method, true)
 		return
 	_say(str(h.callv(method, args)))
+
+
+# --- Refinement 01 (S): structural support (methods on src/world/game_support.gd) ------
+
+func _build_structure_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Structure"))
+	box.add_child(_grid(2, [["Show support", _support_call.bind("dev_show_support")],
+		["Collapse test", _support_call.bind("dev_collapse_test")]]))
+
+
+func _support_call(method: String) -> void:
+	var h = game.get("support") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no support.%s()" % method, true)
+		return
+	_say(str(h.call(method)))
