@@ -28,7 +28,7 @@ const REFRESH := 0.25                  ## seconds between electrical checks (sig
 ## A wall switch per room, near its door, on the room side: plan position and
 ## the direction its front faces (into the room).
 const SWITCHES := {
-	"bedroom": {"pos": Vector2(1.55, 3.9), "facing": "N"},
+	"bedroom": {"pos": Vector2(4.9, 2.65), "facing": "W"},
 	"bathroom": {"pos": Vector2(5.55, 3.9), "facing": "N"},
 	"living": {"pos": Vector2(3.5, 8.85), "facing": "N"},
 	"utility": {"pos": Vector2(10.1, 8.45), "facing": "E"},
@@ -71,7 +71,8 @@ func setup(g: Node) -> void:
 	fireplace = Fireplace.new()
 	fireplace.name = "Fireplace"
 	fireplace.owner_helper = self
-	fireplace.lit = state.home.get("fire", true) != false
+	var fire = state.home.get("fire", true)
+	fireplace.lit = not (typeof(fire) == TYPE_BOOL and not fire)
 	_root.add_child(fireplace)
 	_claim_nav(Fireplace.RECT)
 	_build_fixtures()

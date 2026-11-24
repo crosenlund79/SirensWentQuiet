@@ -12,6 +12,9 @@ uniform vec3 river : source_color = vec3(0.3, 0.42, 0.44);
 uniform vec3 foam : source_color = vec3(0.86, 0.88, 0.86);
 uniform float night = 0.0;
 uniform float shimmer = 0.7;
+// Experiment 004: ice along the shores and over the river, a thin crack pattern.
+uniform vec3 ice_col : source_color = vec3(0.78, 0.86, 0.92);
+uniform float ice = 1.0;
 
 varying vec3 v_world;
 
@@ -38,6 +41,12 @@ void fragment() {
 		f = 0.45 + 0.55 * smoothstep(0.35, 0.6, s);
 		nrm = vec3(0.0, 1.0, 0.0);
 	}
+	float frozen = clamp(max(shore * 1.4, (1.0 - sea) * 0.75), 0.0, 1.0) * ice * (UV.y > 0.5 ? 0.35 : 1.0);
+	float ck = texture(cloud_tex, p / 2.1).r;
+	float crack = 1.0 - smoothstep(0.0, 0.025, abs(ck - 0.5));
+	c = mix(c, ice_col * (0.92 + 0.1 * n2) - crack * 0.12, frozen);
+	f *= 1.0 - frozen;
+	nrm = normalize(mix(nrm, vec3(0.0, 1.0, 0.0), frozen));
 	c = mix(c, foam, clamp(f, 0.0, 1.0) * 0.75);
 	c *= 1.0 - cloud_shadow_at(v_world);
 	c *= mix(1.0, 0.75, night);

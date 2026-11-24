@@ -45,6 +45,12 @@ static func night_key(total_minutes: float) -> int:
 	return int(floor((total_minutes - 720.0) / 1440.0))
 
 
+## "Tonight" at a moment: the night under way, or (06:00-12:00) the coming one.
+static func tonight_key(total_minutes: float) -> int:
+	var m := fposmod(total_minutes, 1440.0)
+	return night_key(total_minutes) + (1 if m >= 360.0 and m < 720.0 else 0)
+
+
 ## Tonight's northern lights for a run: 0 (none, about 30 % of nights) or a
 ## strength in AURORA_MIN..1. Deterministic per (seed, night).
 static func aurora_strength(seed: int, key: int) -> float:
@@ -115,7 +121,7 @@ func _build_snow() -> void:
 
 ## F10: the northern lights tonight, at full strength.
 func force_tonight() -> void:
-	forced_key = night_key(_minutes)
+	forced_key = tonight_key(_minutes)
 	_key = -999999
 
 

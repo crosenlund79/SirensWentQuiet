@@ -20,17 +20,25 @@ const AO_CURVE := [0.5, 0.68, 0.85, 1.0]
 const SIDE_AO := 0.62
 const PROP_AO := 0.58
 
+## Experiment 004 (northern atmosphere): the region lies under snow. Covers
+## are snow tones (shaded under the forest, trodden in towns), fields are
+## snow with stubble rows, lanes and streets are slushy, roofs carry snow, the
+## broadleaf and dead trees are pines, and the water freezes at its edges
+## (map_water.gdshader).
 const TOP := {
-	RegionTerrain.C_GRASS: Color(0.47, 0.51, 0.33), RegionTerrain.C_MEADOW: Color(0.56, 0.54, 0.36),
-	RegionTerrain.C_FOREST: Color(0.31, 0.36, 0.25), RegionTerrain.C_SAND: Color(0.78, 0.72, 0.58),
-	RegionTerrain.C_ROCK: Color(0.52, 0.51, 0.49), RegionTerrain.C_SNOW: Color(0.88, 0.9, 0.92),
-	RegionTerrain.C_PAVED: Color(0.57, 0.56, 0.54), RegionTerrain.C_YARD: Color(0.51, 0.48, 0.43),
-	RegionTerrain.C_QUAY: Color(0.6, 0.59, 0.56), RegionTerrain.C_PARK: Color(0.42, 0.51, 0.31),
-	RegionTerrain.C_BED: Color(0.44, 0.42, 0.35), RegionTerrain.C_QUARRY: Color(0.77, 0.75, 0.7),
-	RegionTerrain.C_LAWN: Color(0.45, 0.52, 0.32), RegionTerrain.C_DIRT: Color(0.52, 0.44, 0.33),
+	RegionTerrain.C_GRASS: Color(0.86, 0.88, 0.9), RegionTerrain.C_MEADOW: Color(0.88, 0.89, 0.91),
+	RegionTerrain.C_FOREST: Color(0.72, 0.76, 0.78), RegionTerrain.C_SAND: Color(0.82, 0.82, 0.81),
+	RegionTerrain.C_ROCK: Color(0.52, 0.52, 0.53), RegionTerrain.C_SNOW: Color(0.93, 0.94, 0.96),
+	RegionTerrain.C_PAVED: Color(0.68, 0.69, 0.7), RegionTerrain.C_YARD: Color(0.8, 0.81, 0.83),
+	RegionTerrain.C_QUAY: Color(0.66, 0.67, 0.68), RegionTerrain.C_PARK: Color(0.86, 0.88, 0.9),
+	RegionTerrain.C_BED: Color(0.62, 0.65, 0.68), RegionTerrain.C_QUARRY: Color(0.8, 0.8, 0.79),
+	RegionTerrain.C_LAWN: Color(0.88, 0.89, 0.91), RegionTerrain.C_DIRT: Color(0.66, 0.63, 0.6),
 }
-const FIELDS := [Color(0.73, 0.63, 0.38), Color(0.46, 0.37, 0.28), Color(0.5, 0.57, 0.32), Color(0.62, 0.6, 0.4)]
-const ROAD_COL := {RegionTerrain.R_LANE: Color(0.6, 0.53, 0.42), RegionTerrain.R_STREET: Color(0.36, 0.36, 0.37), RegionTerrain.R_MAIN: Color(0.32, 0.32, 0.33)}
+const FIELDS := [Color(0.9, 0.9, 0.89), Color(0.83, 0.83, 0.82), Color(0.88, 0.89, 0.9), Color(0.85, 0.85, 0.83)]
+const ROAD_COL := {RegionTerrain.R_LANE: Color(0.74, 0.73, 0.71), RegionTerrain.R_STREET: Color(0.46, 0.47, 0.49), RegionTerrain.R_MAIN: Color(0.4, 0.41, 0.43)}
+const ROOF_SNOW := Color(0.9, 0.92, 0.95)
+const DRY_GRASS := Color(0.62, 0.58, 0.45)
+const PINE_TINTS := [Color(0.27, 0.38, 0.31), Color(0.24, 0.34, 0.3), Color(0.31, 0.41, 0.32), Color(0.22, 0.31, 0.27)]
 const ROAD_WIDTH := {RegionTerrain.R_LANE: 0.3, RegionTerrain.R_STREET: 0.42, RegionTerrain.R_MAIN: 0.52}
 const ROAD_LIFT := 0.03
 const EARTH := Color(0.43, 0.36, 0.28)
@@ -105,8 +113,10 @@ static func face_corners(lo: Vector3, hi: Vector3, d: int) -> Array:
 
 
 ## A box: five faces (no bottom). Side bottoms get `ao`, tops are lit fully.
-static func add_box(b: Builder, lo: Vector3, hi: Vector3, col: Color, glow := 0.0, ao := PROP_AO, with_top := true) -> void:
+static func add_box(b: Builder, lo: Vector3, hi: Vector3, col: Color, glow := 0.0, ao := PROP_AO, with_top := true, snow := false) -> void:
 	var top := Color(minf(col.r * 1.07, 1.0), minf(col.g * 1.07, 1.0), minf(col.b * 1.07, 1.0), 1.0)
+	if snow:
+		top = ROOF_SNOW      # Experiment 004: snow on every roof and box top
 	var uv := Vector2(glow, 0.0)
 	for d in [0, 1, 2, 4, 5]:
 		if d == 2 and not with_top:
@@ -157,7 +167,7 @@ static func build(t: RegionTerrain) -> Dictionary:
 		var hi: Vector3 = box[1]
 		var c := (lo + hi) * 0.5
 		var ci := clampi(int(c.z) / CHUNK, 0, cz - 1) * cx + clampi(int(c.x) / CHUNK, 0, cx - 1)
-		add_box(pb[ci], lo, hi, box[2], box[3])
+		add_box(pb[ci], lo, hi, box[2], box[3], PROP_AO, true, box[3] <= 0.0 and hi.y - lo.y > 0.06)
 	var props := []
 	var pf := 0
 	for b in pb:
@@ -176,7 +186,14 @@ static func build(t: RegionTerrain) -> Dictionary:
 	for v in tm["meshes"].size():
 		per.append([])
 	for tr in t.trees:
-		per[tr[1]].append(tr)
+		# Experiment 004: broadleaf trees become tall pines, dead ones small pines
+		var item: Array = tr
+		var v: int = item[1]
+		if v == 2 or v == 4:
+			var at: Vector3 = item[0]
+			var k := int(_hash01(int(at.x * 7.0), int(at.z * 7.0)) * 3.99)
+			item = [at, 0 if v == 2 else 1, item[2], PINE_TINTS[k], item[4]]
+		per[item[1]].append(item)
 	var tfaces := 0
 	for v in per.size():
 		var mm := MultiMesh.new()
@@ -221,12 +238,16 @@ static func top_color(t: RegionTerrain, x: int, y: int, noise: FastNoiseLite) ->
 		col = col.lightened(clampf((h - 20) * 0.012, 0.0, 0.2))
 		# lichen and scree
 		col = col.lerp(Color(0.44, 0.45, 0.4), clampf(noise.get_noise_2d(x * 2.0, y * 2.0) * 0.8, 0.0, 0.6))
+		# snow on the heights and in the hollows of the rock
+		col = col.lerp(TOP[RegionTerrain.C_SNOW], clampf((h - 16) * 0.05 + noise.get_noise_2d(x * 3.0, y * 3.0) * 0.6, 0.0, 0.9))
 	elif cv == RegionTerrain.C_SNOW:
-		col = col.lerp(Color(0.7, 0.72, 0.74), clampf(-noise.get_noise_2d(x * 2.0, y * 2.0), 0.0, 0.4))
+		col = col.lerp(Color(0.78, 0.82, 0.88), clampf(-noise.get_noise_2d(x * 2.0, y * 2.0), 0.0, 0.4))
 	var n := noise.get_noise_2d(x, y)
-	if cv in [RegionTerrain.C_GRASS, RegionTerrain.C_MEADOW, RegionTerrain.C_FOREST, RegionTerrain.C_LAWN, RegionTerrain.C_PARK]:
-		# autumn patches: drier and warmer in places
-		col = col.lerp(Color(0.62, 0.53, 0.33), clampf(n * 0.6 + 0.1, 0.0, 0.45))
+	if cv in [RegionTerrain.C_GRASS, RegionTerrain.C_MEADOW, RegionTerrain.C_LAWN, RegionTerrain.C_PARK]:
+		# dry grass poking through the snow in places, blue shade in the drifts
+		col = col.lerp(DRY_GRASS, clampf(n * 0.7 - 0.2, 0.0, 0.3)).lerp(Color(0.76, 0.8, 0.87), clampf(-n * 0.5, 0.0, 0.25))
+	elif cv == RegionTerrain.C_FOREST:
+		col = col.lerp(Color(0.5, 0.55, 0.54), clampf(n * 0.6, 0.0, 0.3))
 	var v := 0.95 + _hash01(x, y) * 0.08 + n * 0.03
 	return Color(col.r * v, col.g * v, col.b * v)
 

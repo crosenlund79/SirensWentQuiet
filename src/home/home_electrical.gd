@@ -42,12 +42,12 @@ static func from_dict(d) -> HomeElectrical:
 	if typeof(ls) == TYPE_DICTIONARY:
 		for id in ls:
 			if e.lights.has(str(id)):
-				e.lights[str(id)] = ls[id] == true
+				e.lights[str(id)] = typeof(ls[id]) == TYPE_BOOL and ls[id]
 	var rs = d.get("rooms", {})
 	if typeof(rs) == TYPE_DICTIONARY:
 		for id in rs:
 			if e.rooms.has(str(id)):
-				e.rooms[str(id)] = rs[id] == true
+				e.rooms[str(id)] = typeof(rs[id]) == TYPE_BOOL and rs[id]
 	return e
 
 
