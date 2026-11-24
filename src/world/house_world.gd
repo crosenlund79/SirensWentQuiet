@@ -741,6 +741,57 @@ func damage_object(o: WorldObject, n: int, from := Vector3.INF) -> void:
 	object_destroyed.emit(kind, where)
 
 
+## SPEC-003 §4 (foundation version; C refines). A blast at `center`: carves a
+## ragged sphere of `radius` from the structure (the foundation slab never
+## goes), damages objects within 1.5 x radius by `power` (falling off with
+## distance), updates collision and navigation, leaves persistent damage.
+## Characters are hurt by the caller (the game). Returns
+## {"voxels": removed count, "hit": [kinds], "destroyed": [kinds]}.
+func explode(center: Vector3, radius: float, power: float) -> Dictionary:
+	var out := {"voxels": 0, "hit": [], "destroyed": []}
+	var ch := VoxelCarver.carve_sphere(grid, center, radius, _rng.randi())
+	out["voxels"] = (ch["cells"] as PackedInt32Array).size()
+	_apply_damage(ch)
+	if fx != null:
+		fx.impact(VoxelMat.Impact.CONCRETE, center, Vector3.UP, Vector3.DOWN, ch)
+	var reach := radius * 1.5
+	var p := Vector2(center.x, center.z)
+	for o in objects_in(Rect2(p - Vector2.ONE * reach, Vector2.ONE * reach * 2.0)):
+		if not is_instance_valid(o):
+			continue
+		var d: float = (o as WorldObject).pos.distance_to(p)
+		if d > reach:
+			continue
+		var n := int(ceil(power * (1.0 - 0.6 * d / reach)))
+		var kind: String = o.kind
+		out["hit"].append(kind)
+		damage_object(o, maxi(n, 1), center)
+		if not is_instance_valid(o) or not objects.has(o):
+			out["destroyed"].append(kind)
+	return out
+
+
+## SPEC-003 §5 (foundation version; C refines). Defensive points a wall-seeking
+## attacker (the bomber) could target, best first, as
+## [{"kind": "door"|"barricade"|"wall", "pos": Vector2 (outside face), "score": float}].
+## Doors and barricades score by how much they protect; wall sections by how
+## weak they already are and how close they are to `from`.
+func weak_points(from: Vector2) -> Array:
+	var out := []
+	for o in objects:
+		if o.kind in ["door", "barricade"]:
+			out.append({"kind": o.kind, "pos": o.pos, "score": 2.0 - float(o.hp) / maxf(o.max_hp, 1) - o.pos.distance_to(from) * 0.02})
+	for s in sections:
+		var info: Dictionary = sections[s]
+		if int(info.get("design", 0)) <= 0:
+			continue
+		var integ := section_integrity(s)
+		var c := seg_center(s)
+		out.append({"kind": "wall", "pos": c, "score": 1.2 - integ - c.distance_to(from) * 0.03})
+	out.sort_custom(func(a, b): return a["score"] > b["score"])
+	return out
+
+
 ## Opens or closes a door. Returns "" or the reason it can't close.
 func toggle_door(o: WorldObject) -> String:
 	if o.kind != "door":

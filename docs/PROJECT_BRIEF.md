@@ -50,7 +50,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 - **Experiment 001** (approved and delivered 2026-11-23, branch `claude/practical-heisenberg-mjc1xx`, commit `0bb3eb6`). Three playable visual prototypes plus `docs/experiment-001/COMPARISON.md`. Outcome: the user selected true 3D voxels (A) combined with conventional stylized 3D assets. The demos remain under Visual Experiments.
 
-## Current approved development objective
+## Previous objective (Experiment 002)
 
 **Status: Approved 2026-11-23. Delivered on the working branch 2026-11-24** (report: `docs/experiment-002/REPORT.md`; integrated playtest 23/23 across a real restart). Not merged.
 
@@ -78,9 +78,25 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - the end-to-end survival playtest (`tools/survival_playtest.*`) across a real application restart;
   - screenshots from the game camera.
 
-## Queued approved objective (not started)
+## Current approved development objective (Experiment 003)
 
-- **Experiment 003: Foundations of Survival (systems-first vertical slice).** Approved by the user on 2026-11-24 as a queued objective. It starts only after Experiment 002 is fully delivered (integrated, playtested, documented, committed and pushed), and the two must not overlap. The full assignment is recorded in `docs/experiment-003/ASSIGNMENT.md`; the user's message remains the authority.
+**Status: Approved 2026-11-24 (queued behind Experiment 002, which was delivered at `4c87cd6`); in progress since 2026-11-24.**
+
+- **User approval:** User message of 2026-11-24, "Queued Assignment — Experiment 003: Foundations of Survival", recorded in `docs/experiment-003/ASSIGNMENT.md`.
+- **Objective (one):** A systems-first vertical slice:
+  - equipment and weapons (handgun + shotgun);
+  - wood, stone and iron construction;
+  - consolidated survival;
+  - a reusable enemy AI with psycho, runner, brute and suicide bomber;
+  - difficulty and a threat-budget invasion director;
+  - an expanded data-driven scavenging system (24 locations);
+  - an interactive voxel city map with drifting clouds;
+  - persistence and dev tools for all of it.
+- **Decisions recorded:** contracts and phases in `docs/experiment-003/SPEC.md`.
+  - Phase A: five parallel module agents (K, C, AI, X, M).
+  - Phase B: one integration agent (game, UI, save v2, playtest).
+- **Out of scope:** structural collapse simulation, multi-floor construction, crafting beyond one scrap → iron example, detailed art, SirenVoxelLibrary assets, exports. No merge to `main`.
+- **Acceptance:** the 20-step vertical slice in `ASSIGNMENT.md` §13, with focused tests, an integrated playthrough and screenshots (especially the city map, enemy behaviours and construction).
 
 ## Proposals awaiting user approval
 

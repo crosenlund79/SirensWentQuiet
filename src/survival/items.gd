@@ -5,7 +5,7 @@ extends RefCounted
 ## each; food, water, ammo and medical items have no cap. Consumables carry a
 ## `verb` for UI buttons.
 
-const CATEGORIES := ["food", "water", "ammo", "material", "medical", "tool"]
+const CATEGORIES := ["weapon", "ammo", "protective", "tool", "utility", "medical", "food", "water", "material"]
 
 const DEFS := {
 	"canned_food": {"name": "Canned food", "category": "food", "desc": "Beans, soup, something. Filling.", "hunger": 30.0, "hydration": 4.0, "verb": "Eat"},
@@ -17,6 +17,13 @@ const DEFS := {
 	"scrap": {"name": "Scrap metal", "category": "material", "desc": "Sheathing, hinges, collectors.", "cap": 20, "cap_per_crate": 10},
 	"bandage": {"name": "Bandage", "category": "medical", "desc": "Stops the bleeding.", "health": 20.0, "verb": "Apply"},
 	"medkit": {"name": "First-aid kit", "category": "medical", "desc": "Proper supplies.", "health": 50.0, "verb": "Use"},
+	# --- Experiment 003 foundation (K owns the semantics; "slot" = equipment slot) ---
+	"stone": {"name": "Stone", "category": "material", "desc": "Cut stone and blocks: masonry, foundations, strong walls.", "cap": 40, "cap_per_crate": 20},
+	"iron": {"name": "Iron", "category": "material", "desc": "Bars and plate: reinforcement and strong components.", "cap": 20, "cap_per_crate": 10},
+	"shells": {"name": "12-gauge shells", "category": "ammo", "desc": "For the shotgun. Heavy, loud, final."},
+	"handgun": {"name": "Handgun", "category": "weapon", "desc": "9 mm pistol. Reliable, quiet enough, a small magazine.", "cap": 1, "slot": "weapon"},
+	"shotgun": {"name": "Shotgun", "category": "weapon", "desc": "Pump shotgun: a wide, short-range blast. Slow to reload.", "cap": 1, "slot": "weapon"},
+	"vest": {"name": "Protective vest", "category": "protective", "desc": "Takes the edge off blows and blasts.", "cap": 1, "slot": "body"},
 	"hammer": {"name": "Hammer", "category": "tool", "desc": "Needed to build and repair.", "cap": 1},
 	"crowbar": {"name": "Crowbar", "category": "tool", "desc": "Opens stockrooms and locked doors on expeditions.", "cap": 1},
 	"flashlight": {"name": "Flashlight", "category": "tool", "desc": "Needed in dark places like the clinic.", "cap": 1},

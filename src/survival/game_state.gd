@@ -45,6 +45,11 @@ var inventory: Inventory:
 		inventory = v if v != null else Inventory.new()
 		inventory.changed.connect(_on_inventory_changed)
 var cheats := {"invulnerable": false, "unlimited": false}
+## Experiment 003 (foundation; K owns the semantics):
+var difficulty := Difficulty.DEFAULT            ## "easy" | "normal" | "hard"
+var equipment := {}                             ## slot -> item id (SPEC-003 §2)
+var weapons := {}                               ## weapon id -> {"loaded": int} (magazine contents)
+var region := RegionState.new_region()          ## the world outside the lot (SPEC-003 §3)
 var run := {}
 var dead := false
 var death_cause := ""
@@ -55,8 +60,9 @@ func _init() -> void:
 	run = _default_run(0)
 
 
-static func new_run(run_seed := 0) -> GameState:
+static func new_run(run_seed := 0, level := Difficulty.DEFAULT) -> GameState:
 	var s := GameState.new()
+	s.difficulty = Difficulty.valid(level)
 	s.total_minutes = T.START_MINUTE
 	for k in T.START_STATS:
 		s.set(k, T.START_STATS[k])
@@ -600,6 +606,8 @@ func to_dict() -> Dictionary:
 		"total_minutes": total_minutes, "health": health, "hunger": hunger,
 		"hydration": hydration, "energy": energy, "inventory": inventory.to_dict(),
 		"cheats": cheats.duplicate(), "run": run.duplicate(true), "dead": dead, "death_cause": death_cause,
+		"difficulty": difficulty, "equipment": equipment.duplicate(), "weapons": weapons.duplicate(true),
+		"region": region.to_dict(),
 	}
 
 
@@ -630,6 +638,13 @@ static func from_dict(d) -> GameState:
 	s.run = _clean_run(d["run"], s.total_minutes)
 	s.dead = _flag(d.get("dead")) or (s.health <= 0.0 and not s.cheats["invulnerable"])
 	s.death_cause = str(d.get("death_cause", "")).left(60) if s.dead else ""
+	# Experiment 003 fields; an Experiment 002 save has none of them (defaults).
+	s.difficulty = Difficulty.valid(str(d.get("difficulty", Difficulty.DEFAULT)))
+	var eq = d.get("equipment", {})
+	s.equipment = (eq as Dictionary).duplicate() if typeof(eq) == TYPE_DICTIONARY else {}
+	var wp = d.get("weapons", {})
+	s.weapons = (wp as Dictionary).duplicate(true) if typeof(wp) == TYPE_DICTIONARY else {}
+	s.region = RegionState.from_dict(d.get("region", {}))
 	return s
 
 
