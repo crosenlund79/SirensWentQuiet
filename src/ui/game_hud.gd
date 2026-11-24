@@ -399,7 +399,7 @@ func _refresh_weapon(force: bool) -> void:
 	_weapon_other.text = ("Q  %s" % other) if other != "" else ""
 	_weapon_other.visible = other != ""
 	var col := UiTheme.TEXT
-	var note := "%d %s spare" % [reserve, _short_ammo(str(w.get("ammo", "")))]
+	var note := "%d spare %s" % [reserve, _spare_name(str(w.get("ammo", "")), reserve)]
 	if unlimited:
 		note = "unlimited"
 		col = UiTheme.ACCENT
@@ -425,8 +425,9 @@ func _refresh_weapon(force: bool) -> void:
 	_reload_bar.value = float(w.get("reload_progress", 0.0))
 
 
-static func _short_ammo(ammo_id: String) -> String:
-	return {"ammo": "9 mm", "shells": "shells"}.get(ammo_id, Items.name_of(ammo_id).to_lower() if ammo_id != "" else "")
+static func _spare_name(ammo_id: String, n: int) -> String:
+	var word: String = {"ammo": "round", "shells": "shell"}.get(ammo_id, "round")
+	return word if n == 1 else word + "s"
 
 
 ## Warning words derived from the stats (or GameState.warnings() when S adds

@@ -50,7 +50,7 @@ func test_hud_reflects_state() -> void:
 	# the weapon in hand
 	check_eq(t["weapon"], "Handgun", "weapon name")
 	check_eq(t["ammo_cap"], "/ 12", "magazine capacity")
-	check_eq(t["ammo_note"], "0 9 mm spare", "reserve")
+	check_eq(t["ammo_note"], "0 spare rounds", "reserve")
 	check_eq(t["materials"], "Wood 6 · Stone 0 · Iron 0", "construction resources")
 	state.inventory.add("stone", 4)
 	await frames(1)
@@ -141,7 +141,7 @@ func test_hud_weapon_card_reads_the_weapon_handler_and_alerts() -> void:
 	await frames(1)
 	t = hud.debug_texts()
 	check_eq(t["ammo"], "5", "shells loaded")
-	check_eq(t["ammo_note"], "2 shells spare", "reserve")
+	check_eq(t["ammo_note"], "2 spare shells", "reserve")
 	check(not t["reloading"], "bar hidden")
 	hud.alert("Bomber at the wall · 3 s", 0.3)
 	check_eq(hud.debug_texts()["alert"], "BOMBER AT THE WALL · 3 S", "alert shown")

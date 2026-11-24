@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Experiment 002 integrated playtest through real input events and the real
-# renderer (Xvfb + software Vulkan), in two separate processes:
-#   part 1: new game → ... → save and quit;  part 2: continue and verify.
+# Experiment 003 acceptance playtest (ASSIGNMENT §13, 20 steps) through real
+# input events and the real renderer (Xvfb + software Vulkan), in two
+# separate processes:
+#   part 1: New Game on Hard → ... → save and quit;  part 2: continue and verify.
 # Game time is fixed at 30 fps (deterministic, independent of the slow
 # renderer). The save goes to <out>/playtest_save.dat, never the player's save.
 # Usage: tools/survival_playtest.sh [out dir] [--render-always]
