@@ -256,3 +256,31 @@ func test_no_dependency_on_modular_demo() -> void:
 				"%s does not reference the modular demo" % f)
 		for cls in ["ModMesh", "ModMaterials", "ModFurnitureKit"]:
 			check(not text.contains(cls), "%s does not use %s" % [f, cls])
+
+
+## Experiment 003: the "iron" style of doors (reinforced door) and barricades.
+func test_iron_styles() -> void:
+	for dmg in [0.0, 0.5, 0.8]:
+		var n := PropKit.make("door", Vector3(1.0, 2.1, 0.16), {"facing": "N", "style": "iron", "seed": 3, "damage": dmg})
+		add(n)
+		var leaf := n.get_node_or_null("Leaf") as Node3D
+		check(leaf != null and PropKit.triangle_count(leaf) > 0, "reinforced door (%.1f) has a Leaf with a mesh" % dmg)
+		var frame := (n.get_node("Mesh") as MeshInstance3D).mesh.get_aabb()
+		check(frame.size.x <= 1.001 and frame.size.y <= 2.101, "its frame fits the opening (%s)" % frame.size)
+		if dmg == 0.0:
+			check(PropKit.node_bounds(n).size.z <= frame.size.z + 0.01, "closed, the plated leaf stays in the frame")
+	var plain := PropKit.make("door", Vector3(1.0, 2.1, 0.16), {"style": "plank", "seed": 3})
+	var iron := PropKit.make("door", Vector3(1.0, 2.1, 0.16), {"style": "iron", "seed": 3})
+	add(plain)
+	add(iron)
+	check((plain.get_node("Leaf/Mesh") as MeshInstance3D).mesh != (iron.get_node("Leaf/Mesh") as MeshInstance3D).mesh, "the iron leaf is its own mesh")
+	var size := Vector3(1.0, 1.5, 0.22)
+	var meshes := []
+	for dmg in [0.0, 0.5, 0.95]:
+		var b := PropKit.make("barricade", size, {"style": "iron", "seed": 4, "damage": dmg})
+		add(b)
+		meshes.append((b.get_node("Mesh") as MeshInstance3D).mesh)
+		check(PropKit.triangle_count(b) > 0, "iron barricade (%.2f) builds" % dmg)
+		_fits("barricade", size, "N", b)
+	check(meshes[0] != meshes[1] and meshes[1] != meshes[2], "damage changes the iron barricade")
+	check(_front_area(meshes[2]) < _front_area(meshes[0]) * 0.8, "heavy damage tears bars off (%.2f vs %.2f)" % [_front_area(meshes[2]), _front_area(meshes[0])])
