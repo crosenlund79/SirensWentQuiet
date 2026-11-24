@@ -73,7 +73,7 @@ func test_new_run_boots_on_day_one_and_writes_the_initial_save() -> void:
 	check(await _wait_until(func(): return g.debug_modal() == "", 1200), "the intro finishes (modal '%s')" % g.debug_modal())
 	var s: GameState = g.debug_state()
 	check_eq(s.day(), 1, "Day 1")
-	check_eq(s.inventory.count("ammo"), 9, "nine bullets")
+	check_eq(s.magazine("handgun"), 9, "nine bullets")
 	check(g.debug_player_pos().distance_to(Vector2(g.debug_world().bed_position().x, g.debug_world().bed_position().z)) < 2.0, "wakes beside the bed")
 	check(SaveGame.info()["valid"], "the initial save exists after the intro")
 	check("new_run" in g.autosave_log, "initial save logged (%s)" % [g.autosave_log])
@@ -94,21 +94,21 @@ func test_firing_consumes_ammo_stops_at_zero_and_the_cheat_keeps_it() -> void:
 	s.cheats["unlimited"] = true
 	for i in 3:
 		g.debug_fire_at(ground, 0.0)
-	check_eq(s.inventory.count("ammo"), 9, "unlimited cheat: no ammo used")
+	check_eq(s.magazine("handgun"), 9, "unlimited cheat: no ammo used")
 	s.cheats["unlimited"] = false
 	# Real input path: the fire action through _unhandled_input.
 	_action("fire", true)
 	await physics_frames(3)
 	_action("fire", false)
 	await physics_frames(2)
-	check_eq(s.inventory.count("ammo"), 8, "one trigger pull through the fire action uses one round")
+	check_eq(s.magazine("handgun"), 8, "one trigger pull through the fire action uses one round")
 	for i in 8:
 		var r: Dictionary = g.debug_fire_at(ground, 0.0)
 		check(r.get("kind", "") != "dry", "shot %d fires" % (i + 2))
-	check_eq(s.inventory.count("ammo"), 0, "nine rounds, nine shots")
+	check_eq(s.magazine("handgun"), 0, "nine rounds, nine shots")
 	var r: Dictionary = g.debug_fire_at(ground, 0.0)
 	check_eq(r.get("kind", ""), "dry", "an empty gun clicks")
-	check_eq(s.inventory.count("ammo"), 0, "never negative")
+	check_eq(s.magazine("handgun"), 0, "never negative")
 	check_eq(g.last_toast, "Out of ammo", "toast")
 	check_eq(g.shots_fired, 12, "shots fired (3 free + 9)")
 
@@ -124,7 +124,7 @@ func test_no_firing_while_a_panel_or_build_mode_is_open() -> void:
 	await frames(4)
 	_action("fire", false)
 	await frames(1)
-	check_eq(s.inventory.count("ammo"), 9, "no shot through the inventory panel")
+	check_eq(s.magazine("handgun"), 9, "no shot through the inventory panel")
 	await _tap("inventory")
 	check_eq(g.debug_modal(), "", "I closes the inventory")
 	check(not tree.paused, "unpaused")

@@ -302,7 +302,7 @@ func _refresh(force: bool) -> void:
 		_warn_key = wkey
 		_set_warnings(warns)
 	# ammo
-	var ammo := state.inventory.count("ammo")
+	var ammo := state.magazine(state.active_weapon()) + state.reserve(state.active_weapon())
 	var unlimited := bool(state.cheats.get("unlimited", false))
 	var akey := "%d %s" % [ammo, unlimited]
 	if akey != _ammo_key or force:

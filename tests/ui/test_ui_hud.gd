@@ -48,7 +48,7 @@ func test_hud_reflects_state() -> void:
 	await frames(1)
 	check(not hud.debug_texts()["cheats_visible"], "badge hides when cheats are off")
 	# ammo
-	state.inventory.remove("ammo", 9)
+	state.set_magazine("handgun", 0)
 	await frames(1)
 	t = hud.debug_texts()
 	check_eq(t["ammo"], "0", "ammo count")
