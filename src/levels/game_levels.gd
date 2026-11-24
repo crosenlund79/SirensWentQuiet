@@ -48,6 +48,7 @@ var _views := {}                       ## stairs index key -> StairsView
 var _ends := {}                        ## stairs key -> [StairsEnd, StairsEnd]
 var _moving := false
 var _cooldown := 0.0
+var _blocked := ""                     ## stairs the player stands on that lead nowhere yet (one toast)
 var _roof_base := INF
 
 
@@ -259,15 +260,17 @@ func on_player_placed() -> void:
 	_update_visibility()
 
 
-## Takes stairs from the player's storey, with a short fade.
-func use_stairs(st: Dictionary) -> void:
+## Takes stairs from the player's storey, with a short fade. `walked`: the
+## player stepped onto them (a dead end is announced once, not every frame).
+func use_stairs(st: Dictionary, walked := false) -> void:
 	if _moving or not Levels.joins(st, player_storey):
 		return
 	var to := Levels.other_storey(st, player_storey)
 	if world_of(to) == null:
-		game.toast("The stairs end at the ceiling. Build the upper floor (key 0 in build mode)." if to == Levels.UPPER
-			else "There's no basement down there yet.", "warn")
-		_cooldown = 1.5
+		if not walked or _blocked != _key(st):
+			game.toast("The stairs end at the ceiling. Build the upper floor (key 0 in build mode)." if to == Levels.UPPER
+				else "There's no basement down there yet.", "warn")
+		_blocked = _key(st)
 		return
 	await _move_player(to, Levels.exit_point(st, to), Levels.arrival_yaw(st, to))
 	game.toast(Levels.name_of(to), "info")
@@ -325,10 +328,11 @@ func _check_player() -> void:
 			continue
 		var r := Levels.stairs_rect(st)
 		if r.grow(-0.15).has_point(p):
-			use_stairs(st)
+			use_stairs(st, true)
 			return
 		if r.grow(0.35).has_point(p):
 			near = true
+	_blocked = ""
 	if player_storey == Levels.UPPER and upper != null and not near and not upper.has_floor_at(p):
 		_move_player(Levels.GROUND, p)
 		game.toast("You drop down to the ground floor.", "warn")
