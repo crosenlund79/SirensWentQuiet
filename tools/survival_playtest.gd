@@ -97,6 +97,12 @@ func _wait(s: float) -> void:
 
 func _render(on: bool) -> void:
 	RenderingServer.render_loop_enabled = on or _render_always
+	# Under software Vulkan any HUD change (the clock, the bars) forces a full
+	# 3D redraw even with the render loop off (measured: about 0.9 s per frame),
+	# so the HUD layer is hidden between screenshots. Steps read state through
+	# the game's debug API, never from the HUD, so this changes no result.
+	if not _render_always and g != null and is_instance_valid(g) and g.get("hud") != null:
+		(g.hud as CanvasLayer).visible = on
 
 
 func _shot(name: String) -> void:
