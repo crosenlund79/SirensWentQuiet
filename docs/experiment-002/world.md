@@ -98,7 +98,7 @@ CAPTURE_ENGINE_ARGS="--fixed-fps 10" LP_NUM_THREADS=1 tools/capture.sh res://src
 
 | | |
 |---|---|
-| ![](screenshots/v_house_day.jpg) House by day (furniture still the kit's placeholder boxes) | ![](screenshots/v_house_night.jpg) Night: candles and lanterns, no grid power |
+| ![](screenshots/v_house_day.jpg) House by day (voxel structure, mesh furniture) | ![](screenshots/v_house_night.jpg) Night: candles and lanterns, no grid power |
 | ![](screenshots/v_build_valid.jpg) A 6 m wall run, valid | ![](screenshots/v_build_invalid.jpg) A barricade that would seal the bedroom |
 | ![](screenshots/v_built_pieces.jpg) Built wall with a door, a barricade on the path, crate, collector, sheathed south wall | ![](screenshots/v_wall_damaged.jpg) / ![](screenshots/v_wall_repaired.jpg) Shot-up wall, then repaired (glass back) |
 

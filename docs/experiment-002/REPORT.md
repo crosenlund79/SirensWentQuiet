@@ -1,7 +1,5 @@
 # Experiment 002 — The First Days: report
 
-> **DRAFT:** the final integrated playtest is still running; its results and the screenshot list will replace the placeholders below.
-
 The Version A voxel showcase is now the first playable survival prototype of **Sirens Went Quiet**: one fragile wooden house on a lot ringed by fog. The loop is wake → assess needs → scavenge → return → build and prepare → survive the night → sleep → repeat. The three Experiment 001 demos remain under **Visual Experiments**.
 
 **How it was checked.**
@@ -63,13 +61,58 @@ True 0.2 m voxel storage would break the 0.3 m layered exterior walls, the align
 
 The debug API is used to read state, and to act only where input can't reasonably reach; every such use is printed as a note.
 
-*(pending: the final run is in progress)*
+**Final run (`tools/survival_playtest.sh`): 23 passed, 0 failed, 0 skipped, 2/2 parts completed.** Real renderer, 1600×900, software Vulkan.
+
+| # | The user's step | Result | What happened |
+|---|---|---|---|
+| 1–2 | Start a new game; wake on Day 1 | PASS | New Game from the main menu; intro (9.5 s); Day 1 07:00 beside the bed; initial save written |
+| 3 | Inspect food, water and inventory | PASS | I opened the panel: 3 canned + 2 snacks, 4 water, 9 rounds |
+| 4 | Move around the house and yard | PASS | WASD bedroom → living room → front door (opened with E) → yard |
+| 5 | Enter the surrounding fog | PASS | At the lot edge: "[E] Leave the property and head into the fog"; E opened the expedition screen |
+| 6–7 | Select a scavenging expedition; resolve an event | PASS | Nearby Homes, clicked through gear and confirm; "Dogs" event answered with key 1 (back away, +25 min) |
+| 8 | Return with usable resources | PASS | +2 canned food, +2 snacks, +2 water, +3 planks, +7 nails, a backpack; 170 min advanced exactly once; autosave |
+| 9 | Eat and drink | PASS | Inventory Use buttons: hunger 71 → 99, hydration 64 → 98 |
+| 10 | Build or repair | PASS | B, 2, LMB: a barricade in the front yard; "Barricade up."; 2 planks and 4 nails paid |
+| 11 | Advance time into night | PASS | Dev-menu buttons "Night 20:00", ×10, ×1 → 20:59 |
+| 12 | Sleep where safe | PASS | Walked to the bed, E, "Sleep until morning": 21:07 → Day 2 06:00, energy 21 → 99, autosave on waking |
+| 13 | Trigger and survive an invasion | PASS | Dev-menu "Next invasion": 3 psychos, killed with exactly the 9 starting rounds (mouse aim + LMB), health 100; "They're gone… for now"; autosave |
+| 14 | Observe structural damage | PASS* | *These three died before reaching the house, so the damage was made by 10 player shots into the south wall (472 voxels). A separate capture below shows an invasion breaking in by itself. |
+| 15 | Repair or rebuild | PASS | B, 7, LMB on the section: "Wall repaired: 472 voxels (4 planks, 8 nails)" → 0 missing |
+| 16 | Save the game | PASS | Three fresh shots left 214 missing voxels for part 2; Esc → Save; the save is valid |
+| 17 | Exit and restart the application | PASS | Main Menu → part 1 quits; part 2 is a **new process** |
+| 18 | Continue the saved game | PASS | Continue from the main menu: Day 2 21:43 |
+| 19 | Structural changes, supplies and survival state persist | PASS | Voxel hash identical; 214 missing voxels; the barricade and both doors in the same places; world data hash identical; inventory identical; stats and player position as saved |
+| 20 | Cheat controls and audio override fallback | PASS | Invulnerable (health stayed 100 with a psycho in reach for 4.2 s); unlimited resources (5 shots at 0 ammo, ammo stays 0); both switch off; a corrupt `custom/` override falls back to the template handgun sound |
+
+**Where input was helped (printed by the run):**
+- the invasion spawn gap was shortened to 3–5 s through the debug API, to keep the run short;
+- the unlimited cheat was switched on with its dev-menu button, twice, to have rounds for the wall-damage shots after the invasion used all nine.
+Everything else was real keys, mouse motion and clicks on the real buttons.
+
+**Invasion damage (separate capture, same build).** At night, the player stands invulnerable inside, the doors are closed, and nobody shoots. Within 30 game seconds the three psychos broke the front door ("The door gave way!"), bit 830 voxels out of the walls (including through the bathroom wall), and two of them came inside.
+
+**Test tooling note:**
+- Under software Vulkan, any HUD change made the engine redraw the whole 3D scene even with the render loop off (about 0.9 s per frame), so the first runs hit their time limits.
+- The playtest now hides the HUD between screenshots: 30 times faster, with the same results.
+- It doesn't affect the game on a GPU.
 
 ## Screenshots
 
 All are from the game camera, under software rendering.
 
-*(pending)*
+| | |
+|---|---|
+| ![](screenshots/g01_main_menu.jpg) Main menu | ![](screenshots/g02_wake_day1.jpg) Waking on Day 1 (hybrid house, HUD, bed prompt) |
+| ![](screenshots/g03_fog_boundary.jpg) The fog boundary and its prompt | ![](screenshots/g04_expedition_select.jpg) Expedition selection |
+| ![](screenshots/g05_expedition_event.jpg) An expedition event | ![](screenshots/g06_expedition_report.jpg) The return report |
+| ![](screenshots/g07_inventory.jpg) Inventory after eating and drinking | ![](screenshots/g08_build_mode.jpg) Construction mode (barricade ghost, palette) |
+| ![](screenshots/v_build_invalid.jpg) Refused: "That would seal the last way out." | ![](screenshots/v_built_pieces.jpg) Built wall run, door, barricade, crate, sheathing |
+| ![](screenshots/g09_night_yard.jpg) Night in the yard | ![](screenshots/v_house_night.jpg) Night inside: candles and lanterns |
+| ![](screenshots/g10_invasion.jpg) Invasion ("They're here") | ![](screenshots/g11_invasion_breach.jpg) An invasion breaking in: "The door gave way!" |
+| ![](screenshots/g12_wall_damaged.jpg) Damaged wall | ![](screenshots/g13_wall_repaired.jpg) Repaired in build mode |
+| ![](screenshots/g15_menu_continue.jpg) Continue in a new process | ![](screenshots/g16_continued.jpg) The continued run: same time, holes and barricade |
+
+The house by day and the 0.1 m vs 0.2 m damage comparison are in `world.md` and `VOXEL_RESOLUTION.md`.
 
 ## Known limitations
 

@@ -52,7 +52,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved development objective
 
-**Status: Approved 2026-11-23, in progress.**
+**Status: Approved 2026-11-23. Delivered on the working branch 2026-11-24** (report: `docs/experiment-002/REPORT.md`; integrated playtest 23/23 across a real restart). Not merged.
 
 - **User approval (reference / summary):** User message of 2026-11-23, "Experiment 002 — The First Days: from visual experiment to playable survival prototype". One coordinated task with parallel specialist agents in isolated worktrees; the lead integrates and tests.
 - **Objective (one):** Turn the voxel showcase into the first playable survival prototype with one complete, minimal, persistent survival loop.
