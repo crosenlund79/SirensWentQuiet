@@ -1840,12 +1840,12 @@ func upgrade_section(s: Vector3i) -> void:
 				var pr := posmod(row, 6)
 				var corr: int = PLATE_TONES[int(VoxelArt.hash3(floori(a / 5.0), row / 6, s.y, 23) * PLATE_TONES.size()) % PLATE_TONES.size()]
 				if pa == 0 or pr == 0:
-					corr = VoxelArt.scale(corr, 0.7)
+					corr = VoxelArt.scale(corr, 0.8)
 				elif (pa == 1 or pa == 4) and (pr == 1 or pr == 5):
-					corr = VoxelArt.scale(corr, 1.35)
-				var rust := VoxelArt.hash3(a, row / 4, s.y, 21)
-				if rust > 0.86 or (row <= 2 and rust > 0.35):
-					corr = VoxelArt.mix(corr, 0x7b4a2c, 0.5)
+					corr = VoxelArt.scale(corr, 1.3)
+				var rust := VoxelArt.hash3(a, row / 3, s.y, 21)
+				if (row <= 1 and rust > 0.3) or rust > 0.94:
+					corr = VoxelArt.mix(corr, 0x7b4a2c, 0.4)
 				var pc := VoxelArt.jitter(corr, x, y, z, 0.03)
 				var pm := design.pmask[i] | (1 << out_dir)
 				var body := VoxelArt.jitter(0xa9aeb2, x, y, z, 0.03)
