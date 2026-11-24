@@ -524,10 +524,13 @@ func _show_info() -> void:
 	if not s["equipment"].is_empty():
 		_info.add_child(UiTheme.make_section("Equipment"))
 		for e in s["equipment"]:
-			var line := "%s %s%s" % ["✓" if e["have"] else "✗", e["name"], (": " + e["effect"]) if e["effect"] != "" else ""]
+			var on: bool = e["have"] and e.get("equipped", true)
+			var mark := "✓" if on else ("○" if e["have"] else "✗")
+			var line := "%s %s%s%s" % [mark, e["name"], "" if on or not e["have"] else " (not equipped)", (": " + e["effect"]) if e["effect"] != "" else ""]
 			if e.get("required", false):
 				line += " (required)"
-			_info.add_child(UiTheme.make_caption(line, INFO_W - 40, UiTheme.GOOD if e["have"] else (UiTheme.BAD if e.get("required", false) else UiTheme.TEXT_DIM)))
+			var col := UiTheme.GOOD if on else (UiTheme.TEXT if e["have"] else (UiTheme.BAD if e.get("required", false) else UiTheme.TEXT_DIM))
+			_info.add_child(UiTheme.make_caption(line, INFO_W - 40, col))
 	for n in s.get("notes", []):
 		_info.add_child(UiTheme.make_caption(str(n), INFO_W - 40, UiTheme.WARN))
 	_info.add_child(UiTheme.make_section("Mission purpose"))

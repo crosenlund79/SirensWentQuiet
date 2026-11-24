@@ -10,7 +10,8 @@ extends RefCounted
 ##   id, name, category, category_name, district, district_name, desc,
 ##   travel_minutes, km, search_minutes (0 = unknown), minutes (0 = unknown),
 ##   risk_name, risk_tier (0..3), resources_text, targets [item ids],
-##   equipment [{id, name, effect, have, required}],
+##   equipment [{id, name, effect, have, equipped, required}] (equipped: it
+##     comes along on a trip, X's can_bring),
 ##   approaches [{id, name, short, desc, available, reason, minutes, risk_name}],
 ##   stock (0..1), stock_text, notes [String], available, reason,
 ##   source ("expedition" | "map").
@@ -93,15 +94,14 @@ static func fallback(id: String, state: GameState) -> Dictionary:
 		_:
 			eq_ids.append("crowbar")
 	for g in eq_ids:
-		eq.append({"id": g, "name": Items.name_of(g), "effect": FALLBACK_EQUIPMENT.get(g, ""), "have": owns(state, g), "required": false})
+		var have := owns(state, g)
+		eq.append({"id": g, "name": Items.name_of(g), "effect": FALLBACK_EQUIPMENT.get(g, ""), "have": have, "equipped": have, "required": false})
 	var aps := []
 	for a in APPROACH_ORDER:
 		var ad: Dictionary = APPROACHES[a]
 		aps.append({"id": a, "name": ad["name"], "short": ad["short"], "desc": ad["desc"], "available": true, "reason": "",
 			"minutes": 0, "risk_name": ""})
-	var stock := 1.0
-	if state != null and state.region != null:
-		stock = state.region.stock_of(id)
+	var stock := today_stock(state, id)
 	return {
 		"id": id, "name": str(d.get("name", id)), "category": cat,
 		"category_name": str(RegionLocations.CATEGORIES.get(cat, cat)),
@@ -153,10 +153,11 @@ static func normalize(x: Dictionary, base: Dictionary) -> Dictionary:
 		for e in x["equipment"]:
 			if typeof(e) == TYPE_DICTIONARY:
 				var gid := str(e.get("id", ""))
+				var have := bool(e.get("have", false))
 				eq.append({"id": gid, "name": str(e.get("name", Items.name_of(gid))), "effect": str(e.get("effect", "")),
-					"have": bool(e.get("have", false)), "required": bool(e.get("required", false))})
+					"have": have, "equipped": bool(e.get("equipped", have)), "required": bool(e.get("required", false))})
 			elif typeof(e) == TYPE_STRING:
-				eq.append({"id": e, "name": Items.name_of(e), "effect": "", "have": false, "required": false})
+				eq.append({"id": e, "name": Items.name_of(e), "effect": "", "have": false, "equipped": false, "required": false})
 		out["equipment"] = eq
 	if typeof(x.get("approaches")) == TYPE_ARRAY and not (x["approaches"] as Array).is_empty():
 		var aps := []
@@ -172,6 +173,24 @@ static func normalize(x: Dictionary, base: Dictionary) -> Dictionary:
 		if not aps.is_empty():
 			out["approaches"] = aps
 	return out
+
+
+## Today's stock (RegionState.stock_on with recovery when the region has it).
+static func today_stock(state: GameState, id: String) -> float:
+	if state == null or state.region == null:
+		return 1.0
+	if state.region.has_method("stock_on"):
+		return float(state.region.call("stock_on", id, state.day()))
+	return state.region.stock_of(id)
+
+
+## Sets a place's stock as left today (RegionState.set_stock when present;
+## previews and tests).
+static func set_stock(state: GameState, id: String, value: float) -> void:
+	if state.region.has_method("set_stock"):
+		state.region.call("set_stock", id, value, state.day())
+	else:
+		state.region.stock[id] = value
 
 
 static func owns(state: GameState, item: String) -> bool:

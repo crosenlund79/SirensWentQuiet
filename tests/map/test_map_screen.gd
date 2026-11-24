@@ -90,10 +90,10 @@ func test_map_undiscovered_places_are_hidden() -> void:
 func test_map_opens_on_the_planned_place() -> void:
 	var state := GameState.new_run(10)
 	state.region.discover("quarry")
-	MapInfo.plan(state, "quarry", "raid")
+	MapInfo.plan(state, "quarry", "careful")
 	var s := _screen(state)
 	check_eq(s.selected, "quarry", "the planned place is preselected")
-	check_eq(s.approach, "raid", "with its purpose")
+	check_eq(s.approach, "careful", "with its purpose")
 	check(s.markers.route_world.size() > 3, "and the road there is drawn")
 
 
@@ -143,7 +143,7 @@ func test_map_markers_follow_the_camera() -> void:
 
 func test_map_info_fallback_and_expedition_shape() -> void:
 	var state := GameState.new_run(14)
-	state.region.stock["grocery"] = 0.4
+	MapInfo.set_stock(state, "grocery", 0.4)
 	for id in RegionLocations.ids():
 		var f := MapInfo.fallback(id, state)
 		for k in ["name", "category_name", "district_name", "travel_minutes", "risk_name", "risk_tier", "resources_text", "equipment", "approaches", "stock", "stock_text"]:
@@ -151,8 +151,13 @@ func test_map_info_fallback_and_expedition_shape() -> void:
 		check_eq(f["travel_minutes"], RegionLocations.travel_minutes(id), "%s travel time from RegionLocations" % id)
 		check_eq((f["approaches"] as Array).size(), 4, "%s: four mission purposes" % id)
 	check_eq(MapInfo.fallback("grocery", state)["stock_text"], "Mostly stripped", "stock from RegionState")
+	check(absf(MapInfo.today_stock(state, "grocery") - 0.4) < 0.001, "today's stock on the day it was left")
 	var s := MapInfo.summary("grocery", state)
 	check(s.has("approaches") and s["name"] != "", "summary() always answers")
+	var ed: Variant = ExpeditionData
+	if (ed as Object).has_method("location_summary"):
+		check_eq(s["source"], "expedition", "the expedition module's data is used when it exists")
+		check(not (s["approaches"] as Array).is_empty() and s["travel_minutes"] > 0, "with approaches and travel time")
 	# the expedition module's shape (X's location_summary) is read as documented
 	var x := {"name": "Supermarket", "category": "food", "district": "centre", "risk_name": "High", "travel_minutes": 25,
 		"search_minutes": 120, "minutes": 170, "rewards": "Lots of tins.", "resources": ["canned_food"], "targets": ["water", "canned_food"],

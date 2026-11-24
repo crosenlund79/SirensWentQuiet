@@ -65,8 +65,8 @@ static func sample_state() -> GameState:
 	s.total_minutes = 2 * 1440.0 + 10 * 60.0 + 20.0
 	for id in ["quarry", "sawmill", "police", "scrapyard", "warehouse", "restaurant", "farmhouse", "hospital", "gun_shop", "drugstore"]:
 		s.region.discover(id)
-	s.region.stock["grocery"] = 0.45
-	s.region.stock["homes"] = 0.7
+	MapInfo.set_stock(s, "grocery", 0.45)
+	MapInfo.set_stock(s, "homes", 0.7)
 	s.inventory.add("flashlight", 1)
 	s.inventory.add("crowbar", 1)
 	MapInfo.plan(s, "hardware", "general")
