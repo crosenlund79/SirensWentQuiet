@@ -8,7 +8,14 @@ extends Node3D
 ## (a reinforced door, an iron barricade: same behaviour, more HP); `kind`
 ## stays "door" / "barricade" for both.
 ##
-## Wall-like objects (door, barricade) sit on a 1 m segment of an integer plan
+## Experiment 004: "boards" (window boards: planks over a window section,
+## mounted at window height on the outside face; they stop bullets and
+## bodies), a third door material "metal" (a steel door, 70 HP) and the
+## "fuse_box" (wall-mounted main power switch, `mains_on`; HouseWorld emits
+## power_changed). DEFS "y0" lifts the visual and collision above the floor,
+## "out" moves them toward the front (outside) of the wall line.
+##
+## Wall-like objects (door, barricade, boards) sit on a 1 m segment of an integer plan
 ## line: `seg` = Vector3i(axis, line, start) with axis 0 = along plan x on
 ## y = line, axis 1 = along plan y on x = line. Free-standing objects (crate,
 ## rain collector) sit on 0.5 m cells with a quarter-turn `rot`.
@@ -23,11 +30,17 @@ const DEFS := {
 	"crate": {"name": "Storage crate", "hp": 10, "size": Vector3(1.0, 0.75, 0.5), "segment": false, "layers": 1, "impact": VoxelMat.Impact.WOOD},
 	"rain_collector": {"name": "Rain collector", "hp": 10, "size": Vector3(0.5, 1.1, 0.5), "segment": false, "layers": 1, "impact": VoxelMat.Impact.METAL},
 	"workbench": {"name": "Workbench", "hp": 14, "size": Vector3(1.0, 0.9, 0.5), "segment": false, "layers": 1, "impact": VoxelMat.Impact.WOOD},
+	# Experiment 004
+	"boards": {"name": "Window boards", "hp": 14, "size": Vector3(1.0, 1.3, 0.08), "segment": true, "layers": 1 | 2, "impact": VoxelMat.Impact.WOOD,
+		"y0": 0.85, "out": 0.19},
+	"fuse_box": {"name": "Fuse box", "hp": 20, "size": Vector3(0.5, 0.7, 0.16), "segment": false, "layers": 1, "impact": VoxelMat.Impact.METAL,
+		"y0": 1.1},
 }
 ## Material variants (Experiment 003). "wood" is DEFS itself; others override
 ## name, hp, the PropKit style and the impact kind.
 const MATS := {
-	"door": {"iron": {"name": "Reinforced door", "hp": 42, "style": "iron", "impact": VoxelMat.Impact.METAL}},
+	"door": {"iron": {"name": "Reinforced door", "hp": 42, "style": "iron", "impact": VoxelMat.Impact.METAL},
+		"metal": {"name": "Metal door", "hp": 70, "style": "metal", "impact": VoxelMat.Impact.METAL}},
 	"barricade": {"iron": {"name": "Iron barricade", "hp": 30, "style": "iron", "impact": VoxelMat.Impact.METAL}},
 }
 const WOOD_TONES := [0x7a5c40, 0x8c6c4c, 0x5e4a36, 0x9a8466]
@@ -41,7 +54,8 @@ var rot := 0                     ## 0..3 = front faces N, E, S, W
 var seg := Vector3i(-1, 0, 0)    ## wall-like objects only
 var open := false                ## doors
 var built := true                ## placed by the player (demolish refunds half)
-var mat := "wood"                ## "wood" | "iron" (doors and barricades)
+var mat := "wood"                ## "wood" | "iron" (doors and barricades) | "metal" (doors)
+var mains_on := true             ## fuse box: the main power switch (saved)
 var world: Node                  ## the owning HouseWorld
 var visual: Node3D
 var body: StaticBody3D
@@ -130,7 +144,7 @@ func _ready() -> void:
 	var s: Vector3 = DEFS[kind]["size"]
 	box.size = Vector3(s.x - (0.02 if is_segment_kind(kind) else 0.0), s.y, maxf(s.z, 0.12))
 	_shape.shape = box
-	_shape.position.y = s.y * 0.5
+	_shape.position = Vector3(0, base_y() + s.y * 0.5, -float(DEFS[kind].get("out", 0.0)))
 	body.add_child(_shape)
 	_pivot.add_child(body)
 	_apply_open(true)
@@ -138,6 +152,11 @@ func _ready() -> void:
 
 func footprint() -> Rect2:
 	return footprint_of(kind, pos, rot)
+
+
+## Height of the visual's and collision's bottom (window boards, fuse box).
+func base_y() -> float:
+	return float(DEFS[kind].get("y0", 0.0)) if DEFS.has(kind) else 0.0
 
 
 func facing() -> String:
@@ -150,7 +169,7 @@ func display_name() -> String:
 
 ## Debris colours when this object is hit or breaks (0xRRGGBB).
 func debris_tones() -> Array:
-	return IRON_TONES if mat == "iron" else WOOD_TONES
+	return IRON_TONES if mat != "wood" or kind == "fuse_box" else WOOD_TONES
 
 
 func damage_fraction() -> float:
@@ -163,14 +182,17 @@ func nav_kind() -> int:
 	match kind:
 		"door":
 			return -1 if open else GridNav.WALL
-		"barricade":
+		"barricade", "boards":
 			return GridNav.WALL
+		"fuse_box":
+			return -1
 	return GridNav.SOLID
 
 
-## True for objects an enemy swing damages (SPEC: doors and barricades).
+## True for objects an enemy swing damages (SPEC: doors and barricades;
+## Experiment 004: window boards and the fuse box).
 func bashable() -> bool:
-	return kind == "barricade" or (kind == "door" and not open)
+	return kind in ["barricade", "boards", "fuse_box"] or (kind == "door" and not open)
 
 
 ## Returns true when this hit destroyed the object.
@@ -197,8 +219,30 @@ func set_cut(on: bool) -> void:
 	_apply_cut()
 
 
+## Experiment 004: a door's material changes in place (Reinforce: wood ->
+## iron -> metal). The missing HP stay missing.
+func set_mat(m: String) -> void:
+	if not has_mat(kind, m) or m == mat:
+		return
+	var lost := max_hp - hp
+	mat = m
+	max_hp = max_hp_of(kind, mat)
+	hp = clampi(max_hp - lost, 1, max_hp)
+	if body != null:
+		body.set_meta("impact", _def(kind, mat, "impact"))
+	_refresh_visual()
+
+
+func set_mains(on: bool) -> void:
+	mains_on = on
+	_refresh_visual()
+
+
 func to_dict() -> Dictionary:
-	return {"kind": kind, "x": pos.x, "y": pos.y, "rot": rot, "hp": hp, "open": open, "built": built, "mat": mat}
+	var d := {"kind": kind, "x": pos.x, "y": pos.y, "rot": rot, "hp": hp, "open": open, "built": built, "mat": mat}
+	if kind == "fuse_box":
+		d["mains_on"] = mains_on
+	return d
 
 
 # --- interactable duck type (SPEC §7.3) -------------------------------------------
@@ -214,6 +258,8 @@ func interact_prompt() -> String:
 			return "[E] Rain collector · 1 water at dawn"
 		"workbench":
 			return "[E] Workbench · %d scrap → 1 iron" % Workbench.SCRAP_PER_IRON
+		"fuse_box":
+			return "[E] Switch the main power off" if mains_on else "[E] Switch the main power on"
 	return ""
 
 
@@ -238,6 +284,11 @@ func interact(game: Node) -> void:
 				Sfx.play("build/hammer", Vector3(pos.x, 0.9, pos.y))
 			if game != null and game.has_method("toast"):
 				game.toast(r["text"], "info" if r["ok"] else "warn")
+		"fuse_box":
+			if world != null and world.has_method("toggle_mains"):
+				world.toggle_mains(self)
+			if game != null and game.has_method("toast"):
+				game.toast("Main power on." if mains_on else "Main power off.", "info")
 
 
 # --- visuals -----------------------------------------------------------------------
@@ -248,8 +299,12 @@ func _refresh_visual() -> void:
 	if visual != null:
 		visual.queue_free()
 	var s: Vector3 = DEFS[kind]["size"]
-	visual = PropKit.make(kind, s, {"facing": "N", "seed": hash(name) & 0xffff, "damage": damage_fraction(), "style": str(_def(kind, mat, "style") if mat != "wood" else "")})
+	var style := str(_def(kind, mat, "style") if mat != "wood" else "")
+	if kind == "fuse_box" and not mains_on:
+		style = "off"
+	visual = PropKit.make(kind, s, {"facing": "N", "seed": hash(name) & 0xffff, "damage": damage_fraction(), "style": style})
 	visual.name = "Visual"
+	visual.position = Vector3(0, base_y(), -float(DEFS[kind].get("out", 0.0)))
 	_pivot.add_child(visual)
 	_leaf = visual.find_child("Leaf", true, false) as Node3D
 	if _leaf != null:

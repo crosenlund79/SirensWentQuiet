@@ -7,7 +7,11 @@ extends Node3D
 ## | reinforced), 4 doorway, 5 storage crate, 6 equipment (rain collector |
 ## workbench), 7 repair, 8 iron plating, 9 demolish, 0 stone foundation
 ## (runs of 1 m tiles). Pressing a slot's key again cycles its material
-## variants. A ghost preview is green when valid, red with a reason when not.
+## variants. Experiment 004: 2 also has window boards (on a window section),
+## 3 the metal door, 6 the fuse box (on a wall, only one); 8 reinforces
+## doors (wood -> reinforced -> metal); 9 demolishes furniture and original
+## walls, windows and doors for salvage, and the player's pieces refund in
+## full. A ghost preview is green when valid, red with a reason when not.
 ## Costs (wood, stone, iron, nails, scrap) go through GameState.pay (the
 ## unlimited cheat makes them free); building needs a hammer. Every change
 ## keeps a way out (the exit rule). Stone walls need a foundation.
@@ -54,6 +58,7 @@ var _eval_key := ""
 var _eval_age := 0.0
 var _mats := {}
 var _slot_pick := {}            # palette slot -> LIST index last used in it
+var _ptr_furniture := ""        # furniture piece under the demolish pointer (aim ray)
 
 
 func setup(w: HouseWorld, s: GameState, cam: Camera3D, p: Node3D) -> void:
@@ -210,7 +215,9 @@ func _pointer() -> Vector2:
 			return Vector2.INF
 		var g := o + d * (-o.y / d.y)
 		return Vector2(g.x, g.z)
-	var hit := world.aim_ray(o, d)
+	var low := tool() == "demolish"
+	var hit := world.aim_ray(o, d, low)
+	_ptr_furniture = world.aim_furniture if low else ""
 	return Vector2(hit.x, hit.z)
 
 
@@ -239,7 +246,7 @@ func _target_key(p: Vector2, from: Vector2) -> String:
 	if from != Vector2.INF and from.distance_to(p) > 0.35:
 		return "%s|%s" % [id, str(_run(from, p))]
 	var o: WorldObject = world.object_at(p, 0.2) if tool() != "place" else null
-	return "%s|%s|%s" % [id, str(s), str(o.get_instance_id()) if o != null else ""]
+	return "%s|%s|%s|%s" % [id, str(s), str(o.get_instance_id()) if o != null else "", _ptr_furniture]
 
 
 # --- evaluation ----------------------------------------------------------------------
@@ -264,8 +271,12 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 				_eval_foundation(r, segs)
 			else:
 				_eval_run(r, id, segs)
-		"door", "iron_door":
+		"door", "iron_door", "metal_door":
 			_eval_door(r, HouseWorld.nearest_seg(p))
+		"window_boards":
+			_eval_boards(r, HouseWorld.nearest_seg(p))
+		"fuse_box":
+			_eval_fuse_box(r, p)
 		"doorway":
 			_eval_doorway(r, HouseWorld.nearest_seg(p))
 		"crate", "rain_collector", "workbench":
@@ -273,7 +284,7 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 		"repair":
 			_eval_repair(r, p)
 		"upgrade":
-			_eval_upgrade(r, HouseWorld.nearest_seg(p))
+			_eval_upgrade(r, p)
 		"demolish":
 			_eval_demolish(r, p)
 	if r["reason"] == "" and not state_can_pay(r["cost"]):
@@ -403,6 +414,64 @@ func _eval_door(r: Dictionary, s: Vector3i) -> void:
 		r["reason"] = "A door needs a wall or a 1 m doorway."
 
 
+## Experiment 004: planks over a window section (one 1 m segment with glass).
+func _eval_boards(r: Dictionary, s: Vector3i) -> void:
+	r["segs"] = [s]
+	r["cost"] = BuildPieces.LIST[piece]["cost"]
+	var info := world.section_info(s)
+	if not HouseWorld.LOT.encloses(HouseWorld.seg_rect(s, 0.1)):
+		r["reason"] = "Outside the lot: the fog starts there."
+	elif not info["glass"]:
+		r["reason"] = "Window boards go over a window."
+	elif not info["objects"].is_empty():
+		r["reason"] = "This window is already boarded up."
+
+
+## Experiment 004: the fuse box hangs on a wall, on the side the pointer (the
+## player) is on; only one may exist.
+func _eval_fuse_box(r: Dictionary, p: Vector2) -> void:
+	r["cost"] = BuildPieces.LIST[piece]["cost"]
+	r["kind"] = "fuse_box"
+	if world.fuse_box() != null:
+		r["reason"] = "There's already a fuse box."
+		return
+	var s := HouseWorld.nearest_seg(p)
+	var info := world.section_info(s)
+	if not info["exists"] or not info["wall"] or info["glass"] or info["integrity"] < 0.5:
+		r["reason"] = "Aim at a wall: the fuse box hangs on it."
+		return
+	var across := (p.y - s.y) if s.x == 0 else (p.x - s.y)
+	var side := signf(across)
+	if absf(across) < 0.02:
+		side = -float(world.outer_sign(s))
+		if player != null:
+			var pp := Vector2(player.global_position.x, player.global_position.z)
+			side = signf(((pp.y - s.y) if s.x == 0 else (pp.x - s.y)) + 1e-4)
+	var sec: Dictionary = world.sections.get(s, {})
+	var half := 0.1
+	if sec.get("material", "") == "stone" or (sec.get("orig", false) and world._is_outer_wall(s)):
+		half = HouseWorld.STONE_HALF
+	var depth: float = WorldObject.DEFS["fuse_box"]["size"].z
+	var n := Vector2(0, side) if s.x == 0 else Vector2(side, 0)
+	var pos := HouseWorld.seg_center(s) + n * (half + depth * 0.5 + 0.005)
+	var rr := 0
+	if n.x > 0.5:
+		rr = 1
+	elif n.y > 0.5:
+		rr = 2
+	elif n.x < -0.5:
+		rr = 3
+	r["pos"] = pos
+	r["rot"] = rr
+	var fp := WorldObject.footprint_of("fuse_box", pos, rr)
+	if not HouseWorld.LOT.encloses(fp):
+		r["reason"] = "Outside the lot: the fog starts there."
+	elif not world.objects_in(fp.grow(-0.02)).is_empty():
+		r["reason"] = "Something is already hanging here."
+	elif world.furniture_in(fp.grow(-0.02)):
+		r["reason"] = "Furniture is in the way."
+
+
 func _eval_doorway(r: Dictionary, s: Vector3i) -> void:
 	r["segs"] = [s]
 	var info := world.section_info(s)
@@ -470,7 +539,19 @@ func _eval_repair(r: Dictionary, p: Vector2) -> void:
 		r["reason"] = "Someone is standing in the wall."
 
 
-func _eval_upgrade(r: Dictionary, s: Vector3i) -> void:
+func _eval_upgrade(r: Dictionary, p: Vector2) -> void:
+	# Experiment 004: a door is reinforced (wood -> iron -> metal)
+	var o := world.object_at(p, 0.2)
+	if o != null and o.kind == "door":
+		r["object"] = o
+		var step := BuildPieces.reinforce_step(o.kind, o.mat)
+		if step.is_empty():
+			r["reason"] = "Already a metal door."
+			return
+		r["to_mat"] = step["to"]
+		r["cost"] = step["cost"]
+		return
+	var s := HouseWorld.nearest_seg(p)
 	r["segs"] = [s]
 	r["cost"] = BuildPieces.LIST[piece]["cost"]
 	var info := world.section_info(s)
@@ -482,20 +563,31 @@ func _eval_upgrade(r: Dictionary, s: Vector3i) -> void:
 		r["reason"] = "Already plated with iron."
 
 
+## Experiment 004: the player's pieces refund their full cost; original
+## objects, walls and windows and furniture give salvage.
 func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 	var o := world.object_at(p, 0.2)
 	if o != null:
 		r["object"] = o
-		r["refund"] = BuildPieces.refund(BuildPieces.object_cost(o.kind, o.mat)) if o.built else {}
+		r["refund"] = BuildPieces.object_refund(o.kind, o.mat, o.built)
+		return
+	var fid := _ptr_furniture if _ptr_furniture != "" and debug_pointer == Vector2.INF else ""
+	if fid == "" and world.furniture != null:
+		fid = world.furniture.piece_at(p, 0.0)
+	if fid != "" and world.furniture != null and world.furniture.state_of(fid) in ["intact", "damaged", "destroyed"]:
+		r["furniture"] = fid
+		r["refund"] = world.furniture.salvage(fid)
 		return
 	var s := HouseWorld.nearest_seg(p)
 	r["segs"] = [s]
 	if world.built.has(s):
-		r["refund"] = BuildPieces.refund(BuildPieces.wall_cost(world.sections.get(s, {}).get("material", "wood")))
+		r["refund"] = BuildPieces.wall_cost(world.sections.get(s, {}).get("material", "wood")).duplicate()
 		return
 	var info := world.section_info(s)
-	if info["exists"] and info["wall"]:
+	if info["exists"] and (info["wall"] or info["glass"]):
 		r["opening"] = true
+		r["window"] = info["glass"]
+		r["refund"] = BuildPieces.original_salvage("window" if info["glass"] else "wall", info["integrity"])
 		if world.bodies_in(HouseWorld.seg_rect(s, 0.2)):
 			r["reason"] = "Someone is standing there."
 		return
@@ -503,7 +595,7 @@ func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 	if f.x >= 0:
 		r["segs"] = [f]
 		r["foundation"] = true
-		r["refund"] = BuildPieces.refund(BuildPieces.FOUNDATION_COST)
+		r["refund"] = BuildPieces.FOUNDATION_COST.duplicate()
 		var tile := HouseWorld.seg_rect(f, HouseWorld.FOUNDATION_HALF)
 		for b in world.built:
 			if world.sections.get(b, {}).get("material", "") == "stone" and HouseWorld.seg_rect(b, 0.15).intersects(tile):
@@ -547,14 +639,25 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 			text = "%s up." % bname if r["segs"].size() == 1 else "%d m of %ss up." % [r["segs"].size(), bname.to_lower()]
 			Sfx.play("build/place", at)
 			Sfx.play("build/upgrade" if _mat() == "iron" else "build/hammer", at)
-		"door", "iron_door":
+		"door", "iron_door", "metal_door":
 			var s: Vector3i = r["segs"][0]
 			if r.get("cut", false):
 				world.cut_opening(s)
 			world.place_object("door", HouseWorld.seg_center(s), world.seg_rot(s), true, _mat())
-			text = ("Reinforced door" if _mat() == "iron" else "Door") + " hung. E opens and closes it."
+			text = WorldObject.name_of("door", _mat()) + " hung. E opens and closes it."
 			Sfx.play("build/place", at)
-			Sfx.play("build/upgrade" if _mat() == "iron" else "build/hammer", at)
+			Sfx.play("build/upgrade" if _mat() != "wood" else "build/hammer", at)
+		"window_boards":
+			var s: Vector3i = r["segs"][0]
+			world.place_object("boards", HouseWorld.seg_center(s), world.seg_rot(s), true)
+			text = "Window boarded up."
+			Sfx.play("build/place", at)
+			Sfx.play("build/hammer", at)
+		"fuse_box":
+			world.place_object("fuse_box", r["pos"], r["rot"], true)
+			text = "Fuse box mounted: E switches the main power."
+			Sfx.play("build/place", at)
+			Sfx.play("build/upgrade", at)
 		"doorway":
 			world.cut_opening(r["segs"][0])
 			text = "Doorway cut."
@@ -578,8 +681,12 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 				text = "Wall repaired: %d voxels (%s)." % [n, BuildPieces.cost_text(r["cost"])]
 			Sfx.play("build/hammer", at)
 		"upgrade":
-			world.upgrade_section(r["segs"][0])
-			text = "Plated with iron (%s)." % BuildPieces.cost_text(r["cost"])
+			if r["object"] != null:
+				world.reinforce_object(r["object"], r["to_mat"])
+				text = "Now a %s (%s)." % [r["object"].display_name().to_lower(), BuildPieces.cost_text(r["cost"])]
+			else:
+				world.upgrade_section(r["segs"][0])
+				text = "Plated with iron (%s)." % BuildPieces.cost_text(r["cost"])
 			Sfx.play("build/upgrade", at)
 		"demolish":
 			var refund: Dictionary = r.get("refund", {})
@@ -587,6 +694,15 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 				var name: String = r["object"].display_name()
 				world.remove_object(r["object"])
 				text = "%s taken down." % name
+			elif r.has("furniture"):
+				var fid: String = r["furniture"]
+				var rubble: bool = world.furniture.state_of(fid) == "destroyed"
+				var fname := world.furniture.display_name(fid)
+				world.demolish_furniture(fid)
+				text = "Rubble cleared." if rubble else "%s taken apart." % fname
+			elif r.get("window", false):
+				world.cut_opening(r["segs"][0], true)
+				text = "Window knocked out."
 			elif r.get("foundation", false):
 				world.remove_foundation(r["segs"][0])
 				text = "Foundation taken up."
@@ -612,6 +728,9 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 
 
 func _where(r: Dictionary) -> Vector3:
+	if r.has("furniture") and world.furniture != null and world.furniture.pieces.has(r["furniture"]):
+		var c: Vector2 = world.furniture.pieces[r["furniture"]]["f"]["rect"].get_center()
+		return Vector3(c.x, 0.6, c.y)
 	if r["object"] != null:
 		var o: WorldObject = r["object"]
 		return Vector3(o.pos.x, 1.0, o.pos.y)
@@ -654,9 +773,23 @@ func _show_ghost(r: Dictionary) -> void:
 	var items := []   # [type, size, position, yaw, colour, style]
 	var t := tool()
 	var col_ok: Color = GHOST_TOOL.get(t, GHOST_OK)
-	var style := "iron" if _mat() == "iron" else ""
+	var style := _mat() if _mat() in ["iron", "metal"] else ""
 	match id:
-		"wall", "stone_wall", "barricade", "iron_barricade", "door", "iron_door", "doorway", "foundation":
+		"window_boards", "fuse_box":
+			var kind := "boards" if id == "window_boards" else "fuse_box"
+			var d: Dictionary = WorldObject.DEFS[kind]
+			var at := Vector2.INF
+			var rr := 0
+			if id == "window_boards" and not r["segs"].is_empty():
+				var s: Vector3i = r["segs"][0]
+				rr = world.seg_rot(s)
+				at = HouseWorld.seg_center(s) + WorldObject.front_dir(rr) * float(d.get("out", 0.0))
+			elif r["pos"] != Vector2.INF:
+				rr = int(r.get("rot", 0))
+				at = r["pos"]
+			if at != Vector2.INF:
+				items.append([kind, d["size"], Vector3(at.x, float(d.get("y0", 0.0)), at.y), WorldObject.YAW[rr], col_ok if r["ok"] else GHOST_BAD, ""])
+		"wall", "stone_wall", "barricade", "iron_barricade", "door", "iron_door", "metal_door", "doorway", "foundation":
 			for s in r["segs"]:
 				var bad: bool = not r["ok"] and (r.get("bad", []).has(s) or not r.has("bad"))
 				var c := HouseWorld.seg_center(s)
@@ -672,7 +805,7 @@ func _show_ghost(r: Dictionary) -> void:
 						type = "barricade"
 						size = WorldObject.DEFS["barricade"]["size"]
 						yaw = WorldObject.YAW[world.seg_rot(s)]
-					"door", "iron_door":
+					"door", "iron_door", "metal_door":
 						type = "door"
 						size = WorldObject.DEFS["door"]["size"]
 						yaw = WorldObject.YAW[world.seg_rot(s)]
@@ -686,7 +819,12 @@ func _show_ghost(r: Dictionary) -> void:
 			var o: WorldObject = r["object"]
 			if o != null:
 				var s: Vector3 = WorldObject.DEFS[o.kind]["size"]
-				items.append(["wall_ghost", s + Vector3(0.12, 0.08, 0.12), Vector3(o.pos.x, 0, o.pos.y), WorldObject.YAW[o.rot], col_ok if r["ok"] else GHOST_BAD, ""])
+				items.append(["wall_ghost", s + Vector3(0.12, 0.08, 0.12), Vector3(o.pos.x, o.base_y(), o.pos.y), WorldObject.YAW[o.rot], col_ok if r["ok"] else GHOST_BAD, ""])
+			elif r.has("furniture") and world.furniture != null:
+				var f: Dictionary = world.furniture.pieces[r["furniture"]]["f"]
+				var fr: Rect2 = f["rect"]
+				var fh := minf(float(f["height"]), 2.0) if world.furniture.ok(r["furniture"]) else HouseFurniture.RUBBLE_HEIGHT
+				items.append(["wall_ghost", Vector3(fr.size.x + 0.08, fh + 0.06, fr.size.y + 0.08), Vector3(fr.get_center().x, 0, fr.get_center().y), 0.0, col_ok if r["ok"] else GHOST_BAD, ""])
 			elif r.get("foundation", false):
 				var s: Vector3i = r["segs"][0]
 				var c := HouseWorld.seg_center(s)
@@ -733,7 +871,10 @@ func _refresh_palette() -> void:
 		"repair":
 			cost_txt = BuildPieces.cost_text(cost) if not cost.is_empty() else "paid in the damaged material"
 		"upgrade":
-			cost_txt = BuildPieces.cost_text(p["cost"]) + " per section"
+			if last_eval.get("object") != null and not cost.is_empty():
+				cost_txt = BuildPieces.cost_text(cost) + " (door)"
+			else:
+				cost_txt = BuildPieces.cost_text(p["cost"]) + " per section"
 		"demolish":
 			var rf: Dictionary = last_eval.get("refund", {})
 			cost_txt = "refund %s" % BuildPieces.cost_text(rf) if not rf.is_empty() else "free"
@@ -746,6 +887,10 @@ func _refresh_palette() -> void:
 	var status := "Ready: click to %s." % ("build" if tool() == "place" else tool())
 	if not last_eval.is_empty() and not last_eval["ok"]:
 		status = last_eval["reason"]
+	elif last_eval.get("window", false):
+		status = "Ready: knocks out this window."
 	elif last_eval.get("opening", false):
 		status = "Ready: knocks out this original wall section."
+	elif last_eval.has("furniture"):
+		status = "Ready: takes the %s apart." % world.furniture.display_name(last_eval["furniture"]).to_lower()
 	palette.show_state(piece, p["name"], cost_txt, mats, status, last_eval.get("ok", true), p["hint"])

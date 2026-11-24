@@ -15,9 +15,21 @@ extends Node3D
 ## foundations, iron doors and barricades, the workbench, explode and
 ## weak_points, section materials, save version 2):
 ## docs/experiment-003/construction.md.
+## Experiment 004 (docs/experiment-004/destruction.md): furniture is a
+## gameplay object with an intact -> damaged (voxels) -> destroyed (rubble)
+## lifecycle (HouseFurniture, `furniture`); bullets damage objects; window
+## boards, metal doors, door reinforcement; the fuse box (`fuse_box()`,
+## `power_changed`); closing a door nudges the player out of the doorway;
+## demolishing original structures and furniture for salvage.
 
 signal structure_changed
 signal object_destroyed(kind: String, at: Vector3)
+## Experiment 004: the main power switch changed (toggled, destroyed,
+## rebuilt, demolished, loaded). Read fuse_box() for the state.
+signal power_changed
+## Experiment 004: a furniture piece changed state (damaged, destroyed,
+## removed, restored). furniture_ok(id) says whether it still works.
+signal furniture_changed(id: String)
 
 const SURFACE_SHADER := preload("res://src/voxel/shaders/voxel_surface.gdshader")
 const GLASS_SHADER := preload("res://src/voxel/shaders/voxel_glass.gdshader")
@@ -104,6 +116,12 @@ const LIGHT_KINDS := {
 const BUSHES := [Vector2(-3.2, -2.4), Vector2(-3.9, 4.0), Vector2(-3.6, 8.6), Vector2(2.0, -2.6), Vector2(9.6, -2.7),
 	Vector2(15.6, -2.2), Vector2(17.6, 2.6), Vector2(17.8, 6.4), Vector2(12.6, 11.8), Vector2(-1.6, 11.8)]
 const BOARD_COLORS := [0x8a6a4a, 0x7b5d40, 0x96785a, 0x6e5640, 0x857565, 0x7f6a55, 0x5f6b6a, 0x8c4a3a]
+## Experiment 004: the pristine house's fuse box, on the inside of the east
+## wall of the utility room, south of the back door (front facing west).
+const FUSE_BOX_AT := Vector2(13.77, 8.3)
+const FUSE_BOX_ROT := 3
+## HP a bullet takes from an object it hits (doors, boards, crates, the fuse box).
+const SHOT_OBJECT_DAMAGE := 1
 
 ## Options, set before build_new() / load_data().
 var voxel_furniture := false   ## Version A look: voxel furniture and voxel yard props
@@ -135,6 +153,8 @@ var scars: Array = []          ## blast scorch marks on the ground: [x, z, radiu
 var openings: Array = []       ## door-like gaps: {"axis", "line", "from", "to", "orig"}
 var props: Array = []          ## tall meshes the cutaway hides: {"node", "centre", "half", "body", "cut"}
 var night_lights: Array = []   ## {"node", "light", "base", "phase", "geos"}
+var furniture: HouseFurniture  ## Experiment 004: furniture states (null with voxel_furniture)
+var aim_furniture := ""        ## furniture piece whose collider the last aim_ray hit
 var stats := {"build_ms": 0.0, "save_ms": 0.0, "load_ms": 0.0, "nav_ms": 0.0, "carve_ms": 0.0}
 
 var _static_solid := PackedByteArray()
@@ -189,7 +209,14 @@ func build_new() -> void:
 			var mid: float = (o["from"] + o["to"]) * 0.5
 			var c := Vector2(mid, w["a"].y) if horiz else Vector2(w["a"].x, mid)
 			objs.append({"kind": "door", "x": c.x, "y": c.y, "rot": _outward_rot(c, horiz), "hp": WorldObject.DEFS["door"]["hp"], "open": false, "built": false})
+	objs.append(_pristine_fuse_box())
 	_build(p.copy(), p.copy(), objs, [], [], [], [], [], [])
+	power_changed.emit()
+
+
+static func _pristine_fuse_box() -> Dictionary:
+	return {"kind": "fuse_box", "x": FUSE_BOX_AT.x, "y": FUSE_BOX_AT.y, "rot": FUSE_BOX_ROT,
+		"hp": WorldObject.DEFS["fuse_box"]["hp"], "open": false, "built": false, "mains_on": true}
 
 
 # --- persistence ----------------------------------------------------------------------
@@ -213,6 +240,9 @@ func save_data() -> Dictionary:
 		"design": VoxelDiff.encode(design, p), "current": VoxelDiff.encode(grid, p),
 		"objects": objs, "built": _keys(built), "upgraded": _keys(upgraded), "openings": cut,
 		"stone": _keys(_stone_sections()), "foundations": _keys(foundations), "scars": scars.duplicate(true),
+		# Experiment 004 (optional): furniture states; "exp4" marks a save that
+		# already knows the fuse box (older saves get the pristine one)
+		"furniture": furniture.save_data() if furniture != null else {}, "exp4": 1,
 	}
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return d
@@ -255,8 +285,14 @@ func load_data(d: Dictionary) -> bool:
 	VoxelDiff.apply(g_design, dd)
 	var g_cur := p.copy()
 	VoxelDiff.apply(g_cur, dc)
+	if not d.has("exp4"):
+		objs.append(_pristine_fuse_box())        # a save from before Experiment 004
 	_build(g_design, g_cur, objs, b, u, cut, st, fd, sc)
+	if furniture != null:
+		furniture.load_data(d.get("furniture", {}))
+		_update_light_hosts()
 	stats["load_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+	power_changed.emit()
 	return true
 
 
@@ -324,7 +360,8 @@ static func _valid_objects(v: Variant) -> Variant:
 		var hp: Variant = e.get("hp")
 		if typeof(r) != TYPE_INT or r < 0 or r > 3 or typeof(hp) != TYPE_INT or hp < 1 or hp > WorldObject.max_hp_of(k, mat):
 			return null
-		out.append({"kind": k, "x": float(x), "y": float(y), "rot": r, "hp": hp, "open": e.get("open") == true, "built": e.get("built") == true, "mat": mat})
+		out.append({"kind": k, "x": float(x), "y": float(y), "rot": r, "hp": hp, "open": e.get("open") == true, "built": e.get("built") == true, "mat": mat,
+			"mains_on": e.get("mains_on") != false})
 	return out
 
 
@@ -357,7 +394,9 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	nav = GridNav.new()
 	_static_solid.resize(nav.size.x * nav.size.y)
 	_static_solid.fill(0)
-	for f in HousePlan.FURNITURE + HousePlan.PROPS:
+	# Experiment 004: mesh furniture is bashable (HouseFurniture.cell_kind);
+	# yard props (and Version A voxel furniture) stay SOLID
+	for f in (HousePlan.FURNITURE + HousePlan.PROPS if voxel_furniture else HousePlan.PROPS):
 		if f["blocks"]:
 			for c in nav.cells_in_rect(f["rect"]):
 				_static_solid[c.y * nav.size.x + c.x] = 1
@@ -404,7 +443,9 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 		openings.append({"axis": int(e[0]), "line": int(e[1]), "from": float(e[2]), "to": float(e[3]), "orig": false})
 	_index_openings()
 	for e in objs:
-		_spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"], e.get("mat", "wood"))
+		var o := _spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"], e.get("mat", "wood"))
+		if e.get("mains_on", true) == false:
+			o.set_mains(false)
 	_index_objects()
 	_full_nav()
 	for s in sections:
@@ -450,10 +491,15 @@ func _box_body(rect: Rect2, height: float, layer: int) -> StaticBody3D:
 ## One PropKit mesh per furniture and yard prop (rugs stay voxel), with box
 ## collision: tall pieces on layer 1 (they stop bullets), low ones on layer 5.
 func _place_furniture() -> void:
+	if not voxel_furniture:
+		furniture = HouseFurniture.new(self)
+		furniture.place_all()
 	for f in HousePlan.FURNITURE + HousePlan.PROPS:
 		var r: Rect2 = f["rect"]
 		var h: float = f["height"]
 		var is_yard: bool = f["room"] == "yard"
+		if furniture != null and not is_yard:
+			continue
 		if voxel_furniture:
 			if not is_yard and f["blocks"]:
 				add_child(_box_body(r, maxf(h, 0.4), 1 << 4))   # as in Version A
@@ -521,6 +567,22 @@ func _place_night_lights() -> void:
 		add_child(o)
 		night_lights.append({"node": node, "light": o, "base": kind["energy"], "phase": float(k) * 2.31, "geos": geos})
 		k += 1
+	_update_light_hosts()
+
+
+## Experiment 004: a candle or lantern standing on a furniture piece that is
+## destroyed or removed goes with it.
+func _update_light_hosts() -> void:
+	if furniture == null:
+		return
+	for l in night_lights:
+		var n: Node3D = l["node"]
+		if not is_instance_valid(n):
+			continue
+		var host := furniture.piece_at(Vector2(n.position.x, n.position.z), 0.02, false)
+		var gone := host == "" and furniture.piece_at(Vector2(n.position.x, n.position.z), 0.02, true) != ""
+		l["hidden"] = gone
+		n.visible = not gone
 
 
 func night_amount() -> float:
@@ -535,7 +597,7 @@ func _process(delta: float) -> void:
 		var ph: float = l["phase"]
 		var f := 1.0 + 0.07 * sin(_t * 9.1 + ph) + 0.05 * sin(_t * 23.7 + ph * 1.7) + 0.03 * sin(_t * 41.0 + ph * 0.3)
 		o.light_energy = l["base"] * n * f
-		o.visible = n > 0.02
+		o.visible = n > 0.02 and not l.get("hidden", false)
 		var lit := clampf(n * 1.4, 0.0, 1.0) * (0.9 + 0.1 * f)
 		for gi in l["geos"]:
 			if is_instance_valid(gi):
@@ -576,7 +638,7 @@ func _update_mesh_cut() -> void:
 		if o.kind == "crate":
 			continue
 		var h: float = WorldObject.DEFS[o.kind]["size"].y
-		var cut := _in_cut(Vector3(o.pos.x, h * 0.5, o.pos.y), 0.5)
+		var cut := _in_cut(Vector3(o.pos.x, o.base_y() + h * 0.5, o.pos.y), 0.5)
 		o.set_cut(cut)
 		if cut and o.body != null:
 			_hidden_bodies.append(o.body.get_rid())
@@ -610,16 +672,22 @@ func is_cut(c: Vector3i) -> bool:
 	return (rel - _cut_dir * t).length() < _cut_radius - 0.15
 
 
-func aim_ray(from: Vector3, dir: Vector3) -> Vector3:
+## `low` (Experiment 004, build-mode demolish) also stops at low obstacles
+## (low furniture) on layer 5.
+func aim_ray(from: Vector3, dir: Vector3, low := false) -> Vector3:
 	var best := 200.0
 	var vh := grid.raycast(from, dir, best, _bullet_skip, is_cut)
 	if not vh.is_empty():
 		best = vh["dist"]
-	var q := PhysicsRayQueryParameters3D.create(from, from + dir * best, 1 | 8)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * best, 1 | 8 | (16 if low else 0))
 	q.exclude = _hidden_bodies
 	var ph := get_world_3d().direct_space_state.intersect_ray(q)
+	aim_furniture = ""
 	if not ph.is_empty():
 		best = from.distance_to(ph["position"])
+		var col: Object = ph["collider"]
+		if col != null and col.has_meta("furniture"):
+			aim_furniture = col.get_meta("furniture")
 	if dir.y < -0.001:
 		var tg := -from.y / dir.y
 		if tg < best:
@@ -651,6 +719,18 @@ func shoot(origin: Vector3, dir: Vector3, exclude: Array, muzzle := Vector3.INF,
 		best = origin.distance_to(ph["position"])
 		col = ph["collider"]
 		kind = "enemy" if col is VoxelEnemy else "body"
+	# Experiment 004: an intact tall furniture piece turns to voxels and takes the hit
+	if kind == "body" and furniture != null and col != null and col.has_meta("furniture"):
+		var fid: String = col.get_meta("furniture")
+		furniture.voxelise(fid)
+		var vh2 := grid.raycast(origin, dir, best + 0.8, _bullet_skip)
+		if not vh2.is_empty():
+			vh = vh2
+			best = vh["dist"]
+			kind = "voxel"
+			col = null
+		else:
+			furniture.hurt(fid, HouseFurniture.SHOT_DAMAGE)
 	if kind == "none" and dir.y < -0.001:
 		var tg := -origin.y / dir.y
 		if tg < best:
@@ -668,11 +748,25 @@ func shoot(origin: Vector3, dir: Vector3, exclude: Array, muzzle := Vector3.INF,
 			var imp: int = col.get_meta("impact", VoxelMat.Impact.DUST) if col != null else VoxelMat.Impact.DUST
 			fx.impact(imp, hit, ph["normal"], dir, {})
 			Sfx.play(IMPACT_SOUND.get(imp, "impact/plaster"), hit)
+			# Experiment 004: objects (doors, boards, crates, the fuse box) take bullet damage
+			var obj := _object_of(col)
+			if obj != null:
+				damage_object(obj, SHOT_OBJECT_DAMAGE, origin, true)
 		"ground":
 			fx.ground_hit(hit, dir)
 			Sfx.play("impact/ground", hit)
 	fx.tracer(muzzle if muzzle != Vector3.INF else origin, hit)
 	return {"kind": kind, "pos": hit, "collider": col}
+
+
+## The WorldObject owning a collider (its "Body" under the pivot), or null.
+func _object_of(col: Object) -> WorldObject:
+	var n := col as Node
+	while n != null and n != self:
+		if n is WorldObject:
+			return n
+		n = n.get_parent()
+	return null
 
 
 func _hit_voxels(vh: Dictionary, dir: Vector3) -> void:
@@ -700,6 +794,8 @@ func _hit_voxels(vh: Dictionary, dir: Vector3) -> void:
 	_apply_damage(ch)
 	fx.impact(VoxelMat.IMPACT[m], pos, vh["normal"], dir, ch)
 	Sfx.play(IMPACT_SOUND.get(VoxelMat.IMPACT[m], "impact/plaster"), pos)
+	if furniture != null and m >= VoxelMat.WOOD:
+		furniture.on_shot_cell(c)
 
 
 ## Damage only removes voxels, so only WALL cells can change (to OPEN).
@@ -718,6 +814,8 @@ func _apply_damage(ch: Dictionary) -> void:
 				sections[s]["current"] -= 1
 	if _recompute_nav(_plan_rect(ch["lo"], ch["hi"]).grow(GridNav.CELL), true):
 		Sfx.play("structure/crumble", grid.center((ch["lo"] + ch["hi"]) / 2))
+	if furniture != null:
+		furniture.on_removed(ch)
 	structure_changed.emit()
 
 
@@ -733,6 +831,11 @@ func enemy_strike(attacker_pos: Vector3, target: Vector2, strength := 1.0) -> vo
 	var o: WorldObject = _obj_cells.get(nav.cell_of(target))
 	if o != null and o.bashable():
 		damage_object(o, maxi(1, roundi(Tuning.ENEMY_WALL_DAMAGE * strength)), attacker_pos)
+		return
+	# Experiment 004: furniture in the way is smashed
+	var fid := furniture.id_at_cell(nav.cell_of(target)) if furniture != null else ""
+	if fid != "":
+		furniture.strike(fid, maxi(1, roundi(Tuning.ENEMY_WALL_DAMAGE * strength * HouseFurniture.BLOW)), attacker_pos)
 		return
 	for k in maxi(1, roundi(strength)):
 		_bite(attacker_pos, target, minf(strength, 1.0))
@@ -805,6 +908,8 @@ func place_object(kind: String, p: Vector2, rot: int, is_built := true, mat := "
 	_index_objects()
 	_recompute_nav(o.footprint().grow(GridNav.CELL))
 	structure_changed.emit()
+	if kind == "fuse_box":
+		power_changed.emit()
 	return o
 
 
@@ -819,6 +924,8 @@ func remove_object(o: WorldObject) -> void:
 	_index_objects()
 	_recompute_nav(rect)
 	structure_changed.emit()
+	if o.kind == "fuse_box":
+		power_changed.emit()
 
 
 ## Damages an object (doors and barricades by enemies, anything by blasts);
@@ -891,6 +998,8 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 		var f := pow(1.0 - d / reach, 0.75) * clampf(1.0 - shield / reach, 0.0, 1.0)
 		if f > 0.0:
 			hits.append([o, f])
+	# Experiment 004: furniture in reach; survivors turn to voxels first so the crater bites into them
+	var fhits := _blast_furniture(center, p, reach, power)
 	var t1 := Time.get_ticks_usec()
 	var ch := VoxelCarver.carve_blast(grid, center, radius, _rng.randi(), damage_quantum)
 	var t2 := Time.get_ticks_usec()
@@ -927,6 +1036,12 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 			out["destroyed"].append(kind)
 			for k in 10:
 				splinters.append(VoxelArt.to_color(tones[k % tones.size()]))
+	out["furniture"] = []
+	for h in fhits:
+		if furniture.ok(h[0]):
+			furniture.hurt(h[0], h[1], true)
+			if not furniture.ok(h[0]):
+				out["furniture"].append(h[0])
 	for c in before:
 		if not before[c][0] and nav.is_walkable(c):
 			out["opened"] += 1
@@ -947,6 +1062,33 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 	Sfx.play("structure/crumble", center)
 	structure_changed.emit()
 	out["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+	return out
+
+
+## Furniture a blast at `center` damages: [[id, HP], ...] with the same
+## fall-off and shielding as objects. Pieces that survive are voxelised now.
+func _blast_furniture(center: Vector3, p: Vector2, reach: float, power: float) -> Array:
+	var out := []
+	if furniture == null:
+		return out
+	for id in furniture.pieces:
+		if not furniture.ok(id):
+			continue
+		var pc: Dictionary = furniture.pieces[id]
+		var r: Rect2 = pc["f"]["rect"]
+		var near := p.clamp(r.position, r.end)
+		var d := p.distance_to(near)
+		if d > reach:
+			continue
+		var fc := Vector3(near.x, clampf(center.y, 0.2, minf(float(pc["f"]["height"]), 1.2) * 0.6), near.y)
+		var shield := VoxelCarver.blast_armour(grid, center, fc, reach)
+		var f := pow(1.0 - d / reach, 0.75) * clampf(1.0 - shield / reach, 0.0, 1.0)
+		if f <= 0.0:
+			continue
+		var n := maxi(1, int(ceil(power * f)))
+		out.append([id, n])
+		if n < int(pc["hp"]):
+			furniture.voxelise(id)
 	return out
 
 
@@ -1064,13 +1206,15 @@ func weak_points(from: Vector2, near := Vector2.INF) -> Array:
 	var out := []
 	var wood_door := float(WorldObject.max_hp_of("door", "wood"))
 	for o in objects:
-		if not (o.kind == "barricade" or (o.kind == "door" and not o.open)):
+		if not (o.kind == "barricade" or o.kind == "boards" or (o.kind == "door" and not o.open)):
 			continue
 		var stand := _stand_point(o.pos, WorldObject.front_dir(o.rot))
 		if stand == Vector2.INF:
 			continue
-		out.append(_weak_point(o.kind, stand, o.pos, 1.0 if o.kind == "door" else 0.9, float(o.hp) / wood_door,
-				from, near, o.seg, o, o.mat))
+		# Experiment 004: window boards (a weak window behind planks), metal doors (HP 70)
+		var base := 1.0 if o.kind == "door" else (0.85 if o.kind == "boards" else 0.9)
+		var strength := float(o.hp) / wood_door + (0.3 if o.kind == "boards" else 0.0)
+		out.append(_weak_point(o.kind, stand, o.pos, base, strength, from, near, o.seg, o, o.mat))
 	for s in sections:
 		var sec: Dictionary = sections[s]
 		if int(sec["design"]) <= 0 or not _is_outer_wall(s):
@@ -1134,12 +1278,50 @@ func _outward(s: Vector3i) -> Vector2:
 
 
 ## Opens or closes a door. Returns "" or the reason it can't close.
+## Experiment 004: closing a door the player stands in steps the player
+## clear (to their side of the door line) instead of refusing; an enemy in
+## the doorway still blocks it.
 func toggle_door(o: WorldObject) -> String:
 	if o.kind != "door":
 		return ""
-	if o.open and bodies_in(o.footprint().grow(0.05)):
-		return "Something is in the way."
+	if o.open:
+		var why := _clear_doorway(o)
+		if why != "":
+			return why
 	set_door_open(o, not o.open)
+	return ""
+
+
+## Bodies overlapping a door's footprint: "" after moving players out of
+## the way, or the reason it can't close (an enemy or something else).
+func _clear_doorway(o: WorldObject) -> String:
+	var rect := o.footprint().grow(0.05)
+	var box := BoxShape3D.new()
+	box.size = Vector3(rect.size.x, 1.4, rect.size.y)
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = box
+	q.transform = Transform3D(Basis(), Vector3(rect.get_center().x, 0.85, rect.get_center().y))
+	q.collision_mask = 4 | 8
+	var players: Array[Node3D] = []
+	for hit in get_world_3d().direct_space_state.intersect_shape(q, 8):
+		var b := hit["collider"] as CollisionObject3D
+		if b == null or (b.collision_layer & 4) == 0 or not (b is Node3D):
+			return "Something is in the way."
+		players.append(b as Node3D)
+	var horiz := o.rot % 2 == 0
+	var back := -WorldObject.front_dir(o.rot)
+	for b in players:
+		var p := Vector2(b.global_position.x, b.global_position.z)
+		var across := (p.y - o.pos.y) if horiz else (p.x - o.pos.x)
+		var side := signf(across) if absf(across) > 0.01 else (back.y if horiz else back.x)
+		var clear := 0.125 + Tuning.PLAYER_RADIUS + 0.1
+		if horiz:
+			p = Vector2(clampf(p.x, o.pos.x - 0.25, o.pos.x + 0.25), o.pos.y + side * clear)
+		else:
+			p = Vector2(o.pos.x + side * clear, clampf(p.y, o.pos.y - 0.25, o.pos.y + 0.25))
+		b.global_position = Vector3(p.x, b.global_position.y, p.y)
+		if b is CharacterBody3D:
+			(b as CharacterBody3D).velocity = Vector3.ZERO
 	return ""
 
 
@@ -1181,6 +1363,10 @@ func _index_objects() -> void:
 func _cell_kind(c: Vector2i) -> int:
 	if _static_solid[c.y * nav.size.x + c.x] == 1:
 		return GridNav.SOLID
+	if furniture != null:
+		var fk := furniture.cell_kind(c)
+		if fk >= 0:
+			return fk
 	var o: WorldObject = _obj_cells.get(c)
 	if o != null:
 		var k := o.nav_kind()
@@ -1550,6 +1736,8 @@ func _copy_design(lo: Vector3i, hi: Vector3i) -> int:
 			for x in range(lo.x, hi.x):
 				var i := grid.idx(x, y, z)
 				var m := design.mat[i]
+				if m == 0 and grid.mat[i] >= VoxelMat.WOOD:
+					continue          # Experiment 004: a damaged furniture piece's voxels
 				if grid.mat[i] != m or grid.col[i] != design.col[i] or grid.pcol[i] != design.pcol[i] or grid.pmask[i] != design.pmask[i]:
 					if m != 0 and grid.mat[i] != m:
 						n += 1
@@ -1928,6 +2116,14 @@ func repair_all() -> void:
 	grid.solid_count = design.solid_count
 	for o in objects:
 		o.restore()
+	# Experiment 004: furniture back to intact meshes, a fuse box back on its wall
+	if furniture != null:
+		furniture.restore_all()
+		_update_light_hosts()
+	if count_objects("fuse_box") == 0:
+		_spawn_object("fuse_box", FUSE_BOX_AT, FUSE_BOX_ROT, false)
+		_index_objects()
+		power_changed.emit()
 	chunks.mark_dirty(Vector3i.ZERO, Vector3i(grid.sx, grid.sy, grid.sz))
 	_full_nav()
 	for s in sections:
@@ -1940,7 +2136,9 @@ func damage_summary() -> Dictionary:
 	for o in objects:
 		if o.hp < o.max_hp:
 			damaged += 1
-	return {"missing_voxels": maxi(design.solid_count - grid.solid_count, 0), "damaged_objects": damaged}
+	var furn := furniture.voxels_in_grid() if furniture != null else 0
+	var broken := furniture.count(HouseFurniture.DAMAGED) + furniture.count(HouseFurniture.DESTROYED) if furniture != null else 0
+	return {"missing_voxels": maxi(design.solid_count - (grid.solid_count - furn), 0), "damaged_objects": damaged, "damaged_furniture": broken}
 
 
 func is_blocked(p: Vector2) -> bool:
@@ -1965,12 +2163,57 @@ func bodies_in(rect: Rect2) -> bool:
 	return not get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
-## True if a blocking furniture piece or yard prop overlaps the plan rect.
+## True if a blocking furniture piece or yard prop overlaps the plan rect
+## (Experiment 004: destroyed and removed furniture no longer counts).
 func furniture_in(rect: Rect2) -> bool:
-	for f in HousePlan.FURNITURE + HousePlan.PROPS:
+	for f in (HousePlan.FURNITURE + HousePlan.PROPS if furniture == null else HousePlan.PROPS):
 		if f["blocks"] and (f["rect"] as Rect2).intersects(rect):
 			return true
-	return false
+	return furniture != null and furniture.blocks_rect(rect)
+
+
+# --- Experiment 004: furniture, power, reinforcement -----------------------------------
+
+## True while the furniture piece with this HousePlan id (e.g. "fridge",
+## "sink_counter") is intact or only damaged; false once destroyed or
+## removed, or for an unknown id. Always true in Version A (voxel furniture).
+func furniture_ok(id: String) -> bool:
+	if furniture == null:
+		return true
+	return furniture.ok(id)
+
+
+## Demolishes a furniture piece (build mode). Returns what it gives back.
+func demolish_furniture(id: String) -> Dictionary:
+	if furniture == null or not furniture.pieces.has(id):
+		return {}
+	var got := furniture.salvage(id)
+	furniture.remove(id)
+	_update_light_hosts()
+	return got
+
+
+## The fuse box that is still standing, or null.
+func fuse_box() -> WorldObject:
+	for o in objects:
+		if o.kind == "fuse_box":
+			return o
+	return null
+
+
+## Flips the main power switch.
+func toggle_mains(o: WorldObject) -> void:
+	if o == null or o.kind != "fuse_box":
+		return
+	o.set_mains(not o.mains_on)
+	Sfx.play("door/close", Vector3(o.pos.x, 1.4, o.pos.y))
+	power_changed.emit()
+
+
+## Reinforce (build mode): a door becomes `mat` ("iron" reinforced, "metal").
+func reinforce_object(o: WorldObject, mat: String) -> void:
+	o.set_mat(mat)
+	structure_changed.emit()
 
 
 ## The outward-facing quarter turn of a door on a house wall.

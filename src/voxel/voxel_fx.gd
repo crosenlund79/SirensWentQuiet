@@ -4,6 +4,9 @@ extends Node3D
 ## MultiMeshes (debris cubes, dust puffs, sparks) plus a few tracer meshes:
 ## no physics bodies. Debris is simulated here against the voxel grid itself,
 ## so chips bounce off walls and settle on floors as small rubble piles.
+## The pools are ring buffers (MAX_DEBRIS etc.): the oldest chip is reused,
+## so active debris never accumulates; settled chips stay static (no
+## transform updates) until they shrink away after REST_TIME.
 
 const MAX_DEBRIS := 700
 const MAX_PUFFS := 160
@@ -451,6 +454,10 @@ func _update_debris(delta: float) -> void:
 			_d_mm.set_instance_transform(i, _zero)
 			continue
 		active += 1
+		# Experiment 004: a chip that has settled keeps its transform until it
+		# starts to shrink away (no per-frame MultiMesh writes for rubble)
+		if _d_rest[i] == 2 and life > 0.6:
+			continue
 		var p := _d_pos[i]
 		if _d_rest[i] == 0:
 			var v := _d_vel[i]
@@ -481,7 +488,9 @@ func _update_debris(delta: float) -> void:
 			p = np
 		var s := _d_scale[i] * clampf(life / 0.6, 0.0, 1.0)
 		var b := Basis(_d_axis[i], _d_ang[i]) if _d_rest[i] == 0 else Basis(Vector3.UP, _d_ang[i])
-		_d_mm.set_instance_transform(i, Transform3D(b.scaled(s), p + Vector3(0, 0.05 * s.y if _d_rest[i] == 1 else 0.0, 0)))
+		_d_mm.set_instance_transform(i, Transform3D(b.scaled(s), p + Vector3(0, 0.05 * s.y if _d_rest[i] >= 1 else 0.0, 0)))
+		if _d_rest[i] == 1:
+			_d_rest[i] = 2
 	_d_active = active
 
 

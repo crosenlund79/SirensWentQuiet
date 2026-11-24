@@ -155,7 +155,7 @@ func test_iron_objects_are_stronger_and_cost_iron_to_repair() -> void:
 	var iron_before := s.inventory.count("iron")
 	b.select_id("demolish")
 	check(b.apply(Vector2(2.5, 11.0)), "iron barricade taken down")
-	check_eq(s.inventory.count("iron"), iron_before + 1, "half of 3 iron back")
+	check_eq(s.inventory.count("iron"), iron_before + 3, "all 3 iron back (Experiment 004: full refund)")
 
 
 func test_repair_is_paid_in_the_sections_material() -> void:
@@ -219,11 +219,11 @@ func test_demolish_stone_walls_and_foundations() -> void:
 	b.select_id("demolish")
 	var stone0 := s.inventory.count("stone")
 	check(b.apply(Vector2(0.5, 11.0)), "stone wall taken down")
-	check_eq(s.inventory.count("stone"), stone0 + 3, "half its 6 stone back")
+	check_eq(s.inventory.count("stone"), stone0 + 6, "all its 6 stone back")
 	check(not w.built.has(Vector3i(0, 11, 0)), "gone")
 	check(w.is_founded(Vector3i(0, 11, 0)), "the foundation stays")
 	check(b.apply(Vector2(0.5, 11.3)), "then the foundation")
-	check_eq(s.inventory.count("stone"), stone0 + 4, "half its 2 stone back")
+	check_eq(s.inventory.count("stone"), stone0 + 8, "all its 2 stone back")
 	check(not w.foundations.has(Vector3i(0, 11, 0)) and not w.is_founded(Vector3i(0, 11, 0)), "taken up")
 	# a foundation carrying a stone wall can't go
 	w.build_foundation([Vector3i(0, 11, 4)])

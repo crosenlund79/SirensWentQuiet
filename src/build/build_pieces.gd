@@ -6,10 +6,15 @@ extends RefCounted
 ## (select(i) and the keys 1-9 still pick them first). Every piece belongs to a
 ## palette slot (one building class); a slot with several pieces holds
 ## material variants: pressing the slot's key again cycles them.
-##   key 1 Walls (wood, stone) · 2 Barricades (wood, iron) · 3 Doors (wood,
-##   reinforced) · 4 Doorway · 5 Storage (crate) · 6 Equipment (rain collector,
-##   workbench) · 7 Repair · 8 Reinforce (iron plating) · 9 Demolish ·
-##   0 Foundation (stone)
+##   key 1 Walls (wood, stone) · 2 Barricades (wood, iron, window boards) ·
+##   3 Doors (wood, reinforced, metal) · 4 Doorway · 5 Storage (crate) ·
+##   6 Equipment (rain collector, workbench, fuse box) · 7 Repair ·
+##   8 Reinforce (iron plating; doors: wood -> reinforced -> metal) ·
+##   9 Demolish · 0 Foundation (stone)
+## Experiment 004 refunds: the player's own pieces give back their FULL
+## cost; original structures (walls, windows, doors, the fuse box) and
+## furniture give salvage, about half (ORIGINAL_SALVAGE, object_refund,
+## HouseFurniture.TYPES).
 ## Piece fields: "id", "name", "short", "tool" (place | repair | upgrade |
 ## demolish), "slot", "cost", "per_m" (cost per 1 m segment), "hint", and
 ## for objects "kind" + "mat" (WorldObject kind and material).
@@ -43,9 +48,9 @@ const LIST := [
 	{"id": "repair", "name": "Repair", "short": "Repair", "tool": "repair", "slot": 6, "cost": {},
 		"hint": "Aim at a damaged wall section or object · paid in its own material"},
 	{"id": "upgrade", "name": "Iron plating", "short": "Plate", "tool": "upgrade", "slot": 7, "cost": {"iron": 2, "nails": 4},
-		"hint": "Aim at a 1 m wall section: its outer skin becomes riveted iron plate"},
+		"hint": "Aim at a 1 m wall section: its outer skin becomes riveted iron plate · at a door: wood → reinforced → metal"},
 	{"id": "demolish", "name": "Demolish", "short": "Demolish", "tool": "demolish", "slot": 8, "cost": {},
-		"hint": "Your pieces refund half · an original wall section becomes an opening"},
+		"hint": "Your pieces refund in full · original walls, windows, doors and furniture give salvage"},
 	# --- Experiment 003 -----------------------------------------------------------------
 	{"id": "stone_wall", "name": "Stone wall", "short": "Stone", "tool": "place", "slot": 0, "cost": {"stone": 6}, "per_m": true,
 		"hint": "Masonry on a foundation (the house floor or a stone foundation) · drag for a run"},
@@ -60,6 +65,16 @@ const LIST := [
 		"hint": "E at the bench turns 3 scrap into 1 iron · R rotates"},
 	{"id": "foundation", "name": "Stone foundation", "short": "Stone", "tool": "place", "slot": 9, "cost": {"stone": 2}, "per_m": true,
 		"hint": "1 m x 1 m slabs on a wall line · drag for a strip · stone walls need one"},
+	# --- Experiment 004 -----------------------------------------------------------------
+	{"id": "window_boards", "name": "Window boards", "short": "Window", "tool": "place", "slot": 1, "cost": {"wood": 3, "nails": 6},
+		"kind": "boards", "mat": "wood",
+		"hint": "Planks over a 1 m window section · 14 HP · stop bullets and bodies"},
+	{"id": "metal_door", "name": "Metal door", "short": "Metal", "tool": "place", "slot": 2, "cost": {"iron": 6, "scrap": 2, "nails": 4},
+		"kind": "door", "mat": "metal",
+		"hint": "A steel door · 70 HP (wood 18, reinforced 42) · aim at a wall or doorway"},
+	{"id": "fuse_box", "name": "Fuse box", "short": "Fuse box", "tool": "place", "slot": 5, "cost": {"iron": 6, "scrap": 8, "nails": 4},
+		"kind": "fuse_box", "mat": "wood",
+		"hint": "The main power switch · only one · aim at a wall: it hangs on your side"},
 ]
 
 ## Wall costs per 1 m segment by material (demolish refunds half).
@@ -74,9 +89,11 @@ const OBJECT_COST := {
 	"crate": {"wood": 3, "nails": 4},
 	"rain_collector": {"wood": 2, "nails": 2, "scrap": 3},
 	"workbench": {"wood": 5, "nails": 6, "scrap": 2},
+	"boards": {"wood": 3, "nails": 6},
+	"fuse_box": {"iron": 6, "scrap": 8, "nails": 4},
 }
 const OBJECT_COST_MAT := {
-	"door": {"iron": {"wood": 4, "nails": 6, "iron": 3}},
+	"door": {"iron": {"wood": 4, "nails": 6, "iron": 3}, "metal": {"iron": 6, "scrap": 2, "nails": 4}},
 	"barricade": {"iron": {"iron": 3, "wood": 1, "nails": 2}},
 }
 ## Repair rates: voxels of a section restored per unit of each resource.
@@ -84,6 +101,13 @@ const OBJECT_COST_MAT := {
 ## masonry: 1 stone / 90; iron plating: 1 iron / 60.
 const REPAIR_RATE := {"wood": 150.0, "nails": 60.0, "stone": 90.0, "iron": 60.0}
 const COST_ORDER := ["wood", "stone", "iron", "nails", "scrap"]
+## Experiment 004: Reinforce on a door, material -> {"to", "cost"}.
+const REINFORCE := {
+	"door": {"wood": {"to": "iron", "cost": {"iron": 3, "nails": 4}}, "iron": {"to": "metal", "cost": {"iron": 4, "scrap": 2}}},
+}
+## Salvage from demolishing original house structures (per 1 m section,
+## scaled by the section's integrity): about half of a built one's cost.
+const ORIGINAL_SALVAGE := {"wall": {"wood": 2, "nails": 3}, "window": {"wood": 1, "scrap": 2}}
 
 
 static func index_of(id: String) -> int:
@@ -117,6 +141,42 @@ static func add(a: Dictionary, b: Dictionary) -> Dictionary:
 	var out := a.duplicate()
 	for k in b:
 		out[k] = int(out.get(k, 0)) + int(b[k])
+	return out
+
+
+## The next Reinforce step of an object ({"to", "cost"}), or {}.
+static func reinforce_step(kind: String, mat: String) -> Dictionary:
+	return REINFORCE.get(kind, {}).get(mat, {})
+
+
+## What demolishing an object gives back: its full cost when the player
+## built it; for an original piece half of its plain (wooden) cost, plus
+## every Reinforce step the player paid for on it.
+static func object_refund(kind: String, mat: String, is_built: bool) -> Dictionary:
+	if is_built:
+		return object_cost(kind, mat).duplicate()
+	var out := refund(object_cost(kind, "wood"))
+	var m := "wood"
+	var steps := 0
+	while m != mat and REINFORCE.get(kind, {}).has(m) and steps < 4:
+		var st: Dictionary = REINFORCE[kind][m]
+		out = add(out, st["cost"])
+		m = st["to"]
+		steps += 1
+	return out
+
+
+## Salvage of an original wall ("wall") or window ("window") section with
+## `integrity` 0..1 left (rounded, at least 1 of each while anything stands).
+static func original_salvage(what: String, integrity := 1.0) -> Dictionary:
+	var out := {}
+	var base: Dictionary = ORIGINAL_SALVAGE.get(what, {})
+	for k in base:
+		var n := roundi(int(base[k]) * clampf(integrity, 0.0, 1.0))
+		if n <= 0 and integrity > 0.05:
+			n = 1
+		if n > 0:
+			out[k] = n
 	return out
 
 

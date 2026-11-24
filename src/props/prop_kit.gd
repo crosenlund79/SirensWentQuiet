@@ -38,10 +38,11 @@ const PROP_TYPES := [
 	"deck", "path", "road", "driveway", "step", "car", "dead_tree", "trash_bin_tipped", "mailbox",
 	"streetlight_dead",
 ]
-const SURVIVAL_TYPES := ["door", "barricade", "crate", "rain_collector", "candle", "lantern", "bush", "wall_ghost"]
+const SURVIVAL_TYPES := ["door", "barricade", "crate", "rain_collector", "candle", "lantern", "bush", "wall_ghost",
+	"boards", "fuse_box", "rubble"]   # Experiment 004
 
 ## Span pieces: the longer horizontal side of `size` is the span.
-const SPAN_TYPES := ["door", "barricade", "wall_ghost"]
+const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
 ## Pieces that may legitimately be flat (height 0).
 const FLAT_TYPES := ["rug", "path", "road", "driveway"]
 ## Outdoor pieces weather faster (extra grime).
@@ -75,6 +76,7 @@ const DEFAULT_SIZE := {
 	"crate": Vector3(0.9, 0.6, 0.6), "rain_collector": Vector3(1.0, 1.6, 1.0),
 	"candle": Vector3(0.2, 0.18, 0.2), "lantern": Vector3(0.2, 0.32, 0.2),
 	"bush": Vector3(1.2, 0.9, 1.0), "wall_ghost": Vector3(1.0, 2.6, 0.2),
+	"boards": Vector3(1.0, 1.3, 0.08), "fuse_box": Vector3(0.5, 0.7, 0.16), "rubble": Vector3(1.0, 0.2, 1.0),
 }
 
 ## Documented reach beyond the requested size, in the canonical frame:
@@ -98,6 +100,8 @@ const OVERHANG := {
 	"plant": [0.18, 0.0, 0.18, 0.18],               # drooping leaves
 	"bush": [0.1, 0.05, 0.1, 0.1],
 	"barricade": [0.0, 0.0, 0.2, 0.0],              # broken pieces at the foot
+	"boards": [0.06, 0.0, 0.0, 0.0],                # planks run past the window
+	"fuse_box": [0.0, 0.3, 0.12, 0.0],              # conduit up into the wall, the open lid
 	"road": [0.0, 0.07, 0.0, 0.0],                  # curb
 	"path": [0.0, 0.03, 0.0, 0.0],
 	"driveway": [0.0, 0.03, 0.0, 0.0],

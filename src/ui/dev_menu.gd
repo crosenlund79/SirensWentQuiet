@@ -501,6 +501,8 @@ func _build() -> void:
 		box.add_child(ob)
 	box.add_child(_grid(2, [["Run mission now", run_mission.bind("", "")], ["Reveal all places", reveal_map]]))
 
+	_build_house_section(box)      # Experiment 004
+
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
 	box.add_child(_status)
@@ -561,3 +563,24 @@ static func _find_button(n: Node, text: String) -> BaseButton:
 		if r != null:
 			return r
 	return null
+
+
+# --- Experiment 004: house tools (furniture, doors, the fuse box, destruction) ------
+
+const HouseDev := preload("res://src/world/house_dev.gd")
+
+
+func _build_house_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("House (Exp. 004)"))
+	box.add_child(_grid(2, [["Destroy furniture", house_tool.bind("destroy_furniture")], ["Damage all doors", house_tool.bind("damage_doors")],
+		["Toggle fuse box", house_tool.bind("toggle_fuse")], ["Destroy fuse box", house_tool.bind("destroy_fuse")],
+		["10 debris blasts", house_tool.bind("blasts")], ["Repair everything", repair_house]]))
+
+
+## Runs a HouseDev tool on the game's house.
+func house_tool(what: String) -> void:
+	var w: Variant = game.get("world") if game != null and is_instance_valid(game) else null
+	if not (w is HouseWorld):
+		_say("No house.", true)
+		return
+	_say(HouseDev.run(w, what))

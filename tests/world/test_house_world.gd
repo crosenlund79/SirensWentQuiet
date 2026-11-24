@@ -54,13 +54,18 @@ func test_new_house_matches_plan_raster_and_starts_with_closed_doors() -> void:
 	w.set_door_open(back, true)
 	var ref := GridNav.new()
 	HousePlan.rasterize_into(ref)
+	# Experiment 004: blocking furniture is bashable (WALL) for the survival house's nav
+	for f in HousePlan.FURNITURE:
+		if f["blocks"]:
+			ref.mark_rect(f["rect"], GridNav.WALL)
+	ref.rebuild()
 	var bad := []
 	for j in ref.size.y:
 		for i in ref.size.x:
 			var c := Vector2i(i, j)
 			if ref.get_raw(c) != w.nav.get_raw(c):
 				bad.append("%s ref %d got %d" % [ref.center_of(c), ref.get_raw(c), w.nav.get_raw(c)])
-	check(bad.is_empty(), "with doors open the recomputed nav equals the shared plan raster (%d differ: %s)" % [bad.size(), str(bad.slice(0, 6))])
+	check(bad.is_empty(), "with doors open the recomputed nav equals the shared plan raster, furniture bashable (%d differ: %s)" % [bad.size(), str(bad.slice(0, 6))])
 	check(w.exit_path_exists(), "the intact house has a way out")
 	print("    build %.0f ms (nav %.0f ms)" % [w.stats["build_ms"], w.stats["nav_ms"]])
 

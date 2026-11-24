@@ -3,6 +3,10 @@ extends RefCounted
 ## candle, lantern and the wall_ghost preview block. New for Experiment 002.
 ## Experiment 003: style "iron" for doors (a reinforced door: riveted plate,
 ## straps, steel frame) and barricades (steel posts and flat bars).
+## Experiment 004: style "metal" for doors (a steel slab door in a steel
+## frame), "boards" (window boards), "fuse_box" (style "off" turns the main
+## lever down) and "rubble" (the low remains of a destroyed furniture piece;
+## style "wood" | "metal" | "ceramic" | "fabric" | "plant" picks the colours).
 ## The builders other than `door` use the PropKit builder frame (front toward
 ## +z, turned to -Z by PropKit). `door` is built directly in the canonical
 ## frame because its "Leaf" is a separate node: the leaf's origin is the
@@ -36,6 +40,12 @@ static func build(mm: PropMesh, type: String, w: float, h: float, d: float, rng:
 			_candle(mm, w, h, d, rng)
 		"lantern":
 			_lantern(mm, w, h, d, rng)
+		"boards":
+			_window_boards(mm, w, h, d, rng, damage)
+		"fuse_box":
+			_fuse_box(mm, w, h, d, rng, damage, style)
+		"rubble":
+			_rubble(mm, w, h, d, rng, style)
 		"wall_ghost":
 			mm.set_mat(M.L_PLAIN, Color(0.8, 0.8, 0.78))
 			mm.chamfer_box(Vector3(-w * 0.5, 0, -d * 0.5), Vector3(w * 0.5, h, d * 0.5), minf(0.025, d * 0.2), false)
@@ -50,7 +60,8 @@ static func build(mm: PropMesh, type: String, w: float, h: float, d: float, rng:
 ## +X, closed), "hinge": leaf position in the door's frame}. The frame fits
 ## the w x h opening and is d + 0.03 deep (a 15 mm lip on each wall face).
 static func door(w: float, h: float, d: float, rng: RandomNumberGenerator, damage: float, style: String) -> Dictionary:
-	var iron := style == "iron"
+	var metal := style == "metal"
+	var iron := style == "iron" or metal
 	var plank := style == "plank" or iron
 	var fr := PropMesh.new()
 	var fd := d + 0.03
@@ -90,7 +101,9 @@ static func door(w: float, h: float, d: float, rng: RandomNumberGenerator, damag
 	if damage >= 0.95:
 		# the top hinge gave: the leaf sags a little
 		lf.xf = Transform3D(Basis(Vector3.BACK, -0.025), Vector3.ZERO)
-	if iron:
+	if metal:
+		_metal_leaf(lf, lw, top, rng, damage)
+	elif iron:
 		_iron_leaf(lf, lw, top, rng, damage)
 	elif plank:
 		_plank_leaf(lf, lw, top, rng, damage)
@@ -731,3 +744,150 @@ static func _lantern(mm: PropMesh, w: float, h: float, d: float, rng: RandomNumb
 		pts.append(Vector3(cos(a) * r * 0.7, y0 + sin(a) * (h - 0.006 - y0), 0))
 	mm.polyline(pts, 0.004, 4)
 	mm.no_shadow = false
+
+
+# --- Experiment 004 ---------------------------------------------------------------------------------
+
+## A steel door: a pressed slab with two raised panels, a welded frame edge,
+## a heavy bar handle and a deadbolt. Damage dents, scorches and finally
+## buckles the slab. Leaf frame: x 0..lw from the hinge, y up, front -z.
+static func _metal_leaf(mm: PropMesh, lw: float, top: float, rng: RandomNumberGenerator, damage: float) -> void:
+	var t := LEAF_T * 0.5 + 0.006
+	var y0 := 0.008
+	var steel := Color(0.36, 0.39, 0.41).darkened(rng.randf_range(0.0, 0.06))
+	mm.set_mat(M.L_METAL, steel, 0.25 + damage * 0.4)
+	mm.chamfer_box(Vector3(0, y0, -t), Vector3(lw, top, t), 0.008, false)
+	# two raised pressings on each face
+	mm.set_mat(M.L_METAL, steel.lightened(0.06), 0.2 + damage * 0.4)
+	var m := 0.1
+	var mid := top * 0.5
+	for z in [-t - 0.006, t]:
+		mm.box(Vector3(m, y0 + 0.12, z), Vector3(lw - m, mid - 0.06, z + 0.006))
+		mm.box(Vector3(m, mid + 0.06, z), Vector3(lw - m, top - 0.12, z + 0.006))
+	# welded edge strip
+	mm.set_mat(M.L_RUST, Color(0.3, 0.29, 0.27), 0.5)
+	mm.box(Vector3(-0.002, y0, -t - 0.004), Vector3(0.02, top, t + 0.004))
+	mm.box(Vector3(lw - 0.02, y0, -t - 0.004), Vector3(lw + 0.002, top, t + 0.004))
+	# bar handle and deadbolt
+	mm.set_mat(M.L_METAL, Color(0.6, 0.6, 0.58), 0.15)
+	for s in [-1.0, 1.0]:
+		var z: float = s * (t + 0.004)
+		mm.tube(Vector3(lw - 0.08, 0.92, z), Vector3(lw - 0.08, 0.92, z + s * 0.05), 0.01, 0.01, 6)
+		mm.tube(Vector3(lw - 0.08, 1.16, z), Vector3(lw - 0.08, 1.16, z + s * 0.05), 0.01, 0.01, 6)
+		mm.tube(Vector3(lw - 0.08, 0.91, z + s * 0.05), Vector3(lw - 0.08, 1.17, z + s * 0.05), 0.013, 0.013, 6)
+		mm.cylinder(Vector3(lw - 0.08, 1.34, z), 0.022, 0.022, 0.012, 8)
+	# dents, soot and a buckled corner
+	if damage >= 0.25:
+		mm.set_mat(M.L_SCREEN, Color(0.07, 0.065, 0.06))
+		for i in int(damage * 8.0):
+			var dx := rng.randf_range(0.08, lw - 0.18)
+			var dy := rng.randf_range(0.25, top - 0.3)
+			mm.box(Vector3(dx, dy, -t - 0.008), Vector3(dx + rng.randf_range(0.04, 0.1), dy + rng.randf_range(0.03, 0.07), -t - 0.006))
+	if damage >= 0.75:
+		mm.set_mat(M.L_METAL, steel.darkened(0.2), 0.7)
+		mm.obox(Transform3D(Basis(Vector3.RIGHT, -0.4), Vector3(lw * 0.8, top - 0.14, -t - 0.05)), Vector3(lw * 0.38, 0.26, 0.01))
+
+
+## Window boards, front toward +z (outside): four or five rough planks nailed
+## across a w x h window, slightly askew, with gaps. Damage cracks and then
+## tears planks off (stubs stay nailed).
+static func _window_boards(mm: PropMesh, w: float, h: float, d: float, rng: RandomNumberGenerator, damage: float) -> void:
+	var n := clampi(int(round(h / 0.27)), 3, 6)
+	var pitch := h / n
+	var t := minf(0.026, d * 0.5)
+	var order := range(n)
+	_shuffle(order, rng)
+	for i in n:
+		var rank: int = order.find(i)
+		var ph := minf(rng.randf_range(0.15, 0.2), pitch - 0.03)
+		var yc := pitch * (i + 0.5) + rng.randf_range(-0.02, 0.02)
+		var tilt := rng.randf_range(-0.06, 0.06)
+		var col: Color = (PLANKS[rng.randi() % PLANKS.size()] as Color).darkened(rng.randf_range(0.0, 0.12))
+		var length := w + rng.randf_range(0.04, 0.12)
+		var frame := Transform3D(Basis(Vector3.BACK, tilt), Vector3(rng.randf_range(-0.03, 0.03), yc, t * 0.5 + (0.0 if i % 2 == 0 else 0.003)))
+		mm.set_mat(M.L_ROUGH_WOOD, col, rng.randf_range(0.05, 0.3))
+		var break_at := 0.35 + 0.65 * rank / n
+		if damage >= break_at:
+			var l0 := rng.randf_range(0.1, 0.22)
+			var l1 := rng.randf_range(0.08, 0.2)
+			_plank_piece(mm, frame, -length * 0.5, -length * 0.5 + l0, ph, t, rng, false, true)
+			_plank_piece(mm, frame, length * 0.5 - l1, length * 0.5, ph, t, rng, true, false)
+			_nails(mm, frame, length, ph, t, true, true, l0, l1)
+		else:
+			mm.obox(frame, Vector3(length, ph, t))
+			_nails(mm, frame, length, ph, t, true, true, length, length)
+
+
+## A wall-mounted fuse box, front toward +z: a grey steel cabinet with a
+## hinged lid, a label, the main lever on the right (up = on; style "off"
+## turns it down) and a conduit running up into the wall. Damage dents the
+## lid, then tears it half open.
+static func _fuse_box(mm: PropMesh, w: float, h: float, d: float, rng: RandomNumberGenerator, damage: float, style: String) -> void:
+	var x := w * 0.5
+	var grey := Color(0.55, 0.57, 0.57)
+	mm.set_mat(M.L_METAL, grey, 0.2 + damage * 0.5)
+	mm.chamfer_box(Vector3(-x, 0, -d * 0.5), Vector3(x - 0.08, h, d * 0.5 - 0.01), 0.01, false)
+	# the lid (ajar when badly damaged), a hinge line and a label
+	var lid := Transform3D(Basis(Vector3.UP, -0.5 if damage >= 0.7 else 0.0), Vector3(-x + 0.02, 0.0, d * 0.5 - 0.01))
+	var keep := mm.xf
+	mm.xf = mm.xf * lid
+	mm.set_mat(M.L_METAL, grey.lightened(0.05), 0.25 + damage * 0.5)
+	mm.box(Vector3(0.0, 0.03, 0.0), Vector3(w - 0.14, h - 0.03, 0.012))
+	mm.set_mat(M.L_PAPER, Color(0.86, 0.82, 0.62))
+	mm.box(Vector3(0.08, h - 0.16, 0.012), Vector3(0.24, h - 0.09, 0.014))
+	mm.set_mat(M.L_PLAIN, Color(0.85, 0.65, 0.1))
+	mm.box(Vector3(0.12, h * 0.45, 0.012), Vector3(0.2, h * 0.45 + 0.08, 0.014))
+	mm.xf = keep
+	# breakers seen behind an open lid
+	if damage >= 0.7:
+		mm.set_mat(M.L_PLAIN, Color(0.12, 0.12, 0.12))
+		for r in 3:
+			mm.box(Vector3(-x + 0.06, 0.15 + r * 0.17, d * 0.5 - 0.02), Vector3(x - 0.16, 0.25 + r * 0.17, d * 0.5 - 0.012))
+	# the main lever on the right side
+	mm.set_mat(M.L_METAL, Color(0.25, 0.25, 0.26), 0.3)
+	mm.box(Vector3(x - 0.08, h * 0.35, -0.04), Vector3(x - 0.06, h * 0.65, 0.04))
+	var ang := 0.6 if style != "off" else -0.6
+	mm.set_mat(M.L_PLAIN, Color(0.75, 0.12, 0.1))
+	mm.obox(Transform3D(Basis(Vector3.RIGHT, ang), Vector3(x - 0.035, h * 0.5 + sin(ang) * 0.09, cos(ang) * 0.04)), Vector3(0.03, 0.03, 0.2))
+	# conduit into the wall above
+	mm.set_mat(M.L_METAL, Color(0.42, 0.43, 0.43), 0.4)
+	mm.cylinder(Vector3(-x + 0.12, h, -d * 0.2), 0.018, 0.018, 0.3, 6)
+	if damage >= 0.3:
+		mm.set_mat(M.L_SCREEN, Color(0.08, 0.075, 0.07))
+		for i in int(damage * 5.0):
+			var dx := rng.randf_range(-x + 0.05, x - 0.2)
+			var dy := rng.randf_range(0.08, h - 0.12)
+			mm.box(Vector3(dx, dy, d * 0.5 + 0.004), Vector3(dx + 0.05, dy + 0.04, d * 0.5 + 0.006))
+
+
+const RUBBLE_TONES := {
+	"wood": [Color(0.52, 0.4, 0.28), Color(0.42, 0.32, 0.22), Color(0.62, 0.5, 0.36), Color(0.3, 0.24, 0.18)],
+	"metal": [Color(0.5, 0.52, 0.53), Color(0.82, 0.82, 0.8), Color(0.35, 0.36, 0.37), Color(0.45, 0.32, 0.22)],
+	"ceramic": [Color(0.9, 0.9, 0.88), Color(0.78, 0.78, 0.76), Color(0.6, 0.6, 0.58), Color(0.4, 0.4, 0.4)],
+	"fabric": [Color(0.55, 0.42, 0.36), Color(0.38, 0.4, 0.44), Color(0.75, 0.7, 0.6), Color(0.45, 0.35, 0.26)],
+	"plant": [Color(0.32, 0.28, 0.2), Color(0.4, 0.45, 0.28), Color(0.55, 0.35, 0.25), Color(0.25, 0.2, 0.15)],
+}
+
+
+## The low remains of a destroyed furniture piece over a w x d footprint, at
+## most h high: a scatter of broken boards, chunks and shards in the
+## material's colours, flattest at the edges. One mesh, no collision.
+static func _rubble(mm: PropMesh, w: float, h: float, d: float, rng: RandomNumberGenerator, style: String) -> void:
+	var tones: Array = RUBBLE_TONES.get(style, RUBBLE_TONES["wood"])
+	var n := clampi(int(w * d * 22.0), 6, 34)
+	var hx := w * 0.5
+	var hz := d * 0.5
+	for i in n:
+		var c: Color = (tones[rng.randi() % tones.size()] as Color).darkened(rng.randf_range(0.0, 0.25))
+		var u := Vector2(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0))
+		var edge := maxf(absf(u.x), absf(u.y))
+		var size := Vector3(rng.randf_range(0.06, 0.3), rng.randf_range(0.02, h) * (1.0 - 0.6 * edge), rng.randf_range(0.05, 0.22))
+		if style == "wood" and rng.randf() < 0.5:
+			size = Vector3(rng.randf_range(0.3, minf(0.9, w)), rng.randf_range(0.02, 0.04), rng.randf_range(0.06, 0.12))
+		var p := Vector3(u.x * (hx - 0.05), size.y * 0.5 * cos(0.3), u.y * (hz - 0.05))
+		var b := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.3, 0.3))
+		mm.set_mat(M.L_ROUGH_WOOD if style == "wood" else (M.L_METAL if style == "metal" else (M.L_GLOSSY if style == "ceramic" else M.L_PLAIN)), c, rng.randf_range(0.2, 0.6))
+		mm.obox(Transform3D(b, p), size)
+	# a dusty base patch
+	mm.set_mat(M.L_PLAIN, Color(0.36, 0.33, 0.29), 0.8)
+	mm.box(Vector3(-hx * 0.85, 0.0, -hz * 0.85), Vector3(hx * 0.85, 0.008, hz * 0.85))
