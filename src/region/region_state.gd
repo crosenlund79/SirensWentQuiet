@@ -44,7 +44,8 @@ static func new_region() -> RegionState:
 # --- discovery -------------------------------------------------------------------------
 
 func is_discovered(id: String) -> bool:
-	return discovered.get(id, false) == true
+	var v = discovered.get(id, false)
+	return typeof(v) == TYPE_BOOL and v
 
 
 ## Returns true if the place was new.
@@ -223,7 +224,7 @@ static func from_dict(d) -> RegionState:
 				r.discover(str(id))
 	elif typeof(disc) == TYPE_DICTIONARY:
 		for id in disc:
-			if disc[id] == true:
+			if typeof(disc[id]) == TYPE_BOOL and disc[id]:
 				r.discover(str(id))
 	var st = d.get("stock", {})
 	if typeof(st) == TYPE_DICTIONARY:
