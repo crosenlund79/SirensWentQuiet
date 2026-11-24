@@ -60,6 +60,7 @@ var _held := {}
 var _finished := false
 var _doors_opened: Array[String] = []
 var _strikes := {}                     ## kind -> roster wall_swing signals (strikes)
+var _fired := []                       ## [weapon id, pellets] of every trigger pull that fired
 var g: Node
 
 
@@ -280,7 +281,7 @@ func _click_button(under: Node, pattern: String, exclude := "") -> String:
 	if bs.is_empty():
 		return ""
 	var b: BaseButton = bs[0]
-	var t: String = b.text if b is Button else b.name
+	var t: String = b.text if b is Button else str(b.name)
 	await _click_control(b)
 	return t
 
@@ -289,8 +290,9 @@ func _click_named(under: Node, node_name: String) -> String:
 	var b := under.find_child(node_name, true, false) as BaseButton
 	if b == null or not _shown(b) or b.disabled:
 		return ""
-	await _click_control(b)
-	return b.text if b is Button else b.name
+	var t: String = b.text if b is Button else str(b.name)
+	await _click_control(b)          # the click may rebuild the panel (and free the button)
+	return t
 
 
 # --- world helpers -----------------------------------------------------------------------
@@ -621,6 +623,28 @@ func _build_run(a: Vector2, b: Vector2, shot_name := "") -> String:
 	return "ok" if ok else why
 
 
+## The map: zoom out to the whole region (wheel), click the place's pin; its
+## list entry (scrolled into view) if the pin can't be hit. Returns how.
+func _map_select(screen: RegionMapScreen, id: String) -> String:
+	var mk: MapMarkers = screen.markers
+	var c := mk.get_global_transform_with_canvas() * (mk.size * 0.5)
+	await _wheel(c, false, 14)
+	await _wait(1.5)
+	var how := ""
+	var pin := mk.head_position(id)
+	if pin != Vector2.INF and Rect2(Vector2(60, 60), mk.size - Vector2(120, 120)).has_point(pin):
+		await _click(mk.get_global_transform_with_canvas() * pin)
+		how = "wheel out, clicked the %s pin" % RegionLocations.name_of(id)
+	if screen.selected != id:
+		var lb: Button = screen.get("_list_buttons").get(id)
+		if lb != null:
+			await _scroll_into_view(lb)
+			await _click_control(lb)
+			how += (", then " if how != "" else "") + "clicked its list entry"
+	await _wait(1.2)
+	return how + (" → selected '%s'" % screen.selected)
+
+
 func _section_center(s: Vector3i) -> Vector2:
 	return Vector2(s.z + 0.5, s.y) if s.x == 0 else Vector2(s.y, s.z + 0.5)
 
@@ -752,6 +776,7 @@ func _expedition(dest: String, shots: Dictionary, prefer_gear := false) -> Dicti
 			"list":
 				if dest != "" and str(scr.get("selected")) != dest and scr.destination_buttons.has(dest):
 					out["clicks"].append(dest)
+					await _scroll_into_view(scr.destination_buttons[dest])
 					await _click_control(scr.destination_buttons[dest])
 				elif pb is Button and _shown(pb) and not pb.disabled:
 					out["clicks"].append(pb.text)
@@ -810,14 +835,17 @@ func _part1() -> void:
 	if not await _wait_for_game():
 		_step("1 start a game with a selected difficulty", false, "the game scene did not open (clicked '%s', dialog %s, chose '%s')" % [clicked, dlg_open, chose])
 		return
+	# The intro overlay animates (about 9 s); under software Vulkan every frame
+	# of it is a full redraw (about 1 s each), so it is skipped with a key after
+	# its first second, as a player may (any key skips it).
 	var t := 0.0
 	while g.debug_modal() == "intro" and t < 40.0:
 		await _wait(0.5)
 		t += 0.5
-		if t > 14.0 and int(t * 2) % 10 == 0:
+		if t >= 1.0 and int(t * 2) % 4 == 0:
 			await _tap(KEY_SPACE)
 	_step("1 start a game with a selected difficulty", g.debug_modal() == "" and _state().difficulty == LEVEL and dlg_open,
-		"clicked '%s', the difficulty dialog listed Easy/Normal/Hard with descriptions, clicked '%s' → GameState difficulty '%s' (first invasion Day %d, %d rounds in the handgun); intro %.1f s" % [
+		"clicked '%s', the difficulty dialog listed Easy/Normal/Hard with descriptions, clicked '%s' → GameState difficulty '%s' (first invasion Day %d, %d rounds in the handgun); intro skipped with Space after %.1f s" % [
 		clicked, chose, _state().difficulty, _state().first_invasion_day(), _state().magazine("handgun"), t])
 
 	# 2. Wake in the existing house.
@@ -872,6 +900,7 @@ func _part1() -> void:
 	await _tap(KEY_I)
 	await _wait(0.2)
 	var w := _weapons()
+	w.fired.connect(func(id, hits): _fired.append([id, (hits as Array).size()]))
 	var seq := []
 	await _tap(KEY_2)
 	seq.append("2→" + w.current_id())
@@ -883,7 +912,7 @@ func _part1() -> void:
 	await _click(ground)
 	await _wait(0.05)
 	await _shot("04b_shotgun_fired.png")
-	var pellets := int(w.last.get("pellets", 0))
+	var pellets := int(_fired.back()[1]) if not _fired.is_empty() and _fired.back()[0] == "shotgun" else 0
 	await _wait(1.0)
 	await _tap(KEY_1)
 	seq.append("1→" + w.current_id())
@@ -991,16 +1020,7 @@ func _part1() -> void:
 		"cloud time %.1f → %.1f s (%.1f world units of drift); the two frames differ by %.2f / 255 on average over the map" % [ct0, ct1, (ct1 - ct0) * RegionMapView.CLOUD_SPEED.length(), cloud_diff])
 
 	# 9. Select a scavenging location: the quarry's pin, targeted collection (key 2), Plan expedition.
-	var how := ""
-	var pin := mk.head_position("quarry")
-	if pin != Vector2.INF and Rect2(Vector2.ZERO, mk.size).has_point(pin):
-		await _click(mk.get_global_transform_with_canvas() * pin)
-		how = "clicked the quarry's pin"
-	if screen.selected != "quarry":
-		var lb: Button = screen.get("_list_buttons").get("quarry")
-		if lb != null:
-			await _click_control(lb)
-			how += ", then its list entry"
+	var how := await _map_select(screen, "quarry")
 	await _wait(1.2)
 	await _tap(KEY_2)
 	await _wait(0.5)
@@ -1243,6 +1263,14 @@ func _part1() -> void:
 				var p := cpt + (Vector2(off.x, 0) if sec.x == 0 else Vector2(0, off.x))
 				_move_mouse(_screen_of(p, off.y))
 				await _wait(0.35)
+				if str(g.build.last_eval.get("reason", "")).begins_with("Needs") and not tried.has("materials"):
+					tried.append("materials")
+					await _tap(KEY_ESCAPE)
+					_note("step 18: '%s' → F10 '%s'" % [g.build.last_eval.get("reason", ""), await _dev_click("^\\+ Materials$")])
+					await _tap(KEY_B)
+					await _select_piece(KEY_7, "repair")
+					_move_mouse(_screen_of(p, off.y))
+					await _wait(0.35)
 				if g.build.last_eval.get("ok", false):
 					if first:
 						first = false
@@ -1266,9 +1294,8 @@ func _part1() -> void:
 	# 19. Save and leave: plan one more trip on the map (M) so part 2 can check the plan, then Esc → Save → Main Menu → Save and quit → Quit.
 	await _tap(KEY_M)
 	await _wait(1.0)
-	var lb3: Button = screen.get("_list_buttons").get("police")
-	if lb3 != null:
-		await _click_control(lb3)
+	var how19 := await _map_select(screen, "police")
+	if screen.selected == "police":
 		await _wait(1.0)
 		await _tap(KEY_3)
 		await _wait(0.3)
@@ -1305,7 +1332,7 @@ func _part1() -> void:
 			break
 	var at_menu: bool = current_scene != null and current_scene.scene_file_path == MENU
 	_step("19 save and leave the game", in_pause and saved_click != "" and info["valid"] and info["schema"] == SaveGame.SCHEMA and at_menu and plan_note == "police|careful",
-		"M: planned %s; Esc → pause '%s', clicked '%s' (schema %d, %s), '%s' → '%s' → main menu %s" % [plan_note, _ui().pause_menu.subtitle if is_instance_valid(g) else "?",
+		"M, %s, 3 (careful), Plan: planned %s; Esc → pause '%s', clicked '%s' (schema %d, %s), '%s' → '%s' → main menu %s" % [how19, plan_note, _ui().pause_menu.subtitle if is_instance_valid(g) else "?",
 		saved_click, int(info["schema"]), UiTheme.save_summary_text(info.get("summary", {})), left, sq, at_menu])
 	_finish()
 	if at_menu:

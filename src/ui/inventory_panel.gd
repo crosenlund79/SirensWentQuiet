@@ -176,7 +176,7 @@ func _slot_row(slot: String) -> Control:
 	var item := UiTheme.make_label("", UiTheme.FONT_BODY)
 	item.name = "Item"
 	texts.add_child(item)
-	var fx := UiTheme.make_caption("", 230, UiTheme.TEXT_DIM)
+	var fx := UiTheme.make_caption("", 250, UiTheme.TEXT_DIM)
 	fx.name = "Effect"
 	texts.add_child(fx)
 	var b := UiTheme.make_button("Unequip")
