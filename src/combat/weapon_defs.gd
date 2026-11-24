@@ -16,6 +16,7 @@ extends RefCounted
 ##                "shell": one round per reload_time until full; firing interrupts it
 ##   reload_time  s (per magazine, or per shell)
 ##   muzzle       muzzle tip in the rig's gun-node space (VoxelRig.gun; the barrel points along -Y)
+##   casing_back  m behind the muzzle where the spent casing is ejected
 ##   fire_sound   Sfx names, the first one that exists is played
 ##   fire_db      volume offset for the fire sound
 
@@ -23,13 +24,13 @@ const DEFS := {
 	"handgun": {
 		"name": "Handgun", "ammo": "ammo", "capacity": 12, "interval": 0.2, "damage": 1,
 		"pellets": 1, "spread": 1.0, "range": 40.0, "reload": "magazine", "reload_time": 1.4,
-		"muzzle": Vector3(0, -0.26, 0),
+		"muzzle": Vector3(0, -0.26, 0), "casing_back": 0.15,
 		"fire_sound": ["weapon/handgun_fire"], "fire_db": 0.0,
 	},
 	"shotgun": {
 		"name": "Shotgun", "ammo": "shells", "capacity": 5, "interval": 0.9, "damage": 1,
 		"pellets": 6, "spread": 9.0, "range": 14.0, "reload": "shell", "reload_time": 0.5,
-		"muzzle": Vector3(0, -0.8, -0.005),
+		"muzzle": Vector3(0, -0.8, -0.005), "casing_back": 0.6,
 		"fire_sound": ["weapon/shotgun_fire", "weapon/handgun_fire"], "fire_db": 3.0,
 	},
 }

@@ -2,7 +2,15 @@ class_name Difficulty
 extends RefCounted
 ## Easy / Normal / Hard (SPEC-003 §5). Owner: K; read by the enemy director
 ## (AI), the expedition system (X) and the game. Multipliers apply to the
-## Experiment 002 baseline numbers.
+## Experiment 002 baseline numbers. GameState applies the survival-core ones:
+##   start_rounds                 new_run: rounds in the handgun's magazine (no reserve)
+##   enemy_damage                 GameState.enemy_damage() (before the vest)
+##   enemy_count, enemy_hp        GameState.invasion_size() / invasion_enemy_hp() (the
+##                                Experiment 002 director); enemy_hp_scale() for archetypes
+##   first_invasion_day,
+##   invasion_interval_days       the invasion grid (GameState._invasion_slot_after)
+## The rest (threat budget, bombers, specials, loot, scavenge_danger) is read by
+## AI and X directly.
 
 const LEVELS := ["easy", "normal", "hard"]
 const DEFAULT := "normal"
@@ -48,3 +56,11 @@ static func get_value(level: String, key: String) -> Variant:
 
 static func name_of(level: String) -> String:
 	return DEFS[valid(level)]["name"]
+
+
+static func desc_of(level: String) -> String:
+	return DEFS[valid(level)]["desc"]
+
+
+static func start_rounds(level: String) -> int:
+	return int(get_value(level, "start_rounds"))
