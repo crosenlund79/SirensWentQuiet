@@ -64,8 +64,11 @@ func test_ai_bomber_ignores_the_player_and_blows_the_front_door() -> void:
 	var front := _door(Vector2(4.5, 9.0))
 	var cell := world.nav.cell_of(Vector2(4.5, 9.0))
 	check(front != null and not world.nav.is_walkable(cell), "the front door is closed")
+	var spawn_at := Vector2(2.6, 12.6)
+	var expect := _first_usable(spawn_at)
+	check_eq(expect.get("kind"), "door", "the world ranks the closed front door first here")
 	var solid_before := world.grid.solid_count
-	var b: AIEnemy = roster.spawn_type("bomber", Vector2(2.6, 12.6))
+	var b: AIEnemy = roster.spawn_type("bomber", spawn_at)
 	var bh = b.behaviour
 	var acc := {"closest": INF, "player_swings": 0}
 	var bref: WeakRef = weakref(b)
@@ -76,35 +79,42 @@ func test_ai_bomber_ignores_the_player_and_blows_the_front_door() -> void:
 			acc["player_swings"] = bb.swings["player"]
 		return not _ev("blast").is_empty() or bb == null, 20.0)
 	var closest: float = acc["closest"]
-	print("    bomber: target %s, fuse at %s after %.1f s, closest to the player %.2f m" % [bh.target.get("kind"), _ev("fuse")[0]["at"] if not _ev("fuse").is_empty() else "-", t, closest])
+	print("    bomber: target %s, fuse at %s after %.1f s, closest to the player %.2f m, breach %s" % [bh.target.get("kind"),
+		_ev("fuse")[0]["at"] if not _ev("fuse").is_empty() else "-", t, closest, bh.last_blast.get("breach")])
 	check(closest < 1.5, "it passed close to the player (%.2f m)" % closest)
 	check_eq(acc["player_swings"], 0, "never swung at the player")
-	check_eq(bh.target.get("kind"), "door", "it chose the door (the best weak point)")
+	check_eq(bh.target.get("key"), expect.get("key"), "it took the world's first usable weak point")
 	var fuse := _ev("fuse")
 	check(fuse.size() == 1, "one fuse")
 	if fuse.is_empty():
 		return
 	check(is_equal_approx(fuse[0]["s"], 2.5), "a 2.5 s fuse")
 	var fp: Vector3 = fuse[0]["pos"]
-	check(Vector2(fp.x, fp.z).distance_to(Vector2(4.5, 9.6)) < 0.5, "lit at the door's outside face (%s)" % fp)
+	check(Vector2(fp.x, fp.z).distance_to(expect["approach"]) < 0.5, "lit at the door's outside stand point %s (%s)" % [expect["approach"], fp])
 	var blast := _ev("blast")
 	check(blast.size() == 1, "detonated")
 	if blast.is_empty():
 		return
 	check(is_equal_approx(blast[0]["r"], 4.0) and is_equal_approx(blast[0]["d"], 60.0), "detonated(at, 4 m, 60) on Normal")
+	check(bh.last_blast.get("breach", false), "the world reports a breach")
 	check(bref.get_ref() == null or not bref.get_ref().alive, "the bomber is gone")
 	check(_door(Vector2(4.5, 9.0)) == null, "the door was destroyed")
 	check(world.grid.solid_count < solid_before - 50, "voxels blown out (%d)" % (solid_before - world.grid.solid_count))
 	check(world.nav.is_walkable(cell), "the doorway is open for navigation")
-	var span := _open_span(Vector2(4.5, 9.0), Vector2(1, 0))
-	check(span >= 1.5, "a breach wider than the 1 m doorway (%.2f m walkable)" % span)
+	var inside := world.nav.find_path(Vector2(4.5, 10.5), Vector2(4.6, 7.6))
+	var bash := 0
+	for q in inside:
+		if not world.nav.is_walkable(world.nav.cell_of(q)):
+			bash += 1
+	check(not inside.is_empty() and bash == 0, "a walk-only path in through the blown doorway (%d bash cells)" % bash)
 	check_eq(roster.blasts, 1, "the roster saw the blast")
 
 
-## The first weak point a bomber at `from` may use (same filters as its pick).
+## The first weak point a bomber at `from` may use (same filters as its pick),
+## ranked by the world with the player's position as `near`.
 func _first_usable(from: Vector2) -> Dictionary:
 	var B := load("res://src/ai/bomber_behaviour.gd")
-	for p in world.weak_points(from):
+	for p in world.weak_points(from, player.plan_pos()):
 		var t: Dictionary = B.describe(world, p)
 		if not t.is_empty():
 			return t
@@ -132,6 +142,7 @@ func test_ai_bomber_goes_for_a_wall_not_the_player_unlike_a_psycho() -> void:
 	check_eq(expect.get("kind"), "wall", "with the doors open the best usable weak point is a wall")
 	var psycho: AIEnemy = roster.spawn_type("psycho", spawn_at + Vector2(-1.5, 0.0))
 	var b: AIEnemy = roster.spawn_type("bomber", spawn_at)
+	var bh = b.behaviour
 	var bref: WeakRef = weakref(b)
 	var pref: WeakRef = weakref(psycho)
 	var acc := {"closest": INF, "bomber_swings": 0, "psycho_player_swings": 0, "psycho_wall_swings": 0}
@@ -145,7 +156,7 @@ func test_ai_bomber_goes_for_a_wall_not_the_player_unlike_a_psycho() -> void:
 			acc["psycho_player_swings"] = pp.swings["player"]
 			acc["psycho_wall_swings"] = pp.swings["wall"]
 		return not _ev("blast").is_empty() or bb == null, 25.0)
-	var target: Dictionary = b.behaviour.target if is_instance_valid(b) else {}
+	check_eq(bh.target.get("key"), expect.get("key"), "it took the world's first usable weak point")
 	print("    bomber blew %s after %.1f s; closest to the player %.2f m; psycho swings at the player %d, at walls %d" % [
 		expect.get("seg"), t, acc["closest"], acc["psycho_player_swings"], acc["psycho_wall_swings"]])
 	check(acc["closest"] < 2.5, "the bomber came near the player (%.2f m)" % acc["closest"])
@@ -159,9 +170,10 @@ func test_ai_bomber_goes_for_a_wall_not_the_player_unlike_a_psycho() -> void:
 	var fp: Vector3 = fuse[0]["pos"]
 	check(Vector2(fp.x, fp.z).distance_to(ep) < 0.6, "at the chosen wall's outside face %s (%s)" % [ep, fp])
 	check(not _ev("blast").is_empty(), "detonated")
+	check(bh.last_blast.get("breach", false), "the world reports a breach")
 	var s2: Vector3i = expect["seg"]
-	check(world.section_integrity(s2) < 0.5, "the wall section is blown out (%.2f)" % world.section_integrity(s2))
-	var line := HouseWorld.seg_center(s2)
+	var line: Vector2 = expect["pos"]
+	check(world.nav.is_walkable(world.nav.cell_of(line)), "the targeted wall point is walk-through")
 	var span := _open_span(line, Vector2(1, 0) if s2.x == 0 else Vector2(0, 1))
 	check(span >= 1.0, "a walkable hole in the wall (%.2f m)" % span)
 	var inside := line - (expect["normal"] as Vector2) * 1.0
@@ -233,24 +245,32 @@ func test_ai_bomber_blast_hurts_nearby_enemies() -> void:
 	check(far.alive and far.hp == far.max_hp, "the far psycho was not")
 
 
-## Its target is destroyed on the way (here: the door is broken down by
-## something else): it picks another weak point and still blows it.
+## Its target is destroyed on the way (broken down by something else): it
+## picks another weak point and still blows it.
 func test_ai_bomber_repicks_when_its_target_is_gone() -> void:
 	await _setup(Vector2(9.0, 13.5))
 	var b: AIEnemy = roster.spawn_type("bomber", Vector2(2.4, 13.2))
+	var bh = b.behaviour
 	await physics_frames(20)
-	var first: Dictionary = b.behaviour.target.duplicate()
-	check_eq(first.get("kind"), "door", "it went for the front door first")
-	var door := _door(Vector2(4.5, 9.0))
-	world.damage_object(door, 100)
+	var first: Dictionary = bh.target.duplicate()
+	check(not first.is_empty(), "it chose a target (%s)" % first.get("kind"))
+	if first.is_empty():
+		return
+	if first["has_object"]:
+		world.damage_object(first["object"], 1000)
+	else:
+		var p: Vector2 = first["approach"]
+		world.explode(Vector3(p.x, 1.0, p.y), 1.6, 24.0)
 	await physics_frames(2)
-	check(_door(Vector2(4.5, 9.0)) == null, "the door is gone")
+	check(world.nav.is_walkable(world.nav.cell_of(first["pos"])), "the first target is gone (walk-through)")
 	var bref: WeakRef = weakref(b)
 	await _run_until(func(): return not _ev("blast").is_empty() or bref.get_ref() == null, 30.0)
+	check(bh.picks >= 2, "picked again (%d)" % bh.picks)
 	var fuse := _ev("fuse")
 	check(fuse.size() == 1, "one fuse, at the new target")
 	if fuse.is_empty():
 		return
 	var at: Vector3 = fuse[0]["at"]
-	check(Vector2(at.x, at.z).distance_to(Vector2(4.5, 9.0)) > 0.8, "not at the broken doorway (%s)" % at)
+	check(Vector2(at.x, at.z).distance_to(first["approach"]) > 0.8, "not at the first target (%s vs %s)" % [at, first["approach"]])
 	check_eq(_ev("blast").size(), 1, "and blew it")
+	check(bh.last_blast.get("breach", false), "a breach")

@@ -1,15 +1,19 @@
 extends EnemyBehaviour
 ## The suicide bomber (SPEC-003 §5): it goes for the house's defences, never
 ## the player.
-##   seek  pick from world.weak_points(from) (doors, barricades, weak walls),
-##         keep the first usable one and commit to it: walk to its OUTSIDE face
-##         (skipping open doors, breached walls, points whose outside face is
-##         inside the house, unreachable faces and targets another bomber
-##         claimed); re-pick only if the target is gone before arrival
+##   seek  pick from world.weak_points(from, player) (doors, barricades,
+##         weak walls, ranked by the world; the player's position only raises
+##         the walls near them), keep the first usable one and commit to it:
+##         walk to its stand point on the OUTSIDE face (skipping open doors,
+##         breached walls, stand points inside the house, unreachable ones and
+##         targets another bomber claimed); re-pick only if the target is
+##         gone (destroyed or walk-through) before arrival
 ##   fuse  at the face: stop, face the wall, fuse_started(e, at, FUSE) for the
 ##         HUD, a pulsing light that speeds up and a beep (FUSE_SOUND, falls
 ##         back to an existing name) for `fuse` seconds
-##   blast world.explode(centre, blast_radius, blast_power) at the wall face,
+##   blast world.explode(stand point 1 m up, blast_radius, blast_power) (the
+##         world's recommended use: one blast breaches a wooden or house wall
+##         or a wooden door; stone needs two), last_blast = its result,
 ##         detonated(at, blast_reach, blast_damage): the roster hurts other
 ##         enemies, the game hurts the player; the bomber vanishes
 ## Killed early (design choice, docs/experiment-003/ai.md):
@@ -22,10 +26,9 @@ const FUSE_SOUND := "enemy/bomber_fuse"      ## requested from the lead
 const FUSE_SOUND_FALLBACK := "ui/error"
 const BLAST_SOUNDS := ["enemy/bomber_blast", "structure/break"]
 const FIZZLE_SOUND := "weapon/dry_fire"
-const APPROACH := 0.6           ## m from the wall line to the stand point
+const APPROACH := 0.6           ## m from the wall line to the stand point (foundation format)
 const ARRIVE := 0.35            ## m from the stand point
 const BLAST_HEIGHT := 1.0       ## m, blast centre height
-const BLAST_INSET := 0.15       ## m from the wall line toward the stand point
 const RETARGET := 1.0           ## s between target validity checks
 const STALL_FUSE := 2           ## stalls in a row before it blows the nearest wall where it is
 const BREACHED := 0.25          ## wall integrity below which it isn't worth a bomb
@@ -38,6 +41,7 @@ var target := {}                ## {"kind", "pos", "approach", "normal", "seg", 
 var fuse_left := 0.0
 var fuse_at := Vector3.ZERO
 var picks := 0                  ## targets chosen (tests)
+var last_blast := {}            ## world.explode's result (tests, debug)
 var _check_t := 0.0
 var _stalls := 0
 var _beep_t := 0.0
@@ -121,7 +125,12 @@ func _pick(e: AIEnemy) -> void:
 	if w == null or not w.has_method("weak_points"):
 		return
 	var me := e.plan_pos()
-	for p in w.weak_points(me):
+	var pts: Array
+	if e.player != null and is_instance_valid(e.player) and w.get_method_argument_count("weak_points") >= 2:
+		pts = w.weak_points(me, Vector2(e.player.global_position.x, e.player.global_position.z))
+	else:
+		pts = w.weak_points(me)
+	for p in pts:
 		var t := describe(w, p)
 		if t.is_empty() or _claimed(e, t["key"]):
 			continue
@@ -136,10 +145,31 @@ func _pick(e: AIEnemy) -> void:
 		return
 
 
-## A weak point as a bomb target: its wall segment, outward normal, the stand
-## point on the outside face and the object on it. {} when it isn't usable:
-## an open door, a breached wall, or a face inside the house.
+## A weak point as a bomb target: "pos" (the target point), "approach" (the
+## stand point on the outside face), "normal" (outward), "seg", "object".
+## {} when it isn't usable: an open or broken object, a walk-through wall, a
+## stand point inside the house. Reads the world's entries ({pos = stand
+## point, target, seg, object}); the foundation format ({pos = the target})
+## still works.
 static func describe(w: HouseWorld, p: Dictionary) -> Dictionary:
+	var kind := str(p.get("kind", "wall"))
+	if p.has("target"):
+		var stand: Vector2 = p["pos"]
+		var tgt: Vector2 = p["target"]
+		var o = p.get("object")
+		var obj: WorldObject = o if o is WorldObject and is_instance_valid(o) else null
+		if o != null and obj == null:
+			return {}
+		if obj != null and ((obj.kind == "door" and obj.open) or not obj.bashable()):
+			return {}
+		if obj == null and w.nav.is_walkable(w.nav.cell_of(tgt)):
+			return {}
+		if HousePlan.FOOTPRINT.grow(-0.05).has_point(stand) or not HousePlan.YARD.grow(-0.3).has_point(stand):
+			return {}
+		var seg2: Vector3i = p.get("seg", HouseWorld.nearest_seg(tgt))
+		var n2 := (stand - tgt).normalized()
+		return {"kind": kind, "pos": tgt, "approach": stand, "normal": n2, "seg": seg2, "object": obj, "has_object": obj != null,
+			"key": "%d:%d,%d,%d" % [w.get_instance_id(), seg2.x, seg2.y, seg2.z]}
 	var pos: Vector2 = p["pos"]
 	var seg := HouseWorld.nearest_seg(pos)
 	var sign := w.outer_sign(seg)
@@ -148,7 +178,6 @@ static func describe(w: HouseWorld, p: Dictionary) -> Dictionary:
 	var approach := line_pos + n * APPROACH
 	if HousePlan.FOOTPRINT.grow(-0.05).has_point(approach) or not HousePlan.YARD.grow(-0.5).has_point(approach):
 		return {}
-	var kind := str(p.get("kind", "wall"))
 	var obj: WorldObject = w.object_at(pos, 0.05) if kind != "wall" else null
 	if obj != null:
 		if (obj.kind == "door" and obj.open) or not obj.bashable():
@@ -167,6 +196,10 @@ func _still_valid(e: AIEnemy) -> bool:
 	if target.get("has_object", false):
 		var obj = target["object"]       # untyped: it may have been freed
 		return is_instance_valid(obj) and e.world.objects.has(obj) and obj.bashable()
+	if str(target["key"]).begins_with("stall:"):
+		return true
+	if e.world.nav.is_walkable(e.world.nav.cell_of(target["pos"])):
+		return false                     # already walk-through
 	var seg: Vector3i = target["seg"]
 	return not e.world.sections.has(seg) or e.world.section_integrity(seg) >= BREACHED
 
@@ -204,9 +237,7 @@ func _light(e: AIEnemy) -> void:
 	state = "fuse"
 	fuse_left = float(e.def["fuse"])
 	_beep_t = 0.0
-	var p: Vector2 = target["pos"]
-	var n: Vector2 = target["normal"]
-	var c := p + n * BLAST_INSET
+	var c: Vector2 = target["approach"]          # the stand point, as the world recommends
 	fuse_at = Vector3(c.x, BLAST_HEIGHT, c.y)
 	e.fuse_started.emit(e, fuse_at, fuse_left)
 
@@ -216,14 +247,21 @@ func _detonate(e: AIEnemy) -> void:
 	_release(e)
 	var d := e.def
 	var at := fuse_at
+	last_blast = {}
 	if e.world != null and e.world.has_method("explode"):
-		e.world.explode(at, float(d["blast_radius"]), float(d["blast_power"]))
-	_flash(e, at, 9.0, 6.0)
-	_debris(e, at, 1.0)
-	for s in BLAST_SOUNDS:
-		if Sfx.has(s):
-			Sfx.play(s, at)
-			break
+		var res = e.world.explode(at, float(d["blast_radius"]), float(d["blast_power"]))
+		last_blast = res if res is Dictionary else {}
+	if last_blast.has("breach"):
+		# The world's blast brings its own flash, fireball, debris and sounds.
+		if Sfx.has(BLAST_SOUNDS[0]):
+			Sfx.play(BLAST_SOUNDS[0], at)
+	else:
+		_flash(e, at, 9.0, 6.0)
+		_debris(e, at, 1.0)
+		for snd in BLAST_SOUNDS:
+			if Sfx.has(snd):
+				Sfx.play(snd, at)
+				break
 	e.death_cause = "detonated"
 	e.detonated.emit(at, float(d["blast_reach"]), e.blast_damage)
 	e.died.emit(e, "detonated")

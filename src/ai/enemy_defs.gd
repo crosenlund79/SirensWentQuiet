@@ -60,7 +60,7 @@ const DEFS := {
 		"knockback": 0.8, "stagger": 0.8,
 		"looks": [4], "scale": Vector3(1.0, 1.0, 1.0), "tint": Color(0.75, 0.72, 0.35, 0.3), "shade": 0.95,
 		"xray": Color(1.0, 0.6, 0.15, 0.55), "hunch": 0.2, "moan": false,
-		"fuse": 2.5, "blast_radius": 1.5, "blast_power": 24.0, "blast_reach": 4.0,
+		"fuse": 2.5, "blast_radius": 1.6, "blast_power": 24.0, "blast_reach": 4.0,
 		"blast_damage": 60.0, "blast_enemy_hits": 8,
 		"small_reach": 1.6, "small_damage": 15.0, "small_enemy_hits": 2,
 	},
