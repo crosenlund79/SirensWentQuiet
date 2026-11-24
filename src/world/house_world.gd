@@ -400,6 +400,9 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 		if f["blocks"]:
 			for c in nav.cells_in_rect(f["rect"]):
 				_static_solid[c.y * nav.size.x + c.x] = 1
+	for b in static_blockers:          # Refinement 01: fixed fittings stay solid across rebuilds
+		for c in nav.cells_in_rect((b["rect"] as Rect2).grow(-0.05)):
+			_static_solid[c.y * nav.size.x + c.x] = 1
 	for e in foundation_list:
 		foundations[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
 	yard = VoxelYard.new()
@@ -2169,7 +2172,35 @@ func furniture_in(rect: Rect2) -> bool:
 	for f in (HousePlan.FURNITURE + HousePlan.PROPS if furniture == null else HousePlan.PROPS):
 		if f["blocks"] and (f["rect"] as Rect2).intersects(rect):
 			return true
+	for b in static_blockers:          # Refinement 01: fixed fittings (the fireplace) and their clearance
+		if (b["reserve"] as Rect2).intersects(rect):
+			return true
 	return furniture != null and furniture.blocks_rect(rect)
+
+
+# --- Refinement 01: static blockers ---------------------------------------------------
+
+## Fixed fittings that aren't HousePlan furniture (the fireplace): their
+## footprint `rect` is solid for navigation (like furniture), and `reserve`
+## (the footprint plus the space in front that must stay clear to use it) is
+## refused by construction, through furniture_in(). Game helpers add them
+## after the world is built or loaded; they aren't saved.
+var static_blockers: Array = []
+
+
+func add_static_blocker(rect: Rect2, reserve := Rect2()) -> void:
+	static_blockers.append({"rect": rect, "reserve": reserve if reserve.has_area() else rect})
+	_mark_static_blocker(rect)
+
+
+func _mark_static_blocker(rect: Rect2) -> void:
+	if nav == null or _static_solid.is_empty():
+		return
+	for c in nav.cells_in_rect(rect.grow(-0.05)):
+		var i: int = c.y * nav.size.x + c.x
+		if i >= 0 and i < _static_solid.size():
+			_static_solid[i] = 1
+	_recompute_nav(rect.grow(0.3))
 
 
 # --- Experiment 004: furniture, power, reinforcement -----------------------------------

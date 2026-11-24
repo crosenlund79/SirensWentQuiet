@@ -1,8 +1,9 @@
 class_name Fireplace
 extends Node3D
 ## Experiment 004: the living-room fireplace, a brick masonry heater standing
-## against the living-room side of the x = 10 wall, south of the kitchen
-## opening, its firebox open to the south (toward the camera). Independent of
+## against the living room's north wall, west of the bedroom door (Refinement
+## 01 moved it there from beside the kitchen opening, which it half blocked),
+## its firebox open to the south (toward the default camera). Independent of
 ## electricity. Lit at the start of a new game; [E] puts it out or lights it.
 ##
 ## The model is PropKit "fireplace" (bricks, hearth, mantel, logs and a
@@ -12,7 +13,9 @@ extends Node3D
 ## The duck-typed interactable (interact_prompt / interact) forwards to
 ## `owner_helper.on_fireplace()`, which owns the rules (cost, toast, save).
 
-const RECT := Rect2(9.0, 4.15, 0.9, 0.8)     ## plan footprint (the hearth reaches 0.3 m further south)
+const RECT := Rect2(0.65, 4.15, 0.9, 0.8)    ## plan footprint (the hearth reaches 0.3 m further south)
+## Kept clear of construction: the footprint, the hearth and room to stand at it.
+const RESERVE := Rect2(0.6, 4.1, 1.0, 1.75)
 const FACING := "S"
 const HEIGHT := 2.6
 const FLAME_SHADER := preload("res://src/home/shaders/flame.gdshader")

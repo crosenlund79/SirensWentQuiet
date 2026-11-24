@@ -30,6 +30,7 @@ var parts: Array[MeshInstance3D] = []
 
 var walk_phase := 0.0
 var speed := 0.0             ## current ground speed (m/s), drives the gait
+var _gait := 0.0             ## Refinement 01: current leg swing (radians), eased toward the speed's
 var aim_pitch := 0.0         ## right arm aiming (player)
 var aiming := false
 var recoil := 0.0
@@ -200,17 +201,29 @@ func muzzle_global() -> Vector3:
 func animate(delta: float) -> void:
 	_t += delta
 	var enemy := look != Look.PLAYER
-	var stride := 6.5 if not enemy else 4.2
-	walk_phase += delta * speed * stride * (1.0 if speed > 0.05 else 0.0)
-	var amp := clampf(speed / (4.0 if not enemy else 1.4), 0.0, 1.0)
+	# Refinement 01: the gait follows the real ground speed. The legs swing by
+	# `swing` (radians, growing with speed) and the cycle advances by distance
+	# travelled over the step length those legs actually cover (2 x leg x
+	# sin(swing)), so the feet keep pace with the ground instead of
+	# scrambling. Above walking speed (the player's sprint, a runner) the gait
+	# turns into a run: longer swing, more lean and bounce, pumping arms.
+	var walk_top := 4.0 if not enemy else 1.4
+	var g := speed / walk_top
+	var run := clampf((g - 1.05) / 0.5, 0.0, 1.0)
+	var swing_amp := 0.5 * clampf(g, 0.0, 1.0) + 0.27 * run
+	_gait = move_toward(_gait, swing_amp, delta * 4.0)       # smooth start and stop
+	if speed > 0.05:
+		var step := maxf(2.0 * HIP_Y * sin(maxf(_gait, 0.05)) * 1.25, 0.32)
+		walk_phase += delta * speed * PI / step
+	var amp := clampf(g, 0.0, 1.0) if speed > 0.05 else _gait * 2.0
 	var s := sin(walk_phase)
-	var bob := absf(cos(walk_phase)) * 0.045 * amp
+	var bob := absf(cos(walk_phase)) * (0.045 + 0.04 * run) * amp
 	var breathe := sin(_t * (2.0 if not enemy else 1.3)) * 0.012
 	torso.position.y = HIP_Y + bob + breathe
-	var lean := hunch + amp * (0.06 if not enemy else 0.1) - stagger * 0.5 - recoil * 0.06
-	torso.rotation = Vector3(-lean, sin(walk_phase) * 0.06 * amp, sin(walk_phase * 0.5) * (0.08 if enemy else 0.02) * amp)
-	leg_l.rotation.x = s * 0.55 * amp
-	leg_r.rotation.x = -s * 0.55 * amp
+	var lean := hunch + amp * (0.06 if not enemy else 0.1) + run * 0.16 - stagger * 0.5 - recoil * 0.06
+	torso.rotation = Vector3(-lean, sin(walk_phase) * (0.06 + 0.05 * run) * amp, sin(walk_phase * 0.5) * (0.08 if enemy else 0.02) * amp)
+	leg_l.rotation.x = s * _gait
+	leg_r.rotation.x = -s * _gait
 	if enemy:
 		# limp: right leg drags
 		leg_r.rotation.x *= 0.6
@@ -231,14 +244,14 @@ func animate(delta: float) -> void:
 		else:
 			# empty or busy hands: relaxed, swinging with the gait, a slow idle sway
 			var sway := sin(_t * 1.1) * 0.03 * (1.0 - amp)
-			arm_l.rotation = Vector3(-s * 0.45 * amp + sway, 0, -0.07)
+			arm_l.rotation = Vector3(-s * (0.45 + 0.4 * run) * amp + sway + run * 0.25, 0, -0.07)
 			var lift := sin(clampf(use_t, 0.0, 1.0) * PI) * 1.7
 			if carry:
 				arm_r.rotation = Vector3(1.3 + aim_pitch * 0.8 + lift * 0.3, 0, 0.0)
 			elif held != "":
 				arm_r.rotation = Vector3(0.32 + s * 0.18 * amp + lift, 0, 0.08)
 			else:
-				arm_r.rotation = Vector3(s * 0.45 * amp - sway + lift, 0, 0.07)
+				arm_r.rotation = Vector3(s * (0.45 + 0.4 * run) * amp - sway + lift + run * 0.25, 0, 0.07)
 			use_t = maxf(use_t - delta * 1.6, 0.0)
 	recoil = maxf(recoil - delta * 9.0, 0.0)
 	stagger = maxf(stagger - delta * 3.5, 0.0)

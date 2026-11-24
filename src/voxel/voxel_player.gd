@@ -23,6 +23,7 @@ var floor_y := 0.0
 const SPRINT_SCALE := 1.6
 var sprint_allowed := true
 var sprinting := false
+var _last_pos := Vector3.INF          ## Refinement 01: last frame's position, for the gait
 
 
 func _ready() -> void:
@@ -98,7 +99,11 @@ func _physics_process(delta: float) -> void:
 		rig.rotation.y = lerp_angle(rig.rotation.y, yaw, 1.0 - exp(-delta * 18.0))
 		var muzzle_h := Tuning.MUZZLE_HEIGHT
 		rig.aim_pitch = clampf(atan2(aim_point.y - floor_y - muzzle_h, to.length()), -0.9, 0.7)
-	rig.speed = Vector2(velocity.x, velocity.z).length()
+	# Refinement 01: the gait follows how far the body really moved this frame
+	# (walls and furniture stop it), not the wanted velocity.
+	var moved := Vector2(global_position.x - _last_pos.x, global_position.z - _last_pos.z).length()
+	rig.speed = moved / maxf(delta, 0.0001) if _last_pos != Vector3.INF and moved < 1.0 else 0.0   # a teleport (stairs, waking) is no step
+	_last_pos = global_position
 	rig.animate(delta)
 	# Weapon light follows the gun.
 	var m := rig.muzzle_global()

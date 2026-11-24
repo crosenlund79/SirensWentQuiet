@@ -318,20 +318,14 @@ func _say(text: String, kind: String) -> void:
 		game.toast(text, kind)
 
 
-## The fireplace stands where the plan has no furniture: block its nav cells
-## like furniture (HouseWorld's static solid cells, when it has them).
+## The fireplace stands where the plan has no furniture: its footprint is
+## solid for navigation, and its footprint plus the space in front is kept
+## clear of construction (Refinement 01: HouseWorld.add_static_blocker).
 func _claim_nav(rect: Rect2) -> void:
-	if world == null or world.nav == null or not ("_static_solid" in world):
+	if world == null or world.nav == null:
 		return
-	var ss: PackedByteArray = world.get("_static_solid")
-	var w: int = world.nav.size.x
-	for c in world.nav.cells_in_rect(rect.grow(-0.05)):
-		var i: int = c.y * w + c.x
-		if i >= 0 and i < ss.size():
-			ss[i] = 1
-	world.set("_static_solid", ss)
-	if world.has_method("_recompute_nav"):
-		world.call("_recompute_nav", rect.grow(0.3))
+	if world.has_method("add_static_blocker"):
+		world.add_static_blocker(rect, Fireplace.RESERVE)
 
 
 # --- F10 (the dev menu's "Home" section) -----------------------------------------------
