@@ -89,7 +89,9 @@ func _on_empty(_id: String) -> void:
 ## The world bites the wall or bashes the door; once per strike (a brute's
 ## swing arrives as three).
 func _on_wall_swing(e: VoxelEnemy, target: Vector2) -> void:
-	game.world.enemy_strike(e.global_position, target)
+	# Experiment 004 (L): an enemy on another storey strikes that storey's world.
+	var w: HouseWorld = (e as AIEnemy).world if e is AIEnemy and (e as AIEnemy).world != null else game.world
+	w.enemy_strike(e.global_position, target)
 	if e.global_position.distance_to(game.player.global_position) < NUDGE_NEAR:
 		game.camera.nudge(0.35)
 
@@ -97,6 +99,8 @@ func _on_wall_swing(e: VoxelEnemy, target: Vector2) -> void:
 func _on_player_swing(e: VoxelEnemy) -> void:
 	var s: GameState = game.state
 	if s.dead:
+		return
+	if not _same_storey(e.global_position.y):      # Experiment 004 (L): never through a floor
 		return
 	Sfx.play("enemy/attack", e.global_position + Vector3(0, 1.2, 0))
 	game.camera.nudge(1.6 if e is AIEnemy and (e as AIEnemy).kind == "brute" else 1.0)
@@ -122,7 +126,7 @@ func _hurt(amount: float, cause: String) -> float:
 ## takes the fall-off damage, the camera shakes by distance.
 func _on_detonated(at: Vector3, radius: float, damage: float) -> void:
 	var d := Vector2(at.x, at.z).distance_to(game.player.plan_pos())
-	var hurt := EnemyDefs.blast_damage_at(d, damage, radius)
+	var hurt := EnemyDefs.blast_damage_at(d, damage, radius) if _same_storey(at.y - 1.0) else 0.0
 	var taken := _hurt(hurt, "blast")
 	var shake := (2.6 if radius > 2.0 else 1.2) * clampf(1.4 - d / 14.0, 0.35, 1.4)
 	game.camera.nudge(shake)
@@ -161,6 +165,11 @@ func _on_enemy_died(e: VoxelEnemy, kind: String, cause: String) -> void:
 			game.toast("The bomber is down.", "good")
 	if cause == "blast":
 		Sfx.play("enemy/death", e.global_position)
+
+
+## Experiment 004 (L): true if a body at height y stands on the player's storey.
+func _same_storey(y: float) -> bool:
+	return Levels.storey_at(y) == Levels.storey_at(game.player.global_position.y)
 
 
 ## Fuse markers on the ground now (tests, playtest).

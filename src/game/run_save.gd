@@ -3,7 +3,9 @@ extends RefCounted
 ## file IO; this composes the dictionary and validates a loaded one.
 ##
 ## Layout: {"summary", "state": GameState.to_dict(), "world": HouseWorld.save_data(),
-##          "game": {"version", "player": {"pos": [x, z], "yaw"}, "time_scale", "director"}}
+##          "game": {"version", "player": {"pos": [x, z], "yaw", "storey"}, "time_scale", "director"}}
+## Experiment 004: "storey" (optional; -1 basement, 0 ground, 1 upper floor)
+## and world["levels"] (src/levels/game_levels.gd). Older saves: the ground floor.
 ## (Saves from the foundation stub era kept "game" in "game_data"; still read.)
 
 const VERSION := 1
@@ -18,16 +20,18 @@ static func summary_of(state: GameState) -> Dictionary:
 		"days_survived": state.days_survived(), "text": "Day %d, %s" % [state.day(), state.clock_text()]}
 
 
-static func compose(state: GameState, world_data: Dictionary, player_pos: Vector3, yaw: float, extra := {}) -> Dictionary:
+static func compose(state: GameState, world_data: Dictionary, player_pos: Vector3, yaw: float, extra := {}, storey := 0) -> Dictionary:
 	var game := {"version": VERSION, "player": {"pos": [player_pos.x, player_pos.z], "yaw": yaw}}
+	if storey != 0:
+		game["player"]["storey"] = storey
 	game.merge(extra, true)
 	return {"summary": summary_of(state), "state": state.to_dict(), "world": world_data, "game": game}
 
 
 ## Returns {"ok", "error", "state": GameState, "world": Dictionary,
-## "player_pos": Vector3 or null, "yaw": float, "game": Dictionary}.
+## "player_pos": Vector3 or null, "yaw": float, "storey": int, "game": Dictionary}.
 static func parse(data: Dictionary) -> Dictionary:
-	var out := {"ok": false, "error": "", "state": null, "world": {}, "player_pos": null, "yaw": 0.0, "game": {}}
+	var out := {"ok": false, "error": "", "state": null, "world": {}, "player_pos": null, "yaw": 0.0, "storey": 0, "game": {}}
 	var sd = data.get("state")
 	if typeof(sd) != TYPE_DICTIONARY:
 		out["error"] = "the survival state is missing."
@@ -58,6 +62,9 @@ static func parse(data: Dictionary) -> Dictionary:
 				out["player_pos"] = Vector3(x, 0, z)
 		var yaw := float(p.get("yaw", 0.0))
 		out["yaw"] = yaw if is_finite(yaw) else 0.0
+		var storey = p.get("storey", 0)
+		if typeof(storey) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(storey)):
+			out["storey"] = clampi(int(storey), -1, 1)
 	out["ok"] = true
 	out["state"] = st
 	out["world"] = wd

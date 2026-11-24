@@ -10,7 +10,8 @@ extends RefCounted
 ##   3 Doors (wood, reinforced, metal) · 4 Doorway · 5 Storage (crate) ·
 ##   6 Equipment (rain collector, workbench, fuse box) · 7 Repair ·
 ##   8 Reinforce (iron plating; doors: wood -> reinforced -> metal) ·
-##   9 Demolish · 0 Foundation (stone)
+##   9 Demolish · 0 Floors & levels (stone foundation, wooden floor, stairs up
+##   and down, upper floor, excavate; Experiment 004, src/levels/level_build.gd)
 ## Experiment 004 refunds: the player's own pieces give back their FULL
 ## cost; original structures (walls, windows, doors, the fuse box) and
 ## furniture give salvage, about half (ORIGINAL_SALVAGE, object_refund,
@@ -23,7 +24,7 @@ const SLOTS := [
 	{"key": "1", "name": "Walls"}, {"key": "2", "name": "Barricades"}, {"key": "3", "name": "Doors"},
 	{"key": "4", "name": "Doorway"}, {"key": "5", "name": "Storage"}, {"key": "6", "name": "Equipment"},
 	{"key": "7", "name": "Repair"}, {"key": "8", "name": "Reinforce"}, {"key": "9", "name": "Demolish"},
-	{"key": "0", "name": "Foundation"},
+	{"key": "0", "name": "Floors & levels"},   # Experiment 004 (L): was "Foundation"
 ]
 ## Palette order of the slots: pieces first, then the tools.
 const SLOT_ORDER := [0, 9, 1, 2, 3, 4, 5, 6, 7, 8]
@@ -75,6 +76,17 @@ const LIST := [
 	{"id": "fuse_box", "name": "Fuse box", "short": "Fuse box", "tool": "place", "slot": 5, "cost": {"iron": 6, "scrap": 8, "nails": 4},
 		"kind": "fuse_box", "mat": "wood",
 		"hint": "The main power switch · only one · aim at a wall: it hangs on your side"},
+	# --- Experiment 004: floors, stairs and storeys (owner L; src/levels/level_build.gd) ----
+	{"id": "wood_floor", "name": "Wooden floor", "short": "Wood floor", "tool": "place", "slot": 9, "cost": {"wood": 2, "nails": 2},
+		"hint": "A 1 m plank tile where there is no floor · Demolish takes floor tiles up"},
+	{"id": "stairs_up", "name": "Stairs up", "short": "Stairs up", "tool": "place", "slot": 9, "cost": {"wood": 8, "nails": 10},
+		"hint": "Ground floor, 1 x 2 m plus a free cell at the foot · R turns · walk onto them or E"},
+	{"id": "stairs_down", "name": "Stairs down", "short": "Stairs down", "tool": "place", "slot": 9, "cost": {"wood": 8, "nails": 10},
+		"hint": "Ground floor over dug basement: the 2 cells under them and 1 past the end · R turns"},
+	{"id": "upper_floor", "name": "Upper floor", "short": "Upper floor", "tool": "place", "slot": 9, "cost": {"wood": 40, "nails": 40, "iron": 4},
+		"hint": "Needs stairs up · a deck over the house with outer walls and windows; build on it like downstairs"},
+	{"id": "excavate", "name": "Excavate", "short": "Dig", "tool": "dig", "slot": 9, "cost": {},
+		"hint": "Shovel · digs a 1 m basement cell under the house (25 min, energy, +1 stone) · in the basement: next to dug space"},
 ]
 
 ## Wall costs per 1 m segment by material (demolish refunds half).

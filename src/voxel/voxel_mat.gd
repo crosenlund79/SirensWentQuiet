@@ -32,6 +32,8 @@ const METAL_SHEET := 17   ## survival upgrade: hard sheet-metal skin on a wall (
 const MASONRY := 18       ## stone blocks of a masonry wall (structural, hard)
 const MORTAR := 19        ## mortar joints between the blocks (structural, softer than stone)
 const PAVING := 20        ## stone foundation slabs laid in the yard (floor, not structural)
+# --- Experiment 004 levels (owner L) ------------------------------------------
+const EARTH := 21         ## undug earth around a basement (structural for collision and nav, never carved)
 # --- furniture and props (low pieces; tall versions add TALL) -------------------
 const WOOD := 32
 const FABRIC := 33
@@ -75,6 +77,7 @@ static func _make_flags() -> PackedByteArray:
 	f[FOUNDATION] |= F_HARD
 	for id in [PLINTH, SIDING, STUD, INSULATION, DRYWALL, WALL_TILE, TRIM, FRAME, METAL_SHEET, MASONRY, MORTAR]:
 		f[id] = F_SOLID | F_STRUCT
+	f[EARTH] = F_SOLID | F_STRUCT | F_HARD
 	f[WALL_TILE] |= F_GLOSSY
 	f[FRAME] |= F_GLOSSY
 	f[METAL_SHEET] |= F_GLOSSY
@@ -138,7 +141,7 @@ static func _make_impact() -> PackedByteArray:
 		PLINTH: Impact.CONCRETE, SIDING: Impact.WOOD, STUD: Impact.WOOD, INSULATION: Impact.FLUFF,
 		DRYWALL: Impact.PLASTER, WALL_TILE: Impact.CERAMIC, TRIM: Impact.WOOD, FRAME: Impact.METAL,
 		GLASS: Impact.GLASS, SILL: Impact.WOOD, BASEBOARD: Impact.WOOD, THRESHOLD: Impact.WOOD, METAL_SHEET: Impact.METAL,
-		MASONRY: Impact.CONCRETE, MORTAR: Impact.CONCRETE, PAVING: Impact.CONCRETE,
+		MASONRY: Impact.CONCRETE, MORTAR: Impact.CONCRETE, PAVING: Impact.CONCRETE, EARTH: Impact.DUST,
 		WOOD: Impact.WOOD, FABRIC: Impact.FABRIC, METAL: Impact.METAL, CERAMIC: Impact.CERAMIC,
 		PLASTIC: Impact.DUST, GLOW: Impact.GLASS, FOAM: Impact.FLUFF, LEAF: Impact.PLANT,
 		SCREEN: Impact.GLASS, PAPER: Impact.PAPER, STONE: Impact.CONCRETE, BARK: Impact.WOOD,
@@ -163,7 +166,7 @@ static func _make_blast() -> PackedFloat32Array:
 	var table := {
 		RUG: 0.5, FLOOR: 3.0, SCREED: 5.0, THRESHOLD: 2.0, PLINTH: 4.0, SIDING: 1.5, STUD: 2.0, INSULATION: 0.6,
 		DRYWALL: 1.2, WALL_TILE: 1.8, TRIM: 1.5, FRAME: 2.5, GLASS: 0.0, SILL: 1.0, BASEBOARD: 1.0,
-		METAL_SHEET: 9.0, MASONRY: 6.0, MORTAR: 4.5, PAVING: 6.0,
+		METAL_SHEET: 9.0, MASONRY: 6.0, MORTAR: 4.5, PAVING: 6.0, EARTH: 9.0,
 	}
 	for id in table:
 		b[id] = table[id]

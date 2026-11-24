@@ -349,7 +349,7 @@ func _gun() -> Node3D:
 
 func _origin() -> Vector3:
 	var p := player.global_position if player != null and player.is_inside_tree() else Vector3.ZERO
-	return Vector3(p.x, Tuning.MUZZLE_HEIGHT, p.z)
+	return Vector3(p.x, p.y + Tuning.MUZZLE_HEIGHT, p.z)   # p.y: the storey's floor (Experiment 004)
 
 
 func _facing() -> Vector3:

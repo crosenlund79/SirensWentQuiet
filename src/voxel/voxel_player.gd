@@ -14,6 +14,9 @@ var self_light: OmniLight3D
 var muzzle_light: OmniLight3D
 var input_enabled := true
 var speed_scale := 1.0             ## survival: energy / exhaustion (GameState.move_speed_scale)
+## Experiment 004 storeys (owner L): height of the floor the player stands on
+## (0 ground floor; the game's level helper sets it when changing storey).
+var floor_y := 0.0
 
 
 func _ready() -> void:
@@ -77,7 +80,7 @@ func _physics_process(delta: float) -> void:
 	v = v.move_toward(want, Tuning.PLAYER_ACCEL * delta)
 	velocity = v
 	move_and_slide()
-	global_position.y = 0.0
+	global_position.y = floor_y
 	velocity.y = 0.0
 	# Face the aim point.
 	var to := aim_point - global_position
@@ -86,7 +89,7 @@ func _physics_process(delta: float) -> void:
 		var yaw := atan2(-to.x, -to.z)
 		rig.rotation.y = lerp_angle(rig.rotation.y, yaw, 1.0 - exp(-delta * 18.0))
 		var muzzle_h := Tuning.MUZZLE_HEIGHT
-		rig.aim_pitch = clampf(atan2(aim_point.y - muzzle_h, to.length()), -0.9, 0.7)
+		rig.aim_pitch = clampf(atan2(aim_point.y - floor_y - muzzle_h, to.length()), -0.9, 0.7)
 	rig.speed = Vector2(velocity.x, velocity.z).length()
 	rig.animate(delta)
 	# Weapon light follows the gun.

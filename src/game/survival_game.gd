@@ -31,6 +31,7 @@ const GameInput := preload("res://src/game/game_input.gd")
 const Combat := preload("res://src/game/game_combat.gd")
 const MapLink := preload("res://src/game/game_map.gd")
 const Dev := preload("res://src/game/game_dev.gd")
+const GameLevels := preload("res://src/levels/game_levels.gd")   # Experiment 004 storeys (L)
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -52,6 +53,7 @@ var hud: GameHud
 var combat: Node                       ## game_combat.gd (owns the WeaponHandler)
 var map: Node                          ## game_map.gd (the region map and its table)
 var dev: Node                          ## game_dev.gd (Experiment 003 F10 tools)
+var levels: Node                       ## src/levels/game_levels.gd (Experiment 004 storeys, stairs, basement)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -220,6 +222,10 @@ func _assemble() -> void:
 	dev.name = "Dev"
 	add_child(dev)
 	dev.setup(self)
+	levels = GameLevels.new()          # Experiment 004 (L): after build and combat, which it retargets
+	levels.name = "Levels"
+	add_child(levels)
+	levels.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -253,6 +259,7 @@ func _on_intro_done() -> void:
 func _begin_continue() -> void:
 	var pos = _loaded.get("player_pos")
 	_place_player(pos if pos != null else world.bed_position() + WAKE_OFFSET, float(_loaded.get("yaw", 0.0)))
+	levels.restore(_loaded.get("world", {}), int(_loaded.get("storey", 0)), pos)   # Experiment 004 (L)
 	var g: Dictionary = _loaded.get("game", {})
 	time_scale = clampf(float(g.get("time_scale", 1.0)), 0.0, 600.0)
 	var d = g.get("director", {})
@@ -278,6 +285,8 @@ func _place_player(pos: Vector3, yaw: float) -> void:
 	player.aim_point = player.global_position + Vector3(-sin(yaw) * 3.0, 1.1, -cos(yaw) * 3.0)
 	camera.snap()
 	world.update_view(player.global_position, camera, 5.0)
+	if levels != null:
+		levels.on_player_placed()      # Experiment 004 (L): placed on the ground floor
 
 
 func _leave_to(scene: String) -> void:
@@ -326,7 +335,7 @@ func _physics_process(_delta: float) -> void:
 		_trigger = false
 	if _modal == "" and aim_with_mouse and is_inside_tree():
 		var mp := get_viewport().get_mouse_position()
-		player.aim_point = world.aim_ray(camera.project_ray_origin(mp), camera.project_ray_normal(mp))
+		player.aim_point = levels.aim_ray(camera.project_ray_origin(mp), camera.project_ray_normal(mp))   # the player's storey
 	if _trigger:
 		combat.fire(player.aim_point)      # the weapon owns the fire interval and the dry clicks
 
@@ -504,7 +513,7 @@ func _update_prompt() -> void:
 	var p := ""
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(world.interactables() + map.interactables(), player.plan_pos())
+		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables()), player.plan_pos())   # + stairs, by storey
 		p = str(_focus.interact_prompt()) if _focus != null else boundary.prompt_text()
 	if p != _prompt:
 		_prompt = p
@@ -828,7 +837,8 @@ func save_now() -> String:
 	if why != "":
 		return why
 	var extra := {"time_scale": time_scale, "director": {"stragglers_done": _stragglers_done.keys()}}
-	var data: Dictionary = RunSave.compose(state, world.save_data(), player.global_position, player.rig.rotation.y, extra)
+	var data: Dictionary = RunSave.compose(state, levels.world_save(world.save_data()), player.global_position, player.rig.rotation.y, extra,
+		levels.player_storey)          # Experiment 004 (L): storeys in the world save, the player's in "game"
 	var err := SaveGame.write(data)
 	if err != OK:
 		return "Saving failed: %s" % (SaveGame.last_error if SaveGame.last_error != "" else error_string(err))

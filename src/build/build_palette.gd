@@ -72,7 +72,7 @@ func _ready() -> void:
 	col.add_child(_variant_row)
 	_variant_label = _label("", 13, UiTheme.TEXT_DIM)
 	_variant_row.add_child(_variant_label)
-	for k in 3:
+	for k in 6:                         # Experiment 004: key 0 holds six variants
 		var vb := UiTheme.make_button("")
 		vb.toggle_mode = true
 		vb.focus_mode = Control.FOCUS_NONE

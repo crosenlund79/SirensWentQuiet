@@ -48,6 +48,12 @@ var last_eval := {}
 ## Scripted pointer (plan metres) for previews and screenshots; INF = the mouse.
 var debug_pointer := Vector2.INF
 var debug_drag_from := Vector2.INF
+## Experiment 004 storeys (owner L, src/levels/level_build.gd): an optional
+## extension (uses_plane, post_evaluate, apply, ghost_items) and the floor
+## height of the storey being built on (the game's level helper sets both and
+## swaps `world` to that storey's HouseWorld).
+var ext: Object = null
+var plane_y := 0.0
 
 var _dragging := false
 var _drag_from := Vector2.INF
@@ -210,10 +216,10 @@ func _pointer() -> Vector2:
 	var mp := get_viewport().get_mouse_position()
 	var o := camera.project_ray_origin(mp)
 	var d := camera.project_ray_normal(mp)
-	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES:
+	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES or (ext != null and ext.uses_plane(piece_id())):
 		if d.y > -0.001:
 			return Vector2.INF
-		var g := o + d * (-o.y / d.y)
+		var g := o + d * ((plane_y - o.y) / d.y)
 		return Vector2(g.x, g.z)
 	var low := tool() == "demolish"
 	var hit := world.aim_ray(o, d, low)
@@ -287,6 +293,8 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 			_eval_upgrade(r, p)
 		"demolish":
 			_eval_demolish(r, p)
+	if ext != null:      # Experiment 004 (L): the level pieces, stairs and floor tiles, level rules
+		ext.post_evaluate(self, r, p, from)
 	if r["reason"] == "" and not state_can_pay(r["cost"]):
 		r["reason"] = "Needs %s." % BuildPieces.cost_text(r["cost"])
 	r["ok"] = r["reason"] == ""
@@ -721,6 +729,8 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 				if not got.is_empty():
 					text += " Got back %s." % BuildPieces.cost_text(got)
 			Sfx.play("build/demolish", at)
+	if r.get("ext", false) and ext != null:      # Experiment 004 (L)
+		text = ext.apply(self, r)
 	_eval_key = ""
 	message.emit(text, true)
 	changed.emit()
@@ -833,6 +843,8 @@ func _show_ghost(r: Dictionary) -> void:
 				var s: Vector3i = r["segs"][0]
 				var c := HouseWorld.seg_center(s)
 				items.append(["wall_ghost", Vector3(1.04, 2.68, 0.44), Vector3(c.x, 0, c.y), 0.0 if s.x == 0 else PI * 0.5, col_ok if r["ok"] else GHOST_BAD, ""])
+	if r.get("ext", false) and ext != null:      # Experiment 004 (L)
+		items = ext.ghost_items(self, r)
 	var key := ""
 	for it in items:
 		key += "%s%s%s;" % [it[0], str(it[1]), it[5]]
@@ -849,7 +861,7 @@ func _show_ghost(r: Dictionary) -> void:
 			_ghosts.append(g)
 	for k in items.size():
 		var g := _ghosts[k]
-		g.position = items[k][2] + Vector3(0, 0.005, 0)
+		g.position = items[k][2] + Vector3(0, 0.005 + plane_y, 0)
 		g.rotation.y = items[k][3]
 		var m := _ghost_material(items[k][4])
 		for gi in g.find_children("*", "GeometryInstance3D", true, false):

@@ -43,6 +43,12 @@ var look := 1
 var retreating := false
 var death_cause := ""
 var swings := {"player": 0, "wall": 0}   ## counts (tests, debug)
+## Experiment 004 storeys (owner L, src/levels/game_levels.gd): the storey the
+## enemy is on (-1 basement, 0 ground, 1 upper; floor_y is its height) and a
+## goal that replaces the behaviour's while the player is on another storey
+## (the stairs). INF = none.
+var storey := 0
+var goal_override := Vector2.INF
 
 var _retreat_goal := Vector2.ZERO
 var _yaw := 0.0
@@ -188,7 +194,7 @@ func _physics_process(delta: float) -> void:
 		_corpse(delta)
 		return
 	var me := plan_pos()
-	var goal := _retreat_goal if retreating else behaviour.goal(self)
+	var goal := _retreat_goal if retreating else (goal_override if goal_override != Vector2.INF else behaviour.goal(self))
 	var r := brain.update(delta, me, goal)
 	if not retreating:
 		r = behaviour.think(self, delta, r)
@@ -201,7 +207,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity = Vector3(move.x, 0, move.y) * speed() * (RETREAT_SPEED if retreating else 1.0)
 	move_and_slide()
-	global_position.y = 0.0
+	global_position.y = floor_y
 	if face.length() > 0.01:
 		_yaw = lerp_angle(_yaw, atan2(-face.x, -face.y), 1.0 - exp(-delta * 6.0))
 		rig.rotation.y = _yaw

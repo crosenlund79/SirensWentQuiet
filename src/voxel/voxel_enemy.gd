@@ -13,6 +13,7 @@ var rig: VoxelRig
 var hp := Tuning.ENEMY_HP
 var alive := true
 var speed_scale := 1.0             ## survival: invasion difficulty
+var floor_y := 0.0                 ## Experiment 004 (L): height of the storey's floor it stands on
 var _stagger := 0.0
 var _knock := Vector3.ZERO
 var _dead_t := 0.0
@@ -107,7 +108,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity = Vector3(move.x, 0, move.y) * Tuning.ENEMY_SPEED * speed_scale
 	move_and_slide()
-	global_position.y = 0.0
+	global_position.y = floor_y
 	if face.length() > 0.01:
 		var yaw := atan2(-face.x, -face.y)
 		rig.rotation.y = lerp_angle(rig.rotation.y, yaw, 1.0 - exp(-delta * 6.0))

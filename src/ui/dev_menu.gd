@@ -500,6 +500,7 @@ func _build() -> void:
 		(ob as OptionButton).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box.add_child(ob)
 	box.add_child(_grid(2, [["Run mission now", run_mission.bind("", "")], ["Reveal all places", reveal_map]]))
+	_build_levels_section(box)          # Experiment 004 (L)
 
 	_build_house_section(box)      # Experiment 004
 
@@ -584,3 +585,26 @@ func house_tool(what: String) -> void:
 		_say("No house.", true)
 		return
 	_say(HouseDev.run(w, what))
+
+
+# --- Experiment 004: storeys (owner L; methods on src/levels/game_levels.gd) -------------
+
+func _build_levels_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Levels"))
+	box.add_child(_grid(2, [
+		["Give shovel", _levels_call.bind("dev_give_shovel", [], "A shovel")],
+		["Build upper floor", _levels_call.bind("dev_build_upper", [], "Upper floor built")],
+		["Dig 3×3 basement", _levels_call.bind("dev_dig_basement", [], "Basement dug")],
+		["Go: basement", _levels_call.bind("dev_goto", [-1], "Basement")],
+		["Go: ground floor", _levels_call.bind("dev_goto", [0], "Ground floor")],
+		["Go: upper floor", _levels_call.bind("dev_goto", [1], "Upper floor")],
+	]))
+
+
+func _levels_call(method: String, args: Array, said: String) -> void:
+	var l = game.get("levels") if game != null and is_instance_valid(game) else null
+	if not (l is Object) or not is_instance_valid(l) or not l.has_method(method):
+		_say("The game has no levels.%s()" % method, true)
+		return
+	l.callv(method, args)
+	_say(said)
