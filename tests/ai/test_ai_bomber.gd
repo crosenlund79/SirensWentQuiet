@@ -99,7 +99,9 @@ func test_ai_bomber_ignores_the_player_and_blows_the_front_door() -> void:
 	check(bh.last_blast.get("breach", false), "the world reports a breach")
 	check(bref.get_ref() == null or not bref.get_ref().alive, "the bomber is gone")
 	check(_door(Vector2(4.5, 9.0)) == null, "the door was destroyed")
-	check(world.grid.solid_count < solid_before - 50, "voxels blown out (%d)" % (solid_before - world.grid.solid_count))
+	# Experiment 004: furniture the blast only damaged is voxels now; count the structure only
+	var solid_after: int = world.grid.solid_count - (world.furniture.voxels_in_grid() if world.furniture != null else 0)
+	check(solid_after < solid_before - 50, "voxels blown out (%d)" % (solid_before - solid_after))
 	check(world.nav.is_walkable(cell), "the doorway is open for navigation")
 	var inside := world.nav.find_path(Vector2(4.5, 10.5), Vector2(4.6, 7.6))
 	var bash := 0

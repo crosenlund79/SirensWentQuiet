@@ -221,7 +221,8 @@ static func section_repair_cost_by(missing: Dictionary) -> Dictionary:
 
 
 ## SPEC-002: lost-HP fraction x the piece's cost (its material's), minimum
-## 1 of its main material (wood, or iron for iron pieces).
+## 1 of its main material (wood, or iron for iron and metal pieces and the
+## fuse box).
 static func object_repair_cost(kind: String, hp: int, max_hp: int, mat := "wood") -> Dictionary:
 	var frac := clampf(1.0 - float(hp) / float(maxi(max_hp, 1)), 0.0, 1.0)
 	if frac <= 0.0:
@@ -234,7 +235,7 @@ static func object_repair_cost(kind: String, hp: int, max_hp: int, mat := "wood"
 		var n := ceili(frac * int(base[k]))
 		if n > 0:
 			out[k] = n
-	var main := "iron" if mat == "iron" else "wood"
+	var main := "iron" if mat != "wood" or kind == "fuse_box" else "wood"
 	out[main] = maxi(int(out.get(main, 0)), 1)
 	return out
 

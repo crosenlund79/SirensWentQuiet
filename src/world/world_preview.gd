@@ -11,6 +11,8 @@ extends Node3D
 ## --blast-at seconds, default 1.6, so a capture just after shows the
 ## flash, fireball and debris), palette (build mode with the stone wall
 ## selected and its variant row).
+## Experiment 004: exp004 (window boards, a metal front door, the fuse box,
+## a voxel-damaged sofa, dining-room rubble).
 
 var lighting: VoxelLighting
 var world: HouseWorld
@@ -94,6 +96,19 @@ func _scenario() -> void:
 	match scenario:
 		"house":
 			_place(Vector2(6.0, 6.9), Vector3(9.0, 1.0, 2.0), 23.0)
+		"exp004":
+			build.select_id("window_boards")
+			for x in [6.5, 7.5, 12.5]:
+				build.apply(Vector2(x, 9.0))
+			build.select_id("upgrade")
+			build.apply(Vector2(4.5, 9.0))
+			build.apply(Vector2(4.5, 9.0))
+			world.furniture.destroy("dining_table")
+			world.furniture.destroy("dining_chair_3")
+			world.furniture.destroy("boxes")
+			for k in 4:
+				world.enemy_strike(Vector3(4.5, 0, 8.3), Vector2(4.4, 7.1))
+			_place(Vector2(10.6, 7.6), Vector3(10.0, 1.0, 6.5), 17.0)
 		"build":
 			build.set_active(true)
 			build.select_id("wall")

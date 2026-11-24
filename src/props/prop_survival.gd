@@ -884,8 +884,27 @@ static func _rubble(mm: PropMesh, w: float, h: float, d: float, rng: RandomNumbe
 		var size := Vector3(rng.randf_range(0.06, 0.3), rng.randf_range(0.02, h) * (1.0 - 0.6 * edge), rng.randf_range(0.05, 0.22))
 		if style == "wood" and rng.randf() < 0.5:
 			size = Vector3(rng.randf_range(0.3, minf(0.9, w)), rng.randf_range(0.02, 0.04), rng.randf_range(0.06, 0.12))
-		var p := Vector3(u.x * (hx - 0.05), size.y * 0.5 * cos(0.3), u.y * (hz - 0.05))
-		var b := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.3, 0.3))
+		var tilt := rng.randf_range(-0.3, 0.3)
+		var yaw := rng.randf() * TAU
+		# keep the turned and tilted piece inside the footprint and above the floor
+		size.x = minf(size.x, w * 0.9)
+		size.z = minf(size.z, d * 0.9)
+		var reach := Vector2(size.x, size.z).length() * 0.5
+		var half_y := size.y * 0.5 * cos(tilt) + size.z * 0.5 * absf(sin(tilt))
+		if half_y * 2.0 > h:
+			tilt = 0.0
+			size.y = minf(size.y, h)
+			half_y = size.y * 0.5
+		var px := u.x * maxf(hx - reach, 0.0)
+		var pz := u.y * maxf(hz - reach, 0.0)
+		if reach > hx or reach > hz:
+			yaw = 0.0 if w >= d else PI * 0.5
+			var ex := size.x * 0.5 if w >= d else size.z * 0.5
+			var ez := size.z * 0.5 if w >= d else size.x * 0.5
+			px = u.x * maxf(hx - ex, 0.0)
+			pz = u.y * maxf(hz - ez, 0.0)
+		var p := Vector3(px, half_y, pz)
+		var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, tilt)
 		mm.set_mat(M.L_ROUGH_WOOD if style == "wood" else (M.L_METAL if style == "metal" else (M.L_GLOSSY if style == "ceramic" else M.L_PLAIN)), c, rng.randf_range(0.2, 0.6))
 		mm.obox(Transform3D(b, p), size)
 	# a dusty base patch

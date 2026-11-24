@@ -15,7 +15,7 @@ extends Node3D
 ## foundations, iron doors and barricades, the workbench, explode and
 ## weak_points, section materials, save version 2):
 ## docs/experiment-003/construction.md.
-## Experiment 004 (docs/experiment-004/destruction.md): furniture is a
+## Experiment 004 (see house_furniture.gd for the lifecycle): furniture is a
 ## gameplay object with an intact -> damaged (voxels) -> destroyed (rubble)
 ## lifecycle (HouseFurniture, `furniture`); bullets damage objects; window
 ## boards, metal doors, door reinforcement; the fuse box (`fuse_box()`,
