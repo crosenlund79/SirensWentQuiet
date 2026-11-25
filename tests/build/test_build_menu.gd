@@ -54,6 +54,15 @@ func test_every_piece_has_a_category_and_a_drawable_icon() -> void:
 	check_eq(BuildCatalog.category_of(BuildPieces.index_of("rug")), "decor", "the rug is a decoration")
 	check_eq(BuildCatalog.category_of(BuildPieces.index_of("move")), "tools", "Move is a tool")
 	check_eq(BuildCatalog.category_of(BuildPieces.index_of("fuse_box")), "utilities", "the fuse box is a utility")
+	# Exp 006 (D, B): the defences and the new house pieces get their own icons
+	for pair in [["spikes_wood", "spikes"], ["trench", "trench"], ["trench_water", "moat"], ["drawbridge_1", "bridge"],
+			["timber_footing", "slab"], ["remove_window", "window"], ["tv_stand", "tv"], ["radio", "radio"]]:
+		var i := BuildPieces.index_of(pair[0])
+		if i >= 0:
+			check_eq(UiIcons.resolve(BuildCatalog.icon_of(i)), pair[1], "%s's icon" % pair[0])
+	if BuildPieces.index_of("trench") >= 0:
+		check_eq(BuildCatalog.category_of(BuildPieces.index_of("trench")), "defense", "trenches are fortifications")
+		check_eq(BuildCatalog.note_for(BuildPieces.LIST[BuildPieces.index_of("trench")]), "shovel, free", "a trench tile names its tool")
 
 
 func test_new_entries_bring_their_own_category_and_icon() -> void:
