@@ -135,7 +135,8 @@ func arrive_at_site() -> void:
 	else:
 		var disc := [found] if found != "" else []
 		s.region.apply_result({"id": "visit:%s:%d" % [id, int(s.total_minutes)], "location": id, "day": s.day(), "discovered": disc})
-	game.toast("%s. Look around, and leave through an exit when you're done." % RegionLocations.name_of(id), "info")
+	if not (poi is Object and is_instance_valid(poi) and poi.has_method("finish")):
+		game.toast("%s. Look around, and leave through an exit when you're done." % RegionLocations.name_of(id), "info")   # P greets with its own line
 	if found != "":
 		game.toast("On the way you spotted %s. It's on your map now." % RegionLocations.name_of(found), "good")
 	game._autosave("arrived")
