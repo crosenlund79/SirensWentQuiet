@@ -156,6 +156,7 @@ func test_turret_fires_in_the_open_and_not_through_walls() -> void:
 	var shots0 := sys.shots
 	check(Security.in_arc(t2, e2.plan_pos(), Security.TURRET_ARC), "the enemy is in its arc and range")
 	await _run(sys, 2.0)
+	check(sys._rt.has(t2.get_instance_id()), "the mount was ticked")
 	check_eq(sys.shots, shots0, "it doesn't fire through a wall")
 	check_eq(Security.mag(t2), 12, "and spends nothing")
 	check_eq(e2.hp, 40, "the enemy is unhurt")

@@ -32,6 +32,7 @@ signal turret_empty(turret: WorldObject)
 
 const SENSOR_STEP := 0.25
 const SCAN_STEP := 0.2
+const CACHE_STEP := 0.5                ## s between rescans of the storeys for security objects
 const MARK_TIME := 5.0
 const ALARM_SOUNDS := ["security/alarm", "ui/error"]
 const BEEP_SOUNDS := ["security/sensor_beep", "ui/click"]
@@ -51,6 +52,8 @@ var shots := 0                         ## turret shots (tests, F10)
 var last_text := ""                    ## the last toast (tests)
 
 var _sensor_t := 0.0
+var _cache: Array = []                 ## [WorldObject, HouseWorld, storey] of every sensor and turret
+var _cache_t := 0.0
 var _rt := {}                          ## object instance id -> runtime state
 var _marks: Array = []                 ## [Label3D, seconds left]
 var _busy := false
@@ -145,18 +148,33 @@ func tick(delta: float) -> void:
 	var sense := _sensor_t <= 0.0
 	if sense:
 		_sensor_t = SENSOR_STEP
+	_cache_t -= delta
+	if _cache_t <= 0.0:
+		refresh()
+	if _cache.is_empty():
+		return
 	var power := powered()
 	var enemies := _enemies()
+	for it in _cache:
+		var o: Variant = it[0]
+		if not is_instance_valid(o) or (o as Node).is_queued_for_deletion() or not is_instance_valid(it[1]):
+			continue
+		if o.kind == "motion_sensor":
+			if sense:
+				_sense(o, it[1], it[2], enemies, power)
+		else:
+			_turret(o, it[1], it[2], enemies, power, delta)
+
+
+## Rescans the storeys for sensors and turrets (every CACHE_STEP s by itself).
+func refresh() -> void:
+	_cache_t = CACHE_STEP
+	_cache.clear()
 	for w in worlds():
 		var storey := Security.storey_of(w)
-		for o in (w.objects as Array).duplicate():
-			if not is_instance_valid(o):
-				continue
-			if o.kind == "motion_sensor":
-				if sense:
-					_sense(o, w, storey, enemies, power)
-			elif o.kind == "turret_mount":
-				_turret(o, w, storey, enemies, power, delta)
+		for o in w.objects:
+			if Security.is_kind(o.kind):
+				_cache.append([o, w, storey])
 
 
 func _runtime(o: WorldObject) -> Dictionary:
