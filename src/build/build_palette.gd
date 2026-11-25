@@ -413,7 +413,7 @@ class BuildTile extends Button:
 		draw_string(font, Vector2(x, 20), _fit(font, title, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT, a))
 		var y := 38.0
 		if cost.is_empty():
-			draw_string(font, Vector2(x, y), note, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT_FAINT, maxf(a, 0.7)))
+			draw_string(font, Vector2(x, y), _fit(font, note, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT_FAINT, maxf(a, 0.7)))
 		else:
 			for k in BuildPieces.COST_ORDER:
 				if not cost.has(k) or int(cost[k]) <= 0:

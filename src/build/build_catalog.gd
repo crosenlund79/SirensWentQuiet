@@ -59,7 +59,7 @@ const PIECES := {
 
 ## What a tile says instead of a cost (free tools and pieces), by piece id, then by tool.
 const NOTES := {
-	"excavate": "shovel, +1 stone", "trench": "shovel, free", "trench_water": "rain or bottled water",
+	"excavate": "shovel, +1 stone", "trench": "shovel, free", "trench_water": "rain or bottles",
 	"backfill": "shovel, free",
 }
 const TOOL_NOTES := {"repair": "uses the material", "demolish": "gives back", "move": "free", "dig": "shovel"}
