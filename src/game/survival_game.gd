@@ -41,6 +41,7 @@ const StorageLink := preload("res://src/home/game_storage.gd")   # Exp 005 (F): 
 const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): footsteps, ambience layers, Eli
 const ResearchLink := preload("res://src/research/game_research.gd")   # Exp 006 (R): skills, books, K
 const BalanceLink := preload("res://src/home/game_balance.gd")   # Exp 006 (B): house supply, TV and radio, F10 House & balance
+const DefenseLink := preload("res://src/defense/game_defense.gd")   # Exp 006 (D): trenches, moats, drawbridges, spikes
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -72,6 +73,7 @@ var audio: Node                        ## src/audio/game_audio.gd (Exp 005, A: f
 var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C): rooms, comfort, mood)
 var research: Node                     ## src/research/game_research.gd (Exp 006 (R): K, book toasts, F10 Research)
 var balance: Node                      ## src/home/game_balance.gd (Exp 006 (B): house supply, TV and radio)
+var defense: Node                      ## src/defense/game_defense.gd (Exp 006 (D): the player in trenches, F10 Defences)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -282,6 +284,10 @@ func _assemble() -> void:
 	balance.name = "Balance"
 	add_child(balance)
 	balance.setup(self)
+	defense = DefenseLink.new()        # Exp 006 (D): after levels (the player's storey); the rules live in world.defense
+	defense.name = "Defense"
+	add_child(defense)
+	defense.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"

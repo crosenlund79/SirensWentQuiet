@@ -18,17 +18,26 @@ extends RefCounted
 ## enemies prefer real openings unless the detour is long.
 ## Call refresh_region() after changing raw cells; `revision` then increases
 ## so pursuers repath and immediately use new openings.
+##
+## Exp 006 (D), defences (src/defense/): two more raw kinds on the outdoor lot.
+##   WATER  - a water-filled trench cell: blocked like SOLID for the shared
+##            nav (never entered); `is_wade(c)` marks cells blocked only by
+##            water, which a wading planner (WeightedNav, brutes) may cross
+##   TRENCH - a dry trench cell: walkable, but each step costs TRENCH_WEIGHT
+##            (walk_weight) and bodies slow down in it
 
-enum { OPEN = 0, WALL = 1, SOLID = 2 }
+enum { OPEN = 0, WALL = 1, SOLID = 2, WATER = 3, TRENCH = 4 }
 
 const CELL := 0.25
 const BASH_WEIGHT := 12.0
+const TRENCH_WEIGHT := 4.0       ## Exp 006 (D): per dry-trench cell
 
 var bounds: Rect2
 var size: Vector2i
 var revision := 0
 var _raw := PackedByteArray()
 var _walkable := PackedByteArray()
+var _wade := PackedByteArray()      # Exp 006 (D): 1 = blocked only by water nearby
 var _astar := AStarGrid2D.new()
 
 
@@ -39,6 +48,8 @@ func _init(area: Rect2 = HousePlan.YARD) -> void:
 	_raw.fill(OPEN)
 	_walkable.resize(size.x * size.y)
 	_walkable.fill(1)
+	_wade.resize(size.x * size.y)
+	_wade.fill(0)
 	_astar.region = Rect2i(Vector2i.ZERO, size)
 	_astar.cell_size = Vector2.ONE
 	_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
@@ -108,21 +119,38 @@ func _recompute(r: Rect2i) -> void:
 	r = r.intersection(Rect2i(Vector2i.ZERO, size))
 	for j in range(r.position.y, r.end.y):
 		for i in range(r.position.x, r.end.x):
-			var has_wall := false
-			var has_solid := false
-			for dj in range(-1, 2):
-				for di in range(-1, 2):
-					var k := get_raw(Vector2i(i + di, j + dj))
-					if k == SOLID:
-						has_solid = true
-					elif k == WALL:
-						has_wall = true
-			var c := Vector2i(i, j)
-			var idx := j * size.x + i
-			_walkable[idx] = 1 if not (has_wall or has_solid) else 0
-			_astar.set_point_solid(c, has_solid)
-			_astar.set_point_weight_scale(c, BASH_WEIGHT if has_wall and not has_solid else 1.0)
+			_recompute_cell(i, j)
 	revision += 1
+
+
+## Exp 006 (D): recomputes the derived data of just these cells (each once),
+## e.g. the 3x3 neighbourhoods of changed raw cells; one revision step.
+func refresh_cells(list: Array) -> void:
+	for c in list:
+		if in_grid(c):
+			_recompute_cell(c.x, c.y)
+	revision += 1
+
+
+func _recompute_cell(i: int, j: int) -> void:
+	var has_wall := false
+	var has_solid := false
+	var has_water := false
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			var k := get_raw(Vector2i(i + di, j + dj))
+			if k == SOLID:
+				has_solid = true
+			elif k == WALL:
+				has_wall = true
+			elif k == WATER:
+				has_water = true
+	var c := Vector2i(i, j)
+	var idx := j * size.x + i
+	_walkable[idx] = 1 if not (has_wall or has_solid or has_water) else 0
+	_wade[idx] = 1 if has_water and not has_solid else 0
+	_astar.set_point_solid(c, has_solid or has_water)
+	_astar.set_point_weight_scale(c, BASH_WEIGHT if has_wall and not (has_solid or has_water) else walk_weight(c))
 
 
 func is_walkable(c: Vector2i) -> bool:
@@ -135,6 +163,16 @@ func is_bashable(c: Vector2i) -> bool:
 
 func is_passable(c: Vector2i) -> bool:
 	return in_grid(c) and not _astar.is_point_solid(c)
+
+
+## Exp 006 (D): the cost of one step on a walkable cell (a dry trench costs more).
+func walk_weight(c: Vector2i) -> float:
+	return TRENCH_WEIGHT if get_raw(c) == TRENCH else 1.0
+
+
+## Exp 006 (D): blocked only because water is next to it (a wader may cross).
+func is_wade(c: Vector2i) -> bool:
+	return in_grid(c) and _wade[c.y * size.x + c.x] == 1
 
 
 # --- queries -------------------------------------------------------------------
@@ -163,10 +201,12 @@ func segment_walkable(a: Vector2, b: Vector2) -> bool:
 
 
 ## True if no raw WALL/SOLID cell lies on the segment (line of sight at body height).
+## Exp 006 (D): trenches and water are below body height: they don't block.
 func segment_clear(a: Vector2, b: Vector2) -> bool:
 	var n := int(ceil(a.distance_to(b) / (CELL * 0.4))) + 1
 	for s in range(n + 1):
-		if get_raw(cell_of(a.lerp(b, float(s) / float(n)))) != OPEN:
+		var k := get_raw(cell_of(a.lerp(b, float(s) / float(n))))
+		if k == WALL or k == SOLID:
 			return false
 	return true
 

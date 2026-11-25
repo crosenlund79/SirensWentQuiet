@@ -175,6 +175,10 @@ var stats := {"build_ms": 0.0, "save_ms": 0.0, "load_ms": 0.0, "nav_ms": 0.0, "c
 ## Refinement 01 (S): the roof's and upper floor's support zones (created by
 ## the ground floor's _build; the upper storey shares the ground floor's).
 var support: HouseSupport
+## Exp 006 (D): trenches and water moats, and the rules of spikes and
+## drawbridges (src/defense/defense_grid.gd); ground floor only (null on the
+## other storeys).
+var defense: DefenseGrid
 var settled := 0                ## voxels dropped by settle() (tests)
 
 var _static_solid := PackedByteArray()
@@ -274,6 +278,8 @@ func save_data() -> Dictionary:
 		d["storage"] = furniture.storage_save()    # Exp 005 (F), optional: original pieces' contents
 	if support != null and not support.roof_gone.is_empty():
 		d["collapsed"] = support.save_data()   # Refinement 01 (S), optional: zones whose roof came down
+	if defense != null and not defense.cells.is_empty():
+		d["defense"] = defense.save_data()     # Exp 006 (D), optional: trenches and their water
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return d
 
@@ -327,6 +333,8 @@ func load_data(d: Dictionary) -> bool:
 			timber.erase(k)
 	if support != null:
 		support.load_data(d.get("collapsed", []))     # Refinement 01 (S)
+	if defense != null:
+		defense.load_data(d.get("defense", {}))       # Exp 006 (D): older saves have no trenches
 	if furniture != null:
 		furniture.load_data(d.get("furniture", {}))
 		furniture.storage_load(d.get("storage", {}))     # Exp 005 (F)
@@ -461,6 +469,9 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	nav = GridNav.new()
 	_static_solid.resize(nav.size.x * nav.size.y)
 	_static_solid.fill(0)
+	defense = DefenseGrid.new()          # Exp 006 (D): trenches and moats (loaded after the build)
+	defense.setup(self)
+	add_child(defense)
 	# Experiment 004: mesh furniture is bashable (HouseFurniture.cell_kind);
 	# yard props (and Version A voxel furniture) stay SOLID
 	for f in (HousePlan.FURNITURE + HousePlan.PROPS if voxel_furniture else HousePlan.PROPS):
@@ -1321,6 +1332,8 @@ func weak_points(from: Vector2, near := Vector2.INF) -> Array:
 		var fill := sqrt(clampf(float(sec["design"]) / (VoxelHouse.WALL_ROWS * 10.0 * thick), 0.25, 1.0))
 		var strength := section_strength(s) * maxf(section_integrity(s), 0.1) * fill
 		out.append(_weak_point("wall", stand, c, 0.6, strength, from, near, s, null, sec["material"]))
+	if defense != null:      # Exp 006 (D): raised drawbridges
+		out.append_array(defense.weak_points(from, near))
 	out.sort_custom(func(a, b): return a["score"] > b["score"])
 	return out
 
@@ -1464,6 +1477,10 @@ func _cell_kind(c: Vector2i) -> int:
 		var k := o.nav_kind()
 		if k >= 0:
 			return k
+	if defense != null:      # Exp 006 (D): a trench (TRENCH) or water (WATER)
+		var dk := defense.nav_kind_at(c)
+		if dk >= 0:
+			return dk
 	return GridNav.WALL if _cell_has_struct(c) else GridNav.OPEN
 
 
@@ -1542,7 +1559,8 @@ func _plan_rect(lo: Vector3i, hi: Vector3i) -> Rect2:
 func exit_path_exists(extra := {}) -> bool:
 	var special := {}
 	for c in _obj_cells:
-		if (_obj_cells[c] as WorldObject).kind == "door":
+		var ok: String = (_obj_cells[c] as WorldObject).kind
+		if ok == "door" or DefenseGrid.is_bridge(ok):     # Exp 006 (D): E lowers a raised drawbridge
 			for dj in range(-1, 2):
 				for di in range(-1, 2):
 					special[c + Vector2i(di, dj)] = true
@@ -1591,9 +1609,10 @@ func _exit_kind(c: Vector2i, extra: Dictionary) -> int:
 	if extra.has(c):
 		return extra[c]
 	var o: WorldObject = _obj_cells.get(c)
-	if o != null and o.kind == "door":
+	if o != null and (o.kind == "door" or DefenseGrid.is_bridge(o.kind)):     # Exp 006 (D): + drawbridges
 		return GridNav.OPEN
-	return nav.get_raw(c)
+	var k := nav.get_raw(c)
+	return GridNav.OPEN if k == GridNav.TRENCH else k       # Exp 006 (D): a dry trench can be climbed through
 
 
 # --- sections and construction -----------------------------------------------------------
@@ -2121,15 +2140,24 @@ func _foundation_rects() -> Array:
 	return out
 
 
-## No grass or shrubs grow through paving.
+## No grass or shrubs grow through paving (Exp 006 (D): or in trenches).
 func _foundations_changed() -> void:
 	if yard != null:
-		yard.set_tuft_avoid(_foundation_rects())
+		yard.set_tuft_avoid(_ground_cover_rects())
 	_hide_covered_bushes()
 
 
+## Exp 006 (D): the trenches changed (DefenseGrid).
+func ground_cover_changed() -> void:
+	_foundations_changed()
+
+
+func _ground_cover_rects() -> Array:
+	return _foundation_rects() + (defense.cover_rects() if defense != null else [])
+
+
 func _hide_covered_bushes() -> void:
-	var rects := _foundation_rects()
+	var rects := _ground_cover_rects()
 	for k in BUSHES.size():
 		var b := get_node_or_null("Bush_%d" % k) as Node3D
 		if b == null:

@@ -68,6 +68,13 @@ const DEFS := {
 	"radio": {"name": "Radio", "hp": 3, "size": Vector3(0.34, 0.2, 0.14), "segment": false, "layers": 0, "impact": VoxelMat.Impact.METAL},
 	## Exp 005 (F): what a destroyed or demolished storage piece leaves (E searches it).
 	"loot_pile": {"name": "Pile of belongings", "hp": 1, "size": Vector3(0.8, 0.3, 0.8), "segment": false, "layers": 0, "impact": VoxelMat.Impact.PAPER},
+	# Exp 006 (D): defences (src/defense/). Spikes sit on a 1 m wall line like
+	# barricades (bodies, not bullets); drawbridges span 1 or 2 trench cells
+	# (size.z), `open` = lowered (DefenseObjects, DefenseGrid).
+	"spikes_wood": {"name": "Wooden spikes", "hp": 10, "size": Vector3(1.0, 0.85, 0.5), "segment": true, "layers": 2, "impact": VoxelMat.Impact.WOOD},
+	"spikes_metal": {"name": "Metal spikes", "hp": 26, "size": Vector3(1.0, 0.85, 0.5), "segment": true, "layers": 2, "impact": VoxelMat.Impact.METAL},
+	"drawbridge_1": {"name": "Drawbridge", "hp": 24, "size": Vector3(1.0, 0.12, 1.0), "segment": false, "layers": 2, "impact": VoxelMat.Impact.WOOD},
+	"drawbridge_2": {"name": "Long drawbridge", "hp": 32, "size": Vector3(1.0, 0.12, 2.0), "segment": false, "layers": 2, "impact": VoxelMat.Impact.WOOD},
 }
 ## Material variants (Experiment 003). "wood" is DEFS itself; others override
 ## name, hp, the PropKit style and the impact kind.
@@ -235,7 +242,7 @@ func display_name() -> String:
 
 ## Debris colours when this object is hit or breaks (0xRRGGBB).
 func debris_tones() -> Array:
-	return IRON_TONES if mat != "wood" or kind == "fuse_box" else WOOD_TONES
+	return IRON_TONES if mat != "wood" or kind == "fuse_box" or kind == "spikes_metal" else WOOD_TONES
 
 
 func damage_fraction() -> float:
@@ -252,6 +259,10 @@ func nav_kind() -> int:
 			return GridNav.WALL
 		"fuse_box", "loot_pile":
 			return -1
+		"spikes_wood", "spikes_metal":       # Exp 006 (D): bashed through like a barricade
+			return GridNav.WALL
+		"drawbridge_1", "drawbridge_2":      # Exp 006 (D): over the trench; raised it's bashed like a door
+			return GridNav.OPEN if open else GridNav.WALL
 	# Exp 005 (F): standing furniture is bashed through like the house's
 	# (WALL); flat pieces (rugs, paintings, table lamps) don't block.
 	if FurnitureCatalog.is_furniture(kind) and kind != "workbench":
@@ -264,12 +275,19 @@ func nav_kind() -> int:
 func bashable() -> bool:
 	if FurnitureCatalog.is_furniture(kind) and kind != "workbench":     # Exp 005 (F)
 		return not FurnitureCatalog.is_flat(kind)
-	return kind in ["barricade", "boards", "fuse_box"] or (kind == "door" and not open)
+	if DefenseGrid.is_bridge(kind):          # Exp 006 (D): a raised drawbridge
+		return not open
+	return kind in ["barricade", "boards", "fuse_box", "spikes_wood", "spikes_metal"] or (kind == "door" and not open)
 
 
 ## Returns true when this hit destroyed the object.
 func take_damage(n: int) -> bool:
 	if kind == "loot_pile":           # Exp 005 (F): a pile only goes when it's empty
+		return false
+	# Exp 006 (D): a raised drawbridge battered to nothing crashes down (jammed, 1 HP)
+	if DefenseGrid.is_bridge(kind) and not open and hp - n <= 0 and world != null and world.get("defense") is DefenseGrid:
+		(world.get("defense") as DefenseGrid).smash_bridge(self)
+		_refresh_visual()
 		return false
 	hp = maxi(hp - n, 0)
 	_refresh_visual()
@@ -445,6 +463,8 @@ func interact_prompt() -> String:
 			return "[E] Turn the lamp off" if lamp_on else "[E] Turn the lamp on"
 		"tv_stand", "radio":      # Exp 006 (B)
 			return HouseMedia.prompt(kind, media_on)
+		"drawbridge_1", "drawbridge_2":      # Exp 006 (D)
+			return DefenseObjects.bridge_prompt(self)
 	if storage_type() != "":
 		return "[E] Open the %s (%s)" % [FurnitureStorage.name_of(kind).to_lower(), FurnitureStorage.fill_text(kind, items)]
 	return ""
@@ -476,6 +496,12 @@ func interact(game: Node) -> void:
 				world.toggle_mains(self)
 			if game != null and game.has_method("toast"):
 				game.toast("Main power on." if mains_on else "Main power off.", "info")
+		"drawbridge_1", "drawbridge_2":      # Exp 006 (D): E raises or lowers it
+			var why := ""
+			if world != null and world.get("defense") is DefenseGrid:
+				why = (world.get("defense") as DefenseGrid).toggle_bridge(self)
+			if game != null and game.has_method("toast"):
+				game.toast(why if why != "" else ("Drawbridge lowered." if open else "Drawbridge raised."), "warn" if why != "" else "info")
 		# Exp 005 (F)
 		"bed":
 			if game != null and game.has_method("open_sleep"):
@@ -517,7 +543,10 @@ func _refresh_visual() -> void:
 	if kind == "fuse_box" and not mains_on:
 		style = "off"
 	var seed := (hash(uid) if uid != "" else hash(name)) & 0xffff
-	visual = PropKit.make(kind, s, {"facing": "N", "seed": seed, "damage": damage_fraction(), "style": style})
+	if DefenseObjects.handles(kind):          # Exp 006 (D): spikes and drawbridges
+		visual = DefenseObjects.make(kind, s, seed, damage_fraction())
+	else:
+		visual = PropKit.make(kind, s, {"facing": "N", "seed": seed, "damage": damage_fraction(), "style": style})
 	visual.name = "Visual"
 	visual.position = Vector3(0, base_y(), -float(DEFS[kind].get("out", 0.0)))
 	if kind == "floor_lamp":          # Exp 005 (F): the bulb glowing in the shade
@@ -530,6 +559,8 @@ func _refresh_visual() -> void:
 	_pivot.add_child(visual)
 	if FurnitureCatalog.is_lamp(kind):
 		PropKit.set_lit(visual, 1.0 if is_lit() else 0.0)
+	if DefenseGrid.is_bridge(kind):          # Exp 006 (D): the deck at its current angle
+		DefenseObjects.pose_bridge(self)
 	_leaf = visual.find_child("Leaf", true, false) as Node3D
 	if _leaf != null:
 		_leaf_sign = _leaf_open_sign(_leaf)
@@ -550,6 +581,9 @@ static func _leaf_open_sign(leaf: Node3D) -> float:
 
 
 func _apply_open(instant: bool) -> void:
+	if DefenseGrid.is_bridge(kind):          # Exp 006 (D): open = lowered
+		DefenseObjects.apply_bridge(self, _shape, instant)
+		return
 	if _shape != null:
 		_shape.set_deferred("disabled", kind == "door" and open)
 	if kind != "door":

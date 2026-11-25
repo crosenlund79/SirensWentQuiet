@@ -224,7 +224,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _is_run_piece() -> bool:
-	return piece_id() in RUN_PIECES
+	return piece_id() in RUN_PIECES or DefenseBuild.is_run(piece_id())      # Exp 006 (D): spikes, trenches
 
 
 ## Exp 005 (F): drops what the Move tool holds (it never left its spot).
@@ -252,7 +252,8 @@ func pointer_at(mp: Vector2) -> Vector2:
 		return Vector2.INF
 	var o := camera.project_ray_origin(mp)
 	var d := camera.project_ray_normal(mp)
-	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES or (ext != null and ext.uses_plane(piece_id())) or FurniturePlace.uses_plane(self):
+	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES or (ext != null and ext.uses_plane(piece_id())) or FurniturePlace.uses_plane(self) \
+			or DefenseBuild.uses_plane(piece_id()):      # Exp 006 (D)
 		if d.y > -0.001:
 			return Vector2.INF
 		var g := o + d * ((plane_y - o.y) / d.y)
@@ -286,6 +287,8 @@ func _target_key(p: Vector2, from: Vector2) -> String:
 		return "%s|%s|%d" % [id, str(_snap_pos(_kind(), p, rot)), rot]
 	if FurniturePlace.handles(id):          # Exp 005 (F)
 		return FurniturePlace.target_key(self, p)
+	if DefenseBuild.handles(id):            # Exp 006 (D)
+		return DefenseBuild.target_key(self, p, from)
 	var s := HouseWorld.nearest_seg(p)
 	if from != Vector2.INF and from.distance_to(p) > 0.35:
 		return "%s|%s" % [id, str(_run(from, p))]
@@ -335,6 +338,7 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 		FurniturePlace.evaluate(self, r, p)
 	if WindowFill.handles(id):          # Exp 006 (B): wall up a window
 		WindowFill.evaluate(self, r, p)
+	DefenseBuild.evaluate(self, r, p, from)      # Exp 006 (D): defences; nothing over a trench; bridge demolish rule
 	if ext != null:      # Experiment 004 (L): the level pieces, stairs and floor tiles, level rules
 		ext.post_evaluate(self, r, p, from)
 	Research.gate(state, BuildPieces.LIST[piece], r)      # Exp 006 (R): locked recipes and Reinforce steps ("locked": true)
@@ -932,6 +936,8 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 		text = FurniturePlace.apply(self, r)
 	if WindowFill.handles(r["piece"]):          # Exp 006 (B)
 		text = WindowFill.apply(self, r)
+	if DefenseBuild.handles(r["piece"]):      # Exp 006 (D)
+		text = DefenseBuild.apply(self, r)
 	if supply != null and not r["cost"].is_empty():      # Exp 006 (B): say what came out of storage
 		var took: Dictionary = supply.get("last_paid").get("stored", {})
 		if not took.is_empty():
@@ -1080,6 +1086,8 @@ func _show_ghost(r: Dictionary) -> void:
 		items = FurniturePlace.ghost_items(self, r, col_ok, GHOST_BAD)
 	if WindowFill.handles(id):          # Exp 006 (B)
 		items = WindowFill.ghost_items(self, r, GHOST_TOOL["upgrade"], GHOST_BAD)
+	if DefenseBuild.handles(id):      # Exp 006 (D)
+		items = DefenseBuild.ghost_items(self, r)
 	var key := ""
 	for it in items:
 		key += "%s%s%s;" % [it[0], str(it[1]), it[5]]

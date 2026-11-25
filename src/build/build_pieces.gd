@@ -146,6 +146,26 @@ const LIST := [
 	{"id": "radio", "name": "Radio", "short": "Radio", "tool": "place", "slot": 4, "cost": {"scrap": 4, "nails": 1}, "kind": "radio", "mat": "wood",
 		"cat": "utilities", "requires": "", "icon": "radio",
 		"hint": "A mains radio: soft static and voices · E switches it · needs power · on a table or the floor · R rotates"},
+	# --- Exp 006 (D): defences (src/defense/defense_build.gd), category "defense";
+	# temporarily on key 2 (Barricades) until the category menu replaces the slots.
+	{"id": "spikes_wood", "name": "Wooden spikes", "short": "Spikes", "tool": "place", "slot": 1, "cost": {"wood": 3, "nails": 2}, "per_m": true,
+		"kind": "spikes_wood", "mat": "wood", "cat": "defense", "requires": "",
+		"hint": "Sharpened stakes on a 1 m line, outside or in · drag for a run · hurt what pushes against them · bashed like a barricade"},
+	{"id": "spikes_metal", "name": "Metal spikes", "short": "Metal spikes", "tool": "place", "slot": 1, "cost": {"iron": 3, "scrap": 2, "nails": 2}, "per_m": true,
+		"kind": "spikes_metal", "mat": "wood", "cat": "defense", "requires": "metalworking",
+		"hint": "Steel spikes on a 1 m line · 26 HP (wood 10), hurt twice as hard · drag for a run"},
+	{"id": "trench", "name": "Dig trench", "short": "Trench", "tool": "dig", "slot": 1, "cost": {}, "cat": "defense", "requires": "",
+		"hint": "Shovel · 1 m cells on the lot, outside the house · drag for a run (4 min, 1 energy a cell) · next to water it floods"},
+	{"id": "trench_water", "name": "Fill with water", "short": "Water", "tool": "fill", "slot": 1, "cost": {}, "cat": "defense", "requires": "",
+		"hint": "Floods a connected dry trench · free next to a rain collector, else 1 bottled water per 4 cells · only waders cross water"},
+	{"id": "backfill", "name": "Backfill", "short": "Backfill", "tool": "backfill", "slot": 1, "cost": {}, "cat": "defense", "requires": "",
+		"hint": "Shovel · fills a trench cell back in (2 min) · free"},
+	{"id": "drawbridge_1", "name": "Drawbridge", "short": "Bridge 1", "tool": "place", "slot": 1, "cost": {"wood": 8, "nails": 8, "iron": 1},
+		"kind": "drawbridge_1", "mat": "wood", "cat": "defense", "requires": "",
+		"hint": "Across a 1 m trench, hinged on the house side · R picks the axis · E raises and lowers it · raised, it's bashed like a door"},
+	{"id": "drawbridge_2", "name": "Long drawbridge", "short": "Bridge 2", "tool": "place", "slot": 1, "cost": {"wood": 14, "nails": 12, "iron": 2},
+		"kind": "drawbridge_2", "mat": "wood", "cat": "defense", "requires": "",
+		"hint": "Across a 2 m trench · R picks the axis · E raises and lowers it · 32 HP"},
 ]
 
 ## Wall costs per 1 m segment by material (demolish refunds half).
@@ -167,6 +187,11 @@ const OBJECT_COST := {
 	"workbench": {"wood": 5, "nails": 6, "scrap": 2},
 	"boards": {"wood": 3, "nails": 6},
 	"fuse_box": {"iron": 6, "scrap": 8, "nails": 4},
+	# Exp 006 (D): defences
+	"spikes_wood": {"wood": 3, "nails": 2},
+	"spikes_metal": {"iron": 3, "scrap": 2, "nails": 2},
+	"drawbridge_1": {"wood": 8, "nails": 8, "iron": 1},
+	"drawbridge_2": {"wood": 14, "nails": 12, "iron": 2},
 }
 const OBJECT_COST_MAT := {
 	"door": {"iron": {"wood": 4, "nails": 6, "iron": 3}, "metal": {"iron": 6, "scrap": 2, "nails": 4}},
@@ -176,7 +201,7 @@ const OBJECT_COST_MAT := {
 ## Timber framing: 1 plank / 150 voxels + 1 nail / 60 (Experiment 002);
 ## masonry: 1 stone / 90; iron plating: 1 iron / 60.
 const REPAIR_RATE := {"wood": 150.0, "nails": 60.0, "stone": 90.0, "iron": 60.0}
-const COST_ORDER := ["wood", "stone", "iron", "nails", "scrap"]
+const COST_ORDER := ["wood", "stone", "iron", "nails", "scrap", "water"]     # Exp 006 (D): + water (moats)
 ## Experiment 004: Reinforce on a door, material -> {"to", "cost"}.
 const REINFORCE := {
 	"door": {"wood": {"to": "iron", "cost": {"iron": 3, "nails": 4}}, "iron": {"to": "metal", "cost": {"iron": 4, "scrap": 2}}},
@@ -311,7 +336,7 @@ static func object_repair_cost(kind: String, hp: int, max_hp: int, mat := "wood"
 		var n := ceili(frac * int(base[k]))
 		if n > 0:
 			out[k] = n
-	var main := "iron" if mat != "wood" or kind == "fuse_box" else "wood"
+	var main := "iron" if mat != "wood" or kind == "fuse_box" or kind == "spikes_metal" else "wood"
 	out[main] = maxi(int(out.get(main, 0)), 1)
 	return out
 

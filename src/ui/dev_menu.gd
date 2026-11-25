@@ -512,6 +512,7 @@ func _build() -> void:
 	_build_comfort_section(box)     # Exp 005 (C)
 	_build_research_section(box)     # Exp 006 (R)
 	_build_balance_section(box)     # Exp 006 (B)
+	_build_defense_section(box)     # Exp 006 (D)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -852,3 +853,22 @@ func _balance_call(method: String, args: Array) -> void:
 		_say("The game has no balance.%s()" % method, true)
 		return
 	_say(str(h.callv(method, args)))
+# --- Exp 006 (D): defences (trenches, moats, drawbridges, spikes; src/defense/game_defense.gd) ---
+
+func _build_defense_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Defences"))
+	box.add_child(_grid(2, [["Shovel, water, wood", _defense_call.bind("dev_defense_kit", "")],
+		["Moat ring + bridge", _defense_call.bind("dev_moat_ring", "")],
+		["Fill the moat", _defense_call.bind("dev_fill_moat", "")],
+		["Raise / lower bridges", _defense_call.bind("dev_toggle_bridges", "")],
+		["Psycho at the moat", _defense_call.bind("dev_spawn_at_moat", "psycho")],
+		["Brute at the moat", _defense_call.bind("dev_spawn_at_moat", "brute")],
+		["Defence info", _defense_call.bind("dev_defense_text", "")]]))
+
+
+func _defense_call(method: String, arg: String) -> void:
+	var h = game.get("defense") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no defences.%s()" % method, true)
+		return
+	_say(str(h.call(method, arg) if arg != "" else h.call(method)))

@@ -50,6 +50,12 @@ var swings := {"player": 0, "wall": 0}   ## counts (tests, debug)
 ## (the stairs). INF = none.
 var storey := 0
 var goal_override := Vector2.INF
+## Exp 006 (D), defences (src/defense/): the ground under the enemy (trench,
+## water) slows it (speed x terrain_scale) and lowers it (floor_y), and
+## spikes it touches hurt it (DefenseGrid.enemy_step; `spike_cd` is its
+## contact cooldown). Brutes wade through water-filled trenches.
+var terrain_scale := 1.0
+var spike_cd := 0.0
 
 var _retreat_goal := Vector2.ZERO
 var _yaw := 0.0
@@ -86,7 +92,7 @@ func configure(k: String, w: HouseWorld, target: Node3D, opts := {}) -> void:
 	brain.stuck_time = float(def.get("stuck", PursuitBrain.STUCK_TIME))
 	brain.progress_time = float(def.get("progress", PursuitBrain.PROGRESS_TIME))
 	windup = float(def.get("windup", SWING_IMPACT * (1.4 if kind == "brute" else 1.0)))
-	brain.planner = WeightedNav.for_nav(nav, float(def["bash_weight"]))
+	brain.planner = WeightedNav.for_nav(nav, float(def["bash_weight"]), wades())    # Exp 006 (D): + wading
 	behaviour = EnemyBehaviour.make(str(def["behaviour"]))
 	behaviour.configure(self)
 	rig = VoxelRig.new(look)
@@ -112,7 +118,13 @@ func _ready() -> void:
 
 
 func speed() -> float:
-	return float(def["speed"]) * speed_scale
+	return float(def["speed"]) * speed_scale * terrain_scale
+
+
+## Exp 006 (D): crosses water-filled trenches (slowly); the others can't.
+## An archetype's "wades" field wins; by default only the brute wades.
+func wades() -> bool:
+	return bool(def.get("wades", kind == "brute"))
 
 
 ## Behaviour state for overlays and tests ("chase", "seek", "fuse", "spent").
@@ -200,6 +212,10 @@ func _physics_process(delta: float) -> void:
 		_corpse(delta)
 		return
 	var me := plan_pos()
+	if storey == 0 and world != null and world.defense != null:     # Exp 006 (D): trenches, water, spikes
+		world.defense.enemy_step(self, delta)
+		if not alive:
+			return
 	var goal := _retreat_goal if retreating else (goal_override if goal_override != Vector2.INF else behaviour.goal(self))
 	var r := brain.update(delta, me, goal)
 	if not retreating:
