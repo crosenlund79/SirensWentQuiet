@@ -213,7 +213,8 @@ func _build_level(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list
 		openings.append({"axis": int(e[0]), "line": int(e[1]), "from": float(e[2]), "to": float(e[3]), "orig": false})
 	_index_openings()
 	for e in objs:
-		_spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"], e.get("mat", "wood"))
+		var o := _spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"], e.get("mat", "wood"))
+		o.apply_extra(e)        # Exp 005 (F): furniture contents, id, size, lamp switch
 	_index_objects()
 	_full_nav()
 	for s in sections:
@@ -292,6 +293,7 @@ func load_data(d: Dictionary) -> bool:
 	var g_cur := p.copy()
 	VoxelDiff.apply(g_cur, dc)
 	_build_level(g_design, g_cur, objs, b, u, cut, st, fd, cells)
+	furniture_layout_changed.emit()     # Exp 005 (F)
 	return true
 
 

@@ -21,6 +21,12 @@ extends RefCounted
 ## prefer to go around it. HP and salvage per type are in TYPES. The state is
 ## saved as {id: [state, hp, voxels]} for pieces that aren't intact; the
 ## voxels of damaged pieces travel in the world's current-grid diff.
+## Exp 005 (F): storage pieces (FurnitureStorage.TYPES: fridge, counters and
+## island, wardrobe, dresser, nightstands, bookshelf, shelves, boxes, vanity)
+## hold items ("items", saved by the world as "storage"); E at a StorageSpot in
+## front of one opens it. Destroying or demolishing a piece drops what it held
+## into a loot pile (HouseWorld.drop_loot). take_out() lifts a piece away for
+## the Move tool (no salvage, no pile: the contents travel with it).
 
 enum { INTACT, DAMAGED, DESTROYED, REMOVED }
 const STATE_NAMES := ["intact", "damaged", "destroyed", "removed"]
@@ -95,7 +101,9 @@ func place_all() -> void:
 			continue
 		var hp := int(type_def(f["type"])["hp"])
 		var p := {"id": f["id"], "f": f, "hp": hp, "max_hp": hp, "state": INTACT, "tall": float(f["height"]) >= Tuning.TALL_THRESHOLD,
-			"node": null, "body": null, "rubble": null, "n0": 0, "left": 0}
+			"node": null, "body": null, "rubble": null, "n0": 0, "left": 0, "items": {}, "spot": null}
+		if FurnitureStorage.is_storage(f["type"]):       # Exp 005 (F)
+			p["spot"] = _make_spot(f)
 		var b := _grid_box(f)
 		p["lo"] = b[0]
 		p["hi"] = b[1]
@@ -271,6 +279,7 @@ func voxelise(id: String) -> void:
 	stats["voxelised"] += 1
 	stats["voxelise_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	world.furniture_changed.emit(id)
+	world.furniture_layout_changed.emit()     # Exp 005 (F): intact -> damaged
 
 
 func _count_voxels(p: Dictionary) -> int:
@@ -387,6 +396,7 @@ func destroy(id: String, quiet := false) -> void:
 	var at := Vector3(p["f"]["rect"].get_center().x, 0.5, p["f"]["rect"].get_center().y)
 	if not quiet:
 		Sfx.play("structure/break", at)
+	_drop_items(p)       # Exp 005 (F)
 	_changed(p)
 
 
@@ -395,6 +405,7 @@ func remove(id: String) -> void:
 	var p: Dictionary = pieces.get(id, {})
 	if p.is_empty() or int(p["state"]) == REMOVED:
 		return
+	_drop_items(p)       # Exp 005 (F)
 	_clear(p, false)
 	if p["rubble"] != null and is_instance_valid(p["rubble"]):
 		(p["rubble"] as Node).queue_free()
@@ -422,6 +433,7 @@ func restore_all() -> void:
 		p["left"] = 0
 		_make_intact(p)
 		world.furniture_changed.emit(id)
+	world.furniture_layout_changed.emit()     # Exp 005 (F)
 
 
 func _changed(p: Dictionary) -> void:
@@ -430,6 +442,7 @@ func _changed(p: Dictionary) -> void:
 	world._update_light_hosts()
 	world.furniture_changed.emit(p["id"])
 	world.structure_changed.emit()
+	world.furniture_layout_changed.emit()     # Exp 005 (F)
 
 
 ## Frees the mesh and collider, clears the piece's voxels from the grid
@@ -565,3 +578,154 @@ func _make_intact_visual_only(p: Dictionary) -> void:
 	node.name = "Prop_" + f["id"]
 	world.add_child(node)
 	p["node"] = node
+
+
+# --- Exp 005 (F): storage, comfort listing, Move --------------------------------------
+
+func _make_spot(f: Dictionary) -> Node3D:
+	var spot := StorageSpot.new()
+	spot.name = "Storage_" + str(f["id"])
+	spot.owner_f = self
+	spot.id = f["id"]
+	var r: Rect2 = f["rect"]
+	var dir: Vector2 = WorldObject.front_dir(FurnitureCatalog.rot_of_facing(f["facing"]))
+	var depth := r.size.y if absf(dir.y) > 0.5 else r.size.x
+	var at: Vector2 = r.get_center() + dir * (depth * 0.5 + 0.15)
+	spot.position = Vector3(at.x, 0.0, at.y)
+	world.add_child(spot)
+	return spot
+
+
+## The E targets of the standing storage pieces.
+func storage_spots() -> Array:
+	var out := []
+	for id in pieces:
+		var p: Dictionary = pieces[id]
+		if p["spot"] != null and int(p["state"]) <= DAMAGED and is_instance_valid(p["spot"]):
+			out.append(p["spot"])
+	return out
+
+
+func storage_type(id: String) -> String:
+	if not pieces.has(id):
+		return ""
+	var t: String = pieces[id]["f"]["type"]
+	return t if FurnitureStorage.is_storage(t) else ""
+
+
+## The live contents of a piece ({} for unknown ids).
+func items_of(id: String) -> Dictionary:
+	return pieces[id]["items"] if pieces.has(id) else {}
+
+
+func spot_prompt(id: String) -> String:
+	var t := storage_type(id)
+	if t == "" or not ok(id):
+		return ""
+	return "[E] Open the %s (%s)" % [FurnitureStorage.name_of(t).to_lower(), FurnitureStorage.fill_text(t, items_of(id))]
+
+
+func open_spot(id: String, game: Node) -> void:
+	var h: Variant = game.get("storage") if game != null else null
+	if h is Object and is_instance_valid(h) and h.has_method("open_piece"):
+		h.open_piece(world, id)
+	elif game != null and game.has_method("toast"):
+		game.toast("%s: %s." % [FurnitureStorage.name_of(storage_type(id)), FurnitureStorage.contents_text(items_of(id))], "info")
+
+
+## Standing pieces for HouseWorld.furniture_items(), plus the house's rugs
+## (floor voxels, always there).
+func items_list() -> Array:
+	var out := []
+	for id in pieces:
+		var p: Dictionary = pieces[id]
+		var st := int(p["state"])
+		if st > DAMAGED:
+			continue
+		var f: Dictionary = p["f"]
+		out.append({"type": f["type"], "rect": f["rect"], "rot": FurnitureCatalog.rot_of_facing(f["facing"]),
+			"state": STATE_NAMES[st], "id": id})
+	for f in HousePlan.FURNITURE:
+		if f["type"] == "rug":
+			out.append({"type": "rug", "rect": f["rect"], "rot": FurnitureCatalog.rot_of_facing(f["facing"]), "state": "intact", "id": f["id"]})
+	return out
+
+
+func containers() -> Array:
+	var out := []
+	for id in pieces:
+		var t := storage_type(id)
+		if t != "" and ok(id):
+			out.append({"id": id, "type": t, "name": FurnitureStorage.name_of(t), "items": pieces[id]["items"],
+				"pos": (pieces[id]["f"]["rect"] as Rect2).get_center()})
+	return out
+
+
+## A new house: a little food in the fridge, nails on the utility shelves...
+func fill_start() -> void:
+	for id in FurnitureStorage.START:
+		if pieces.has(id):
+			pieces[id]["items"] = (FurnitureStorage.START[id] as Dictionary).duplicate()
+
+
+func _drop_items(p: Dictionary) -> void:
+	var items: Dictionary = p["items"]
+	if items.is_empty():
+		return
+	var keep := items.duplicate()
+	items.clear()
+	world.drop_loot((p["f"]["rect"] as Rect2).get_center(), keep)
+
+
+## {id: items} for the pieces that hold something.
+func storage_save() -> Dictionary:
+	var out := {}
+	for id in pieces:
+		if not (pieces[id]["items"] as Dictionary).is_empty():
+			out[id] = (pieces[id]["items"] as Dictionary).duplicate()
+	return out
+
+
+## Untrusted: unknown ids, non-storage pieces and bad items are skipped.
+func storage_load(d: Variant) -> void:
+	for id in pieces:
+		(pieces[id]["items"] as Dictionary).clear()
+	if not (d is Dictionary):
+		return
+	for id in d:
+		if id is String and pieces.has(id) and storage_type(id) != "" and ok(id):
+			FurnitureStorage.merge(pieces[id]["items"], FurnitureStorage.clean(d[id]))
+
+
+## Move tool: lifts a standing piece out of the house (state REMOVED, no
+## salvage, no pile) and returns what the placed object takes over:
+## {"type", "size", "hp", "max_hp", "items"} ({} if it can't be moved).
+func take_out(id: String) -> Dictionary:
+	var p: Dictionary = pieces.get(id, {})
+	if p.is_empty() or int(p["state"]) > DAMAGED or FurnitureCatalog.move_block(p["f"]["type"]) != "":
+		return {}
+	var f: Dictionary = p["f"]
+	var out := {"type": f["type"], "size": FurnitureCatalog.size_of_rect(f["rect"], f["height"], f["facing"]),
+		"hp": int(p["hp"]), "max_hp": int(p["max_hp"]), "items": (p["items"] as Dictionary).duplicate()}
+	(p["items"] as Dictionary).clear()
+	_clear(p, false)
+	if p["rubble"] != null and is_instance_valid(p["rubble"]):
+		(p["rubble"] as Node).queue_free()
+	p["rubble"] = null
+	p["state"] = REMOVED
+	p["hp"] = 0
+	_changed(p)
+	return out
+
+
+## An original storage piece's E target (in front of it).
+class StorageSpot extends Node3D:
+	var owner_f: RefCounted
+	var id := ""
+
+	func interact_prompt() -> String:
+		return owner_f.spot_prompt(id) if owner_f != null else ""
+
+	func interact(game: Node) -> void:
+		if owner_f != null:
+			owner_f.open_spot(id, game)

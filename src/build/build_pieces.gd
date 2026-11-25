@@ -7,7 +7,8 @@ extends RefCounted
 ## palette slot (one building class); a slot with several pieces holds
 ## material variants: pressing the slot's key again cycles them.
 ##   key 1 Walls (wood, stone) · 2 Barricades (wood, iron, window boards) ·
-##   3 Doors (wood, reinforced, metal) · 4 Doorway · 5 Storage (crate) ·
+##   3 Doors (wood, reinforced, metal) · 4 Doorway · 5 Furniture & storage
+##   (crate, Move, then FurnitureCatalog.PLACEABLE; Exp 005, F) ·
 ##   6 Equipment (rain collector, workbench, fuse box) · 7 Repair ·
 ##   8 Reinforce (iron plating; doors: wood -> reinforced -> metal) ·
 ##   9 Demolish · 0 Floors & levels (stone foundation, wooden floor, stairs up
@@ -22,7 +23,7 @@ extends RefCounted
 
 const SLOTS := [
 	{"key": "1", "name": "Walls"}, {"key": "2", "name": "Barricades"}, {"key": "3", "name": "Doors"},
-	{"key": "4", "name": "Doorway"}, {"key": "5", "name": "Storage"}, {"key": "6", "name": "Equipment"},
+	{"key": "4", "name": "Doorway"}, {"key": "5", "name": "Furniture & storage"}, {"key": "6", "name": "Equipment"},   # Exp 005 (F): 5 was "Storage"
 	{"key": "7", "name": "Repair"}, {"key": "8", "name": "Reinforce"}, {"key": "9", "name": "Demolish"},
 	{"key": "0", "name": "Floors & levels"},   # Experiment 004 (L): was "Foundation"
 ]
@@ -87,6 +88,47 @@ const LIST := [
 		"hint": "Needs stairs up · a deck over the house with outer walls and windows; build on it like downstairs"},
 	{"id": "excavate", "name": "Excavate", "short": "Dig", "tool": "dig", "slot": 9, "cost": {},
 		"hint": "Shovel · digs a 1 m basement cell under the house (25 min, energy, +1 stone) · in the basement: next to dug space"},
+	# --- Exp 005 (F): furniture and storage (key 5; FurnitureCatalog, src/home/) ----------
+	{"id": "move", "name": "Move furniture", "short": "Move", "tool": "move", "slot": 4, "cost": {},
+		"hint": "Click a piece to pick it up (yours or the house's) · click again to set it down · R turns it · RMB puts it back · free"},
+	{"id": "cupboard", "name": "Kitchen cupboard", "short": "Cupboard", "tool": "place", "slot": 4, "cost": {"wood": 4, "nails": 6, "scrap": 1}, "kind": "cupboard", "mat": "wood",
+		"hint": "Kitchen cupboard · holds 30 (food and household supplies) · R rotates"},
+	{"id": "storage_chest", "name": "Storage chest", "short": "Chest", "tool": "place", "slot": 4, "cost": {"wood": 5, "nails": 6, "scrap": 1}, "kind": "storage_chest", "mat": "wood",
+		"hint": "Storage chest · holds 80 (anything) · R rotates"},
+	{"id": "tool_cabinet", "name": "Tool cabinet", "short": "Tool cab.", "tool": "place", "slot": 4, "cost": {"wood": 2, "nails": 4, "scrap": 5}, "kind": "tool_cabinet", "mat": "wood",
+		"hint": "Tool cabinet · holds 60 (tools and construction supplies) · R rotates"},
+	{"id": "wardrobe", "name": "Wardrobe", "short": "Wardrobe", "tool": "place", "slot": 4, "cost": {"wood": 7, "nails": 8}, "kind": "wardrobe", "mat": "wood",
+		"hint": "Wardrobe · holds 24 (clothing and equipment) · R rotates"},
+	{"id": "shelves", "name": "Shelves", "short": "Shelves", "tool": "place", "slot": 4, "cost": {"wood": 2, "nails": 4, "scrap": 3}, "kind": "shelves", "mat": "wood",
+		"hint": "Shelves · hold 60 (materials and smaller items) · R rotates"},
+	{"id": "bookshelf", "name": "Bookshelf", "short": "Bookshelf", "tool": "place", "slot": 4, "cost": {"wood": 5, "nails": 6}, "kind": "bookshelf", "mat": "wood",
+		"hint": "Bookshelf · holds 30 (materials and smaller items) · R rotates"},
+	{"id": "dresser", "name": "Dresser", "short": "Dresser", "tool": "place", "slot": 4, "cost": {"wood": 4, "nails": 6}, "kind": "dresser", "mat": "wood",
+		"hint": "Dresser · holds 20 (small personal things) · R rotates"},
+	{"id": "nightstand", "name": "Nightstand", "short": "Nightstand", "tool": "place", "slot": 4, "cost": {"wood": 2, "nails": 3}, "kind": "nightstand", "mat": "wood",
+		"hint": "Nightstand · holds 8 (small personal things) · R rotates"},
+	{"id": "bed", "name": "Bed", "short": "Bed", "tool": "place", "slot": 4, "cost": {"wood": 6, "nails": 8, "scrap": 1}, "kind": "bed", "mat": "wood",
+		"hint": "E sleeps in it · R rotates"},
+	{"id": "sofa", "name": "Sofa", "short": "Sofa", "tool": "place", "slot": 4, "cost": {"wood": 5, "nails": 6, "scrap": 2}, "kind": "sofa", "mat": "wood",
+		"hint": "Furniture · R rotates"},
+	{"id": "armchair", "name": "Armchair", "short": "Armchair", "tool": "place", "slot": 4, "cost": {"wood": 3, "nails": 4, "scrap": 1}, "kind": "armchair", "mat": "wood",
+		"hint": "Furniture · R rotates"},
+	{"id": "chair", "name": "Chair", "short": "Chair", "tool": "place", "slot": 4, "cost": {"wood": 2, "nails": 2}, "kind": "chair", "mat": "wood",
+		"hint": "Furniture · R rotates"},
+	{"id": "dining_table", "name": "Dining table", "short": "Table", "tool": "place", "slot": 4, "cost": {"wood": 5, "nails": 6}, "kind": "dining_table", "mat": "wood",
+		"hint": "Furniture · R rotates"},
+	{"id": "coffee_table", "name": "Coffee table", "short": "Coffee tbl", "tool": "place", "slot": 4, "cost": {"wood": 3, "nails": 4}, "kind": "coffee_table", "mat": "wood",
+		"hint": "Furniture · R rotates"},
+	{"id": "rug", "name": "Rug", "short": "Rug", "tool": "place", "slot": 4, "cost": {"nails": 2, "scrap": 1}, "kind": "rug", "mat": "wood",
+		"hint": "Lies flat: furniture can stand on it · R rotates"},
+	{"id": "floor_lamp", "name": "Floor lamp", "short": "Floor lamp", "tool": "place", "slot": 4, "cost": {"scrap": 3, "nails": 1}, "kind": "floor_lamp", "mat": "wood",
+		"hint": "Shines while the house has power · E switches it · R rotates"},
+	{"id": "table_lamp", "name": "Table lamp", "short": "Table lamp", "tool": "place", "slot": 4, "cost": {"scrap": 2}, "kind": "table_lamp", "mat": "wood",
+		"hint": "On a table or the floor · shines while the house has power · E switches it · R rotates"},
+	{"id": "painting", "name": "Painting", "short": "Painting", "tool": "place", "slot": 4, "cost": {"wood": 1, "nails": 1}, "kind": "painting", "mat": "wood",
+		"hint": "Aim at a wall: it hangs on your side"},
+	{"id": "plant", "name": "Plant", "short": "Plant", "tool": "place", "slot": 4, "cost": {"wood": 1}, "kind": "plant", "mat": "wood",
+		"hint": "Furniture · R rotates"},
 ]
 
 ## Wall costs per 1 m segment by material (demolish refunds half).
@@ -205,7 +247,7 @@ static func refund(cost: Dictionary) -> Dictionary:
 static func object_cost(kind: String, mat := "wood") -> Dictionary:
 	if mat != "wood" and OBJECT_COST_MAT.has(kind) and OBJECT_COST_MAT[kind].has(mat):
 		return OBJECT_COST_MAT[kind][mat]
-	return OBJECT_COST.get(kind, {})
+	return OBJECT_COST.get(kind, FurnitureCatalog.cost(kind))      # Exp 005 (F): furniture
 
 
 static func wall_cost(material: String) -> Dictionary:

@@ -506,6 +506,7 @@ func _build() -> void:
 	_build_exp004_e(box)          # Experiment 004 (E): the car and the quick-access bar
 	_build_home_section(box)     # Experiment 004 (H)
 	_build_structure_section(box)     # Refinement 01 (S)
+	_build_furniture_section(box)     # Exp 005 (F)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -671,5 +672,22 @@ func _support_call(method: String) -> void:
 	var h = game.get("support") if game != null and is_instance_valid(game) else null
 	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
 		_say("The game has no support.%s()" % method, true)
+		return
+	_say(str(h.call(method)))
+
+
+# --- Exp 005 (F): furniture and storage (methods on src/home/game_storage.gd) --------------
+
+func _build_furniture_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Furniture"))
+	box.add_child(_grid(2, [["Furniture kit", _storage_call.bind("dev_furniture_kit")],
+		["Storage items", _storage_call.bind("dev_storage_items")],
+		["Show containers", _storage_call.bind("dev_containers_text")]]))
+
+
+func _storage_call(method: String) -> void:
+	var h = game.get("storage") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no storage.%s()" % method, true)
 		return
 	_say(str(h.call(method)))

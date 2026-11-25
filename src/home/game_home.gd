@@ -111,7 +111,7 @@ func interactables() -> Array:
 			out.append(lamps[id])
 	if sink != null:
 		out.append(sink)
-	if fridge != null:
+	if fridge != null and game.get("storage") == null:     # Exp 005 (F): E at the fridge opens its storage instead
 		out.append(fridge)
 	return out
 

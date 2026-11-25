@@ -11,7 +11,7 @@ signal slot_pressed(slot: int)          ## a class button (BuildPieces slot)
 signal variant_pressed(index: int)      ## a variant button (BuildPieces.LIST index)
 
 var _slots := {}                        # slot -> Button
-var _variant_row: HBoxContainer
+var _variant_row: HFlowContainer      # Exp 005 (F): wraps (key 5 has 21 variants)
 var _variant_label: Label
 var _variants: Array[Button] = []
 var _variant_ids: Array[int] = []
@@ -67,12 +67,16 @@ func _ready() -> void:
 		b.pressed.connect(func() -> void: slot_pressed.emit(slot))
 		row.add_child(b)
 		_slots[slot] = b
-	_variant_row = HBoxContainer.new()
-	_variant_row.add_theme_constant_override("separation", 5)
+	_variant_row = HFlowContainer.new()
+	_variant_row.add_theme_constant_override("h_separation", 5)
+	_variant_row.add_theme_constant_override("v_separation", 4)
 	col.add_child(_variant_row)
 	_variant_label = _label("", 13, UiTheme.TEXT_DIM)
 	_variant_row.add_child(_variant_label)
-	for k in 6:                         # Experiment 004: key 0 holds six variants
+	var most := 6                       # Experiment 004: key 0 holds six variants
+	for sl in BuildPieces.SLOTS.size():
+		most = maxi(most, BuildPieces.variants(sl).size())
+	for k in most:                      # Exp 005 (F): key 5 holds the furniture
 		var vb := UiTheme.make_button("")
 		vb.toggle_mode = true
 		vb.focus_mode = Control.FOCUS_NONE
@@ -112,9 +116,9 @@ func show_state(selected: int, title: String, cost: String, materials: String, s
 		if k < v.size():
 			var p: Dictionary = BuildPieces.LIST[v[k]]
 			_variant_ids.append(v[k])
-			b.text = "%s · %s" % [p["short"], BuildPieces.cost_text(p["cost"])]
+			b.text = "%s · %s" % [p["short"], BuildPieces.cost_text(p["cost"])] if v.size() <= 6 else str(p["short"])   # Exp 005 (F): many: names only
 			b.set_pressed_no_signal(v[k] == selected)
-	_variant_label.text = ("Material (%s again):" % BuildPieces.SLOTS[slot]["key"]) if slot >= 0 else ""
+	_variant_label.text = ("%s (%s again):" % ["Piece" if v.size() > 6 else "Material", BuildPieces.SLOTS[slot]["key"]]) if slot >= 0 else ""
 	_title.text = title.to_upper()
 	_cost.text = cost
 	_materials.text = materials

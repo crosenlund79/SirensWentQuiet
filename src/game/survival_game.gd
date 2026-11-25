@@ -36,6 +36,7 @@ const HotbarCtl := preload("res://src/game/game_hotbar.gd")   # Experiment 004 (
 const CarCtl := preload("res://src/game/game_car.gd")         # Experiment 004 (E)
 const HomeLink := preload("res://src/home/game_home.gd")   # Experiment 004 (H): atmosphere, lights, household
 const SupportLink := preload("res://src/world/game_support.gd")   # Refinement 01 (S): collapses
+const StorageLink := preload("res://src/home/game_storage.gd")   # Exp 005 (F): storage furniture, placed lamps
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -62,6 +63,7 @@ var bar: Node                          ## game_hotbar.gd (Experiment 004, E: the
 var car: Node                          ## game_car.gd (Experiment 004, E: the yard car)
 var home: Node                         ## src/home/game_home.gd (Experiment 004: fireplace, lights, sink, fridge, sky)
 var support: Node                      ## src/world/game_support.gd (Refinement 01: roof and upper-floor collapses)
+var storage: Node                      ## src/home/game_storage.gd (Exp 005, F: storage panel, placed lamps, F10 Furniture)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -80,7 +82,7 @@ var last_expedition := {}
 var shots_fired := 0
 
 var _ok := false
-var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death
+var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death | storage (Exp 005)
 var _loaded := {}
 var _trigger := false
 var _migrated_from := 0                ## schema of an older save that was loaded (re-saved at once)
@@ -252,6 +254,10 @@ func _assemble() -> void:
 	support.name = "Support"
 	add_child(support)
 	support.setup(self)
+	storage = StorageLink.new()        # Exp 005 (F): after home (lamps follow its mains)
+	storage.name = "Storage"
+	add_child(storage)
+	storage.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -638,6 +644,8 @@ func _on_escape() -> void:
 			_on_sleep_closed()
 		"map":
 			map.close()
+		"storage":
+			storage.close_panel()          # Exp 005 (F)
 		"":
 			if build.active:
 				_set_build(false)

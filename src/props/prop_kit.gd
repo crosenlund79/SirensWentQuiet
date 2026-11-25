@@ -28,6 +28,7 @@ const Furniture := preload("res://src/props/prop_furniture.gd")
 const Yard := preload("res://src/props/prop_yard.gd")
 const Survival := preload("res://src/props/prop_survival.gd")
 const Home := preload("res://src/props/prop_home.gd")
+const StorageProps := preload("res://src/props/prop_storage.gd")   # Exp 005 (F)
 
 const FURNITURE_TYPES := [
 	"tv_stand", "sofa", "coffee_table", "rug", "armchair", "floor_lamp", "bookshelf", "dining_table",
@@ -43,6 +44,8 @@ const SURVIVAL_TYPES := ["door", "barricade", "crate", "rain_collector", "candle
 	"boards", "fuse_box", "rubble"]   # Experiment 004
 ## Experiment 004: electric fixtures, the wall switch and the fireplace (prop_home.gd).
 const HOME_TYPES := ["ceiling_light", "range_hood", "table_lamp", "bare_bulb", "bulb", "light_switch", "fireplace"]
+## Exp 005 (F): new furniture and the loot pile (prop_storage.gd).
+const STORAGE_TYPES := ["cupboard", "storage_chest", "tool_cabinet", "painting", "loot_pile"]
 
 ## Span pieces: the longer horizontal side of `size` is the span.
 const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
@@ -85,6 +88,8 @@ const DEFAULT_SIZE := {
 	"table_lamp": Vector3(0.26, 0.42, 0.26), "bare_bulb": Vector3(0.12, 0.4, 0.12),
 	"bulb": Vector3(0.1, 0.12, 0.1), "light_switch": Vector3(0.09, 0.13, 0.03),
 	"fireplace": Vector3(1.5, 2.6, 0.55),
+	"cupboard": Vector3(1.0, 0.92, 0.6), "storage_chest": Vector3(1.0, 0.6, 0.55), "tool_cabinet": Vector3(0.9, 1.8, 0.45),
+	"painting": Vector3(0.8, 0.6, 0.05), "loot_pile": Vector3(0.8, 0.3, 0.8),
 }
 
 ## Documented reach beyond the requested size, in the canonical frame:
@@ -134,11 +139,11 @@ static var _builds := 0
 
 
 static func types() -> PackedStringArray:
-	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES)
+	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES)
 
 
 static func has(type: String) -> bool:
-	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES
+	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES or type in STORAGE_TYPES
 
 
 ## Canonical default size (w across the front, h, d front to back).
@@ -391,6 +396,8 @@ static func _parts(type: String, dims: Vector3, damage: float, seed: int, style:
 			done = Survival.build(mm, type, dims.x, dims.y, dims.z, rng, damage, style)
 		if not done:
 			done = Home.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
+		if not done:
+			done = StorageProps.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
 		if not done or mm.is_empty():
 			mm = _new_mesh("crate", damage)
 			Survival.build(mm, "crate", dims.x, dims.y, dims.z, rng, damage, "")

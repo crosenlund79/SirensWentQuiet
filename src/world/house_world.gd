@@ -34,6 +34,10 @@ signal power_changed
 ## Experiment 004: a furniture piece changed state (damaged, destroyed,
 ## removed, restored). furniture_ok(id) says whether it still works.
 signal furniture_changed(id: String)
+## Exp 005 (F): furniture was placed, moved, removed, destroyed, damaged for
+## the first time, switched (lamps), restored or loaded (SPEC §2; comfort
+## listens). furniture_items() lists what stands.
+signal furniture_layout_changed
 
 const SURFACE_SHADER := preload("res://src/voxel/shaders/voxel_surface.gdshader")
 const GLASS_SHADER := preload("res://src/voxel/shaders/voxel_glass.gdshader")
@@ -221,7 +225,10 @@ func build_new() -> void:
 			objs.append({"kind": "door", "x": c.x, "y": c.y, "rot": _outward_rot(c, horiz), "hp": WorldObject.DEFS["door"]["hp"], "open": false, "built": false})
 	objs.append(_pristine_fuse_box())
 	_build(p.copy(), p.copy(), objs, [], [], [], [], [], [])
+	if furniture != null:
+		furniture.fill_start()          # Exp 005 (F): a few things in the fridge and on the shelves
 	power_changed.emit()
+	furniture_layout_changed.emit()     # Exp 005 (F)
 
 
 static func _pristine_fuse_box() -> Dictionary:
@@ -254,6 +261,8 @@ func save_data() -> Dictionary:
 		# already knows the fuse box (older saves get the pristine one)
 		"furniture": furniture.save_data() if furniture != null else {}, "exp4": 1,
 	}
+	if furniture != null:
+		d["storage"] = furniture.storage_save()    # Exp 005 (F), optional: original pieces' contents
 	if support != null and not support.roof_gone.is_empty():
 		d["collapsed"] = support.save_data()   # Refinement 01 (S), optional: zones whose roof came down
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
@@ -304,9 +313,11 @@ func load_data(d: Dictionary) -> bool:
 		support.load_data(d.get("collapsed", []))     # Refinement 01 (S)
 	if furniture != null:
 		furniture.load_data(d.get("furniture", {}))
+		furniture.storage_load(d.get("storage", {}))     # Exp 005 (F)
 		_update_light_hosts()
 	stats["load_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	power_changed.emit()
+	furniture_layout_changed.emit()     # Exp 005 (F)
 	return true
 
 
@@ -374,9 +385,35 @@ static func _valid_objects(v: Variant) -> Variant:
 		var hp: Variant = e.get("hp")
 		if typeof(r) != TYPE_INT or r < 0 or r > 3 or typeof(hp) != TYPE_INT or hp < 1 or hp > WorldObject.max_hp_of(k, mat):
 			return null
-		out.append({"kind": k, "x": float(x), "y": float(y), "rot": r, "hp": hp, "open": e.get("open") == true, "built": e.get("built") == true, "mat": mat,
-			"mains_on": e.get("mains_on") != false})
+		var o := {"kind": k, "x": float(x), "y": float(y), "rot": r, "hp": hp, "open": e.get("open") == true, "built": e.get("built") == true, "mat": mat,
+			"mains_on": e.get("mains_on") != false}
+		_valid_extra(e, o)       # Exp 005 (F)
+		out.append(o)
 	return out
+
+
+## Exp 005 (F): the optional furniture fields of a saved object (WorldObject.
+## apply_extra); anything malformed is dropped, never the object.
+static func _valid_extra(e: Dictionary, o: Dictionary) -> void:
+	if e.get("uid") is String and (e["uid"] as String).length() <= 24:
+		o["uid"] = e["uid"]
+	if e.get("items") is Dictionary:
+		o["items"] = FurnitureStorage.clean(e["items"])
+	var sz: Variant = e.get("size")
+	if sz is Array and (sz as Array).size() == 3:
+		var v := Vector3.ZERO
+		var good := true
+		for k in 3:
+			if typeof(sz[k]) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(sz[k])) or float(sz[k]) < 0.0 or float(sz[k]) > 4.0:
+				good = false
+		if good:
+			v = Vector3(float(sz[0]), float(sz[1]), float(sz[2]))
+			if v.x > 0.05 and v.z > 0.005:
+				o["size"] = v
+	if typeof(e.get("lift")) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(e["lift"])):
+		o["lift"] = clampf(float(e["lift"]), 0.0, FurnitureCatalog.SURFACE_MAX)
+	if typeof(e.get("on")) == TYPE_BOOL:
+		o["on"] = e["on"]
 
 
 # --- building the scene ---------------------------------------------------------------
@@ -463,6 +500,7 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 		var o := _spawn_object(e["kind"], Vector2(e["x"], e["y"]), e["rot"], e.get("built", true), e["hp"], e["open"], e.get("mat", "wood"))
 		if e.get("mains_on", true) == false:
 			o.set_mains(false)
+		o.apply_extra(e)             # Exp 005 (F): contents, id, size, lamp switch
 	_index_objects()
 	_full_nav()
 	for s in sections:
@@ -931,12 +969,19 @@ func place_object(kind: String, p: Vector2, rot: int, is_built := true, mat := "
 	structure_changed.emit()
 	if kind == "fuse_box":
 		power_changed.emit()
+	if FurnitureCatalog.is_furniture(kind):
+		furniture_layout_changed.emit()     # Exp 005 (F)
 	return o
 
 
 func remove_object(o: WorldObject) -> void:
 	if not objects.has(o):
 		return
+	# Exp 005 (F): what a storage piece held never vanishes: it drops into a pile
+	if not o.items.is_empty() and o.kind != "loot_pile":
+		var keep := o.items.duplicate()
+		o.items.clear()
+		drop_loot(o.pos, keep)
 	var rect := o.footprint().grow(GridNav.CELL)
 	objects.erase(o)
 	if o.body != null:
@@ -947,6 +992,8 @@ func remove_object(o: WorldObject) -> void:
 	structure_changed.emit()
 	if o.kind == "fuse_box":
 		power_changed.emit()
+	if FurnitureCatalog.is_furniture(o.kind):
+		furniture_layout_changed.emit()     # Exp 005 (F)
 
 
 ## Damages an object (doors and barricades by enemies, anything by blasts);
@@ -962,7 +1009,10 @@ func damage_object(o: WorldObject, n: int, from := Vector3.INF, quiet := false) 
 		for k in 5:
 			fx.debris(at + Vector3(_rng.randf_range(-0.4, 0.4), _rng.randf_range(-0.5, 0.4), 0), dir * 1.5 + Vector3(_rng.randf_range(-1, 1), _rng.randf_range(0.5, 2.0), _rng.randf_range(-1, 1)), VoxelArt.to_color(tones[k % tones.size()]), 0.7)
 		Sfx.play("door/bash" if o.mat == "wood" else "impact/metal", at)
+	var was_intact := o.hp >= o.max_hp
 	if not o.take_damage(n):
+		if was_intact and FurnitureCatalog.is_furniture(o.kind) and o.hp < o.max_hp:
+			furniture_layout_changed.emit()     # Exp 005 (F): intact -> damaged
 		return
 	for k in 26:
 		var c := VoxelArt.to_color(tones[k % tones.size()])
@@ -2111,6 +2161,8 @@ func interactables() -> Array:
 	for o in objects:
 		if o.interact_prompt() != "":
 			out.append(o)
+	if furniture != null:
+		out.append_array(furniture.storage_spots())     # Exp 005 (F): the house's cupboards, wardrobe, fridge...
 	return out
 
 
@@ -2283,7 +2335,8 @@ static func _outward_rot(c: Vector2, horiz: bool) -> int:
 const SETTLE_MARGIN := 2
 const SETTLE_QUEUE := 24
 ## Wall-mounted objects and the rows (m) of wall they need: [from, to, min voxels].
-const MOUNTS := {"door": [0.0, 2.6, 12], "boards": [0.85, 2.15, 12], "fuse_box": [0.9, 2.0, 8]}
+const MOUNTS := {"door": [0.0, 2.6, 12], "boards": [0.85, 2.15, 12], "fuse_box": [0.9, 2.0, 8],
+	"painting": [1.2, 1.9, 6]}     # Exp 005 (F): a painting falls with its wall
 
 
 ## Runs what structural changes left to do: settle() over the damage of the
@@ -2404,3 +2457,64 @@ func ceiling_at(p: Vector2) -> bool:
 ## Build mode's demolish preview for wall section s: "" or what it carries.
 func bearing_warning(s: Vector3i) -> String:
 	return support.demolish_warning(self, s) if support != null else ""
+
+
+# --- Exp 005 (F): furniture for comfort, storage, loot piles ------------------------------
+
+## Standing furniture on this storey (SPEC §2): the original pieces (with the
+## house's rugs) and placed furniture objects, intact or damaged:
+## [{"type", "rect": Rect2, "rot": 0..3 (N, E, S, W), "state": "intact" |
+## "damaged", "id"}].
+func furniture_items() -> Array:
+	var out := []
+	if furniture != null:
+		out.append_array(furniture.items_list())
+	for o in objects:
+		if FurnitureCatalog.is_furniture(o.kind):
+			out.append({"type": o.kind, "rect": o.footprint(), "rot": o.rot, "state": "intact" if o.hp >= o.max_hp else "damaged", "id": o.uid})
+	return out
+
+
+## Contents (item -> count) of the storage piece `id` (an original piece's
+## plan id or a placed object's uid); {} if none. The live dictionary.
+func storage_of(id: String) -> Dictionary:
+	if furniture != null and furniture.pieces.has(id):
+		return furniture.items_of(id)
+	var o := object_by_uid(id)
+	return o.items if o != null else {}
+
+
+func object_by_uid(id: String) -> WorldObject:
+	if id == "":
+		return null
+	for o in objects:
+		if o.uid == id:
+			return o
+	return null
+
+
+## Every container on this storey: [{"id", "type", "name", "items", "pos"}]
+## (original pieces that stand, placed storage objects and loot piles).
+func containers() -> Array:
+	var out := []
+	if furniture != null:
+		out.append_array(furniture.containers())
+	for o in objects:
+		if o.storage_type() != "" or o.kind == "loot_pile":
+			out.append({"id": o.uid, "type": o.kind, "name": FurnitureStorage.name_of(o.kind), "items": o.items, "pos": o.pos})
+	return out
+
+
+## Puts `items` into a loot pile at plan point p (merged into one within
+## 0.7 m). Never loses anything: the pile stays until it is searched empty.
+func drop_loot(p: Vector2, items: Dictionary) -> WorldObject:
+	var clean := FurnitureStorage.clean(items)
+	if clean.is_empty():
+		return null
+	for o in objects:
+		if o.kind == "loot_pile" and o.pos.distance_to(p) < 0.7:
+			FurnitureStorage.merge(o.items, clean)
+			return o
+	var pile := place_object("loot_pile", p, 0, false)
+	FurnitureStorage.merge(pile.items, clean)
+	return pile

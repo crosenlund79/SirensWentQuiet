@@ -16,6 +16,11 @@ extends Node3D
 ## unlimited cheat makes them free); building needs a hammer. Every change
 ## keeps a way out (the exit rule). Stone walls need a foundation.
 ##
+## Exp 005 (F): 5 is "Furniture & storage": the crate, Move and the
+## furniture pieces (FurniturePlace, src/home/furniture_place.gd: placing,
+## moving with `carry`, validation, ghosts); Demolish keeps the salvage of a
+## moved house piece and leaves loot piles alone.
+##
 ## Input while active (handles_input() is true, so the game doesn't fire):
 ## LMB place / apply (drag for runs), RMB (`secondary`) cancels a drag,
 ## `build_rotate` (R) rotates, number keys select. Esc is the game's: it
@@ -67,6 +72,9 @@ var _mats := {}
 var _slot_pick := {}            # palette slot -> LIST index last used in it
 var _ptr_furniture := ""        # furniture piece under the demolish pointer (aim ray)
 var _ghost_label: Label3D       # Refinement 01: "Replace wood → stone" over a replacing ghost
+## Exp 005 (F): the furniture piece the Move tool holds ({} = none): {"world",
+## "object" | null, "piece" (house piece id), "kind", "size", "rot", "name"}.
+var carry := {}
 
 
 func setup(w: HouseWorld, s: GameState, cam: Camera3D, p: Node3D) -> void:
@@ -105,6 +113,7 @@ func set_active(on: bool) -> void:
 	active = on
 	_dragging = false
 	_eval_key = ""
+	carry = {}          # Exp 005 (F): leaving puts a carried piece back
 	if palette != null:
 		palette.visible = on
 	if _ghost_root != null:
@@ -123,6 +132,7 @@ func select(i: int) -> void:
 	piece = i
 	_slot_pick[BuildPieces.slot_of(i)] = i
 	_dragging = false
+	carry = {}          # Exp 005 (F)
 	_eval_key = ""
 	_ghost_key = ""
 	Sfx.ui("ui/click")
@@ -186,6 +196,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_dragging = false
 			_eval_key = ""
 			message.emit("Cancelled.", true)
+		elif not carry.is_empty():          # Exp 005 (F)
+			cancel_carry()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("fire"):
 		var p := _pointer()
@@ -210,6 +222,16 @@ func _is_run_piece() -> bool:
 	return piece_id() in RUN_PIECES
 
 
+## Exp 005 (F): drops what the Move tool holds (it never left its spot).
+func cancel_carry() -> void:
+	if carry.is_empty():
+		return
+	carry = {}
+	_eval_key = ""
+	message.emit("Put back.", true)
+	changed.emit()
+
+
 ## Ground point under the mouse for free placement; the aimed surface (walls,
 ## objects, respecting the cutaway) for doors, doorways and tools.
 func _pointer() -> Vector2:
@@ -225,12 +247,12 @@ func pointer_at(mp: Vector2) -> Vector2:
 		return Vector2.INF
 	var o := camera.project_ray_origin(mp)
 	var d := camera.project_ray_normal(mp)
-	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES or (ext != null and ext.uses_plane(piece_id())):
+	if piece_id() in RUN_PIECES or piece_id() in FREE_PIECES or (ext != null and ext.uses_plane(piece_id())) or FurniturePlace.uses_plane(self):
 		if d.y > -0.001:
 			return Vector2.INF
 		var g := o + d * ((plane_y - o.y) / d.y)
 		return Vector2(g.x, g.z)
-	var low := tool() == "demolish"
+	var low := tool() == "demolish" or tool() == "move"      # Exp 005 (F): Move picks low furniture too
 	var hit := world.aim_ray(o, d, low)
 	_ptr_furniture = world.aim_furniture if low else ""
 	return Vector2(hit.x, hit.z)
@@ -257,6 +279,8 @@ func _target_key(p: Vector2, from: Vector2) -> String:
 	var id := piece_id()
 	if id in FREE_PIECES:
 		return "%s|%s|%d" % [id, str(_snap_pos(_kind(), p, rot)), rot]
+	if FurniturePlace.handles(id):          # Exp 005 (F)
+		return FurniturePlace.target_key(self, p)
 	var s := HouseWorld.nearest_seg(p)
 	if from != Vector2.INF and from.distance_to(p) > 0.35:
 		return "%s|%s" % [id, str(_run(from, p))]
@@ -302,6 +326,8 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 			_eval_upgrade(r, p)
 		"demolish":
 			_eval_demolish(r, p)
+	if FurniturePlace.handles(id):      # Exp 005 (F): furniture and Move
+		FurniturePlace.evaluate(self, r, p)
 	if ext != null:      # Experiment 004 (L): the level pieces, stairs and floor tiles, level rules
 		ext.post_evaluate(self, r, p, from)
 	if r["reason"] == "" and not state_can_pay(r["cost"]):
@@ -677,6 +703,11 @@ func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 	if o != null:
 		r["object"] = o
 		r["refund"] = BuildPieces.object_refund(o.kind, o.mat, o.built)
+		# Exp 005 (F): a moved house piece still gives salvage; piles go when searched empty
+		if FurnitureCatalog.is_furniture(o.kind) and not o.built and o.kind != "workbench":
+			r["refund"] = FurnitureCatalog.original_salvage(o.kind, o.hp, o.max_hp)
+		if o.kind == "loot_pile":
+			r["reason"] = "Search the pile instead (E): it goes when it's empty."
 		return
 	var fid := _ptr_furniture if _ptr_furniture != "" and debug_pointer == Vector2.INF else ""
 	if fid == "" and world.furniture != null:
@@ -850,6 +881,8 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 			Sfx.play("build/demolish", at)
 	if r.get("ext", false) and ext != null:      # Experiment 004 (L)
 		text = ext.apply(self, r)
+	if FurniturePlace.handles(r["piece"]):      # Exp 005 (F)
+		text = FurniturePlace.apply(self, r)
 	_eval_key = ""
 	message.emit(text, true)
 	changed.emit()
@@ -984,6 +1017,8 @@ func _show_ghost(r: Dictionary) -> void:
 				items.append(["wall_ghost", Vector3(1.04, 2.68, 0.44), Vector3(c.x, 0, c.y), 0.0 if s.x == 0 else PI * 0.5, col_ok if r["ok"] else GHOST_BAD, ""])
 	if r.get("ext", false) and ext != null:      # Experiment 004 (L)
 		items = ext.ghost_items(self, r)
+	if FurniturePlace.handles(id):      # Exp 005 (F)
+		items = FurniturePlace.ghost_items(self, r, col_ok, GHOST_BAD)
 	var key := ""
 	for it in items:
 		key += "%s%s%s;" % [it[0], str(it[1]), it[5]]
@@ -1077,6 +1112,8 @@ func _refresh_palette() -> void:
 		"demolish":
 			var rf: Dictionary = last_eval.get("refund", {})
 			cost_txt = "refund %s" % BuildPieces.cost_text(rf) if not rf.is_empty() else "free"
+		"move":
+			cost_txt = "free" + ("  ·  holding: %s" % str(carry["name"]).to_lower() if not carry.is_empty() else "")
 	var mats := "no inventory"
 	if state != null:
 		var inv := state.inventory
@@ -1098,4 +1135,6 @@ func _refresh_palette() -> void:
 		status = "Ready: takes the %s apart." % world.furniture.display_name(last_eval["furniture"]).to_lower()
 	if tool() == "demolish" and str(last_eval.get("bearing", "")) != "":
 		status += "  " + str(last_eval["bearing"])      # Refinement 01 (S): what the wall carries
+	if FurniturePlace.handles(piece_id()) and FurniturePlace.status(self, last_eval) != "":
+		status = FurniturePlace.status(self, last_eval)      # Exp 005 (F)
 	palette.show_state(piece, p["name"], cost_txt, mats, status, last_eval.get("ok", true), p["hint"])
