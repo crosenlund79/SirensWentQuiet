@@ -1,10 +1,10 @@
 extends "res://tests/test_case.gd"
-## Exp 007 (T): visible travel and the home <-> POI flow (src/travel), with the
-## stand-in POI (TravelTestSite) when agent P's src/poi is not in the project:
-## home -> map -> travel (animated, skipped) -> the POI scene -> carry an item
-## and car cargo -> leave -> home restored with them, time passed, the house
-## as it was; an invasion while away damages the house a little; a save at a
-## POI continues at the POI.
+## Exp 007 (T): visible travel and the home <-> POI flow (src/travel) with
+## agent P's POIs: home -> map -> travel (animated, skipped) -> the Corner
+## Store -> search a shelf, take it -> leave by an exit -> home with exactly
+## that, time passed, the house as it was; by car, the boot comes home; an
+## invasion while away damages the house a little; a save at a POI continues
+## at the POI.
 
 const SCENE := "res://src/game/game.tscn"
 const SAVE := "user://test_travel.dat"
@@ -73,7 +73,7 @@ func test_travel_rules_times_fuel_and_daylight() -> void:
 	s.inventory.add("fuel", 1)
 	check_eq(TravelRules.block_reason(s, "forest", true), "", "a running car with fuel")
 	check(TravelRules.block_reason(s, "police") != "" or s.region.is_discovered("police"), "unknown places can't be travelled to")
-	check(TravelSites.provider() != null, "a site provider")
+	check(TravelRules.capacity_text(s, true).contains("boot"), "the pack and the boot")
 
 
 func test_offscreen_invasion_damages_the_house_a_little() -> void:
@@ -104,18 +104,33 @@ func test_offscreen_invasion_damages_the_house_a_little() -> void:
 
 # --- the flow in the game --------------------------------------------------------------------
 
-func test_home_to_poi_and_back_with_what_eli_carries() -> void:
+## A container at the POI with something in it and no lock (agent P's spots).
+func _spot_with_items(g: Node) -> Node3D:
+	for sp in g.world.spots_of("container"):
+		if str(sp.data.get("needs", "")) == "" and not (g.poi.record["c"][sp.id]["items"] as Dictionary).is_empty():
+			return sp
+	return null
+
+
+func _count(s: GameState, items: Dictionary) -> int:
+	var n := 0
+	for id in items:
+		n += s.inventory.count(id)
+	return n
+
+
+## The user's loop: the map, the walk (animated), the Corner Store, search a
+## shelf, take what's there, leave by an exit, home with exactly that.
+func test_travel_to_the_store_search_a_shelf_and_bring_it_home() -> void:
 	var g: Node = await _boot("new")
 	var s: GameState = g.debug_state()
 	s.total_minutes = 9.0 * 60.0
-	var wood0 := s.inventory.count("wood")
 	var t_depart := s.total_minutes
-	# the map: select Pine Woods, Travel (the animation plays on the map)
 	g.debug_open("map")
 	check_eq(g.debug_modal(), "map", "the map is open")
 	var screen: RegionMapScreen = g.map.screen
-	screen.select("forest")
-	check(screen.request_travel(), "Travel is offered for Pine Woods")
+	screen.select("convenience")
+	check(screen.request_travel(), "Travel is offered for the Corner Store")
 	check_eq(g.debug_modal(), "travel", "travelling")
 	check(screen.travelling, "the map animates the trip")
 	await frames(20)
@@ -124,27 +139,45 @@ func test_home_to_poi_and_back_with_what_eli_carries() -> void:
 	check(not screen.travelling or walker.position.distance_to(screen.view.terrain.anchor_of("home")) > 0.1, "and has moved")
 	screen.skip_travel()
 	check(await _wait_until(func(): return g.left_to != "", 60), "the scene changes after the walk")
-	check_eq(GameLaunch.site, "forest", "to Pine Woods")
+	check_eq(GameLaunch.site, "convenience", "to the Corner Store")
 	check_eq(GameLaunch.mode, "carry", "carrying the run")
 	check(GameLaunch.carry.has("home") and GameLaunch.carry.has("state"), "with the home snapshot and the state")
 	check("departed" in g.autosave_log, "the departure checkpoint (%s)" % [g.autosave_log])
-	# at the POI
+	# at the store
 	g = await _next_scene(g)
 	s = g.debug_state()
-	check(not g.is_home() and g.site_id() == "forest", "at Pine Woods")
-	check(g.world is TravelTestSite or g.world.has_method("entry_point"), "a POI world")
-	var leg := TravelRules.minutes("forest")
+	check(not g.is_home() and g.site_id() == "convenience", "at the Corner Store")
+	check(g.world is PoiWorld, "agent P's POI world")
+	var leg := TravelRules.minutes("convenience")
 	check(absf(s.total_minutes - (t_depart + leg)) < 2.0, "the road took its time (%.1f -> %.1f)" % [t_depart, s.total_minutes])
-	check_eq(s.region.visits("forest"), 1, "the visit is recorded")
 	check("arrived" in g.autosave_log, "autosaved on arrival (%s)" % [g.autosave_log])
-	check(g.levels == null and g.car == null and g.boundary == null, "no home-only helpers here")
-	check(g.travel != null and g.poi != null, "travel and the POI helper")
-	# carry something, and something in the car's cargo box
-	s.inventory.add("wood", 3)
-	if "cargo" in g.poi:
-		g.poi.cargo = {"stone": 4}
+	check(g.levels == null and g.car == null and g.boundary == null and g.security == null and g.storage == null, "no home-only helpers here")
+	check(g.travel != null and g.poi != null and g.noise != null and g.visibility != null, "travel, the POI helper, noise and visibility")
+	check(g.debug_player_pos().distance_to(g.world.entry_point()) < 0.5, "Eli starts at the entry")
+	# search a shelf and take what's there
+	var shelf := _spot_with_items(g)
+	if not check(shelf != null, "a shelf with something on it"):
+		return
+	var items: Dictionary = (g.poi.record["c"][shelf.id]["items"] as Dictionary).duplicate()
+	g.debug_teleport_player(Vector2(shelf.position.x, shelf.position.z))
+	await physics_frames(1)
+	g.poi.interact_spot(shelf)
+	await frames(2)
+	g.poi.complete_action()
+	check(g.poi.panel.is_open, "the take-only panel")
+	var before := _count(s, items)
+	var got: Dictionary = g.poi.panel.take_everything()
+	g.poi.close_panel()
+	await frames(1)
+	check(not got.is_empty() and _count(s, items) > before, "taken into the pack (%s)" % [got])
+	var carried := {}
+	for id in got:
+		carried[id] = s.inventory.count(id)
+	# leave by an exit
 	TravelFlow.skip_animation = true
-	g.leave_site()
+	var exit: Node3D = g.world.spots_of("exit")[0]
+	check_eq(exit.interact_prompt(), "[E] Leave for home", "the exit")
+	g.poi.interact_spot(exit)
 	check(await _wait_until(func(): return g.left_to != "", 30), "leaves for home")
 	check_eq(GameLaunch.site, "home", "home")
 	var t_back: float = s.total_minutes
@@ -152,9 +185,9 @@ func test_home_to_poi_and_back_with_what_eli_carries() -> void:
 	g = await _next_scene(g)
 	s = g.debug_state()
 	check(g.is_home(), "home")
-	check_eq(s.inventory.count("wood"), wood0 + 3, "what Eli carried came home")
-	if g.travel.last_cargo.has("stone"):
-		check_eq(int(g.travel.last_cargo["stone"]), 4, "the cargo was unloaded")
+	for id in carried:
+		check_eq(s.inventory.count(id), int(carried[id]), "%s came home" % id)
+	check_eq(s.region.visits("convenience"), 1, "the visit is counted")
 	check(absf(s.total_minutes - t_back) < 0.5 and t_back >= t_depart + 2 * leg - 1.0, "time passed there and back")
 	check_eq(int(g.debug_world().damage_summary()["missing_voxels"]), 0, "the house is as it was")
 	check(FogBoundary.LOT.has_point(g.debug_player_pos()), "Eli stands on the lot")
@@ -163,41 +196,47 @@ func test_home_to_poi_and_back_with_what_eli_carries() -> void:
 	check(not OffscreenHome.is_away(s), "the ledger is closed")
 
 
-func test_an_invasion_while_away_and_a_save_at_the_poi() -> void:
+func test_by_car_an_invasion_while_away_and_a_save_at_the_poi() -> void:
 	TravelFlow.skip_animation = true
 	var g: Node = await _boot("new")
 	var s: GameState = g.debug_state()
 	s.total_minutes = 10.0 * 60.0
 	s.car_repaired = true
 	s.inventory.add("fuel", 2 - s.inventory.count("fuel"))
+	var stone0 := s.inventory.count("stone")
 	await g.travel.depart("forest", true)
 	g = await _next_scene(g)
 	s = g.debug_state()
 	check(not g.is_home(), "at the POI")
-	check(g.travel.by_car(), "by car")
+	check(g.travel.by_car() and g.world.has_car, "by car, and the car stands there")
 	check_eq(s.inventory.count("fuel"), 1, "one fuel can for the trip")
+	g.poi.cargo["stone"] = 4                 # in the boot (P's live visit record)
 	# they come for the house while Eli is out
 	g.dev_trigger_invasion()
 	check(not g.debug_director().active, "no wave here")
 	check_eq(OffscreenHome.events(s).size(), 1, "recorded for the house")
 	# save here, continue here
+	var here: Vector2 = g.debug_player_pos() + Vector2(0.6, 0.0)
+	g.debug_teleport_player(here)
 	check_eq(g.debug_save(), "", "saving at a POI works")
 	var data: Dictionary = SaveGame.read().get("data", {})
 	check(typeof(data.get("site")) == TYPE_DICTIONARY and data["site"]["id"] == "forest", "the save knows the place")
-	g.debug_teleport_player(Vector2(8.0, 11.0))
-	check_eq(g.debug_save(), "", "saved again")
 	g.queue_free()
 	await frames(2)
 	g = await _boot("continue")
 	s = g.debug_state()
 	check(not g.is_home() and g.site_id() == "forest", "Continue: still at Pine Woods")
-	check(g.debug_player_pos().distance_to(Vector2(8.0, 11.0)) < 0.3, "where Eli stood (%s)" % g.debug_player_pos())
+	check(g.debug_player_pos().distance_to(here) < 0.3, "where Eli stood (%s)" % g.debug_player_pos())
+	check(g.world.has_car and int(g.poi.cargo.get("stone", 0)) == 4, "the car and its boot too")
 	check_eq(OffscreenHome.events(s).size(), 1, "the ledger survived the save")
 	check(not g.travel.home_snapshot.is_empty(), "the home snapshot came along")
 	g.leave_site()
 	check(await _wait_until(func(): return g.left_to != "", 30), "leaves for home")
 	g = await _next_scene(g)
+	s = g.debug_state()
 	check(g.is_home(), "home")
+	check_eq(int(g.travel.last_cargo.get("stone", 0)), 4, "the boot was unloaded")
+	check_eq(s.inventory.count("stone"), stone0 + 4, "into the household")
 	var rep: Dictionary = g.travel.last_report
 	check_eq(int(rep.get("attacks", 0)), 1, "one attack resolved")
 	check(int(rep.get("strikes", 0)) >= 1, "with blows on the house")

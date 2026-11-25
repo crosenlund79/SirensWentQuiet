@@ -17,8 +17,8 @@ extends Node3D
 ## See docs/experiment-002/game.md and docs/experiment-003/game.md.
 ##
 ## Exp 007 (T): two modes. At home (`site` "home") everything is as before. At
-## a POI (`site` = a RegionLocations id) the world is the POI's (TravelSites:
-## agent P's PoiWorld) and the home-only helpers (levels, car, home, support,
+## a POI (`site` = a RegionLocations id) the world is the POI's (agent P's
+## PoiWorld, PoiSite.build_world) and the home-only helpers (levels, car, home, support,
 ## comfort, balance, defense, the fog boundary, the map table) are not
 ## created; the shared gameplay (player, camera, HUD, combat, roster, bar,
 ## inventory, storage panel, research, pause, dev menu, clock and needs, audio)
@@ -223,11 +223,12 @@ func _make_home_world() -> void:
 	add_child(world)
 
 
-## Exp 007 (T): the world of the POI `id` (TravelSites: agent P's PoiWorld, or
-## the stand-in test site). Returns "" or an error.
+## Exp 007 (T): the world of the POI `id` (agent P's PoiWorld: built, lit and
+## added as "World" by PoiSite; it reads the trip from GameLaunch.carry).
+## Returns "" or an error.
 func _make_site_world(id: String) -> String:
 	site = id
-	world = TravelSites.build_world(id, self)
+	world = PoiSite.build_world(id, self)
 	if world == null:
 		return "the place %s could not be built." % RegionLocations.name_of(id)
 	if world.get_parent() == null:
@@ -249,7 +250,7 @@ func _launch_carry() -> String:
 	state = st
 	var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
 	var to := GameLaunch.site
-	if to != "home" and TravelSites.is_site(to):
+	if to != "home" and PoiDefs.has(to):
 		_loaded = {"game": home.get("game", {})}      # time scale, camera turns, the stragglers already done
 		return _make_site_world(to)
 	GameLaunch.site = "home"
@@ -372,11 +373,10 @@ func _assemble() -> void:
 		support.name = "Support"
 		add_child(support)
 		support.setup(self)
-	storage = StorageLink.new()        # Exp 005 (F): after home (lamps follow its mains)
-	storage.name = "Storage"
-	add_child(storage)
-	storage.setup(self)
-	if at_home:
+		storage = StorageLink.new()        # Exp 005 (F): after home (lamps follow its mains)
+		storage.name = "Storage"
+		add_child(storage)
+		storage.setup(self)
 		comfort = ComfortLink.new()        # Exp 005 (C): rooms, comfort and mood (after home and levels, which it reads)
 		comfort.name = "Comfort"
 		add_child(comfort)
@@ -407,7 +407,7 @@ func _assemble() -> void:
 	add_child(travel)
 	travel.setup(self)
 	if not at_home:
-		var h := TravelSites.make_helper(self)   # Exp 007 (P): looting, exits, encounters (sets `poi` itself)
+		var h := PoiSite.make_helper(self)   # Exp 007 (P): looting, exits, encounters (sets `poi` itself)
 		if poi == null and h != null:
 			poi = h
 			if h.get_parent() == null:
@@ -522,8 +522,8 @@ func _begin_carry() -> void:
 
 ## Exp 007 (T): where Eli enters a POI (PoiWorld.entry_point()).
 func _site_entry() -> Vector3:
-	var e: Variant = world.entry_point() if world.has_method("entry_point") else TravelTestSite.ENTRY
-	var v: Vector2 = e if e is Vector2 else TravelTestSite.ENTRY
+	var e: Variant = world.entry_point() if world.has_method("entry_point") else Vector2.ZERO
+	var v: Vector2 = e if e is Vector2 else Vector2.ZERO
 	return Vector3(v.x, 0.0, v.y)
 
 
@@ -1096,12 +1096,16 @@ func site_id() -> String:
 
 ## Exp 007 (T): a POI exit's "[E] Leave for home" (agent P's exits call this).
 func leave_site() -> void:
-	if travel != null and _modal == "" and not state.dead:
+	if travel == null or _modal != "" or state.dead:
+		return
+	if poi != null and is_instance_valid(poi) and poi.has_method("leave"):
+		poi.leave()                         # P: ends the visit, then travel.leave_poi()
+	else:
 		travel.leave_for_home()
 
 
 ## Exp 007 (T): the game's own reasons not to set out now ("" = go): an open
-## panel, build mode, a fight. At a POI only enemies close by hold Eli back.
+## panel, build mode, a fight. At a POI every exit works at any time (P's rule).
 func travel_block_reason(at_site := false) -> String:
 	if not _ok or state.dead:
 		return "Not now."
@@ -1110,9 +1114,6 @@ func travel_block_reason(at_site := false) -> String:
 	if director.active or state.run.get("invasion_active", false):
 		return "Not with them at the door."
 	if at_site:
-		for e in roster.positions():
-			if (e as Vector2).distance_to(player.plan_pos()) < TravelLink.NEAR_ENEMY:
-				return "Not with them this close."
 		return ""
 	if roster.living() > 0:
 		return "Not with them out there."

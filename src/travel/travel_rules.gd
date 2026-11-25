@@ -81,19 +81,13 @@ static func timing(state: GameState, id: String, car := false) -> Dictionary:
 	return {"minutes": m, "stay": stay, "now": now, "arrive_at": now + m, "back_at": back, "before_dark": ok, "text": text}
 
 
-## What Eli can bring back, as a line for the map. Agent P's carry rules
-## (src/poi) say more at the place itself.
+## What Eli can bring back, as a line for the map: agent P's pack and boot
+## limits (PoiState; weights per item).
 static func capacity_text(state: GameState, car := false) -> String:
-	var p: Variant = TravelSites.call_opt("capacity_text", [state, car], null)
-	if typeof(p) == TYPE_STRING and str(p) != "":
-		return str(p)
-	var t := "What you can carry"
-	if state != null and state.has_method("carry_multiplier") and float(state.carry_multiplier()) > 1.0:
-		t += " (backpack: +%d %%)" % int(round((float(state.carry_multiplier()) - 1.0) * 100.0))
-	else:
-		t += " (no backpack)"
+	var t := "A pack of %d" % int(round(PoiState.pack_cap(state)))
+	t += " (with your backpack)" if state != null and float(state.carry_multiplier()) > 1.0 else " (a backpack carries half again)"
 	if car:
-		t += ", plus the car's boot (about %d× as much, heavy loads too)" % int(ExpeditionData.CAR_CARRY)
+		t += ", plus the car's boot (%d)" % int(round(PoiState.CARGO_CAP))
 	return t + "."
 
 

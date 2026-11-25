@@ -96,7 +96,7 @@ static func finish(state: GameState) -> void:
 
 ## The house's passive defence: {"score", "doors", "boards", "spikes",
 ## "bridges", "walls" (0..1 integrity), "open_doors", "security"}.
-static func defence(world: HouseWorld) -> Dictionary:
+static func defence(world: HouseWorld, worlds: Array = []) -> Dictionary:
 	var out := {"score": 0.0, "doors": 0, "boards": 0, "spikes": 0, "bridges": 0, "walls": 0.0, "open_doors": 0, "security": 0.0}
 	if world == null:
 		return out
@@ -137,28 +137,18 @@ static func defence(world: HouseWorld) -> Dictionary:
 	if n > 0:
 		out["walls"] = sum / n
 		score += 2.0 * (sum / n) * (mat_sum / n)
-	var sec := security_strength(world)
+	var sec := security_strength(worlds if not worlds.is_empty() else world)
 	out["security"] = float(sec.get("score", 0.0))
 	score += out["security"]
 	out["score"] = maxf(score, 0.0)
 	return out
 
 
-## Agent S's offscreen turret/sensor strength, when the Security module is in
-## the project ({} otherwise).
-static func security_strength(world: HouseWorld) -> Dictionary:
-	var s := _security()
-	if s == null or not TravelSites.has_static(s, "offscreen_strength"):
-		return {}
-	var r: Variant = s.call("offscreen_strength", world)
+## Agent S's offscreen turret/sensor strength (Security.offscreen_strength:
+## a world or an Array of the storeys).
+static func security_strength(world: Variant) -> Dictionary:
+	var r: Variant = Security.offscreen_strength(world)
 	return r if typeof(r) == TYPE_DICTIONARY else {}
-
-
-static func _security() -> Script:
-	for c in ProjectSettings.get_global_class_list():
-		if str(c.get("class", "")) == "Security":
-			return load(str(c["path"]))
-	return null
 
 
 ## How many blows one attack lands on the house.
@@ -171,7 +161,7 @@ static func strikes_for(threat: float, defence_score: float, invasion: bool) -> 
 ## Resolves the ledger on the restored home world. Returns {"lines": [String],
 ## "strikes": n, "destroyed": [kinds], "water": n, "attacks": n}.
 ## `seed` keeps it deterministic.
-static func resolve(world: HouseWorld, state: GameState, seed := 0) -> Dictionary:
+static func resolve(world: HouseWorld, state: GameState, seed := 0, worlds: Array = []) -> Dictionary:
 	var out := {"lines": [], "strikes": 0, "destroyed": [], "water": 0, "attacks": 0}
 	var evs := events(state).duplicate()
 	evs.sort_custom(func(a, b): return float(a.get("at", 0.0)) < float(b.get("at", 0.0)))
@@ -190,7 +180,7 @@ static func resolve(world: HouseWorld, state: GameState, seed := 0) -> Dictionar
 		if kind != "invasion" and kind != "straggler" or world == null:
 			continue
 		out["attacks"] += 1
-		var r := _attack(world, state, kind == "invasion", maxf(float(e.get("size", 1)), 1.0), rng)
+		var r := _attack(world, state, kind == "invasion", maxf(float(e.get("size", 1)), 1.0), rng, worlds)
 		out["strikes"] += int(r["strikes"])
 		out["destroyed"].append_array(r["destroyed"])
 		out["lines"].append(_line(kind, at, int(e.get("size", 1)), r))
@@ -199,8 +189,8 @@ static func resolve(world: HouseWorld, state: GameState, seed := 0) -> Dictionar
 	return out
 
 
-static func _attack(world: HouseWorld, state: GameState, invasion: bool, threat: float, rng: RandomNumberGenerator) -> Dictionary:
-	var d := defence(world)
+static func _attack(world: HouseWorld, state: GameState, invasion: bool, threat: float, rng: RandomNumberGenerator, worlds: Array = []) -> Dictionary:
+	var d := defence(world, worlds)
 	var n := strikes_for(threat, float(d["score"]), invasion)
 	var before := int(world.damage_summary().get("missing_voxels", 0))
 	var destroyed := []
@@ -216,12 +206,12 @@ static func _attack(world: HouseWorld, state: GameState, invasion: bool, threat:
 		world.enemy_strike(Vector3(stand.x, 0.0, stand.y), wp["target"], STRIKE_STRENGTH if invasion else 1.0)
 	world.object_destroyed.disconnect(listener)
 	var rounds := 0
-	var sec := _security()
-	var strength := security_strength(world)
-	if sec != null and TravelSites.has_static(sec, "consume_offscreen") and int(strength.get("turrets", 0)) > 0:
+	var all: Variant = worlds if not worlds.is_empty() else world
+	var strength := security_strength(all)
+	if int(strength.get("turrets", 0)) > 0:
 		rounds = mini(int(strength.get("ammo", 0)), int(ceil(threat * 2.0)))
 		if rounds > 0:
-			sec.call("consume_offscreen", world, rounds)
+			rounds = Security.consume_offscreen(all, rounds)
 	var after := int(world.damage_summary().get("missing_voxels", 0))
 	return {"strikes": n, "destroyed": destroyed, "voxels": maxi(after - before, 0), "rounds": rounds, "defence": d["score"]}
 

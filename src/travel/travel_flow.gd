@@ -16,10 +16,12 @@ extends Node
 ##    minutes pass on the clock, the region records the visit (visits, last
 ##    day, discovery; 30 % to spot a new place nearby, TravelRules), Eli
 ##    stands at the POI's entry, autosave "arrived".
-## 4. An exit's "[E] Leave for home" (P's, or the test site's) calls
-##    game.leave_site() -> leave_for_home(): the return animation, the road's
-##    minutes, the car's cargo box (P's poi.take_cargo()), then a scene change
-##    home with {"state", "home", "travel", "cargo"}.
+## 4. An exit's "[E] Leave for home": agent P's helper ends the visit
+##    (game.poi.finish(): the place's stock and visit count, GameLaunch.carry
+##    ["poi"] = {site, by_car, cargo, pack, left}) and calls leave_poi() ->
+##    leave_for_home(): the return animation, the road's minutes, then a
+##    scene change home with {"state", "home", "travel", "cargo", "poi"}.
+##    Every exit works at any time (P's rule), enemies or not.
 ## 5. Home (arrive() -> arrive_home()): the house is the snapshot (the game loaded it),
 ##    the attacks recorded while away are resolved (OffscreenHome), the car's
 ##    cargo goes into the household (leftovers into a pile by the car), Eli
@@ -35,7 +37,6 @@ extends Node
 ## fuel, car repair, skip the animation.
 
 const RunSave := preload("res://src/game/run_save.gd")
-const NEAR_ENEMY := 9.0                 ## metres: an enemy this close keeps Eli from leaving a POI
 
 static var skip_animation := false      ## F10 toggle and tests: no map animation (the time still passes)
 
@@ -125,15 +126,26 @@ func arrive_at_site() -> void:
 	if s.dead:
 		return
 	var found := TravelRules.roll_discovery(s, id, int(s.run.get("seed", 0)) * 7 + s.region.visits(id) * 131 + id.hash())
-	var disc := [found] if found != "" else []
-	s.region.apply_result({"id": "visit:%s:%d" % [id, int(s.total_minutes)], "location": id, "day": s.day(), "discovered": disc})
+	var poi: Variant = game.get("poi")
+	if poi is Object and is_instance_valid(poi) and poi.has_method("finish"):
+		s.region.discover(id)                  # P counts the visit, the day and the stock when it ends
+		if found != "":
+			s.region.discover(found)
+	else:
+		var disc := [found] if found != "" else []
+		s.region.apply_result({"id": "visit:%s:%d" % [id, int(s.total_minutes)], "location": id, "day": s.day(), "discovered": disc})
 	game.toast("%s. Look around, and leave through an exit when you're done." % RegionLocations.name_of(id), "info")
 	if found != "":
 		game.toast("On the way you spotted %s. It's on your map now." % RegionLocations.name_of(found), "good")
 	game._autosave("arrived")
 
 
-## "[E] Leave for home" at a POI exit (game.leave_site()). Returns "" or why not.
+## Agent P's helper calls this after finish() ("[E] Leave for home").
+func leave_poi() -> String:
+	return await leave_for_home()
+
+
+## Back home from a POI (leave_poi, game.leave_site(), F10). Returns "" or why not.
 func leave_for_home(instant := false) -> String:
 	if busy:
 		return "busy"
@@ -148,10 +160,12 @@ func leave_for_home(instant := false) -> String:
 	var car := by_car()
 	var minutes := 0 if instant else TravelRules.minutes(id, car)
 	var cargo := {}
+	var fin := {}
 	var poi: Variant = game.get("poi")
-	if poi is Object and is_instance_valid(poi) and poi.has_method("take_cargo"):
-		var c: Variant = poi.take_cargo()
-		cargo = c if typeof(c) == TYPE_DICTIONARY else {}
+	if poi is Object and is_instance_valid(poi) and poi.has_method("finish"):
+		var f: Variant = poi.finish()          # P: ends the visit once (idempotent); the cargo left the inventory
+		fin = f if typeof(f) == TYPE_DICTIONARY else {}
+		cargo = fin.get("cargo", {}) if typeof(fin.get("cargo")) == TYPE_DICTIONARY else {}
 	var t0 := s.total_minutes
 	game._set_modal("travel", true)
 	Sfx.play_first(["travel/car_start", "car/start"] if car else ["travel/depart", "ui/open"])
@@ -165,7 +179,7 @@ func leave_for_home(instant := false) -> String:
 	GameLaunch.site = "home"
 	GameLaunch.mode = "carry"
 	GameLaunch.carry = {"state": s.to_dict(), "home": home_with_director(),
-		"travel": {"from": id, "car": car, "minutes": minutes, "depart_at": t0, "leg": "back"}, "cargo": cargo}
+		"travel": {"from": id, "car": car, "minutes": minutes, "depart_at": t0, "leg": "back"}, "cargo": (cargo as Dictionary).duplicate(), "poi": fin}
 	busy = false
 	game.change_scene_to_site()
 	return ""
@@ -216,7 +230,7 @@ func restore_poi(d: Variant) -> void:
 ## while away, unload the car, report, autosave "returned".
 func arrive_home(cargo: Dictionary) -> void:
 	var s: GameState = game.state
-	last_report = OffscreenHome.resolve(game.world, s, int(s.run.get("seed", 0)) * 13 + int(s.total_minutes))
+	last_report = OffscreenHome.resolve(game.world, s, int(s.run.get("seed", 0)) * 13 + int(s.total_minutes), _home_worlds())
 	OffscreenHome.finish(s)
 	last_cargo = _unload(cargo)
 	var where := RegionLocations.name_of(str(info.get("from", "")))
@@ -232,6 +246,19 @@ func arrive_home(cargo: Dictionary) -> void:
 		s._log("While away: " + str(l))
 	GameLaunch.carry = {}
 	game._autosave("returned")
+
+
+## Every storey of the house (the ground floor first), for the security
+## module's turrets on any storey.
+func _home_worlds() -> Array:
+	var out: Array = [game.world]
+	var l: Variant = game.get("levels")
+	if l is Object and is_instance_valid(l) and l.has_method("storeys") and l.has_method("world_of"):
+		for st in l.storeys():
+			var w: Variant = l.world_of(st)
+			if w is HouseWorld and not out.has(w):
+				out.append(w)
+	return out
 
 
 ## The car's cargo into the household: what fits into the inventory, the rest
