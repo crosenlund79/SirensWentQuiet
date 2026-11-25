@@ -341,7 +341,7 @@ func _build() -> void:
 	_status.name = "SaveStatus"
 	menu.add_child(_status)
 
-	var foot := UiTheme.make_label("Experiment 004 · Make This House a Home · %s" % str(ProjectSettings.get_setting("application/config/version", "")), 12, UiTheme.TEXT_FAINT)
+	var foot := UiTheme.make_label("Experiment 006 · Defensive Living · %s" % str(ProjectSettings.get_setting("application/config/version", "")), 12, UiTheme.TEXT_FAINT)
 	foot.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	foot.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	foot.offset_left = 128
