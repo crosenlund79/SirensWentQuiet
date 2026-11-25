@@ -11,6 +11,8 @@ extends RefCounted
 ##   invasion_interval_days       the invasion grid (GameState._invasion_slot_after)
 ## The rest (threat budget, bombers, specials, loot, scavenge_danger) is read by
 ## AI and X directly.
+## Exp 006 (B): enemy_speed (x the archetype speed) and enemy_attack_interval
+## (x the time between swings) are read by EnemyDefs.stats.
 
 const LEVELS := ["easy", "normal", "hard"]
 const DEFAULT := "normal"
@@ -24,6 +26,7 @@ const DEFS := {
 		"bomber_from_invasion": 4,      ## never in the opening days on Easy
 		"special_from_invasion": 2,     ## runners / brutes from this invasion
 		"loot": 1.25, "scavenge_danger": 0.8, "start_rounds": 12,
+		"enemy_speed": 0.85, "enemy_attack_interval": 1.2,     # Exp 006 (B)
 	},
 	"normal": {
 		"name": "Normal", "desc": "The intended experience.",
@@ -33,6 +36,7 @@ const DEFS := {
 		"bomber_from_invasion": 3,
 		"special_from_invasion": 1,
 		"loot": 1.0, "scavenge_danger": 1.0, "start_rounds": 9,
+		"enemy_speed": 1.0, "enemy_attack_interval": 1.0,      # Exp 006 (B)
 	},
 	"hard": {
 		"name": "Hard", "desc": "Scarce supplies, frequent and mixed invasions, bombers early.",
@@ -42,6 +46,7 @@ const DEFS := {
 		"bomber_from_invasion": 2,
 		"special_from_invasion": 1,
 		"loot": 0.8, "scavenge_danger": 1.25, "start_rounds": 9,
+		"enemy_speed": 1.12, "enemy_attack_interval": 0.88,    # Exp 006 (B)
 	},
 }
 

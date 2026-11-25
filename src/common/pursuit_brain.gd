@@ -46,6 +46,11 @@ var attack_goal := true       ## swing at the goal when close (false: arrive and
 var arrive_radius := 0.3      ## m; with attack_goal off, "arrived" inside this
 var bash := true              ## swing at walls on the path
 var planner: Object = null    ## find_path(from, to) provider; null = nav
+## Exp 006 (B): per-instance pace (defaults = the old constants; AIEnemy sets
+## them from EnemyDefs, the Experiment 001 demos keep the defaults).
+var repath_interval := Tuning.ENEMY_REPATH_INTERVAL
+var stuck_time := STUCK_TIME
+var progress_time := PROGRESS_TIME
 
 var _repath_timer := 0.0
 var _nav_revision := -1
@@ -119,7 +124,7 @@ func update(delta: float, pos: Vector2, player: Vector2) -> Dictionary:
 		result["move"] = _sidestep
 		result["face"] = _sidestep
 		return result
-	if _progress_t >= PROGRESS_TIME:
+	if _progress_t >= progress_time:
 		result["stalled"] = true
 		_progress_t = 0.0
 		_best_left = left
@@ -155,7 +160,7 @@ func update(delta: float, pos: Vector2, player: Vector2) -> Dictionary:
 				if pos.distance_to(nav.center_of(c)) <= reach:
 					return _wall_swing(result, pos, c)
 				break
-		if first_tight.x >= 0 and _stuck_timer >= STUCK_TIME:
+		if first_tight.x >= 0 and _stuck_timer >= stuck_time:
 			var w := nav.nearest_raw_wall(first_tight, pos, 1)
 			if w.x >= 0 and pos.distance_to(nav.center_of(w)) <= reach:
 				return _wall_swing(result, pos, w)
@@ -213,7 +218,7 @@ func _remaining(pos: Vector2) -> float:
 func _repath(pos: Vector2, player: Vector2) -> void:
 	path = planner.find_path(pos, player) if planner != null else nav.find_path(pos, player)
 	path_index = 1 if path.size() > 1 else 0
-	_repath_timer = Tuning.ENEMY_REPATH_INTERVAL
+	_repath_timer = repath_interval
 	_nav_revision = nav.revision
 	_cum.resize(path.size())
 	var acc := 0.0

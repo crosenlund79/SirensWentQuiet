@@ -35,6 +35,7 @@ var level := "normal"
 var invasion := 1
 var max_hp := Tuning.ENEMY_HP
 var damage_scale := 1.0             ## x GameState.enemy_damage() per player hit
+var windup := SWING_IMPACT          ## Exp 006 (B): s from a swing's start to its impact (EnemyDefs "windup")
 var wall_strikes := 1               ## world.enemy_strike calls per wall swing
 var blast_damage := 0.0             ## bomber: character damage at the centre
 var small_damage := 0.0             ## bomber: the pop when killed mid-fuse
@@ -78,8 +79,13 @@ func configure(k: String, w: HouseWorld, target: Node3D, opts := {}) -> void:
 	brain = PursuitBrain.new(nav)
 	brain.speed = float(def["speed"]) * speed_scale
 	brain.attack_range = float(def["attack_range"])
-	brain.attack_interval = float(def["attack_interval"])
+	brain.attack_interval = float(def["attack_interval"]) * float(st.get("attack_scale", 1.0))
 	brain.reach = float(def["reach"])
+	# Exp 006 (B): quicker re-targeting and less time stuck (EnemyDefs; old values as fallbacks)
+	brain.repath_interval = float(def.get("repath", Tuning.ENEMY_REPATH_INTERVAL))
+	brain.stuck_time = float(def.get("stuck", PursuitBrain.STUCK_TIME))
+	brain.progress_time = float(def.get("progress", PursuitBrain.PROGRESS_TIME))
+	windup = float(def.get("windup", SWING_IMPACT * (1.4 if kind == "brute" else 1.0)))
 	brain.planner = WeightedNav.for_nav(nav, float(def["bash_weight"]))
 	behaviour = EnemyBehaviour.make(str(def["behaviour"]))
 	behaviour.configure(self)
@@ -215,7 +221,7 @@ func _physics_process(delta: float) -> void:
 		rig.swing = 1.0
 		_swing_kind = r["swing"]
 		_swing_target = r["target"]
-		_swing_pending = SWING_IMPACT * (1.4 if kind == "brute" else 1.0)
+		_swing_pending = windup        # Exp 006 (B): per archetype (was 0.28 s, x1.4 for the brute)
 	if _swing_pending > 0.0:
 		_swing_pending -= delta
 		if _swing_pending <= 0.0 and alive:

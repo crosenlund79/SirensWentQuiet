@@ -41,21 +41,24 @@ func _bash_cells(nav: GridNav, path: PackedVector2Array) -> int:
 
 
 func test_ai_archetype_stats_and_difficulty_scaling() -> void:
+	# Exp 006 (B): faster, quicker-swinging archetypes; the order between them stays
 	var p := EnemyDefs.get_def("psycho")
-	check(is_equal_approx(p["speed"], Tuning.ENEMY_SPEED) and p["hp"] == Tuning.ENEMY_HP, "psycho = the Experiment 002 baseline")
+	check(p["speed"] > Tuning.ENEMY_SPEED and p["speed"] < 2.2 and p["hp"] == Tuning.ENEMY_HP, "psycho: faster than Experiment 002 (about 1.85 m/s), 3 hp")
 	check(is_equal_approx(p["bash_weight"], GridNav.BASH_WEIGHT) and p["wall_strikes"] == 1, "psycho bashes like before")
-	check(is_equal_approx(p["attack_interval"], Tuning.ENEMY_ATTACK_INTERVAL) and is_equal_approx(p["attack_range"], Tuning.ENEMY_ATTACK_RANGE), "psycho swings like before")
+	check(p["attack_interval"] < Tuning.ENEMY_ATTACK_INTERVAL and float(p["windup"]) < AIEnemy.SWING_IMPACT, "psycho swings sooner and more often")
 	var r := EnemyDefs.get_def("runner")
-	check(r["speed"] >= 2.4 and r["speed"] <= 2.8 and r["hp"] <= 2, "runner: about 2.6 m/s, 1-2 hp")
+	check(r["speed"] >= p["speed"] * 1.5 and r["speed"] < Tuning.PLAYER_SPEED and r["hp"] <= 2, "runner: clearly faster than the psycho, under the player's walk, 1-2 hp")
 	check(r["bash_weight"] > p["bash_weight"] * 3.0, "runner: high bash cost (prefers openings)")
 	var b := EnemyDefs.get_def("brute")
-	check(b["speed"] <= 1.1 and b["hp"] >= 8, "brute: about 1 m/s, 8 hp")
+	check(b["speed"] < p["speed"] and b["hp"] >= 8 and b["player_damage"] > p["player_damage"] * 1.5, "brute: slowest, 8 hp, hits hardest")
 	check(b["wall_strikes"] >= 3 and b["bash_weight"] < p["bash_weight"], "brute: three strikes a swing, happy to bash")
 	check(b["knockback"] <= 0.2 and b["stagger"] < 0.5, "brute: knockback resistant")
 	check((b["scale"] as Vector3).y > 1.15, "brute: a bigger rig")
 	var x := EnemyDefs.get_def("bomber")
-	check(x["behaviour"] == "bomber" and x["hp"] == 2 and absf(x["speed"] - 1.6) < 0.2, "bomber: 2 hp, about 1.6 m/s")
-	check(absf(x["fuse"] - 2.5) < 0.01 and x["wall_strikes"] == 0 and x["player_damage"] == 0.0, "bomber: 2.5 s fuse, never swings")
+	check(x["behaviour"] == "bomber" and x["hp"] == 2 and absf(x["speed"] - 2.0) < 0.2, "bomber: 2 hp, about 2 m/s")
+	check(absf(x["fuse"] - 2.2) < 0.01 and x["wall_strikes"] == 0 and x["player_damage"] == 0.0, "bomber: 2.2 s fuse, never swings")
+	check(EnemyDefs.stats("psycho", "easy", 1)["attack_scale"] > 1.0 and EnemyDefs.stats("psycho", "hard", 1)["attack_scale"] < 1.0,
+		"swings are slower on Easy and quicker on Hard")
 	for k in EnemyDefs.KINDS:
 		var e := EnemyDefs.stats(k, "easy", 1)
 		var n := EnemyDefs.stats(k, "normal", 1)
