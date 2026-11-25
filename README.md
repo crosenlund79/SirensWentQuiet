@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 006 — Defensive Living**, built on Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 007 — The House Has Ears / Beyond the Front Door**, built on Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -32,12 +32,25 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
   - A backpack carries half as much again.
   - A flashlight and a crowbar open places and choices on expeditions.
 - **Weapons:** handgun (9 mm, magazine) and shotgun (shells loaded one by one, a spread of pellets). The shotgun is found while scavenging.
-- **The region map (M, or the map on the dining table):** a voxel miniature of the region with drifting clouds and 25 places in five kinds: homes, food, medical, construction (including the Pine Woods, a wood source near home) and weapons.
-  - Places you haven't found show as unknown.
-  - Pick a place and a purpose to plan a trip; planning takes no game time.
-- **The fog:** walk to the edge of the lot and press **E**. The expedition screen preselects your plan.
-  - Approaches: general scavenging, targeted collection (much more of one thing), careful exploration (slower, safer, finds new places) and a high-risk raid.
-  - Each trip costs travel time and has risk, loot and short decision events. Places run low when you strip them and slowly recover.
+- **Scavenging (Experiment 007): you go there yourself.**
+  1. **Choose a place:** open the region map (M, the map on the dining table, or **E** at the fog edge) and pick a known place. The panel shows:
+     - the travel time on foot and by car, and the route;
+     - what you might find and the danger;
+     - fuel, if going by car;
+     - your carrying limit;
+     - whether you'll be back before dark.
+  2. **Travel:** press **Travel** (C switches on foot / by car). Eli, or the car, moves along the roads on the map while time passes; Space skips the animation.
+  3. **The place:** you arrive in a playable place, the same game in a different location.
+     - **Pine Woods:** chop fallen trees for planks, search a shelter.
+     - **Corner Store:** aisles, fridges, a locked stockroom.
+     - **Public Library:** books and manuals in the stacks, a dark locked archive.
+     - **Every other place:** a placeholder layout for now.
+  4. **Searching:** **E** at shelves, fridges, desks and crates. It takes a little time, can come up empty, and makes some noise.
+     - You take what you choose, within your pack limit (more with a backpack, plus the car's boot when you drive).
+     - A crowbar opens locked rooms; a flashlight lights dark ones.
+  5. **People:** someone may be there, may wander in, or nobody at all. They stay calm until they hear or see you. Fight, sneak or just leave.
+  6. **Leaving:** **[E] Leave for home** at any exit, at any time. You travel back and arrive home with exactly what you carried. Places stay looted and only slowly recover.
+  - **While you're away,** attacks still come. Your defences (doors, barricades, spikes, moats with raised drawbridges, walls, and turrets with ammo) decide the damage. On return a short report tells you what happened.
 - **Building (B):** wood, stone and iron.
   - Stone walls need a foundation (the house floor or a stone foundation).
   - Iron makes barricades, reinforced doors and plating.
@@ -76,6 +89,8 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | E | Use the bed, a door, a crate, a collector, the workbench, the map table or the fuse box; light or put out the fireplace (relighting costs a plank); a room's wall switch or a lamp; drink at the kitchen sink, eat from the fridge; inspect or repair the car; take the stairs; at the lot edge, head into the fog |
 | I / Tab | Inventory and equipment (1–8 + **Bar** puts an item on the quick-access bar) |
 | M | Region map (Esc or M closes it) |
+| O | House overview (at home): 1–4 modes, PgUp/PgDn levels, Z/C turn, O/Esc leave |
+| K | Skills and research |
 | B | Build mode (see below) |
 | Mouse wheel | Zoom |
 | Z / C | Turn the view 90° left / right around you (WASD follows the screen) |
@@ -138,6 +153,17 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 
 **Building from storage:** building, repairing and upgrading also take materials stored in your cupboards, chests and shelves. Eating, the quick bar and crafting still use only what you carry.
 
+**The house has ears (Experiment 007):**
+- **Noise:** hammering, drilling, smashing, gunfire, alarms and explosions make noise that nearby enemies hear. It's muffled in central rooms and basements, louder outdoors and through open doors and breaches. Noise never spawns enemies.
+- **Stragglers** on ordinary nights may pass by, look in a window, test a door or lose interest. They turn hostile when provoked.
+- **Room visibility:** you see the room you're in. Rooms behind closed doors hide their contents (enemies included) until you open the door.
+- **O: the house overview.** Four modes (1 complete, 2 roofless, 3 cutaway, 4 blueprint), PgUp/PgDn for levels, Z/C to turn, O/Esc to leave.
+- **Observation holes:** put the drill on the bar and use it on a wooden wall, door or barricade; it takes time and makes noise. At the hole, **E** looks through and **F** covers it.
+- **Electronic security** (research Basic Electronics → Automated Defense Systems; electronic components from scavenging):
+  - **Motion sensors** send a toast, a blinking marker and an optional alarm.
+  - **Turret mounts:** install your own handgun or shotgun and fill its ammo box with real ammunition. Without the auto-loader upgrade (45 game minutes to install), you reload it by hand.
+  - **Settings:** E at either one opens its panel.
+
 **Audio inbox:** drop sounds into `assets/audio inbox/`; the existing upload in `assets/audio/_inbox/` is read too. Descriptive names map to game sounds automatically (see `assets/audio inbox/README.md` and `docs/experiment-005/AUDIO.md`).
 
 **Replacing walls:** pick the other material and build over an existing wall (yours or the house's). It is one action: the old wall comes down with its usual refund (yours in full, the house's as salvage), the new one is paid, and only the difference changes hands. If you can't pay the difference, or the new wall can't stand there, nothing changes. Iron plating stays on. In a run, empty sections are built, other walls replaced, and doors, windows and walls already of that material are skipped. It works upstairs too.
@@ -188,6 +214,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-007/REPORT.md`: the Experiment 007 report (playable scavenging, noise, visibility, overview, holes, security); `AUDIO_REQUIREMENTS.md` (what to record next)
 - `docs/experiment-006/REPORT.md`: the Experiment 006 report (Defensive Living)
 - `docs/experiment-005/REPORT.md`: the Experiment 005 report (A House Worth Living In); `AUDIO.md`, `AUDIO_REQUIREMENTS.md` (what to record next)
 - `docs/experiment-004/REPORT.md`: the Experiment 004 report (Make This House a Home)
