@@ -75,6 +75,11 @@ const DEFS := {
 	"spikes_metal": {"name": "Metal spikes", "hp": 26, "size": Vector3(1.0, 0.85, 0.5), "segment": true, "layers": 2, "impact": VoxelMat.Impact.METAL},
 	"drawbridge_1": {"name": "Drawbridge", "hp": 24, "size": Vector3(1.0, 0.12, 1.0), "segment": false, "layers": 2, "impact": VoxelMat.Impact.WOOD},
 	"drawbridge_2": {"name": "Long drawbridge", "hp": 32, "size": Vector3(1.0, 0.12, 2.0), "segment": false, "layers": 2, "impact": VoxelMat.Impact.WOOD},
+	# Exp 007 (S): security (src/security/). A sensor on a thin post blocks
+	# nothing; a turret mount stops bullets and bodies and is bashed like a
+	# barricade when it stands in the way. Their settings live in `sec`.
+	"motion_sensor": {"name": "Motion sensor", "hp": 6, "size": Vector3(0.3, 2.0, 0.3), "segment": false, "layers": 0, "impact": VoxelMat.Impact.METAL},
+	"turret_mount": {"name": "Turret mount", "hp": 30, "size": Vector3(0.6, 1.2, 0.6), "segment": false, "layers": 1, "impact": VoxelMat.Impact.METAL},
 }
 ## Material variants (Experiment 003). "wood" is DEFS itself; others override
 ## name, hp, the PropKit style and the impact kind.
@@ -107,6 +112,7 @@ var lift := 0.0                  ## a table lamp standing on a surface: the surf
 var lamp_on := true              ## a lamp's own switch (saved)
 var powered := false             ## the house has power (set by the game's storage helper)
 var media_on := false            ## Exp 006 (B): a TV's or radio's own switch (saved as "on")
+var sec := {}                    ## Exp 007 (S): a sensor's or turret's settings (Security; saved as "sec")
 var _lamp_light: OmniLight3D
 
 static var _next_uid := 1
@@ -188,7 +194,7 @@ func setup(k: String, p: Vector2, r: int, w: Node, is_built := true, m := "wood"
 	if is_segment_kind(k):
 		seg = segment_of(p, rot)
 	name = "%s_%d_%d" % [k, int(round(p.x * 10)), int(round(p.y * 10))]
-	if FurnitureCatalog.is_furniture(k) or k == "loot_pile":
+	if FurnitureCatalog.is_furniture(k) or k == "loot_pile" or Security.is_kind(k):      # Exp 007 (S): sensors link turrets by uid
 		uid = new_uid()
 
 
@@ -242,7 +248,7 @@ func display_name() -> String:
 
 ## Debris colours when this object is hit or breaks (0xRRGGBB).
 func debris_tones() -> Array:
-	return IRON_TONES if mat != "wood" or kind == "fuse_box" or kind == "spikes_metal" else WOOD_TONES
+	return IRON_TONES if mat != "wood" or kind == "fuse_box" or kind == "spikes_metal" or Security.is_kind(kind) else WOOD_TONES   # Exp 007 (S)
 
 
 func damage_fraction() -> float:
@@ -257,8 +263,10 @@ func nav_kind() -> int:
 			return -1 if open else GridNav.WALL
 		"barricade", "boards":
 			return GridNav.WALL
-		"fuse_box", "loot_pile":
+		"fuse_box", "loot_pile", "motion_sensor":      # Exp 007 (S): a sensor post
 			return -1
+		"turret_mount":                       # Exp 007 (S): bashed through like a barricade
+			return GridNav.WALL
 		"spikes_wood", "spikes_metal":       # Exp 006 (D): bashed through like a barricade
 			return GridNav.WALL
 		"drawbridge_1", "drawbridge_2":      # Exp 006 (D): over the trench; raised it's bashed like a door
@@ -277,7 +285,7 @@ func bashable() -> bool:
 		return not FurnitureCatalog.is_flat(kind)
 	if DefenseGrid.is_bridge(kind):          # Exp 006 (D): a raised drawbridge
 		return not open
-	return kind in ["barricade", "boards", "fuse_box", "spikes_wood", "spikes_metal"] or (kind == "door" and not open)
+	return kind in ["barricade", "boards", "fuse_box", "spikes_wood", "spikes_metal", "turret_mount"] or (kind == "door" and not open)   # Exp 007 (S): + turret
 
 
 ## Returns true when this hit destroyed the object.
@@ -353,6 +361,8 @@ func to_dict() -> Dictionary:
 		d["on"] = lamp_on
 	elif FurnitureCatalog.is_media(kind):      # Exp 006 (B)
 		d["on"] = media_on
+	if not sec.is_empty():
+		d["sec"] = sec.duplicate()            # Exp 007 (S)
 	return d
 
 
@@ -372,6 +382,9 @@ func apply_extra(e: Dictionary) -> void:
 			media_on = e["on"]
 		else:
 			set_lamp(e["on"])
+	if e.get("sec") is Dictionary and Security.is_kind(kind):      # Exp 007 (S): cleaned by HouseWorld._valid_extra
+		sec = (e["sec"] as Dictionary).duplicate()
+		_refresh_visual()
 
 
 ## Exp 005 (F): a moved original's own size (before it is in the tree).
@@ -465,6 +478,8 @@ func interact_prompt() -> String:
 			return HouseMedia.prompt(kind, media_on)
 		"drawbridge_1", "drawbridge_2":      # Exp 006 (D)
 			return DefenseObjects.bridge_prompt(self)
+		"motion_sensor", "turret_mount":      # Exp 007 (S)
+			return SecurityObjects.prompt(self)
 	if storage_type() != "":
 		return "[E] Open the %s (%s)" % [FurnitureStorage.name_of(kind).to_lower(), FurnitureStorage.fill_text(kind, items)]
 	return ""
@@ -516,6 +531,12 @@ func interact(game: Node) -> void:
 				game.toast("Nothing. There's no power.", "warn")
 			if world != null and world.has_signal("furniture_layout_changed"):
 				world.emit_signal("furniture_layout_changed")
+		"motion_sensor", "turret_mount":      # Exp 007 (S): the game's security helper (panel, hand reload)
+			var sh: Variant = game.get("security") if game != null else null
+			if sh is Object and is_instance_valid(sh) and sh.has_method("interact"):
+				sh.interact(self)
+			elif game != null and game.has_method("toast"):
+				game.toast("%s." % Security.title(self), "info")
 		"tv_stand", "radio":      # Exp 006 (B): the game's balance helper switches it (power, effects)
 			var b: Variant = game.get("balance") if game != null else null
 			if b is Object and is_instance_valid(b) and b.has_method("toggle_object"):
@@ -545,6 +566,8 @@ func _refresh_visual() -> void:
 	var seed := (hash(uid) if uid != "" else hash(name)) & 0xffff
 	if DefenseObjects.handles(kind):          # Exp 006 (D): spikes and drawbridges
 		visual = DefenseObjects.make(kind, s, seed, damage_fraction())
+	elif SecurityObjects.handles(kind):       # Exp 007 (S): sensors and turret mounts
+		visual = SecurityObjects.make_for(self, s, seed, damage_fraction())
 	else:
 		visual = PropKit.make(kind, s, {"facing": "N", "seed": seed, "damage": damage_fraction(), "style": style})
 	visual.name = "Visual"

@@ -10,7 +10,7 @@ extends RefCounted
 ## UiTheme and UiIcons only, so the central restyle applies.
 
 const WIDTH := 470
-const WHERE := "Mostly the Public Library (a crowbar opens its locked archive; a flashlight helps in the stacks). Sometimes the hardware store, the construction site or the police station; rarely the military outpost."
+const WHERE := "Mostly the Public Library (a crowbar opens its locked archive; a flashlight helps in the stacks). Sometimes the hardware store, the construction site or the police station; rarely the military outpost. Electronics manuals: the hardware store, the police station, the military outpost, the site office and the library."   # Exp 007 (S)
 
 
 ## Fills the inventory panel's two columns. `panel` gets the Read presses
@@ -34,7 +34,7 @@ static func _build_tree(box: VBoxContainer, state: GameState) -> void:
 	var head := UiTheme.make_label("%d of %d skills known" % [n, tree.size()], UiTheme.FONT_BODY)
 	head.name = "SkillsKnown"
 	box.add_child(head)
-	box.add_child(UiTheme.make_caption("Simple wooden building needs no study. Each skill needs the one above it.", WIDTH, UiTheme.TEXT_FAINT))
+	box.add_child(UiTheme.make_caption("Simple wooden building needs no study. Two lines: building (each step needs the one above it) and electronics (Basic electronics first).", WIDTH, UiTheme.TEXT_FAINT))   # Exp 007 (S): two lines
 	for t in tree:
 		box.add_child(_skill_card(t, state))
 

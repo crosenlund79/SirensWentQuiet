@@ -662,7 +662,7 @@ func _update_enemies() -> void:
 			var to_s := a.storey + signi(Levels.GROUND - a.storey)
 			move_enemy(a, to_s, Levels.exit_point(back, to_s) if not back.is_empty() else p)
 			continue
-		if a.storey == player_storey or a.retreating or str(a.def.get("behaviour", "chase")) != "chase":
+		if a.storey == player_storey or a.retreating or a.mind != null or str(a.def.get("behaviour", "chase")) != "chase":   # Exp 007 (N): + calm
 			a.goal_override = Vector2.INF
 			continue
 		var st := Levels.route(stairs, a.storey, player_storey, p)

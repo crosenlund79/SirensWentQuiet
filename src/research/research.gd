@@ -42,9 +42,18 @@ const SKILLS := {
 	"advanced_metal": {"name": "Advanced metal fabrication", "book": "book_advanced_metal", "requires": ["metalworking"],
 		"desc": "Plate work and structural steel: armouring whole walls.",
 		"effects": []},
+	# Exp 007 (S): the electronics branch (src/security/): motion sensors, then
+	# turret mounts and their auto-loader. Independent of the building line.
+	"electronics": {"name": "Basic electronics", "book": "book_electronics", "requires": [],
+		"desc": "Circuits, sensors and relays: wiring the house to warn you.",
+		"effects": []},
+	"automation": {"name": "Automated defences", "book": "book_automation", "requires": ["electronics"],
+		"desc": "Servo mounts, triggers and feeds: a gun that keeps watch when you can't.",
+		"effects": ["A turret mount can be fitted with an auto-loader (its panel)."]},
 }
-## Tree order (each step needs the one before it).
-const ORDER := ["woodworking", "reinforced", "metalworking", "advanced_metal"]
+## Tree order: the building line (each step needs the one before it), then
+## Exp 007 (S)'s electronics line (Basic electronics -> Automated defences).
+const ORDER := ["woodworking", "reinforced", "metalworking", "advanced_metal", "electronics", "automation"]
 
 ## BuildPieces ids -> the skill they need (a piece's own "requires" wins).
 ## spikes_metal and the drawbridges are agent D's pieces (Experiment 006).

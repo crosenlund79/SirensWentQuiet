@@ -34,6 +34,10 @@ var planned := ""
 var planned_purpose := ""
 ## Result ids whose region consequences were applied (the once-only guard).
 var applied := []
+## Exp 007 (P): playable POI state per location id (PoiState owns the record:
+## generated and searched containers, taken pickups, chopped wood, forced
+## doors, the visit in progress). Saved as is; PoiState.record cleans it.
+var poi := {}
 
 
 static func new_region() -> RegionState:
@@ -210,7 +214,7 @@ func to_dict() -> Dictionary:
 	disc.sort()
 	return {"discovered": disc, "stock": stock.duplicate(), "notes": notes.duplicate(true),
 		"layout": layout, "planned": planned, "planned_purpose": planned_purpose,
-		"applied": applied.duplicate()}
+		"applied": applied.duplicate(), "poi": poi.duplicate(true)}      # Exp 007 (P): poi
 
 
 ## Restores from untrusted data: unknown ids, non-numbers and wrong types are
@@ -261,4 +265,9 @@ static func from_dict(d) -> RegionState:
 			if typeof(x) == TYPE_STRING and x != "":
 				r.applied.append(x)
 		r.applied = r.applied.slice(maxi(r.applied.size() - APPLIED_KEPT, 0))
+	var pois = d.get("poi", {})          # Exp 007 (P): POI records of known places (PoiState.record cleans the rest)
+	if typeof(pois) == TYPE_DICTIONARY:
+		for id in pois:
+			if RegionLocations.has(str(id)) and typeof(pois[id]) == TYPE_DICTIONARY:
+				r.poi[str(id)] = (pois[id] as Dictionary).duplicate(true)
 	return r

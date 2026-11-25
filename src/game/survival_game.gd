@@ -53,6 +53,8 @@ const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): foo
 const ResearchLink := preload("res://src/research/game_research.gd")   # Exp 006 (R): skills, books, K
 const BalanceLink := preload("res://src/home/game_balance.gd")   # Exp 006 (B): house supply, TV and radio, F10 House & balance
 const DefenseLink := preload("res://src/defense/game_defense.gd")   # Exp 006 (D): trenches, moats, drawbridges, spikes
+const NoiseLink := preload("res://src/noise/game_noise.gd")   # Exp 007 (N): event-based noise
+const VisibilityLink := preload("res://src/visibility/game_visibility.gd")   # Exp 007 (N): room-based visibility
 const TravelLink := preload("res://src/travel/travel_flow.gd")   # Exp 007 (T): visible travel, home <-> POI
 
 const DAY_MIN := 1440.0
@@ -86,6 +88,9 @@ var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C):
 var research: Node                     ## src/research/game_research.gd (Exp 006 (R): K, book toasts, F10 Research)
 var balance: Node                      ## src/home/game_balance.gd (Exp 006 (B): house supply, TV and radio)
 var defense: Node                      ## src/defense/game_defense.gd (Exp 006 (D): the player in trenches, F10 Defences)
+var security: Node                     ## src/security/security_system.gd (Exp 007 (S): sensors, turrets, their panel, F10 Security); null at a POI
+var noise: Node                        ## src/noise/game_noise.gd (Exp 007 (N): noise events, gunfire, F10 Noise & visibility)
+var visibility: Node                   ## src/visibility/game_visibility.gd (Exp 007 (N): room-based visibility)
 var travel: Node                       ## src/travel/travel_flow.gd (Exp 007 (T): travel, the home <-> POI flow)
 var poi: Node                          ## Exp 007 (P): the POI helper at a POI (looting, exits, encounters); null at home
 var site := "home"                     ## Exp 007 (T): "home" or the POI id this scene is
@@ -389,16 +394,28 @@ func _assemble() -> void:
 		defense.name = "Defense"
 		add_child(defense)
 		defense.setup(self)
+		security = SecuritySystem.new()    # Exp 007 (S): after storage (its storeys), home (power) and build (supply)
+		security.name = "Security"
+		add_child(security)
+		security.setup(self)
 	travel = TravelLink.new()          # Exp 007 (T): travel and the home <-> POI flow
 	travel.name = "Travel"
 	add_child(travel)
 	travel.setup(self)
 	if not at_home:
-		var h := TravelSites.make_helper(self)   # Exp 007 (P): looting, exits, encounters (adds itself as `poi`)
+		var h := TravelSites.make_helper(self)   # Exp 007 (P): looting, exits, encounters (sets `poi` itself)
 		if poi == null and h != null:
 			poi = h
 			if h.get_parent() == null:
 				add_child(h)
+	noise = NoiseLink.new()            # Exp 007 (N): after combat and roster (gunfire, provoked enemies)
+	noise.name = "Noise"
+	add_child(noise)
+	noise.setup(self)
+	visibility = VisibilityLink.new()  # Exp 007 (N): after levels, build and map (storeys, build mode, the map table)
+	visibility.name = "Visibility"
+	add_child(visibility)
+	visibility.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -751,7 +768,8 @@ func _check_stragglers(t0: float, t1: float) -> void:
 		# Not during an invasion, and not if a long skip already ended the night.
 		if state.run.get("invasion_active", false) or not state.is_night():
 			continue
-		roster.spawn_type("psycho", director.pick_spawn(player.plan_pos()), {"level": state.difficulty, "invasion": state.invasion_index()})
+		roster.spawn_type("psycho", director.pick_spawn(player.plan_pos()), {"level": state.difficulty, "invasion": state.invasion_index(),
+			"mode": "straggler"})          # Exp 007 (N): calm until provoked (src/ai/straggler_mind.gd)
 		toast("Something is moving out there.", "warn")
 
 
@@ -867,6 +885,8 @@ func _on_escape() -> void:
 			map.close()
 		"storage":
 			storage.close_panel()          # Exp 005 (F)
+		"security":
+			security.close_panel()         # Exp 007 (S)
 		"travel":
 			pass                           # Exp 007 (T): the map's travel animation (Space skips)
 		"":

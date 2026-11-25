@@ -89,7 +89,7 @@ func test_research_and_the_shotgun_in_the_game() -> void:
 	var r: Dictionary = g.build.evaluate(Vector2(14.0, 3.5))
 	check(str(r["reason"]).begins_with("Requires Metalworking"), "the metal door is locked (%s)" % r["reason"])
 	m.button("Learn all").pressed.emit()
-	check_eq(Research.known(s).size(), 4, "F10 learns all")
+	check_eq(Research.known(s).size(), Research.ORDER.size(), "F10 learns all")
 	r = g.build.evaluate(Vector2(14.0, 3.5))
 	check(not str(r["reason"]).begins_with("Requires"), "unlocked (%s)" % r["reason"])
 	m.button("Forget all").pressed.emit()

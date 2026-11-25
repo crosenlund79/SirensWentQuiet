@@ -513,6 +513,9 @@ func _build() -> void:
 	_build_research_section(box)     # Exp 006 (R)
 	_build_balance_section(box)     # Exp 006 (B)
 	_build_defense_section(box)     # Exp 006 (D)
+	_build_security_section(box)     # Exp 007 (S)
+	_build_noise_section(box)     # Exp 007 (N)
+	_build_poi_section(box)     # Exp 007 (P)
 	_build_travel_section(box)     # Exp 007 (T)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
@@ -867,10 +870,77 @@ func _build_defense_section(box: VBoxContainer) -> void:
 		["Defence info", _defense_call.bind("dev_defense_text", "")]]))
 
 
+## Exp 007 (S): Security — components, the research, a sensor or a loaded
+## turret where you stand, ammunition, the nearest sensor triggered, power.
+func _build_security_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Security"))
+	box.add_child(_grid(2, [["Components, iron, scrap", _security_call.bind("dev_give_components")],
+		["Unlock security research", _security_call.bind("dev_unlock")],
+		["Sensor here", _security_call.bind("dev_place_sensor")],
+		["Turret here (handgun)", _security_call.bind("dev_place_turret")],
+		["Supply ammo", _security_call.bind("dev_supply_ammo")],
+		["Trigger nearest sensor", _security_call.bind("dev_trigger_nearest")],
+		["Restore power", _security_call.bind("dev_restore_power")],
+		["Security info", _security_call.bind("dev_info")]]))
+
+
+func _security_call(method: String) -> void:
+	var h = game.get("security") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no security.", true)
+		return
+	_say(str(h.call(method)))
+
+
+## Exp 007 (P): POI — at a destination (the game's `poi` helper,
+## src/poi/game_poi.gd): restore its loot, a straggler, reveal containers,
+## the visit's state. Travel buttons are agent T's.
+func _build_poi_section(box: VBoxContainer) -> void:
+	var p: Variant = game.get("poi") if game != null else null
+	if not (p is Object and is_instance_valid(p) and p.has_method("dev_state_text")):
+		return
+	box.add_child(UiTheme.make_section("POI"))
+	box.add_child(_grid(2, [["Restore this POI's loot", _poi_call.bind("dev_restore_loot")],
+		["Spawn a straggler here", _poi_call.bind("dev_spawn_straggler")],
+		["Reveal containers", _poi_call.bind("dev_reveal")],
+		["POI state", _poi_call.bind("dev_state_text")]]))
+
+
+func _poi_call(method: String) -> void:
+	var p: Variant = game.get("poi") if game != null and is_instance_valid(game) else null
+	if not (p is Object and is_instance_valid(p) and p.has_method(method)):
+		_say("Not at a POI.", true)
+		return
+	_say(str(p.call(method)))
+
+
 func _defense_call(method: String, arg: String) -> void:
 	var h = game.get("defense") if game != null and is_instance_valid(game) else null
 	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
 		_say("The game has no defences.%s()" % method, true)
+		return
+	_say(str(h.call(method, arg) if arg != "" else h.call(method)))
+
+
+# --- Exp 007 (N): noise, calm stragglers, room visibility ---------------------------------
+
+func _build_noise_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Noise & visibility"))
+	box.add_child(_grid(3, [["Noise: low", _noise_call.bind("noise", "dev_sample", "low")],
+		["Noise: high", _noise_call.bind("noise", "dev_sample", "high")],
+		["Noise: extreme", _noise_call.bind("noise", "dev_sample", "extreme")],
+		["Last noises", _noise_call.bind("noise", "dev_log_text", "")],
+		["Calm straggler", _noise_call.bind("noise", "dev_spawn_calm", "psycho")],
+		["Calm runner", _noise_call.bind("noise", "dev_spawn_calm", "runner")],
+		["Room boundaries", _noise_call.bind("visibility", "dev_toggle_bounds", "")],
+		["Visibility diagnostics", _noise_call.bind("visibility", "dev_toggle_diagnostics", "")],
+		["Reveal all", _noise_call.bind("visibility", "dev_toggle_reveal", "")]]))
+
+
+func _noise_call(helper: String, method: String, arg: String) -> void:
+	var h = game.get(helper) if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no %s.%s()" % [helper, method], true)
 		return
 	_say(str(h.call(method, arg) if arg != "" else h.call(method)))
 

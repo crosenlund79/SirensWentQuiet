@@ -47,7 +47,7 @@ const FOUNDATION_REASON := "Stone walls need a foundation: the house floor or a 
 ## Pieces placed by dragging along a line, and pieces that follow the ground
 ## point under the mouse (the rest follow the aimed surface).
 const RUN_PIECES := ["wall", "stone_wall", "barricade", "iron_barricade", "foundation", "timber_footing"]   # Exp 006 (B): + timber footing
-const FREE_PIECES := ["crate", "rain_collector", "workbench"]
+const FREE_PIECES := ["crate", "rain_collector", "workbench", "motion_sensor", "turret_mount"]   # Exp 007 (S): + security
 
 var active := false
 var world: HouseWorld
@@ -365,7 +365,7 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 			_eval_fuse_box(r, p)
 		"doorway":
 			_eval_doorway(r, HouseWorld.nearest_seg(p))
-		"crate", "rain_collector", "workbench":
+		"crate", "rain_collector", "workbench", "motion_sensor", "turret_mount":      # Exp 007 (S): + security
 			_eval_object(r, _kind(), _snap_pos(_kind(), p, rot))
 		"repair":
 			_eval_repair(r, p)
@@ -914,13 +914,17 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 			world.cut_opening(r["segs"][0])
 			text = "Doorway cut."
 			Sfx.play("build/demolish", at)
-		"crate", "rain_collector", "workbench":
+		"crate", "rain_collector", "workbench", "motion_sensor", "turret_mount":
 			world.place_object(r["kind"], r["pos"], r["rot"])
 			match r["piece"]:
 				"crate":
 					text = "Storage crate built: room for more materials."
 				"rain_collector":
 					text = "Rain collector set up: a bottle of water every dawn."
+				"motion_sensor":      # Exp 007 (S)
+					text = "Motion sensor set up: it needs power. E sets alarm, silence and a linked turret."
+				"turret_mount":
+					text = "Turret mount set up: E to install a gun and fill its ammo box. It needs power."
 				_:
 					text = "Workbench set up: E turns 3 scrap into 1 iron."
 			Sfx.play("build/place", at)
@@ -982,6 +986,7 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 		if not took.is_empty():
 			text += " (%s from storage)" % BuildPieces.cost_text(took)
 	_eval_key = ""
+	BuildNoise.after_apply(self, r, at)      # Exp 007 (N): hammering, masonry, smashing (src/noise/build_noise.gd)
 	message.emit(text, true)
 	changed.emit()
 	return true
@@ -1098,7 +1103,7 @@ func _show_ghost(r: Dictionary) -> void:
 					"doorway":
 						size = Vector3(1.0, 2.1, 0.42)
 				items.append([type, size, Vector3(c.x, 0, c.y), yaw, col, style])
-		"crate", "rain_collector", "workbench":
+		"crate", "rain_collector", "workbench", "motion_sensor", "turret_mount":      # Exp 007 (S): + security
 			if r["pos"] != Vector2.INF:
 				items.append([_kind(), WorldObject.DEFS[_kind()]["size"], Vector3(r["pos"].x, 0, r["pos"].y), WorldObject.YAW[rot], col_ok if r["ok"] else GHOST_BAD, ""])
 		_:
