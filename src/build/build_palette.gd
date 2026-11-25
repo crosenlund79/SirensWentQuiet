@@ -245,6 +245,9 @@ func show_state(selected: int, title: String, cost: String, _materials: String, 
 	_status_icon.kind = "dot" if ok else "warn"
 	_status_icon.color = UiTheme.GOOD if ok else UiTheme.BAD
 	_hint.text = hint
+	if _lock.visible and status.begins_with(_lock.text.trim_suffix(".")):
+		_lock.visible = false             # the status line already says why (the tile keeps its lock)
+		_lock_icon.visible = false
 
 
 ## Redraws the tabs, the tiles, the header and the Recent row from build mode.
