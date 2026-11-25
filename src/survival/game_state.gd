@@ -69,7 +69,7 @@ var hotbar := Hotbar.new_bar()
 var car_repaired := false
 # Exp 005 (C): Eli's mood (Mood, src/survival/mood.gd). Saved; older saves get Mood.START.
 var mood := Mood.START                          ## 0..100
-var mood_state := {}                            ## Mood memories and bleak hours ({"mem", "bleak"})
+var mood_state := Mood.clean({})                ## Mood memories and bleak hours ({"mem", "bleak"})
 var rest_scale := 1.0                           ## sleep energy x this (mood and bedroom comfort; set by the game, not saved)
 
 var _quiet := false                             ## restoring: no equipment sync

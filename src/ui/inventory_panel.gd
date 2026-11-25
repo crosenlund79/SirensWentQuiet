@@ -360,7 +360,7 @@ func _count_for(id: String) -> String:
 
 
 func _refresh() -> void:
-	if state == null or (_rows.is_empty() and _slots.is_empty()):
+	if state == null or (_rows.is_empty() and _slots.is_empty() and _bars.is_empty()):   # Exp 005 (C): the Home tab has only bars
 		return
 	var inv := state.inventory
 	for id in _rows:

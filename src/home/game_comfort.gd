@@ -350,11 +350,11 @@ func _rug_present(w: HouseWorld, rect: Rect2) -> bool:
 func _wrecked_of(w: HouseWorld) -> Array:
 	var out := []
 	var fur = w.get("furniture")
-	if fur == null or not "pieces" in fur:
+	if fur == null or not "pieces" in fur or not fur.has_method("state_of"):
 		return out
 	for id in fur.pieces:
-		var p: Dictionary = fur.pieces[id]
-		if int(p.get("state", 0)) == HouseFurniture.DESTROYED and p.get("f") is Dictionary:
+		var p = fur.pieces[id]
+		if fur.state_of(id) == "destroyed" and p is Dictionary and p.get("f") is Dictionary and p["f"].get("rect") is Rect2:
 			out.append((p["f"]["rect"] as Rect2).get_center())
 	return out
 
@@ -476,12 +476,14 @@ func _on_slept(plan: Dictionary) -> void:
 		return
 	var r := player_room()
 	var lvl := int(r.get("level", 2)) if not r.is_empty() else 1
-	if lvl >= 3:
+	var quiet: bool = plan.get("interrupted", false)       # the game's own wake-up line stays the last word
+	if lvl >= 3 and not quiet:
 		Mood.remember(state, "slept_well")
-		_tell("Slept well in a %s room." % str(r.get("level_name", "comfortable")).to_lower(), "good")
+		_tell("You slept well. It feels like home." if lvl >= 4 else "You slept well in a comfortable room.", "good")
 	elif lvl <= 1:
 		Mood.remember(state, "slept_badly")
-		_tell("A poor night's sleep. The room is %s." % str(r.get("level_name", "uncomfortable")).to_lower(), "warn")
+		if not quiet:
+			_tell("A poor night's sleep. The room is %s." % str(r.get("level_name", "uncomfortable")).to_lower(), "warn")
 	mood_info = Mood.target(state, _mood_inputs())
 
 

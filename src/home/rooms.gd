@@ -271,7 +271,8 @@ static func windows(world: HouseWorld, storey: int) -> Array:
 	var defs := []
 	var mid := HousePlan.FOOTPRINT.get_center()
 	if world is LevelWorld:
-		for s in LevelWorld.UPPER_WINDOWS:
+		var segs = world.call("window_segments") if world.has_method("window_segments") else _script_const(world, "UPPER_WINDOWS", [])
+		for s in segs:
 			defs.append({"rect": HouseWorld.seg_rect(s, 0.2), "centre": HouseWorld.seg_center(s), "horiz": s.x == 0})
 	else:
 		for o in HousePlan.OPENINGS:
@@ -295,6 +296,17 @@ static func windows(world: HouseWorld, storey: int) -> Array:
 				state = "boarded"
 		out.append({"rect": r, "centre": c, "inside": c + inward * WINDOW_INSIDE, "state": state})
 	return out
+
+
+## A constant of the object's script or its bases (agents may move it), else `fallback`.
+static func _script_const(obj: Object, key: String, fallback: Variant) -> Variant:
+	var sc: Script = obj.get_script()
+	while sc != null:
+		var m := sc.get_script_constant_map()
+		if m.has(key):
+			return m[key]
+		sc = sc.get_base_script()
+	return fallback
 
 
 static func _glass(g: VoxelGrid, r: Rect2) -> int:
