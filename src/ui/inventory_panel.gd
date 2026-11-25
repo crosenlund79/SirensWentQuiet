@@ -18,10 +18,6 @@ const GROUPS := [["food", "Food"], ["water", "Water"], ["medical", "Medical"], [
 const GEAR_GROUPS := [["weapon", "Weapons"], ["protective", "Protective"], ["utility", "Utility"], ["tool", "Tools"]]
 const USE_SOUNDS := {"food": "player/eat", "water": "player/drink", "medical": "player/bandage"}
 const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"], ["home", "Home"], ["skills", "Skills"]]   # Exp 005 (C): Home; Exp 006 (R): Skills
-## Exp 006 (U): pixel icons of the tabs and the groups.
-const TAB_ICONS := {"supplies": "inventory", "equipment": "pistol", "home": "mood", "skills": "book"}
-const GROUP_ICONS := {"food": "food", "water": "water", "medical": "medkit", "ammo": "ammo", "material": "wood",
-	"weapon": "pistol", "protective": "vest", "utility": "flashlight", "tool": "hammer", "book": "book"}
 ## What each piece of gear does when equipped (Equipment and the expedition rules).
 const EFFECTS := {
 	"handgun": "9 mm · magazine 12 · quick",
@@ -32,6 +28,8 @@ const EFFECTS := {
 	"crowbar": "Stockrooms and locked doors on expeditions",
 	"hammer": "Needed to build (owning it is enough)",
 }
+## Exp 006 (U): pixel icons of the tabs (section icons come from UiTheme.SECTION_ICONS).
+const TAB_ICONS := {"supplies": "inventory", "equipment": "pistol", "home": "mood", "skills": "skills"}
 
 var state: GameState
 var tab := "supplies"
@@ -156,7 +154,7 @@ func _build_supplies(lists: Dictionary) -> void:
 		var list: VBoxContainer = lists["right" if g[0] in ["ammo", "material"] else "left"]
 		if list.get_child_count() > 0:
 			list.add_child(UiTheme.make_spacer(4))
-		list.add_child(UiTheme.make_section(g[1], GROUP_ICONS.get(g[0], "")))
+		list.add_child(UiTheme.make_section(g[1]))
 		if g[0] == "book":      # Exp 006 (R): only the books you carry, each with Read
 			var any := false
 			for id in Items.ids("book"):
@@ -175,7 +173,7 @@ func _build_supplies(lists: Dictionary) -> void:
 
 func _build_equipment(lists: Dictionary) -> void:
 	var left: VBoxContainer = lists["left"]
-	left.add_child(UiTheme.make_section("Equipped", "vest"))
+	left.add_child(UiTheme.make_section("Equipped"))
 	for slot in Equipment.SLOTS:
 		left.add_child(_slot_row(slot))
 	left.add_child(UiTheme.make_spacer(4))
@@ -184,7 +182,7 @@ func _build_equipment(lists: Dictionary) -> void:
 	for g in GEAR_GROUPS:
 		if right.get_child_count() > 0:
 			right.add_child(UiTheme.make_spacer(2))
-		right.add_child(UiTheme.make_section(g[1], GROUP_ICONS.get(g[0], "")))
+		right.add_child(UiTheme.make_section(g[1]))
 		for id in Items.ids(g[0]):
 			right.add_child(_item_row(id, true))
 

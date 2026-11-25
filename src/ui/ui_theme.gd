@@ -46,6 +46,13 @@ const BAD := Color(0.94, 0.38, 0.32)
 const INFO := TEXT
 const KIND_COLORS := {"info": TEXT, "good": GOOD, "warn": WARN, "bad": BAD}
 const SHADOW := Color(0, 0, 0, 0.5)                 ## hard drop shadows
+## Exp 006: pixel icons of common section headings (make_section).
+const SECTION_ICONS := {
+	"Food": "food", "Water": "water", "Medical": "medkit", "Ammo": "ammo", "Materials": "wood", "Books": "book",
+	"Weapons": "pistol", "Protective": "vest", "Utility": "flashlight", "Tools": "hammer", "Equipped": "vest",
+	"Supplies": "inventory", "Needs": "health", "Skills": "skills", "Research": "research", "Sound": "radio",
+	"Controls": "move", "Home": "storey", "Furniture": "sofa", "Structure": "bricks", "Levels": "levels",
+}
 
 # --- metrics ------------------------------------------------------------------
 ## Exp 006: Pixel Operator sizes (see px()). LARGE and TITLE are nominal:
@@ -309,12 +316,15 @@ static func make_title(text: String, size := FONT_TITLE) -> Label:
 
 
 ## Section header: dim small caps followed by a hairline.
-## Exp 006: `icon` (a UiIcons name) adds a pixel icon before the text.
+## Exp 006: `icon` (a UiIcons name) adds a pixel icon before the text; by
+## default common headings get theirs from SECTION_ICONS ("-" for none).
 static func make_section(text: String, icon := "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if icon != "":
+	if icon == "":
+		icon = str(SECTION_ICONS.get(text, ""))
+	if icon != "" and icon != "-":
 		var ic := make_icon(icon, 12, TEXT_DIM)
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(ic)
