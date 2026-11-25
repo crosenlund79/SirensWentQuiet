@@ -114,6 +114,10 @@ const DEFS := {
 	"voice/eli_new_game": {"bus": "Voice", "pos": false, "cd": 1.0, "max": 1, "steal": false, "tpl": false},
 	"voice/eli_continue": {"bus": "Voice", "pos": false, "cd": 1.0, "max": 1, "steal": false, "tpl": false},
 	"music/dawn": {"bus": "Music", "vol": -8.0, "pos": false, "loop": true, "tpl": false},
+	# Played through play_first with the old sound as the fallback (one-line hooks).
+	"home/light_switch": {"pitch": 0.05, "cd": 0.1, "max": 1, "pos": false, "tpl": false},
+	"car/start": {"cd": 1.0, "max": 1, "pos": false, "tpl": false},
+	"build/dig": {"pitch": 0.06, "cd": 0.2, "max": 2, "tpl": false},
 }
 
 ## The scene host gets an AudioListener3D that follows the point the current
@@ -184,6 +188,16 @@ static func play(name: String, at: Variant = null, volume_db := 0.0) -> void:
 	_stop_at(player, c)
 	_last[key] = Time.get_ticks_msec()
 	stats["played"] += 1
+
+
+## Exp 005 (A): plays the first of `names` that has a file (a new recorded
+## sound, then the old one as the fallback). Returns the name played or "".
+static func play_first(names: Array, at: Variant = null, volume_db := 0.0) -> String:
+	for n in names:
+		if available(n):
+			play(n, at, volume_db)
+			return n
+	return ""
 
 
 ## Plays on the UI bus, flat, under the SceneTree root (works in menus and

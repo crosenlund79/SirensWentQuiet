@@ -115,7 +115,7 @@ func repair() -> String:
 	if s.dead:
 		return "dead"
 	game.toast("The engine coughs, then catches. The car runs: pick it on the expedition screen.", "good")
-	Sfx.play("ui/open")
+	Sfx.play_first(["car/start", "ui/open"])   # Exp 005 (A): a recorded engine start when there is one
 	blink()
 	game._autosave("car")
 	return ""

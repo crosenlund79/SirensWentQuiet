@@ -131,6 +131,7 @@ func test_custom_beats_inbox_beats_template() -> void:
 	check_eq(Sfx.source_of("ambient/room_tone"), "", "no room tone recorded yet")
 	check(not Sfx.available("ambient/room_tone"), "so it is unavailable")
 	check_eq(Sfx.source_of("player/footstep_2"), "inbox", "the old footstep group borrows the wooden steps")
+	check_eq(Sfx.play_first(["home/light_switch", "ui/click"]), "ui/click", "no switch recorded yet: the old click")
 	var c := Sfx.clip("weapon/handgun_fire")
 	check(float(c["from"]) > 0.5, "the shot's leading silence is skipped (%.2f s)" % c["from"])
 	var root := _temp_dir("custom")

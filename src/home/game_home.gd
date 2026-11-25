@@ -155,7 +155,7 @@ func _furniture_ok(id: String) -> bool:
 
 func on_room_switch(room: String) -> void:
 	var on := electrical.toggle_room(room)
-	Sfx.ui("ui/click")
+	Sfx.play_first(["home/light_switch", "ui/click"])   # Exp 005 (A): a recorded switch when there is one
 	if on and not mains_on():
 		_say("Nothing. There's no power.", "warn")
 	refresh_power(true)
@@ -164,7 +164,7 @@ func on_room_switch(room: String) -> void:
 
 func on_lamp(id: String) -> void:
 	var on := electrical.toggle_light(id)
-	Sfx.ui("ui/click")
+	Sfx.play_first(["home/light_switch", "ui/click"])   # Exp 005 (A)
 	if on and not electrical.shines(id, mains_on(), _furniture_ok):
 		_say("Nothing. There's no power." if not mains_on() else "The switch on the wall is off.", "warn")
 	refresh_power(true)

@@ -101,6 +101,9 @@ const RULES := [
 	# the house (Exp 005: played when the files exist)
 	{"name": "home/fireplace_light", "all": [["fireplace", "fire"], ["light", "ignite", "kindle"]], "none": ["switch"], "kind": "oneshot", "db": -22.0},
 	{"name": "home/fireplace_out", "all": [["fireplace", "fire"], ["extinguish", "out", "douse"]], "kind": "oneshot", "db": -22.0},
+	{"name": "home/light_switch", "all": [["light", "lamp"], "switch"], "none": ["weapon"], "kind": "oneshot", "db": -24.0},
+	{"name": "car/start", "all": ["car", ["start", "engine", "ignition"]], "kind": "oneshot", "db": -18.0},
+	{"name": "build/dig", "all": [["shovel", "dig"]], "kind": "oneshot", "db": -19.0},
 	# interface
 	{"name": "ui/click", "all": ["ui", "click"], "kind": "oneshot", "db": -24.0},
 	{"name": "ui/hover", "all": ["ui", "hover"], "kind": "oneshot", "db": -31.0},
@@ -111,6 +114,7 @@ const RULES := [
 	{"name": "stinger/invasion", "all": [["stinger", "sting"], ["invasion", "threat", "attack"]], "kind": "oneshot", "db": -17.0},
 	{"name": "stinger/dawn", "all": [["stinger", "sting"], ["dawn", "morning"]], "kind": "oneshot", "db": -21.0},
 	{"name": "music/menu", "all": [["theme", "menu"]], "none": ["ui", "stinger"], "kind": "music", "gain": -8.0},
+	{"name": "music/dawn", "all": ["music", ["dawn", "morning"]], "kind": "music", "gain": -8.0},
 	# ambience: loops, beds and details
 	{"name": "ambient/wind_day", "all": ["wind"], "none": ["night", "wolf", "howl"], "kind": "loop", "db": -32.0},
 	{"name": "ambient/night", "all": ["night", ["wind", "bed", "loop", "ambience", "ambiance"]], "none": ["owl", "wolf"], "kind": "loop", "db": -34.0},
