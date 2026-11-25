@@ -123,6 +123,8 @@ func _setup(state: GameState, destination_id: String, g: Dictionary, approach_id
 			_equipped[id] = D.can_bring(state, id)
 			if _has[id]:
 				_owned[id] = maxi(int(_owned[id]), 1)
+			elif Research.is_book(id) and Research.knows(state, Research.book_skill(id)):
+				_has[id] = true          # Exp 006 (R): a book already studied is never found again
 	_carry = D.carry_multiplier(state) if int(gear.get("backpack", 0)) > 0 else 1.0
 	for a in D.AMMO_TYPES:
 		_owned[a] = D.rounds_owned(state, a)

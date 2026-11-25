@@ -30,6 +30,7 @@ const CATEGORIES := {
 	"medical": "Medical",
 	"food": "Food and water",
 	"residential": "Family houses",
+	"knowledge": "Books and knowledge",     # Exp 006 (R): the library
 }
 
 const DISTRICTS := {
@@ -95,6 +96,9 @@ const LOCATIONS := {
 		"desc": "The precinct. An armoury, an evidence room, and cells."},
 	"military": {"name": "Military Outpost", "category": "weapons", "district": "hills", "pos": Vector2(16, 98), "size": Vector2(8, 7),
 		"desc": "A fenced outpost in the southern hills. Rare equipment, and something still guards it."},
+	# --- books and knowledge (Exp 006, R) ------------------------------------------
+	"library": {"name": "Public Library", "category": "knowledge", "district": "centre", "pos": Vector2(106, 60), "size": Vector2(4, 3),
+		"desc": "The town library: handbooks and technical manuals nobody thought to loot. Dark between the stacks."},
 }
 
 

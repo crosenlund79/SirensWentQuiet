@@ -34,10 +34,11 @@ const APPROACHES := {
 const CATEGORY_COLORS := {
 	"construction": Color(0.88, 0.67, 0.36), "weapons": Color(0.9, 0.42, 0.34), "medical": Color(0.5, 0.8, 0.76),
 	"food": Color(0.68, 0.8, 0.46), "residential": Color(0.64, 0.74, 0.9), HOME: Color(0.95, 0.62, 0.22),
+	"knowledge": Color(0.76, 0.62, 0.86),      # Exp 006 (R): the library
 }
 
 # --- local fallback data (used only until the expedition module provides its own) ---
-const FALLBACK_RISK := {"residential": 0, "food": 1, "medical": 1, "construction": 1, "weapons": 2}
+const FALLBACK_RISK := {"residential": 0, "food": 1, "medical": 1, "construction": 1, "weapons": 2, "knowledge": 1}
 const FALLBACK_RISK_ID := {"convenience": 0, "logging": 0, "homes": 0, "hospital": 2, "scrapyard": 2,
 	"police": 2, "gun_shop": 2, "military": 3}
 const FALLBACK_RESOURCES := {

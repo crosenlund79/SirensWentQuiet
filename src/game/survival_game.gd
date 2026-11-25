@@ -39,6 +39,7 @@ const ComfortLink := preload("res://src/home/game_comfort.gd")   # Exp 005 (C): 
 const SupportLink := preload("res://src/world/game_support.gd")   # Refinement 01 (S): collapses
 const StorageLink := preload("res://src/home/game_storage.gd")   # Exp 005 (F): storage furniture, placed lamps
 const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): footsteps, ambience layers, Eli
+const ResearchLink := preload("res://src/research/game_research.gd")   # Exp 006 (R): skills, books, K
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -68,6 +69,7 @@ var support: Node                      ## src/world/game_support.gd (Refinement 
 var storage: Node                      ## src/home/game_storage.gd (Exp 005, F: storage panel, placed lamps, F10 Furniture)
 var audio: Node                        ## src/audio/game_audio.gd (Exp 005, A: footsteps, ambience layers, voice)
 var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C): rooms, comfort, mood)
+var research: Node                     ## src/research/game_research.gd (Exp 006 (R): K, book toasts, F10 Research)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -270,6 +272,10 @@ func _assemble() -> void:
 	audio.name = "Audio"
 	add_child(audio)
 	audio.setup(self)
+	research = ResearchLink.new()      # Exp 006 (R): the Skills tab key, new-book toasts, F10 Research
+	research.name = "Research"
+	add_child(research)
+	research.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -426,6 +432,8 @@ func _on_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("toggle_roof"):
 		_handled()                          # Refinement 01: V hides the roofs (and the storeys above you)
 		toggle_roofs()
+	elif research != null and research.handle_input(event):
+		_handled()                          # Exp 006 (R): K opens the inventory's Skills tab
 	elif not build.active and bar.handle_input(event):
 		_handled()                          # 1-8, X, Q (Experiment 004, E: the quick-access bar)
 	elif not build.active and combat.handle_input(event):

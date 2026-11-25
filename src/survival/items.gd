@@ -8,7 +8,7 @@ extends RefCounted
 ## "back", "utility", "tool"; see Equipment). `raw` materials are processed
 ## before use (scrap -> iron at a workbench, Crafting).
 
-const CATEGORIES := ["weapon", "ammo", "protective", "tool", "utility", "medical", "food", "water", "material"]
+const CATEGORIES := ["weapon", "ammo", "protective", "tool", "utility", "medical", "food", "water", "material", "book"]   # Exp 006 (R): book
 
 const DEFS := {
 	"canned_food": {"name": "Canned food", "category": "food", "desc": "Beans, soup, something. Filling.", "hunger": 30.0, "hydration": 4.0, "verb": "Eat"},
@@ -35,6 +35,16 @@ const DEFS := {
 	# --- Experiment 004 (E): the yard car's parts and fuel ---
 	"car_battery": {"name": "Car battery", "category": "material", "desc": "A heavy 12 V battery. The car in the yard needs one.", "cap": 2},
 	"fuel": {"name": "Fuel can", "category": "material", "desc": "A jerrycan of petrol. Repairing the car takes 2; every car trip burns 1.", "cap": 10, "cap_per_crate": 4},
+	# --- Exp 006 (R): skill books (Research, src/research/). One of each at most;
+	# reading one (inventory "Skills" tab, K) teaches its "skill" and uses it up.
+	"book_woodworking": {"name": "Basic Woodworking", "category": "book", "cap": 1, "skill": "woodworking",
+		"desc": "A carpentry primer: joints, frames, hinges. Teaches basic woodworking."},
+	"book_reinforced": {"name": "Reinforced Construction", "category": "book", "cap": 1, "skill": "reinforced",
+		"desc": "A builder's handbook on bracing and iron straps. Teaches reinforced construction."},
+	"book_metalworking": {"name": "Metalworking Manual", "category": "book", "cap": 1, "skill": "metalworking",
+		"desc": "A technical manual: cutting, bending and riveting steel. Teaches metalworking."},
+	"book_advanced_metal": {"name": "Advanced Metal Fabrication", "category": "book", "cap": 1, "skill": "advanced_metal",
+		"desc": "An engineering text on plate work and structural steel. Teaches advanced metal fabrication."},
 }
 
 ## Items the quick-access bar fills itself with when the player owns them, in

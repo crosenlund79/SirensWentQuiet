@@ -107,7 +107,7 @@ const RISK_NAMES := ["Low", "Moderate", "High", "Severe"]
 const RISK_BOUNDS := [0.9, 1.15, 1.45]
 
 ## Category display order (RegionLocations.CATEGORIES has the names).
-const CATEGORY_ORDER := ["residential", "food", "medical", "construction", "weapons"]
+const CATEGORY_ORDER := ["residential", "food", "medical", "construction", "weapons", "knowledge"]   # Exp 006 (R): knowledge
 
 ## Display order (grouped by category); the same ids as RegionLocations.
 const ORDER := [
@@ -116,6 +116,7 @@ const ORDER := [
 	"drugstore", "clinic", "vet_clinic", "hospital",
 	"hardware", "forest", "logging", "sawmill", "quarry", "construction_site", "scrapyard", "warehouse",
 	"gun_shop", "shooting_range", "police", "military",
+	"library",      # Exp 006 (R)
 ]
 
 # --- loot profiles ---------------------------------------------------------------------
@@ -204,6 +205,21 @@ const PROFILES := {
 		"deplete": 0.3, "regen": 0.02, "floor": 0.15,
 		"max_damage": 60.0, "risk_floor": 1.0,
 	},
+	# Exp 006 (R): books and technical manuals (Research). Books are unique
+	# items: found once, never when owned or already learned (ExpeditionRun).
+	# Few people looted a library, so the stock falls slowly and stays.
+	"library": {
+		"place": "library", "danger": 1.05, "search": 180, "two_events": 0.55,
+		"loot": [
+			["book_woodworking", 1, 1, 0.45], ["book_reinforced", 1, 1, 0.25], ["book_metalworking", 1, 1, 0.14],
+			["book_advanced_metal", 1, 1, 0.06], ["water", 1, 2, 0.4], ["snacks", 1, 2, 0.45], ["bandage", 1, 1, 0.25],
+			["flashlight", 1, 1, 0.12], ["backpack", 1, 1, 0.06],
+		],
+		"locked": [["book_reinforced", 1, 1, 0.3], ["book_metalworking", 1, 1, 0.25], ["book_advanced_metal", 1, 1, 0.15], ["snacks", 1, 2, 0.4], ["water", 1, 2, 0.3]],
+		"locked_name": "the locked archive", "locked_text": "The crowbar opened the locked archive in the basement.",
+		"events": {"dark_stacks": 3, "reading_room": 3, "lone_psycho": 2, "tracks": 1, "fog_bank": 1},
+		"deplete": 0.15, "regen": 0.03, "floor": 0.3,
+	},
 }
 
 # --- locations (keyed by RegionLocations ids) --------------------------------------------
@@ -269,7 +285,8 @@ const LOCATIONS := {
 	# construction
 	"hardware": {"profile": "construction_wood", "place": "hardware store", "danger": 1.0, "search": 210,
 		"mods": {"nails": 1.3, "scrap": 1.3, "hammer": 1.5, "crowbar": 1.4},
-		"extra": [["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.2]],
+		"extra": [["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.2],
+			["book_woodworking", 1, 1, 0.12], ["book_reinforced", 1, 1, 0.05]],      # Exp 006 (R): a DIY shelf
 		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1}},
 	# Experiment 004 (E): the pine woods near home, a low-risk wood source
 	"forest": {"profile": "construction_wood", "place": "woods", "danger": 0.7, "search": 150,
@@ -293,7 +310,8 @@ const LOCATIONS := {
 		"deplete": 0.08, "regen": 0.1, "floor": 0.6},
 	"construction_site": {"profile": "construction_stone", "place": "site", "danger": 1.1, "search": 190,
 		"mods": {"stone": 0.9},
-		"extra": [["wood", 3, 6, 0.8], ["iron", 1, 3, 0.55], ["fuel", 1, 2, 0.4]],
+		"extra": [["wood", 3, 6, 0.8], ["iron", 1, 3, 0.55], ["fuel", 1, 2, 0.4],
+			["book_reinforced", 1, 1, 0.1], ["book_metalworking", 1, 1, 0.05]],      # Exp 006 (R): the site office
 		"events": {"scaffold": 4, "heavy_load": 2, "lone_psycho": 2, "dogs": 1, "fog_bank": 1},
 		"two_events": 0.65, "deplete": 0.2, "regen": 0.03, "floor": 0.2},
 	"scrapyard": {"profile": "construction_iron", "place": "scrapyard", "danger": 1.05, "search": 180,
@@ -305,22 +323,35 @@ const LOCATIONS := {
 		"events": {"storage_door": 3, "heavy_load": 2, "lone_psycho": 2, "collapsed_floor": 1, "fog_bank": 1},
 		"deplete": 0.22, "regen": 0.02, "floor": 0.15},
 	# weapons and ammunition (dangerous)
-	"gun_shop": {"profile": "weapons", "place": "gun shop", "danger": 1.45, "search": 140,
-		"mods": {"ammo": 1.2, "shells": 1.3, "shotgun": 1.5},
+	# Exp 006 (R): tuned. Known from the start (RegionState.START_KNOWN), so its
+	# danger and quick depletion keep it scarce: the shotgun is uncommon (10 %
+	# on the shelves; with a crowbar also 24 % in the locked back room and the
+	# gun counter event: about half the first visits), shells and 9 mm are
+	# likely, the vest and a flashlight sometimes, a few supplies.
+	"gun_shop": {"profile": "weapons", "place": "gun shop", "danger": 1.4, "search": 140,
+		"mods": {"ammo": 1.3, "shells": 1.5, "shotgun": 1.6, "vest": 1.5},
+		"extra": [["shells", 1, 2, 0.35], ["snacks", 1, 2, 0.3], ["water", 1, 1, 0.25], ["backpack", 1, 1, 0.06]],
+		"locked_name": "the back room", "locked_text": "The crowbar opened the back room's steel door.",
+		"events": {"gun_counter": 4, "armoury": 2, "lone_psycho": 2, "patrol": 2, "fog_bank": 1},
 		"prep": {"shots": 0.85}, "prep_shots": 3,
-		"deplete": 0.4, "regen": 0.01, "floor": 0.05},
+		"deplete": 0.4, "regen": 0.01, "floor": 0.08},
 	"shooting_range": {"profile": "weapons", "place": "range", "danger": 1.2, "search": 170,
 		"mods": {"ammo": 1.3, "vest": 2.0, "shotgun": 0.5},
 		"events": {"armoury": 3, "lone_psycho": 2, "dogs": 1, "patrol": 1, "fog_bank": 1},
 		"two_events": 0.6, "risk_floor": 0.0},
 	"police": {"profile": "weapons", "place": "station", "danger": 1.6, "search": 220,
 		"mods": {"vest": 2.5, "shotgun": 1.5},
-		"extra": [["medkit", 1, 1, 0.25], ["flashlight", 1, 1, 0.2], ["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.15]],
+		"extra": [["medkit", 1, 1, 0.25], ["flashlight", 1, 1, 0.2], ["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.15],
+			["book_reinforced", 1, 1, 0.06], ["book_metalworking", 1, 1, 0.05]],      # Exp 006 (R): the armourer's shelf
 		"events": {"armoury": 4, "patrol": 3, "waiting_room": 1, "lone_psycho": 1, "fog_bank": 1},
 		"two_events": 1.0, "prep": {"vest": 0.85, "shots": 0.85}, "prep_shots": 3},
 	"military": {"profile": "military", "place": "outpost",
 		"requires": ["flashlight"], "requires_text": "The bunkers are pitch dark.",
-		"prep": {"vest": 0.75, "shots": 0.7}, "prep_shots": 4},
+		"prep": {"vest": 0.75, "shots": 0.7}, "prep_shots": 4,
+		"extra": [["book_advanced_metal", 1, 1, 0.06]]},      # Exp 006 (R): a field engineering manual
+	# Exp 006 (R): books and technical manuals
+	"library": {"profile": "library", "place": "library", "danger": 1.05, "search": 180,
+		"prep": {"flashlight": 0.85}},
 }
 
 # --- mission approaches ----------------------------------------------------------------------
@@ -718,6 +749,66 @@ const EVENTS := {
 				"outcome": "You ignore the noises and keep filling bags.",
 				"hurt_text": "They find you mid-search.",
 				"log": "Kept searching while they came."},
+		],
+	},
+	# --- Exp 006 (R): the library and the gun shop -----------------------------------------
+	"dark_stacks": {
+		"title": "The stacks",
+		"text": "The technical section is at the back, where the windows end. Rows of shelves run into the dark, and something has pulled books down in heaps.",
+		"tags": ["dark"],
+		"options": [
+			{"label": "Search the shelves by flashlight", "needs": {"flashlight": 1}, "minutes": 30,
+				"bonus": [["book_reinforced", 1, 1, 0.25], ["book_metalworking", 1, 1, 0.2], ["book_advanced_metal", 1, 1, 0.1]], "hurt": [0.15, 5, 10],
+				"outcome": "Shelf by shelf: engineering, trades, workshop practice.",
+				"hurt_text": "A shelf comes down on you in the dark.",
+				"log": "Searched the technical stacks by flashlight."},
+			{"label": "Feel along the shelves in the dark", "minutes": 35,
+				"bonus": [["book_woodworking", 1, 1, 0.3], ["book_reinforced", 1, 1, 0.15]], "hurt": [0.4, 6, 14],
+				"outcome": "You pull out whatever has a diagram on the cover and read the titles by the door.",
+				"hurt_text": "Something in the dark was sitting very still.",
+				"log": "Searched the stacks in the dark."},
+			{"label": "Stay near the windows", "minutes": -10, "loot": 0.9,
+				"outcome": "You keep to the reading room, where you can see.",
+				"log": "Kept out of the dark stacks."},
+		],
+	},
+	"reading_room": {
+		"title": "The reading room",
+		"text": "Someone lived in the reading room for a while: a mattress, empty tins, a stack of books by the bed with notes in the margins. The door to the staff office is locked.",
+		"tags": [],
+		"options": [
+			{"label": "Go through their books", "minutes": 20,
+				"bonus": [["book_woodworking", 1, 1, 0.4], ["book_reinforced", 1, 1, 0.2], ["snacks", 1, 2, 0.4]],
+				"outcome": "Whoever it was read about building. Pages are dog-eared at the useful parts.",
+				"log": "Went through someone's reading pile."},
+			{"label": "Pry open the staff office", "needs": {"crowbar": 1}, "minutes": 20, "bonus": "locked", "hurt": [0.1, 4, 8],
+				"outcome": "The lock gives. Inside: the archive keys, and the reserved shelf.",
+				"hurt_text": "The noise brings something up from the basement.",
+				"log": "Pried open the library's staff office."},
+			{"label": "Leave their things alone", "minutes": -10,
+				"outcome": "They might come back. You leave everything as it was.",
+				"log": "Left someone's camp in the reading room alone."},
+		],
+	},
+	"gun_counter": {
+		"title": "Behind the counter",
+		"text": "The display cases are smashed and empty. Behind the counter, a shotgun is still chained to the wall rack, and the drawers under the till are shut.",
+		"tags": ["fight"],
+		"options": [
+			{"label": "Cut the chain with the crowbar", "needs": {"crowbar": 1}, "minutes": 15,
+				"bonus": [["shotgun", 1, 1, 0.4], ["shells", 2, 4, 0.8]], "hurt": [0.2, 6, 12], "lose": ["crowbar", 0.1],
+				"outcome": "The chain snaps on the third try. It's loud in the empty shop.",
+				"hurt_text": "Something heard the chain go.",
+				"lose_text": "The crowbar slips behind the rack, out of reach.",
+				"log": "Cut a shotgun off the wall rack."},
+			{"label": "Search the drawers under the till", "minutes": 10,
+				"bonus": [["ammo", 2, 5, 0.7], ["shells", 1, 3, 0.5], ["flashlight", 1, 1, 0.15]], "hurt": [0.12, 5, 10],
+				"outcome": "Receipts, a cleaning kit, and loose rounds rolling in the corners.",
+				"hurt_text": "You're bent over the drawers when it comes through the door.",
+				"log": "Searched the drawers behind the gun counter."},
+			{"label": "Don't linger", "minutes": -15, "loot": 0.9,
+				"outcome": "Someone chained that gun for a reason, and someone may come back for it.",
+				"log": "Left the gun counter alone."},
 		],
 	},
 	"lookout": {
@@ -1406,6 +1497,11 @@ const COUNT_NAMES := {
 	"wood": ["plank", "planks"], "nails": ["nail", "nails"], "scrap": ["piece of scrap metal", "pieces of scrap metal"],
 	"stone": ["block of stone", "blocks of stone"], "iron": ["iron bar", "iron bars"],
 	"bandage": ["bandage", "bandages"], "medkit": ["first-aid kit", "first-aid kits"],
+	# Exp 006 (R): books
+	"book_woodworking": ["copy of 'Basic Woodworking'", "copies of 'Basic Woodworking'"],
+	"book_reinforced": ["copy of 'Reinforced Construction'", "copies of 'Reinforced Construction'"],
+	"book_metalworking": ["copy of the 'Metalworking Manual'", "copies of the 'Metalworking Manual'"],
+	"book_advanced_metal": ["copy of 'Advanced Metal Fabrication'", "copies of 'Advanced Metal Fabrication'"],
 }
 
 
@@ -1427,6 +1523,8 @@ static func items_text(counts: Dictionary) -> String:
 
 ## Short item name for lists: "stone", "9 mm rounds", "a shotgun".
 static func reward_name(id: String) -> String:
+	if Items.category(id) == "book":       # Exp 006 (R): "a book on metalworking"
+		return "a book on " + Research.name_of(Items.DEFS[id].get("skill", "")).to_lower()
 	if is_unique(id):
 		var n := Items.name_of(id).to_lower()
 		return ("an " if n.substr(0, 1) in ["a", "e", "i", "o", "u"] else "a ") + n

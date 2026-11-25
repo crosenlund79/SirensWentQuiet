@@ -13,7 +13,9 @@ extends RefCounted
 ## Flags (ExpeditionData.FLAGS: "guarded", "cleared") are lasting consequences
 ## that change a place's danger until (and including) their day.
 
-const START_KNOWN := ["homes", "convenience", "grocery", "hardware", "clinic", "diner", "forest"]
+## Exp 006 (R): the gun shop and the library are known from the start (an older
+## save learns them on load: from_dict starts from new_region()).
+const START_KNOWN := ["homes", "convenience", "grocery", "hardware", "clinic", "diner", "forest", "gun_shop", "library"]
 const APPLIED_KEPT := 64
 const MAX_DAY := 100000
 const PURPOSE_MAX := 40

@@ -247,3 +247,6 @@ func _glyph(cat: String, c: Vector2, r: float) -> void:
 		"construction":
 			draw_rect(Rect2(c + Vector2(-s, -s * 0.85), Vector2(s * 2.0, s * 0.7)), k)
 			draw_rect(Rect2(c + Vector2(-s * 0.2, -s * 0.2), Vector2(s * 0.45, s * 1.25)), k)
+		"knowledge":      # Exp 006 (R): an open book
+			draw_colored_polygon(PackedVector2Array([c + Vector2(-s, -s * 0.6), c + Vector2(-s * 0.08, -s * 0.35), c + Vector2(-s * 0.08, s * 0.85), c + Vector2(-s, s * 0.6)]), k)
+			draw_colored_polygon(PackedVector2Array([c + Vector2(s, -s * 0.6), c + Vector2(s * 0.08, -s * 0.35), c + Vector2(s * 0.08, s * 0.85), c + Vector2(s, s * 0.6)]), k)

@@ -1242,6 +1242,14 @@ func _location(id: String) -> void:
 			_box(Vector3(hi.x - 0.6, g + 0.95, lo.z + 0.5), Vector3(hi.x - 0.52, g + 2.0, lo.z + 0.58), Color(0.6, 0.6, 0.6))
 			for k in 3:
 				_car(Vector3(lo.x + 0.6 + k * 0.5, g, hi.z - 0.5), false)
+		"library":      # Exp 006 (R): a stone library with a columned porch
+			var lib := Color(0.78, 0.74, 0.66)
+			_block(Vector3(lo.x + 0.3, g, lo.z + 0.3), Vector3(hi.x - 0.3, g + 0.75, hi.z - 0.9), lib)
+			_box(Vector3(lo.x + 0.2, g + 0.75, lo.z + 0.2), Vector3(hi.x - 0.2, g + 0.85, hi.z - 0.8), lib.darkened(0.25))
+			for k in 5:
+				var q := Vector3(lo.x + 0.6 + k * (s.x - 1.2) / 4.0, g, hi.z - 0.6)
+				_box(q - Vector3(0.06, 0, 0.06), q + Vector3(0.06, 0.6, 0.06), lib.lightened(0.12))
+			_box(Vector3(lo.x + 0.45, g + 0.6, hi.z - 0.85), Vector3(hi.x - 0.45, g + 0.68, hi.z - 0.42), lib)
 		"military":
 			_fence(Rect2(lo.x, lo.z, s.x, s.y), g, Color(0.4, 0.42, 0.36))
 			for k in 3:

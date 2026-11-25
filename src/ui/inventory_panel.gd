@@ -17,7 +17,7 @@ signal closed
 const GROUPS := [["food", "Food"], ["water", "Water"], ["medical", "Medical"], ["ammo", "Ammo"], ["material", "Materials"]]
 const GEAR_GROUPS := [["weapon", "Weapons"], ["protective", "Protective"], ["utility", "Utility"], ["tool", "Tools"]]
 const USE_SOUNDS := {"food": "player/eat", "water": "player/drink", "medical": "player/bandage"}
-const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"], ["home", "Home"]]   # Exp 005 (C): Home
+const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"], ["home", "Home"], ["skills", "Skills"]]   # Exp 005 (C): Home; Exp 006 (R): Skills
 ## What each piece of gear does when equipped (Equipment and the expedition rules).
 const EFFECTS := {
 	"handgun": "9 mm · magazine 12 · quick",
@@ -49,7 +49,7 @@ func _init() -> void:
 func open(s: GameState, which := "") -> void:
 	_disconnect_state()
 	state = s
-	if which in ["supplies", "equipment", "home"]:
+	if which in ["supplies", "equipment", "home", "skills"]:      # Exp 006 (R): skills
 		tab = which
 	if tab == "home" and home_source == null:
 		tab = "supplies"
@@ -61,7 +61,7 @@ func open(s: GameState, which := "") -> void:
 
 
 func show_tab(which: String) -> void:
-	if not which in ["supplies", "equipment", "home"] or not is_open or (which == "home" and home_source == null):
+	if not which in ["supplies", "equipment", "home", "skills"] or not is_open or (which == "home" and home_source == null):
 		return
 	tab = which
 	var focus := _build_tab()
@@ -124,6 +124,8 @@ func _build_tab() -> Control:
 		_build_supplies(lists)
 	elif tab == "home":
 		HomePanelView.build(lists, home_source)     # Exp 005 (C)
+	elif tab == "skills":
+		ResearchPanelView.build(lists, state, self)     # Exp 006 (R): the research tree and the books
 	else:
 		_build_equipment(lists)
 	box.add_child(UiTheme.make_spacer(2))
@@ -299,6 +301,19 @@ func toggle_equip(id: String) -> String:
 		Sfx.ui("ui/click")
 	_refresh()
 	return why
+
+
+## Exp 006 (R): reads a skill book (the Skills tab's Read buttons): the skill
+## is learned and the book used up (Research.read_book). Returns the feedback.
+func read_book(id: String) -> String:
+	if state == null:
+		return ""
+	var r := Research.read_book(state, id)
+	if is_open and tab == "skills":
+		show_tab("skills")
+	_say(str(r["text"]), UiTheme.GOOD if r["ok"] else UiTheme.WARN)
+	Sfx.ui("ui/click" if r["ok"] else "ui/error")
+	return str(r["text"])
 
 
 ## Experiment 004 (E): puts `id` in the quick-access bar's selected slot

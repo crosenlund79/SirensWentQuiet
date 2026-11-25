@@ -57,6 +57,7 @@ const DEFS := {
 	# Experiment 003: the shotgun, reloading and switching (WeaponHandler plays these).
 	"weapon/shotgun_fire": {"pitch": 0.03, "cd": 0.1, "max": 3},
 	"weapon/reload": {"pitch": 0.03, "cd": 0.3, "max": 1},
+	"weapon/shotgun_reload": {"pitch": 0.03, "cd": 0.3, "max": 1, "tpl": false},   # Exp 006 (R): silent until a file maps here; the shotgun falls back to weapon/reload
 	"weapon/reload_done": {"pitch": 0.03, "cd": 0.1, "max": 1},
 	"weapon/shell_load": {"pitch": 0.05, "cd": 0.08, "max": 2},
 	"weapon/switch": {"pitch": 0.04, "cd": 0.15, "max": 1},

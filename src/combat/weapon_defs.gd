@@ -19,6 +19,8 @@ extends RefCounted
 ##   casing_back  m behind the muzzle where the spent casing is ejected
 ##   fire_sound   Sfx names, the first one that exists is played
 ##   fire_db      volume offset for the fire sound
+##   sounds       optional {SOUNDS kind: [Sfx names]} tried before the shared
+##                SOUNDS names (Exp 006 (R): the shotgun's own reload sound)
 
 const DEFS := {
 	"handgun": {
@@ -32,6 +34,7 @@ const DEFS := {
 		"pellets": 6, "spread": 9.0, "range": 14.0, "reload": "shell", "reload_time": 0.5,
 		"muzzle": Vector3(0, -0.8, -0.005), "casing_back": 0.6,
 		"fire_sound": ["weapon/shotgun_fire", "weapon/handgun_fire"], "fire_db": 3.0,
+		"sounds": {"reload_start": ["weapon/shotgun_reload"]},      # Exp 006 (R); falls back to weapon/reload
 	},
 }
 
@@ -45,6 +48,16 @@ const SOUNDS := {
 	"switch": ["weapon/switch", "weapon/dry_fire"],
 }
 const SOUND_DB := {"dry": 0.0, "reload_start": -6.0, "reload_done": -4.0, "shell": -8.0, "switch": -10.0}
+
+
+## Exp 006 (R): the Sfx names for a handler sound `kind` of weapon `id`: its
+## own ("sounds") first, then the shared SOUNDS names.
+static func sound_names(id, kind: String) -> Array:
+	var out: Array = []
+	if has(id):
+		out.append_array(DEFS[str(id)].get("sounds", {}).get(kind, []))
+	out.append_array(SOUNDS.get(kind, []))
+	return out
 
 
 static func has(id) -> bool:

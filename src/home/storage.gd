@@ -23,7 +23,7 @@ const PROFILES := {
 	"fridge": {"holds": ["food", "water"], "for": "food and drink"},
 	"wardrobe": {"holds": ["weapon", "ammo", "protective", "utility", "tool", "medical"], "for": "clothing and equipment"},
 	"chest": {"holds": [], "for": "general supplies"},
-	"shelf": {"holds": ["material", "food", "water", "medical", "ammo", "utility", "tool"], "for": "materials and smaller items"},
+	"shelf": {"holds": ["material", "food", "water", "medical", "ammo", "utility", "tool", "book"], "for": "materials and smaller items"},   # Exp 006 (R): books
 	"tools": {"holds": ["tool", "material", "ammo", "utility"], "for": "tools and construction supplies"},
 	"drawers": {"holds": ["weapon", "ammo", "protective", "utility", "medical", "food", "water"], "for": "small personal things"},
 	"cabinet": {"holds": ["medical", "water", "utility"], "for": "medicine and toiletries"},

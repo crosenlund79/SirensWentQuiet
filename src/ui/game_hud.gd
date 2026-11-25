@@ -26,6 +26,7 @@ const HELP := [
 	["B", "Build"], ["Esc", "Pause"], ["F10", "Developer"],
 	["Shift", "Sprint"], ["Z / C", "Turn view"], ["V", "Roof on / off"],
 	["PgUp / PgDn", "Level (build)"],      # Exp 005 (V)
+	["K", "Skills"],      # Exp 006 (R): the inventory's Skills tab
 ]
 const MATERIALS := [["wood", "Wood"], ["stone", "Stone"], ["iron", "Iron"]]
 

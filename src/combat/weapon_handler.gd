@@ -260,7 +260,7 @@ func reload() -> String:
 		return "No %s left." % Items.name_of(WeaponDefs.ammo_of(id)).to_lower()
 	_reload_id = id
 	_reload_t = 0.0
-	_play("reload_start", _muzzle_global(WeaponDefs.get_def(id)))
+	_play("reload_start", _muzzle_global(WeaponDefs.get_def(id)), id)
 	reload_started.emit(id)
 	return ""
 
@@ -282,7 +282,7 @@ func _advance_reload(delta: float) -> void:
 		_reload_t -= step
 		var k := state.load_rounds(id, 1)
 		if k > 0:
-			_play("shell", _muzzle_global(d))
+			_play("shell", _muzzle_global(d), id)
 		var full := state.magazine(id) >= WeaponDefs.capacity(id)
 		var dry: bool = state.reserve(id) <= 0 and not state.cheats.get("unlimited", false)
 		if k <= 0 or full or dry:
@@ -296,7 +296,7 @@ func _stop_reload(done: bool) -> void:
 	if id == "":
 		return
 	if done:
-		_play("reload_done", _muzzle_global(WeaponDefs.get_def(id)))
+		_play("reload_done", _muzzle_global(WeaponDefs.get_def(id)), id)
 		reloaded.emit(id)
 	else:
 		reload_interrupted.emit(id)
@@ -443,13 +443,13 @@ static func shotgun_model() -> Node3D:
 
 # --- sound -----------------------------------------------------------------------------
 
-func _play(kind: String, at: Vector3) -> void:
-	_play_first(WeaponDefs.SOUNDS[kind], at, float(WeaponDefs.SOUND_DB.get(kind, 0.0)))
+func _play(kind: String, at: Vector3, weapon := "") -> void:
+	_play_first(WeaponDefs.sound_names(weapon, kind), at, float(WeaponDefs.SOUND_DB.get(kind, 0.0)))   # Exp 006 (R): per weapon
 
 
 ## Plays the first name in `names` that Sfx knows (preferred name, then fallbacks).
 func _play_first(names: Array, at: Vector3, db := 0.0) -> void:
 	for n in names:
-		if Sfx.has(n):
+		if Sfx.available(n):      # Exp 006 (R): a defined name without a file falls through (weapon/shotgun_reload)
 			Sfx.play(n, at, db)
 			return

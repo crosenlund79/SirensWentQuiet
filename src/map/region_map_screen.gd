@@ -469,7 +469,7 @@ func _build_footer() -> void:
 	legend.offset_bottom = -MARGIN
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
-	for cat in [MapInfo.HOME, "food", "medical", "construction", "weapons", "residential"]:
+	for cat in [MapInfo.HOME, "food", "medical", "construction", "weapons", "residential", "knowledge"]:   # Exp 006 (R): knowledge
 		var item := HBoxContainer.new()
 		item.add_theme_constant_override("separation", 5)
 		var dot := ColorRect.new()
@@ -477,7 +477,7 @@ func _build_footer() -> void:
 		dot.custom_minimum_size = Vector2(9, 9)
 		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		item.add_child(dot)
-		var names := {MapInfo.HOME: "Home", "food": "Food", "medical": "Medical", "construction": "Building", "weapons": "Weapons", "residential": "Houses"}
+		var names := {MapInfo.HOME: "Home", "food": "Food", "medical": "Medical", "construction": "Building", "weapons": "Weapons", "residential": "Houses", "knowledge": "Books"}
 		item.add_child(UiTheme.make_label(names[cat], UiTheme.FONT_SMALL, UiTheme.TEXT_DIM))
 		row.add_child(item)
 	legend.add_child(row)

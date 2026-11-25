@@ -510,6 +510,7 @@ func _build() -> void:
 	_build_furniture_section(box)     # Exp 005 (F)
 	_build_audio_section(box)     # Exp 005 (A)
 	_build_comfort_section(box)     # Exp 005 (C)
+	_build_research_section(box)     # Exp 006 (R)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -527,6 +528,23 @@ func _build() -> void:
 	_inspect.add_theme_font_size_override("normal_font_size", 12)
 	_inspect.add_theme_color_override("default_color", UiTheme.TEXT)
 	box.add_child(_inspect)
+
+
+## Exp 006 (R): Research — give each skill book, learn all, forget all, show
+## skills (the game's `research` helper, src/research/game_research.gd).
+func _build_research_section(box: VBoxContainer) -> void:
+	var r: Node = game.get("research") if game != null else null
+	if r == null or not r.has_method("dev_learn_all"):
+		return
+	box.add_child(UiTheme.make_section("Research"))
+	var items := []
+	for b in Research.books():
+		items.append(["+ " + Items.name_of(b), func(): _say(r.dev_give_book(b))])
+	items.append(["+ All books", func(): _say(r.dev_give_all_books())])
+	items.append(["Show skills", func(): _say(r.dev_skills_text())])
+	items.append(["Learn all", func(): _say(r.dev_learn_all())])
+	items.append(["Forget all", func(): _say(r.dev_forget_all())])
+	box.add_child(_grid(2, items))
 
 
 func _small(text: String, cb: Callable) -> Button:

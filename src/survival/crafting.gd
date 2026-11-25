@@ -22,10 +22,11 @@ static func max_units(state: GameState, recipe: String) -> int:
 	if state == null or state.dead or not has(recipe):
 		return 0
 	var r: Dictionary = RECIPES[recipe]
+	var ins := inputs(state, recipe)
 	var n := Inventory.MAX_COUNT
 	if not state.cheats.get("unlimited", false):
-		for id in r["in"]:
-			n = mini(n, state.inventory.count(id) / int(r["in"][id]))
+		for id in ins:
+			n = mini(n, state.inventory.count(id) / int(ins[id]))
 	for id in r["out"]:
 		n = mini(n, state.inventory.space_for(id) / int(r["out"][id]))
 	return maxi(n, 0)
@@ -41,10 +42,11 @@ static func can_process(state: GameState, recipe: String) -> String:
 	for id in r["out"]:
 		if state.inventory.space_for(id) < int(r["out"][id]):
 			return "No room for more %s." % Items.name_of(id).to_lower()
-	if not state.can_pay(r["in"]):
+	var ins := inputs(state, recipe)
+	if not state.can_pay(ins):
 		var parts := []
-		for id in r["in"]:
-			parts.append("%d %s" % [int(r["in"][id]), Items.name_of(id).to_lower()])
+		for id in ins:
+			parts.append("%d %s" % [int(ins[id]), Items.name_of(id).to_lower()])
 		return "You need %s." % ", ".join(parts)
 	return ""
 
@@ -62,9 +64,10 @@ static func process(state: GameState, recipe: String, units := 1) -> Dictionary:
 		return out
 	var k := mini(units, max_units(state, recipe))
 	var r: Dictionary = RECIPES[recipe]
+	var ins := inputs(state, recipe)
 	var cost := {}
-	for id in r["in"]:
-		cost[id] = int(r["in"][id]) * k
+	for id in ins:
+		cost[id] = int(ins[id]) * k
 	if k <= 0 or not state.pay(cost):
 		out["reason"] = "Nothing to make."
 		return out
@@ -75,6 +78,17 @@ static func process(state: GameState, recipe: String, units := 1) -> Dictionary:
 	out["ok"] = true
 	out["units"] = k
 	return out
+
+
+## Exp 006 (R): a recipe's inputs for this state. Metalworking (Research)
+## makes iron from 2 scrap instead of 3.
+static func inputs(state: GameState, recipe: String) -> Dictionary:
+	if not has(recipe):
+		return {}
+	var ins: Dictionary = (RECIPES[recipe]["in"] as Dictionary).duplicate()
+	if recipe == "iron" and ins.has("scrap"):
+		ins["scrap"] = Research.scrap_per_iron(state)
+	return ins
 
 
 ## The workbench example: turns 3 * n scrap into n iron (as many as possible).

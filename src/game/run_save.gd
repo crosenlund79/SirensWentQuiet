@@ -30,7 +30,8 @@ static func compose(state: GameState, world_data: Dictionary, player_pos: Vector
 
 
 ## Returns {"ok", "error", "state": GameState, "world": Dictionary,
-## "player_pos": Vector3 or null, "yaw": float, "storey": int, "game": Dictionary}.
+## "player_pos": Vector3 or null, "yaw": float, "storey": int, "game": Dictionary}
+## (+ "skills_inferred": [ids] for a save from before Experiment 006).
 static func parse(data: Dictionary) -> Dictionary:
 	var out := {"ok": false, "error": "", "state": null, "world": {}, "player_pos": null, "yaw": 0.0, "storey": 0, "game": {}}
 	var sd = data.get("state")
@@ -66,6 +67,11 @@ static func parse(data: Dictionary) -> Dictionary:
 		var storey = p.get("storey", 0)
 		if typeof(storey) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(storey)):
 			out["storey"] = clampi(int(storey), Levels.LOWEST, Levels.HIGHEST)      # Exp 005 (V): -2..+2
+	# Exp 006 (R): a save from before research gets the skills its house
+	# already shows (metal doors -> Metalworking, ...), so nothing built is
+	# suddenly out of reach. Research.infer_from_world.
+	if not (sd as Dictionary).has("skills"):
+		out["skills_inferred"] = Research.infer_from_world(st, wd)
 	out["ok"] = true
 	out["state"] = st
 	out["world"] = wd

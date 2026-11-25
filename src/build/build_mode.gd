@@ -330,6 +330,7 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 		FurniturePlace.evaluate(self, r, p)
 	if ext != null:      # Experiment 004 (L): the level pieces, stairs and floor tiles, level rules
 		ext.post_evaluate(self, r, p, from)
+	Research.gate(state, BuildPieces.LIST[piece], r)      # Exp 006 (R): locked recipes and Reinforce steps ("locked": true)
 	if r["reason"] == "" and not state_can_pay(r["cost"]):
 		r["reason"] = "Needs %s." % BuildPieces.cost_text(r["cost"])
 	r["ok"] = r["reason"] == ""

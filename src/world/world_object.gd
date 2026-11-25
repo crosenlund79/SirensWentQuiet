@@ -425,7 +425,7 @@ func interact_prompt() -> String:
 		"rain_collector":
 			return "[E] Rain collector · 1 water at dawn"
 		"workbench":
-			return "[E] Workbench · %d scrap → 1 iron" % Workbench.SCRAP_PER_IRON
+			return "[E] Workbench · %d scrap → 1 iron (%d with Metalworking)" % [Workbench.SCRAP_PER_IRON, Research.SCRAP_PER_IRON_SKILLED]   # Exp 006 (R)
 		"fuse_box":
 			return "[E] Switch the main power off" if mains_on else "[E] Switch the main power on"
 		# Exp 005 (F)
