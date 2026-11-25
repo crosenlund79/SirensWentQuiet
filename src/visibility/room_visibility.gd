@@ -20,7 +20,7 @@ enum { FULL, NEAR, PARTIAL, HIDDEN }
 
 const NAMES := ["full", "near", "partial", "hidden"]
 ## Floor overlay darkness (alpha) per state.
-const DIM := [0.0, 0.12, 0.3, 0.72]
+const DIM := [0.0, 0.12, 0.3, 0.78]
 
 
 ## Open passages between rooms and to the outside:

@@ -18,9 +18,10 @@ extends RefCounted
 ##      room, upper interior, basement; open doors, broken windows and
 ##      breaches raise the exposure);
 ##   2. the hearing radius is RADIUS(level) x exposure;
-##   3. every living, non-retreating enemy within it (on the same storey, or
-##      one storey away at half the radius) hears `heard` = level x exposure x
-##      (1 - distance / radius). Calm enemies (AIEnemy.is_calm()) may
+##   3. every living, non-retreating enemy within it hears `heard` = level x
+##      exposure x (1 - distance / radius); above ground the storeys don't
+##      matter (the exposure counts the walls), between a basement and the
+##      storey above the radius halves, and two storeys of earth stop it. Calm enemies (AIEnemy.is_calm()) may
 ##      investigate, check an entrance, wander away or turn hostile
 ##      (StragglerMind.hear); hostile enemies are already coming.
 ##      Noise never spawns enemies; scheduled hordes are separate.
@@ -58,7 +59,7 @@ const EVENTS := {
 }
 ## Gunfire by weapon (handheld and agent S's turrets): weapon_level(id).
 const WEAPON_LEVELS := {"handgun": 4.0, "shotgun": 4.4}
-const STOREY_DAMP := 0.5          ## radius factor for enemies one storey away
+const STOREY_DAMP := 0.5          ## radius factor between a basement and the storey above
 const LOG_MAX := 12
 
 ## Events when there is no game helper (tests, tools); newest last.
@@ -202,9 +203,10 @@ static func _dispatch(game: Node, ev: Dictionary) -> void:
 		if not a.alive or a.retreating or a.has_meta("retreat"):
 			continue
 		var gap := absi(a.storey - storey)
-		if gap > 1:
+		var buried := mini(a.storey, storey) < 0      # through earth and a floor
+		if buried and gap > 1:
 			continue
-		var r: float = ev["radius"] * (1.0 if gap == 0 else STOREY_DAMP)
+		var r: float = ev["radius"] * (STOREY_DAMP if buried and gap > 0 else 1.0)
 		var h := heard_at(ev["level"], ev["exposure"], a.plan_pos().distance_to(at), r)
 		if h <= 0.0:
 			continue

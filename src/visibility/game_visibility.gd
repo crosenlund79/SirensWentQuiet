@@ -34,6 +34,7 @@ extends Node
 
 const POLL := 0.15                     ## s between Eli's room look-ups and the enemies' check
 const DEBOUNCE := 0.25                 ## s after a structure change before re-applying
+const ROOMS_MIN_AGE := 1.0             ## s between finding one world's rooms again (RoomCache.min_age)
 const OVERLAY_LIFT := 0.02             ## m above the storey's floor
 const ROOM_HUES := [0.0, 0.12, 0.3, 0.45, 0.58, 0.7, 0.8, 0.9]
 
@@ -61,10 +62,16 @@ var _since := 999.0
 var _poll := 0.0
 var _key := ""
 var _watched := {}
+var _runs := -1                        ## the provider's room finds (comfort.stats.rooms_runs) last seen
+var _stale := false                    ## the last apply used stale rooms: apply again soon
 
 
 func setup(g: Node) -> void:
 	game = g
+	cache.min_age = ROOMS_MIN_AGE
+	var cf = game.get("comfort")
+	if cf is Object and cf.has_method("world_of") and cf.get("maps") is Dictionary:
+		cache.provider = cf               # at home the comfort helper finds the rooms already
 	_overlay = MeshInstance3D.new()
 	_overlay.name = "RoomShade"
 	_overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -200,9 +207,13 @@ func _process(delta: float) -> void:
 	if _poll >= POLL:
 		_poll = 0.0
 		var k := _view_key()
+		var runs := _rooms_runs()
 		if k != _key:
 			_key = k
 			_now("room change")
+		elif runs != _runs:
+			_runs = runs
+			_mark("rooms")
 		elif not _dirty:
 			_update_enemies()
 		if diagnostics:
@@ -219,6 +230,13 @@ func _view_key() -> String:
 	if w != null and w == _world and not _map.is_empty() and _player_storey() == int(a[1]):
 		room = HouseRooms.room_index_at(_map, w.nav, _player_plan(), 1)
 	return "%d|%d|%s|%s|%d" % [int(a[1]), room, _building(), enabled, w.get_instance_id() if w != null else 0]
+
+
+func _rooms_runs() -> int:
+	var p = cache.provider
+	if p != null and is_instance_valid(p) and p.get("stats") is Dictionary:
+		return int(p.stats.get("rooms_runs", 0))
+	return cache.runs
 
 
 func _active() -> Array:
@@ -259,6 +277,7 @@ func _apply() -> void:
 	_map = {}
 	if _world != null and is_instance_valid(_world):
 		_map = cache.map_of(_world, storey)
+		_stale = cache.is_dirty(_world, storey) and cache.provider == null
 	if _map.is_empty() or _map["rooms"].is_empty() or (not enabled and not show_bounds) or _building():
 		_build_overlay()
 		_finish(t0)
@@ -274,6 +293,10 @@ func _apply() -> void:
 
 
 func _finish(t0: int) -> void:
+	_runs = _rooms_runs()
+	if _stale:                         # the rooms were stale (a siege): look again once they may be found
+		_dirty = true
+		_reason = "stale rooms"
 	_key = _view_key()
 	stats["updates"] += 1
 	stats["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
