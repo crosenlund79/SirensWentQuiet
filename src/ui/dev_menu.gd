@@ -321,6 +321,7 @@ static func save_text(info: Dictionary) -> String:
 func _refresh_inspect() -> void:
 	if _inspect != null and is_open:
 		_inspect.text = inspect_text()
+		_audio_refresh()          # Exp 005 (A)
 
 
 func _sync() -> void:
@@ -507,6 +508,7 @@ func _build() -> void:
 	_build_home_section(box)     # Experiment 004 (H)
 	_build_structure_section(box)     # Refinement 01 (S)
 	_build_furniture_section(box)     # Exp 005 (F)
+	_build_audio_section(box)     # Exp 005 (A)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -691,3 +693,88 @@ func _storage_call(method: String) -> void:
 		_say("The game has no storage.%s()" % method, true)
 		return
 	_say(str(h.call(method)))
+
+
+# --- Exp 005 (A): audio (the inbox, a sound player, ambience layers; src/audio/game_audio.gd) ---
+
+var _audio_text: RichTextLabel
+var _audio_pick: OptionButton
+
+
+func _build_audio_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Audio"))
+	_audio_pick = OptionButton.new()
+	_audio_pick.name = "AudioPick"
+	_audio_pick.focus_mode = Control.FOCUS_NONE
+	_audio_pick.fit_to_longest_item = false
+	_audio_pick.clip_text = true
+	_audio_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_audio_pick.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	for n in Sfx.all_names():
+		var src := Sfx.source_of(n)
+		_audio_pick.add_item("%s  (%s)" % [n, src if src != "" else "no file"])
+		_audio_pick.set_item_metadata(_audio_pick.item_count - 1, n)
+	box.add_child(_audio_pick)
+	box.add_child(_grid(2, [["Play sound", audio_play_picked], ["Stop voice / music", audio_stop],
+		["Outdoor layer", audio_call.bind("dev_toggle_layer", ["outdoor"])], ["Indoor layer", audio_call.bind("dev_toggle_layer", ["indoor"])],
+		["Fireplace layer", audio_call.bind("dev_toggle_layer", ["fireplace"])], ["Details layer", audio_call.bind("dev_toggle_layer", ["details"])],
+		["Threat layer", audio_call.bind("dev_toggle_layer", ["threat"])], ["Owl / wolf / creak", audio_details],
+	]))
+	_audio_text = RichTextLabel.new()
+	_audio_text.name = "AudioInbox"
+	_audio_text.bbcode_enabled = true
+	_audio_text.fit_content = true
+	_audio_text.scroll_active = false
+	_audio_text.selection_enabled = true
+	_audio_text.focus_mode = Control.FOCUS_NONE
+	_audio_text.custom_minimum_size.x = WIDTH - 52
+	_audio_text.add_theme_font_size_override("normal_font_size", 11)
+	_audio_text.add_theme_color_override("default_color", UiTheme.TEXT)
+	box.add_child(_audio_text)
+	_audio_refresh()
+
+
+## The game's audio status plus the inbox: mapped files and unknown ones.
+func _audio_refresh() -> void:
+	if _audio_text == null:
+		return
+	var a = game.get("audio") if game != null and is_instance_valid(game) else null
+	var head: String = a.dev_status() if a is Object and is_instance_valid(a) and a.has_method("dev_status") else ""
+	_audio_text.text = (head + "\n" if head != "" else "") + "[b]Audio inbox[/b]\n" + AudioInbox.report_text()
+
+
+## Plays the sound chosen in the list.
+func audio_play_picked() -> void:
+	if _audio_pick == null or _audio_pick.selected < 0:
+		return
+	audio_call("dev_play", [str(_audio_pick.get_item_metadata(_audio_pick.selected))])
+
+
+func audio_stop() -> void:
+	Voice.stop()
+	Sfx.music("")
+	_say("Voice and music stopped")
+	_audio_refresh()
+
+
+## One owl, one wolf and one creak now (each where it would happen).
+func audio_details() -> void:
+	var amb = game.get("ambience") if game != null and is_instance_valid(game) else null
+	if not (amb is Ambience):
+		_say("No ambience.", true)
+		return
+	var played := PackedStringArray()
+	for id in ["owl", "wolf", "creak"]:
+		if amb.play_detail(id):
+			played.append(id)
+	_say("Played: " + (", ".join(played) if not played.is_empty() else "nothing (no recordings)"))
+	_audio_refresh()
+
+
+func audio_call(method: String, args: Array) -> void:
+	var a = game.get("audio") if game != null and is_instance_valid(game) else null
+	if not (a is Object and is_instance_valid(a) and a.has_method(method)):
+		_say("The game has no audio.%s()" % method, true)
+		return
+	_say(str(a.callv(method, args)))
+	_audio_refresh()

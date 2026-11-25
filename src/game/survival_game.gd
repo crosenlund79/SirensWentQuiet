@@ -37,6 +37,7 @@ const CarCtl := preload("res://src/game/game_car.gd")         # Experiment 004 (
 const HomeLink := preload("res://src/home/game_home.gd")   # Experiment 004 (H): atmosphere, lights, household
 const SupportLink := preload("res://src/world/game_support.gd")   # Refinement 01 (S): collapses
 const StorageLink := preload("res://src/home/game_storage.gd")   # Exp 005 (F): storage furniture, placed lamps
+const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): footsteps, ambience layers, Eli
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -64,6 +65,7 @@ var car: Node                          ## game_car.gd (Experiment 004, E: the ya
 var home: Node                         ## src/home/game_home.gd (Experiment 004: fireplace, lights, sink, fridge, sky)
 var support: Node                      ## src/world/game_support.gd (Refinement 01: roof and upper-floor collapses)
 var storage: Node                      ## src/home/game_storage.gd (Exp 005, F: storage panel, placed lamps, F10 Furniture)
+var audio: Node                        ## src/audio/game_audio.gd (Exp 005, A: footsteps, ambience layers, voice)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -258,6 +260,10 @@ func _assemble() -> void:
 	storage.name = "Storage"
 	add_child(storage)
 	storage.setup(self)
+	audio = AudioLink.new()            # Exp 005 (A): after home and levels, which it reads
+	audio.name = "Audio"
+	add_child(audio)
+	audio.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -358,9 +364,7 @@ func _process(delta: float) -> void:
 	listener.global_position = player.global_position + Vector3(0, 1.7, 0)
 	_update_prompt()
 	_update_banner()
-	var step := _steps.tick(delta, Vector2(player.velocity.x, player.velocity.z).length())
-	if step != "":
-		Sfx.play(step, null, -4.0)
+	# Exp 005 (A): footsteps follow the gait and the surface (src/audio/game_audio.gd)
 
 
 func _physics_process(_delta: float) -> void:

@@ -10,6 +10,10 @@ extends RefCounted
 ##
 ## Streams come from AssetResolver.get_audio, so creator files in
 ## custom/audio/ replace the templates (docs/experiment-002/audio.md).
+## Experiment 005 (A): the audio inbox (AudioInbox) sits between the two:
+## custom/ > the inbox > the template, per name (see clip()). Inbox clips can
+## start late and stop early (silence trimmed, footsteps sliced) and carry a
+## normalising gain. docs/experiment-005/AUDIO.md.
 ## Players are pooled. Flat and positional players live under the attached
 ## scene root and go away with the scene; UI and music players live under the
 ## SceneTree root so a click or a cross-fade outlives a scene change. Every
@@ -30,13 +34,16 @@ const FAR := {"unit": 14.0, "max_distance": 60.0, "cutoff": 2200.0, "filter_db":
 const GROUPS := {"player/footstep": 4, "enemy/moan": 2, "ambient/distant": 3}
 
 const DEFAULT := {"bus": "SFX", "vol": 0.0, "pitch": 0.0, "cd": 0.05, "max": 4, "pos": true,
-		"steal": true, "far": false, "loop": false}
+		"steal": true, "far": false, "loop": false, "tpl": true}
+const CLIP_FADE := 0.03          ## Exp 005 (A): fade-out when a clip stops early
 
 ## Per logical name. bus: SFX | UI | Ambient | Music. vol: base dB. pitch:
 ## random +/- fraction. cd: seconds before the name plays again. max:
 ## simultaneous instances (steal: restart the oldest instead of skipping).
 ## pos: positional when given a position. far: stronger air absorption.
 ## loop: plays only through Sfx.music or Ambience.
+## tpl: false for names with no generated template (Exp 005: the audio inbox
+## fills them; they stay silent until a file maps to them).
 const DEFS := {
 	"player/footstep": {"pitch": 0.07, "cd": 0.12, "max": 2, "steal": false},
 	"player/hurt": {"pitch": 0.06, "cd": 0.35, "max": 1, "pos": false},
@@ -80,7 +87,7 @@ const DEFS := {
 	"ambient/wind_day": {"bus": "Ambient", "pos": false, "loop": true},
 	"ambient/night": {"bus": "Ambient", "pos": false, "loop": true},
 	"ambient/tension": {"bus": "Ambient", "pos": false, "loop": true},
-	"ambient/distant": {"bus": "Ambient", "pitch": 0.05, "cd": 8.0, "max": 1, "far": true, "steal": false},
+	"ambient/distant": {"bus": "Outdoor", "pitch": 0.05, "cd": 8.0, "max": 1, "far": true, "steal": false},   # Exp 005: muffled indoors
 	"ui/click": {"bus": "UI", "pitch": 0.02, "cd": 0.03, "max": 2, "pos": false},
 	"ui/hover": {"bus": "UI", "vol": -2.0, "pitch": 0.03, "cd": 0.04, "max": 1, "pos": false},
 	"ui/open": {"bus": "UI", "cd": 0.08, "max": 1, "pos": false},
@@ -89,6 +96,24 @@ const DEFS := {
 	"stinger/invasion": {"bus": "Music", "cd": 5.0, "max": 1, "pos": false, "steal": false},
 	"stinger/dawn": {"bus": "Music", "cd": 5.0, "max": 1, "pos": false, "steal": false},
 	"music/menu": {"bus": "Music", "pos": false, "loop": true},
+	# Experiment 005 (A): names the audio inbox fills (docs/experiment-005/AUDIO.md).
+	"player/step_snow": {"pitch": 0.06, "cd": 0.12, "max": 2, "steal": false, "pos": false, "tpl": false},
+	"player/step_wood": {"pitch": 0.06, "cd": 0.12, "max": 2, "steal": false, "pos": false, "tpl": false},
+	"player/step_cement": {"pitch": 0.06, "cd": 0.12, "max": 2, "steal": false, "pos": false, "tpl": false},
+	"enemy/step_snow": {"pitch": 0.08, "cd": 0.05, "max": 4, "steal": false, "tpl": false},
+	"enemy/step_wood": {"pitch": 0.08, "cd": 0.05, "max": 4, "steal": false, "tpl": false},
+	"home/fireplace_light": {"pitch": 0.04, "cd": 0.5, "max": 1, "tpl": false},
+	"home/fireplace_out": {"pitch": 0.04, "cd": 0.5, "max": 1, "tpl": false},
+	"ambient/owl": {"bus": "Outdoor", "pitch": 0.04, "cd": 6.0, "max": 1, "far": true, "steal": false, "tpl": false},
+	"ambient/wolf": {"bus": "Outdoor", "pitch": 0.03, "cd": 6.0, "max": 1, "far": true, "steal": false, "tpl": false},
+	"ambient/house_creak": {"bus": "Ambient", "pitch": 0.03, "cd": 6.0, "max": 1, "steal": false, "tpl": false},
+	"ambient/forest": {"bus": "Outdoor", "pos": false, "loop": true, "tpl": false},
+	"ambient/fireplace": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
+	"ambient/room_tone": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
+	"ambient/basement_tone": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
+	"voice/eli_new_game": {"bus": "Voice", "pos": false, "cd": 1.0, "max": 1, "steal": false, "tpl": false},
+	"voice/eli_continue": {"bus": "Voice", "pos": false, "cd": 1.0, "max": 1, "steal": false, "tpl": false},
+	"music/dawn": {"bus": "Music", "vol": -8.0, "pos": false, "loop": true, "tpl": false},
 }
 
 ## The scene host gets an AudioListener3D that follows the point the current
@@ -107,6 +132,7 @@ static var _last_variant := {}
 static var _warned := {}
 static var _defs := {}
 static var _rng := RandomNumberGenerator.new()
+static var _custom := {}         ## Exp 005: "<override root>|<key>" -> any custom/ file for the name
 
 
 ## Players for play() are created under `root` (the scene root). Call again
@@ -115,6 +141,8 @@ static var _rng := RandomNumberGenerator.new()
 static func attach(root: Node) -> void:
 	var valid := root != null and is_instance_valid(root)
 	_root_id = root.get_instance_id() if valid else 0
+	if valid:
+		AudioMix.ensure_buses()          # Exp 005 (A): Outdoor and Voice buses
 	var old := _node(_host_id)
 	if old != null and (not valid or old.get_parent() != root):
 		old.queue_free()
@@ -146,13 +174,14 @@ static func play(name: String, at: Variant = null, volume_db := 0.0) -> void:
 	if player == null:
 		stats["skipped"] += 1
 		return
-	var stream := AssetResolver.get_audio(_variant(name, key))
-	if stream == null:
+	var c := _clip(name, key)
+	if c.is_empty():
 		return
-	_start(player, stream, key, def, volume_db)
+	_start(player, c["stream"], key, def, volume_db + float(c["db"]))
 	if positional:
 		_place(player as AudioStreamPlayer3D, at, def["far"])
-	player.play()
+	player.play(float(c["from"]))
+	_stop_at(player, c)
 	_last[key] = Time.get_ticks_msec()
 	stats["played"] += 1
 
@@ -183,30 +212,74 @@ static func music(name: String) -> void:
 	var host := _persistent_host()
 	if host == null or not host.is_inside_tree():
 		return
+	var c := _clip(name, key) if name != "" else {}
+	if name != "" and c.is_empty():
+		_warn_once("#nofile:" + name, "Sfx: no file for the track '%s'" % name)
+		return
 	_music = name
-	for c in host.get_children():
-		if c.get_meta("sfx_kind", "") == "M" and c.playing:
-			_fade(c, 0.0, true)
+	for p in host.get_children():
+		if p.get_meta("sfx_kind", "") == "M" and p.playing:
+			_fade(p, 0.0, true)
 	if name == "":
 		return
-	var stream := AssetResolver.get_audio(name)
-	if stream == null:
-		return
 	var player := _music_player(host)
-	_start(player, stream, key, _def(key), 0.0)
+	_start(player, AudioInbox.looped(c["stream"]), key, _def(key), float(c["db"]))
 	player.volume_linear = 0.0
-	player.play()
-	_fade(player, db_to_linear(float(_def(key)["vol"])), false)
+	player.play(float(c["from"]))
+	_fade(player, db_to_linear(float(_def(key)["vol"]) + float(c["db"])), false)
 	stats["played"] += 1
 
 
-## Every logical sound with a file, sorted (variants listed individually).
+## Every logical sound with a template file, sorted (variants listed individually).
 static func names() -> PackedStringArray:
+	var out := PackedStringArray()
+	for k in DEFS:
+		if _def(k)["tpl"]:
+			out.append_array(variants(k))
+	out.sort()
+	return out
+
+
+## Exp 005 (A): every logical name, with or without a file (the F10 list).
+static func all_names() -> PackedStringArray:
 	var out := PackedStringArray()
 	for k in DEFS:
 		out.append_array(variants(k))
 	out.sort()
 	return out
+
+
+## Exp 005 (A): what plays for `name` (a logical name or a group variant):
+## {"stream", "from", "to", "db", "source"}; `to` 0 plays to the end, `db`
+## is added to the volume, source is "custom", "inbox" or "template".
+## custom/ wins for a name when any of its files has an override there, then
+## the audio inbox (the name's own pool, else its group's, else an alias),
+## then the generated template. {} when there is nothing to play.
+static func clip(name: String) -> Dictionary:
+	var key := key_of(name)
+	return _clip(name, key) if key != "" else {}
+
+
+## Exp 005 (A): true when `name` has something to play (no random pick).
+static func available(name: String) -> bool:
+	var key := key_of(name)
+	if key == "":
+		return false
+	if _has_custom(key) or _def(key)["tpl"]:
+		return true
+	return AudioInbox.pool_name(name) != "" or AudioInbox.pool_name(key) != ""
+
+
+## Exp 005 (A): where `name` plays from now: "custom", "inbox", "template" or "".
+static func source_of(name: String) -> String:
+	var key := key_of(name)
+	if key == "":
+		return ""
+	if _has_custom(key):
+		return "custom"
+	if AudioInbox.pool_name(name) != "" or AudioInbox.pool_name(key) != "":
+		return "inbox"
+	return "template" if _def(key)["tpl"] else ""
 
 
 # ---------------------------------------------------------------- additive helpers
@@ -277,6 +350,7 @@ static func reset() -> void:
 	_last.clear()
 	_last_variant.clear()
 	_warned.clear()
+	_custom.clear()
 	stats = {"played": 0, "skipped": 0, "stolen": 0}
 
 
@@ -320,6 +394,60 @@ static func _variant(name: String, key: String) -> String:
 		i = i % count + 1
 	_last_variant[key] = i
 	return "%s_%d" % [key, i]
+
+
+## Exp 005 (A): see clip().
+static func _clip(name: String, key: String) -> Dictionary:
+	if not _has_custom(key):
+		var c := AudioInbox.clip(name)
+		if c.is_empty() and name != key:
+			c = AudioInbox.clip(key)
+		if not c.is_empty():
+			return c
+	var variant := _variant(name, key)
+	var custom := _custom_file(variant)
+	if not custom and not _def(key)["tpl"]:
+		return {}
+	var s := AssetResolver.get_audio(variant)
+	if s == null:
+		return {}
+	return {"stream": s, "from": 0.0, "to": 0.0, "db": 0.0, "source": "custom" if custom else "template"}
+
+
+## Any creator file in custom/audio/ for `key` or one of its group's variants.
+static func _has_custom(key: String) -> bool:
+	var ck := AssetResolver.override_root() + "|" + key
+	if not _custom.has(ck):
+		var found := false
+		for v in variants(key):
+			if _custom_file(v):
+				found = true
+				break
+		_custom[ck] = found
+	return _custom[ck]
+
+
+static func _custom_file(logical: String) -> bool:
+	for ext in AssetResolver.audio_override_formats():
+		if FileAccess.file_exists(AssetResolver.audio_override_path(logical, ext)):
+			return true
+	return false
+
+
+## Stops a clip that ends before its file does (a trimmed export, one sliced
+## footstep), with a short fade so it doesn't click.
+static func _stop_at(p: Node, c: Dictionary) -> void:
+	var from := float(c.get("from", 0.0))
+	var to := float(c.get("to", 0.0))
+	if to <= from or not p.is_inside_tree():
+		return
+	var dur := (to - from) / maxf(float(p.get("pitch_scale")), 0.01)
+	var fade := minf(CLIP_FADE, dur * 0.3)
+	var tw := p.create_tween()
+	tw.tween_interval(maxf(dur - fade, 0.0))
+	tw.tween_property(p, "volume_db", float(p.get("volume_db")) - 40.0, fade)
+	tw.tween_callback(p.stop)
+	p.set_meta("sfx_tween", tw)
 
 
 static func _tree_root() -> Node:
@@ -376,12 +504,13 @@ static func _play_ui(name: String, key: String, def: Dictionary, volume_db: floa
 	if player == null:
 		stats["skipped"] += 1
 		return
-	var stream := AssetResolver.get_audio(_variant(name, key))
-	if stream == null:
+	var c := _clip(name, key)
+	if c.is_empty():
 		return
-	_start(player, stream, key, def, volume_db)
+	_start(player, c["stream"], key, def, volume_db + float(c["db"]))
 	player.bus = _bus("UI")
-	player.play()
+	player.play(float(c["from"]))
+	_stop_at(player, c)
 	_last[key] = Time.get_ticks_msec()
 	stats["played"] += 1
 
@@ -457,6 +586,8 @@ static func _music_player(host: Node) -> AudioStreamPlayer:
 
 
 static func _bus(bus: String) -> StringName:
+	if AudioServer.get_bus_index(bus) < 0 and (bus == AudioMix.OUTDOOR or bus == AudioMix.VOICE):
+		AudioMix.ensure_buses()          # Exp 005 (A)
 	return StringName(bus) if AudioServer.get_bus_index(bus) >= 0 else &"Master"
 
 

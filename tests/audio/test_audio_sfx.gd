@@ -162,7 +162,7 @@ func test_music_crossfades_and_stops() -> void:
 	if not check(playing != null, "music player started"):
 		return
 	check_eq(String(playing.bus), "Music", "Music bus")
-	check((playing.stream as AudioStreamOggVorbis).loop, "looped")
+	check(AudioInbox.is_looping(playing.stream), "looped")
 	await seconds(0.5)
 	check(playing.volume_linear > 0.05 and playing.volume_linear < 1.0, "fading in")
 	Sfx.music("music/menu")

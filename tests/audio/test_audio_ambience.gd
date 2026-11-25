@@ -18,7 +18,7 @@ func test_loops_start_when_entering_the_tree() -> void:
 	for id in ["wind", "night"]:
 		var p := a.player(id)
 		check(p != null and p.playing, "%s loop playing" % id)
-		check(p != null and String(p.bus) == "Ambient", "%s on the Ambient bus" % id)
+		check(p != null and String(p.bus) == "Outdoor", "%s on the Outdoor bus (it sends to Ambient)" % id)
 		check(p != null and (p.stream as AudioStreamOggVorbis).loop, "%s stream loops" % id)
 	check(not a.player("tension").playing, "no tension by default")
 
@@ -81,8 +81,8 @@ func test_distant_noises_come_from_beyond_the_lot_edge() -> void:
 	var found := false
 	for c in a.get_parent().get_node("SfxHost").get_children():
 		if c is AudioStreamPlayer3D and c.playing and c.get_meta("sfx_key") == "ambient/distant":
-			found = c.global_position.is_equal_approx(at) and String(c.bus) == "Ambient"
-	check(found, "positional, on the Ambient bus, at the edge point")
+			found = c.global_position.is_equal_approx(at) and String(c.bus) == "Outdoor"
+	check(found, "positional, on the Outdoor bus (muffled indoors; it sends to Ambient), at the edge point")
 
 
 func test_distant_noises_are_more_frequent_at_night() -> void:
