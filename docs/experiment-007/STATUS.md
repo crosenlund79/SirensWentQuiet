@@ -1,7 +1,7 @@
 # Experiment 007 — status and how to resume
 
 **Started:** 2026-11-25, 21:16 CET.
-**Branch:** `exp007/house-has-ears`; base: the commit after SPEC.md.
+**Branch:** `exp007/house-has-ears`; base `10acb92`.
 
 Agents per SPEC.md:
 
