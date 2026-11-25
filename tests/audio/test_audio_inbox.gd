@@ -188,3 +188,30 @@ func test_loops_are_set_in_code_on_copies() -> void:
 	check(wav.loop_mode == AudioStreamWAV.LOOP_DISABLED, "the original stays one-shot")
 	var m := Sfx.clip("music/menu")
 	check(AudioInbox.is_looping(m["stream"]), "the menu theme loops")
+
+
+## The file names recommended in docs/experiment-005/AUDIO_REQUIREMENTS.md map
+## to the sounds the document says.
+func test_recommended_names_in_the_requirements_map() -> void:
+	var want := {
+		"Player - Hurt 1": "player/hurt", "Enemy - Attack 2": "enemy/attack", "Enemy - Hit 1": "enemy/hit",
+		"Enemy - Death 3": "enemy/death", "Weapon - Shotgun Shot 1": "weapon/shotgun_fire", "Weapon - Dry fire 1": "weapon/dry_fire",
+		"Weapon - Reload done 1": "weapon/reload_done", "Weapon - Shotgun Shell 2": "weapon/shell_load", "Weapon - Switch 1": "weapon/switch",
+		"Impact - Wood 1": "impact/wood", "Impact - Plaster 2": "impact/plaster", "Impact - Metal 1": "impact/metal",
+		"Impact - Flesh 1": "impact/flesh", "Impact - Snow 2": "impact/ground", "Building - Place board 1": "build/place",
+		"Building - Demolish 2": "build/demolish", "Building - Invalid": "build/invalid", "Structure - Crumble 1": "structure/crumble",
+		"Structure - Blast 1": "structure/blast", "Enemy - Bomber fuse beep": "enemy/bomber_fuse", "Enemy - Bomber blast 1": "enemy/bomber_blast",
+		"Player - Eat 1": "player/eat", "Player - Drink 2": "player/drink", "Player - Bandage": "player/bandage", "Player - Sleep": "player/sleep",
+		"Player - Death": "player/death", "UI - Click": "ui/click", "UI - Hover": "ui/hover", "UI - Open": "ui/open", "UI - Close": "ui/close",
+		"UI - Error": "ui/error", "Fireplace - Light": "home/fireplace_light", "Fireplace - Extinguish": "home/fireplace_out",
+		"Light switch 1": "home/light_switch", "Car - Engine start": "car/start", "Shovel - Dig 2": "build/dig",
+		"Enemy - Footsteps Wood 3": "enemy/step_wood", "Room tone - House interior 1": "ambient/room_tone",
+		"Room tone - Basement 1": "ambient/basement_tone", "Wind - Winter day loop": "ambient/wind_day", "Night - Wind loop": "ambient/night",
+		"Tension - Invasion drone loop": "ambient/tension", "Distant - Metal scrape": "ambient/distant_1", "Distant - Shriek": "ambient/distant_2",
+		"Distant - Siren": "ambient/distant_3", "Stinger - Invasion": "stinger/invasion", "Stinger - Dawn": "stinger/dawn",
+		"Music - Dawn": "music/dawn",
+	}
+	for n in want:
+		check_eq(AudioInbox.match_path("res://x/%s.wav" % n, "res://x")["name"], want[n], n)
+	for n in want.values():
+		check(Sfx.has(n), "%s is a sound the game knows" % n)
