@@ -18,6 +18,7 @@ func _world() -> HouseWorld:
 func _build_mode(w: HouseWorld, unlimited := true) -> Array:
 	var s := GameState.new_run(7)
 	s.cheats["unlimited"] = unlimited
+	Research.learn_all(s)      # Exp 006 (R): these tests build reinforced and metal doors
 	var b := BuildMode.new()
 	b.setup(w, s, null, null)
 	add(b)

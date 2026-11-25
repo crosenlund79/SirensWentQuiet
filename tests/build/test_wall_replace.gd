@@ -99,6 +99,8 @@ func test_mixed_run_original_walls_plating_and_save() -> void:
 	var w: HouseWorld = setup[0]
 	var s: GameState = setup[1]
 	var b: BuildMode = setup[2]
+	for k in ["reinforced", "metalworking", "advanced_metal"]:      # Exp 006 (R): gated pieces (without Woodworking's repair discount)
+		Research.learn(s, k)
 	s.cheats["unlimited"] = true
 	# a mixed run: empty, a wooden wall (plated), empty
 	b.select_id("foundation")

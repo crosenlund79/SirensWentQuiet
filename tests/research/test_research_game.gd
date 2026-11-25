@@ -68,9 +68,9 @@ func test_research_and_the_shotgun_in_the_game() -> void:
 	var inv: InventoryPanel = g.debug_ui().inventory
 	check_eq(inv.tab, "skills", "on the Skills tab")
 	check(inv.find_child("Skill_metalworking", true, false) != null, "the tree is shown")
-	g.debug_close()
-	await frames(2)
-	check_eq(g.debug_modal(), "", "closed")
+	await _key(KEY_K)
+	await frames(1)
+	check_eq(g.debug_modal(), "", "K closes it again")
 	# F10 Research
 	var m: DevMenu = g.debug_ui().dev_menu
 	m.toggle()

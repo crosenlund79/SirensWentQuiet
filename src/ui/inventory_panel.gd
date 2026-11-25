@@ -14,7 +14,7 @@ extends UiModal
 
 signal closed
 
-const GROUPS := [["food", "Food"], ["water", "Water"], ["medical", "Medical"], ["ammo", "Ammo"], ["material", "Materials"]]
+const GROUPS := [["food", "Food"], ["water", "Water"], ["medical", "Medical"], ["ammo", "Ammo"], ["material", "Materials"], ["book", "Books"]]   # Exp 006 (R): Books
 const GEAR_GROUPS := [["weapon", "Weapons"], ["protective", "Protective"], ["utility", "Utility"], ["tool", "Tools"]]
 const USE_SOUNDS := {"food": "player/eat", "water": "player/drink", "medical": "player/bandage"}
 const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"], ["home", "Home"], ["skills", "Skills"]]   # Exp 005 (C): Home; Exp 006 (R): Skills
@@ -153,6 +153,15 @@ func _build_supplies(lists: Dictionary) -> void:
 		if list.get_child_count() > 0:
 			list.add_child(UiTheme.make_spacer(4))
 		list.add_child(UiTheme.make_section(g[1]))
+		if g[0] == "book":      # Exp 006 (R): only the books you carry, each with Read
+			var any := false
+			for id in Items.ids("book"):
+				if state != null and state.inventory.count(id) > 0:
+					list.add_child(_item_row(id))
+					any = true
+			if not any:
+				list.add_child(UiTheme.make_caption("Skill books you find show here. K: the Skills tab.", 470, UiTheme.TEXT_FAINT))
+			continue
 		for id in Items.ids(g[0]):
 			list.add_child(_item_row(id))
 		if g[0] == "material":
@@ -244,6 +253,14 @@ func _item_row(id: String, gear := false) -> Control:
 		use.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		use.pressed.connect(toggle_equip.bind(id))
 		row.add_child(use)
+	elif Research.is_book(id):      # Exp 006 (R)
+		use = UiTheme.make_button("Read")
+		use.name = "Read"
+		use.custom_minimum_size.x = 80
+		use.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		use.tooltip_text = "Study it: learns %s and uses the book up" % Research.name_of(Research.book_skill(id)).to_lower()
+		use.pressed.connect(read_book.bind(id))
+		row.add_child(use)
 	elif Items.is_consumable(id):
 		use = UiTheme.make_button("Use")
 		use.name = "Use"
@@ -303,14 +320,14 @@ func toggle_equip(id: String) -> String:
 	return why
 
 
-## Exp 006 (R): reads a skill book (the Skills tab's Read buttons): the skill
+## Exp 006 (R): reads a skill book (Read on the Skills and Supplies tabs): the skill
 ## is learned and the book used up (Research.read_book). Returns the feedback.
 func read_book(id: String) -> String:
 	if state == null:
 		return ""
 	var r := Research.read_book(state, id)
-	if is_open and tab == "skills":
-		show_tab("skills")
+	if is_open and tab in ["skills", "supplies"] and r["ok"]:
+		show_tab(tab)
 	_say(str(r["text"]), UiTheme.GOOD if r["ok"] else UiTheme.WARN)
 	Sfx.ui("ui/click" if r["ok"] else "ui/error")
 	return str(r["text"])
@@ -451,6 +468,10 @@ func _input(event: InputEvent) -> void:
 		return
 	if is_open and visible and event is InputEventKey and event.pressed and not event.echo:
 		var k: int = (event as InputEventKey).physical_keycode
+		if k == KEY_K:      # Exp 006 (R): K opened the Skills tab and closes the panel again
+			get_viewport().set_input_as_handled()
+			_close_and_emit()
+			return
 		if k >= KEY_1 and k <= KEY_8:
 			get_viewport().set_input_as_handled()
 			select_bar_slot(k - KEY_1)

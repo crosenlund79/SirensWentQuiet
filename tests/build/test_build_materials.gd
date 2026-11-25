@@ -46,6 +46,8 @@ func test_costs_per_material_are_paid() -> void:
 	var w: HouseWorld = setup[0]
 	var s: GameState = setup[1]
 	var b: BuildMode = setup[2]
+	for k in ["reinforced", "metalworking", "advanced_metal"]:      # Exp 006 (R): gated pieces (without Woodworking's repair discount)
+		Research.learn(s, k)
 	_give(s, {"wood": 40, "nails": 60, "stone": 60, "iron": 30, "scrap": 20})
 	var expect := {
 		"foundation": {"stone": 2}, "stone_wall": {"stone": 6}, "iron_barricade": {"iron": 3, "wood": 1, "nails": 2},
@@ -117,6 +119,8 @@ func test_iron_objects_are_stronger_and_cost_iron_to_repair() -> void:
 	var w: HouseWorld = setup[0]
 	var s: GameState = setup[1]
 	var b: BuildMode = setup[2]
+	for k in ["reinforced", "metalworking", "advanced_metal"]:      # Exp 006 (R): gated pieces (without Woodworking's repair discount)
+		Research.learn(s, k)
 	_give(s, {"wood": 30, "nails": 60, "iron": 20, "scrap": 10})
 	b.select_id("barricade")
 	check(b.apply(Vector2(0.5, 11.0)), "a wooden barricade")

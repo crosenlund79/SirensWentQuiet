@@ -138,6 +138,9 @@ func test_upgrade_makes_walls_harder() -> void:
 	var setup: Array = await _setup(true)
 	var w: HouseWorld = setup[0]
 	var b: BuildMode = setup[2]
+	var s: GameState = setup[1]
+	for k in ["reinforced", "metalworking", "advanced_metal"]:      # Exp 006 (R): gated pieces (without Woodworking's repair discount)
+		Research.learn(s, k)
 	b.select_id("upgrade")
 	check(b.apply(Vector2(4.5, -0.05)), "sheathe the north bedroom wall (x 4-5)")
 	check(w.upgraded.has(Vector3i(0, 0, 4)), "recorded")

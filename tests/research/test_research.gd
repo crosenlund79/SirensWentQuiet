@@ -216,3 +216,22 @@ func test_skills_tab_reads_books() -> void:
 	var known := inv.find_child("SkillsKnown", true, false) as Label
 	check(known != null and known.text.begins_with("1 of 4"), "the tab is rebuilt (%s)" % (known.text if known != null else "?"))
 	inv.close()
+
+
+func test_supplies_tab_lists_carried_books_with_read() -> void:
+	var s := GameState.new_run(12)
+	var inv: InventoryPanel = add(InventoryPanel.new())
+	inv.open(s, "supplies")
+	await frames(2)
+	check(inv.find_child("Row_book_woodworking", true, false) == null, "no book rows without books")
+	inv.close()
+	s.inventory.add("book_woodworking", 1)
+	inv.open(s, "supplies")
+	await frames(2)
+	var rb := inv.use_button("book_woodworking")
+	check(rb != null and rb.text == "Read", "a carried book has Read")
+	rb.pressed.emit()
+	await frames(1)
+	check(Research.knows(s, "woodworking") and s.inventory.count("book_woodworking") == 0, "Read on the Supplies tab learns it")
+	check(inv.find_child("Row_book_woodworking", true, false) == null, "the row is gone after the rebuild")
+	inv.close()

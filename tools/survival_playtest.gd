@@ -947,6 +947,7 @@ func _part1() -> void:
 		await _select_piece(KEY_1, "wall")
 		res["wood_wall"] = await _build_run(Vector2(1.3, 11.0), Vector2(2.7, 11.0))
 		await _walk_to(Vector2(9.6, 11.2))
+		Research.learn_all(s)      # Exp 006 (R): iron plating needs research now
 		await _select_piece(KEY_8, "upgrade")
 		_move_mouse(_screen_of(PLATE_SPOT, 1.5))
 		await _wait(0.4)
