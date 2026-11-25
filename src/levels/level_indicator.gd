@@ -83,6 +83,7 @@ func refresh() -> void:
 	if not building:
 		_title.text = Levels.label(p)
 		_title.add_theme_font_size_override("font_size", UiTheme.px(15))
+		_title.add_theme_font_override("font", UiTheme.font())      # Exp 006 (U)
 		_sub.visible = false
 		_style.border_color = UiTheme.LINE
 		_style.set_border_width_all(1)
@@ -90,6 +91,7 @@ func refresh() -> void:
 		return
 	_title.text = "Building on " + Levels.label(v)
 	_title.add_theme_font_size_override("font_size", UiTheme.px(19))
+	_title.add_theme_font_override("font", UiTheme.font("heading"))   # Exp 006 (U): prominent, the 8 px face at 2x
 	_title.add_theme_color_override("font_color", UiTheme.ACCENT)
 	_style.border_color = UiTheme.ACCENT
 	_style.set_border_width_all(2)

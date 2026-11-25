@@ -272,7 +272,7 @@ func refresh() -> void:
 		_tile_ids.append(i)
 		var p: Dictionary = BuildPieces.LIST[i]
 		var lock := BuildCatalog.lock_reason(state, p)
-		var miss := BuildCatalog.missing(build, p["cost"]) if p["tool"] == "place" or p["tool"] == "upgrade" else {}
+		var miss := BuildCatalog.missing(build, p["cost"]) if BuildCatalog.priced(p) else {}
 		t.set_piece(i, BuildCatalog.icon_of(i), str(p["name"]), p["cost"], _tile_note(p), miss, lock)
 		t.set_pressed_no_signal(i == _selected)
 		var tip := "%s\n%s" % [p["name"], BuildPieces.cost_text(p["cost"]) if not p["cost"].is_empty() else _tile_note(p)]
@@ -286,7 +286,11 @@ func refresh() -> void:
 		var storey := Levels.storey_at(float(build.get("plane_y")))
 		_level.text = "Building on " + Levels.label(storey)
 	for item in _mat_labels:
-		(_mat_labels[item] as Label).text = str(BuildCatalog.available(build, item))
+		var st := BuildCatalog.stored(build, item)
+		var n := BuildCatalog.available(build, item)
+		var ml := _mat_labels[item] as Label
+		ml.text = ("%d+%d" % [n - st, st]) if st > 0 else str(n)        # carried + stored in the house
+		(ml.get_parent() as Control).tooltip_text = "%s: %d carried, %d stored in the house" % [Items.name_of(item), n - st, st]
 	_unlimited.visible = state is GameState and (state as GameState).cheats.get("unlimited", false)
 	# selected piece: icon, what is missing, the lock
 	if _selected >= 0 and _selected < BuildPieces.LIST.size():
@@ -300,7 +304,7 @@ func refresh() -> void:
 		var ev: Dictionary = build.get("last_eval") if build != null else {}
 		if not ev.is_empty() and str(ev.get("piece", "")) == str(p["id"]):
 			cost = ev.get("gross_cost", ev.get("cost", cost))
-		var miss := BuildCatalog.missing(build, cost) if p["tool"] in ["place", "upgrade", "repair"] else {}
+		var miss := BuildCatalog.missing(build, cost) if BuildCatalog.priced(p) or p["tool"] == "repair" else {}
 		_missing.text = ("Missing " + BuildPieces.cost_text(miss)) if not miss.is_empty() else ""
 		_missing.visible = not miss.is_empty()
 		if _shown != _selected:            # picked, not evaluated yet: the plain facts

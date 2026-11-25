@@ -18,8 +18,8 @@ extends RefCounted
 ## Gating (SPEC-006 §2): lock_reason() asks R's `Research.locked_reason(state,
 ## piece)` when that class exists (R keeps the gates in Research.GATES by
 ## piece id), else checks an entry's "requires" against `state.skills`. Availability (SPEC-006 §3): available() asks B's supply
-## helper when build mode has one (`supply.available(item)`) or the state does
-## (`available(item)`), else counts the household inventory.
+## helper (BuildMode.available / stored: carried plus stored in the house's
+## furniture) when it is there, else counts the household inventory.
 
 const CATEGORIES := [
 	{"id": "walls", "key": "1", "name": "Walls & foundations", "short": "Walls", "icon": "cat_walls"},
@@ -173,6 +173,8 @@ static func _research_script() -> Script:
 static func available(build: Object, item: String) -> int:
 	if build == null:
 		return 0
+	if build.has_method("available"):                 # B's BuildMode.available (carried + stored)
+		return int(build.call("available", item))
 	var supply: Variant = build.get("supply")
 	if supply is Object and supply != null and (supply as Object).has_method("available"):
 		return int((supply as Object).call("available", item))
@@ -182,6 +184,19 @@ static func available(build: Object, item: String) -> int:
 	if (state as Object).has_method("available"):
 		return int((state as Object).call("available", item))
 	return int((state as GameState).inventory.count(item)) if state is GameState else 0
+
+
+## How much of `item` the house's storage adds (B's BuildMode.stored), else 0.
+static func stored(build: Object, item: String) -> int:
+	if build != null and build.has_method("stored"):
+		return int(build.call("stored", item))
+	return 0
+
+
+## True when the menu should compare the piece's cost with what is available
+## (placing, upgrading, B's window removal; not the free tools).
+static func priced(p: Dictionary) -> bool:
+	return not (p.get("cost", {}) as Dictionary).is_empty() and not str(p.get("tool", "")) in ["repair", "demolish", "move", "dig"]
 
 
 ## What is missing to pay `cost` from `build` ({} when affordable; the
