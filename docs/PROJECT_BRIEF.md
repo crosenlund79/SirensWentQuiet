@@ -144,6 +144,27 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Out of scope:** executables, installers and Windows CI builds; new enemy types or locations; generated replacement audio (unless a temporary fallback is necessary); a general overhaul. No merge to `main`.
 - **Verification:** light. The project loads; all five levels are reachable via dev tools; construction works upstairs and underground; storage works; furniture survives save and load; comfort and mood update; no fatal errors.
 
+## Current approved objective: "Defensive Living" (Experiment 006)
+
+**Status: Approved by the user's message of 2026-11-25 ("Next Milestone — Defensive Living", Rapid Delivery, autonomous); in progress since 19:55 CET.** Branch `exp006/defensive-living`, built on Experiment 005 plus the user's Pixel Operator font. Contracts: `docs/experiment-006/SPEC.md`.
+
+- **Scope:**
+  - subtler aurora;
+  - wooden and metal spikes;
+  - excavatable trenches and water moats;
+  - one- and two-tile drawbridges;
+  - a categorised construction menu;
+  - moderately more dangerous enemies;
+  - a Library location with skill books and a small research tree gating metal construction;
+  - window removal into a solid wall;
+  - a functional TV and radio;
+  - buildable foundations in structural support;
+  - shotgun integration verified;
+  - the gun store verified (it already exists);
+  - construction paid from house storage;
+  - a UI overhaul with the Pixel Operator font and a coherent icon set.
+- **Out of scope:** executables and Windows CI builds; merges to `main`; large test campaigns.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
