@@ -7,13 +7,14 @@ extends Node3D
 ## Sizes are in map units (1 unit = one 25 m cell): exaggerated so the figure
 ## reads from the travel camera.
 
-const BODY := Color(0.36, 0.44, 0.52)       ## Eli's jacket
-const LEGS := Color(0.22, 0.22, 0.26)
-const SKIN := Color(0.86, 0.72, 0.6)
-const PACK := Color(0.45, 0.36, 0.24)
-const CAR_BODY := Color(0.62, 0.22, 0.18)
-const CAR_GLASS := Color(0.55, 0.68, 0.78)
+const BODY := Color(0.14, 0.2, 0.32)        ## Eli's jacket (dark, to read on snow)
+const LEGS := Color(0.08, 0.08, 0.1)
+const SKIN := Color(0.86, 0.66, 0.5)
+const PACK := Color(0.95, 0.62, 0.22)       ## the amber pack (UiTheme.ACCENT)
+const CAR_BODY := Color(0.58, 0.14, 0.1)
+const CAR_GLASS := Color(0.2, 0.28, 0.36)
 const LAMP := Color(1.0, 0.92, 0.7)
+const SCALE := 2.0                          ## a map token, not to scale
 
 var car := false
 var _rig: Node3D
@@ -26,6 +27,7 @@ func setup(by_car: bool) -> void:
 	car = by_car
 	_rig = Node3D.new()
 	_rig.name = "Rig"
+	_rig.scale = Vector3.ONE * SCALE
 	add_child(_rig)
 	if car:
 		_box(Vector3(0.9, 0.35, 1.7), Vector3(0, 0.3, 0), CAR_BODY)
@@ -46,7 +48,7 @@ func setup(by_car: bool) -> void:
 	l.light_color = LAMP
 	l.light_energy = 0.8
 	l.omni_range = 3.0
-	l.position = Vector3(0, 1.4, 0)
+	l.position = Vector3(0, 1.4 * SCALE, 0)
 	add_child(l)
 
 
@@ -58,9 +60,10 @@ func _box(size: Vector3, at: Vector3, col: Color, glow := false) -> void:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = col
 	m.roughness = 0.9
-	m.emission_enabled = true
-	m.emission = col
-	m.emission_energy_multiplier = 1.2 if glow else 0.25
+	if glow:
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = 1.5
 	mi.material_override = m
 	mi.position = at
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -102,4 +105,4 @@ func _measure(pts: PackedVector3Array) -> void:
 
 func _process(_delta: float) -> void:
 	if _rig != null and not car:
-		_rig.position.y = absf(sin(_t * 240.0)) * 0.12
+		_rig.position.y = absf(sin(_t * 240.0)) * 0.12 * SCALE

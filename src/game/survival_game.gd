@@ -149,6 +149,8 @@ func _ready() -> void:
 	if _start_hour >= 0.0:
 		dev_skip_to(_start_hour)
 	site_ready.emit()
+	if GameLaunch.mode == "carry":
+		travel.arrive(_carry)              # Exp 007 (T): the road's time, the region visit / what happened at home; autosave
 
 
 func _read_user_args() -> void:
@@ -465,9 +467,9 @@ func _apply_loaded_extras() -> void:
 
 
 ## Exp 007 (T): arrived by a scene change (GameLaunch.carry). At a POI: Eli
-## stands at its entry and the road's time passes (travel.arrive_at_site).
-## Home: the house is the snapshot, Eli stands at the fog edge, and what
-## happened while he was away is resolved (travel.arrive_home).
+## stands at its entry. Home: the house is the snapshot and Eli stands at the
+## fog edge. After site_ready, travel.arrive() passes the road's time at a POI
+## or resolves what happened while he was away at home.
 func _begin_carry() -> void:
 	if not is_home():
 		var e := _site_entry()
@@ -475,7 +477,6 @@ func _begin_carry() -> void:
 		_apply_loaded_extras()
 		travel.restore_poi(_carry.get("poi", {}))
 		_update_cursor()
-		travel.arrive_at_site()
 		return
 	var from = _loaded.get("player_pos")
 	var back := boundary.return_point(from if from != null else Vector3(9.0, 0.0, 11.0))
@@ -484,8 +485,6 @@ func _begin_carry() -> void:
 	levels.restore(_loaded.get("world", {}), 0, back)
 	_apply_loaded_extras()
 	_update_cursor()
-	var cargo = _carry.get("cargo", {})
-	travel.arrive_home(cargo if typeof(cargo) == TYPE_DICTIONARY else {})
 
 
 ## Exp 007 (T): where Eli enters a POI (PoiWorld.entry_point()).

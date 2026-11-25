@@ -24,6 +24,8 @@ var selected := ""
 var hovered := ""
 var planned := ""
 var route_world := PackedVector3Array()
+var traveller_world := Vector3.INF      ## Exp 007 (T): the travelling Eli (or car): a pin over him and a ring at his feet
+var traveller_label := ""
 
 var _screen := {}               ## id -> [ground_px, head_px, depth]
 var _drag := false
@@ -165,6 +167,26 @@ func _draw() -> void:
 				_label("PLANNED", h + Vector2(r + 6.0, 19.0), 11, UiTheme.ACCENT)
 	if hovered != "" and hovered != selected and _screen.has(hovered):
 		_draw_card(_entry(hovered), _screen[hovered][1])
+	_draw_traveller()
+
+
+## Exp 007 (T): a pin over the travelling figure (MapTraveller), so it reads
+## at any zoom, over the route line.
+func _draw_traveller() -> void:
+	if traveller_world == Vector3.INF or not view.is_visible_point(traveller_world):
+		return
+	var g := view.project(traveller_world)
+	var top := view.project(traveller_world + Vector3(0, 2.9, 0))
+	var h := top - Vector2(0, 16.0)
+	draw_arc(g, 9.0, 0.0, TAU, 28, Color(0, 0, 0, 0.5), 4.0, true)
+	draw_arc(g, 9.0, 0.0, TAU, 28, UiTheme.ACCENT, 2.0, true)
+	draw_line(top, h + Vector2(0, 7.0), Color(0, 0, 0, 0.35), 3.0, true)
+	draw_line(top, h + Vector2(0, 7.0), Color(1, 1, 1, 0.8), 1.2, true)
+	draw_circle(h, 8.6, Color(0.05, 0.05, 0.06, 0.9))
+	draw_circle(h, 7.0, UiTheme.ACCENT)
+	draw_circle(h, 2.4, Color(0.05, 0.05, 0.06, 0.9))
+	if traveller_label != "":
+		_label(traveller_label, h + Vector2(13.0, 5.0), 14, UiTheme.TEXT)
 
 
 func _draw_route() -> void:

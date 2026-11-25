@@ -168,10 +168,14 @@ func test_an_invasion_while_away_and_a_save_at_the_poi() -> void:
 	var g: Node = await _boot("new")
 	var s: GameState = g.debug_state()
 	s.total_minutes = 10.0 * 60.0
-	await g.travel.depart("forest")
+	s.car_repaired = true
+	s.inventory.add("fuel", 2 - s.inventory.count("fuel"))
+	await g.travel.depart("forest", true)
 	g = await _next_scene(g)
 	s = g.debug_state()
 	check(not g.is_home(), "at the POI")
+	check(g.travel.by_car(), "by car")
+	check_eq(s.inventory.count("fuel"), 1, "one fuel can for the trip")
 	# they come for the house while Eli is out
 	g.dev_trigger_invasion()
 	check(not g.debug_director().active, "no wave here")

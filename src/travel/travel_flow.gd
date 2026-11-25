@@ -12,14 +12,14 @@ extends Node
 ##    the car's fuel can, then a scene change to the game scene in POI mode
 ##    with GameLaunch.site = id and GameLaunch.carry = {"state", "home",
 ##    "travel"}.
-## 3. At the POI (the game's _begin_carry -> arrive_at_site()): the road's
+## 3. At the POI (after the game's site_ready, arrive() -> arrive_at_site()): the road's
 ##    minutes pass on the clock, the region records the visit (visits, last
 ##    day, discovery), Eli stands at the POI's entry, autosave "arrived".
 ## 4. An exit's "[E] Leave for home" (P's, or the test site's) calls
 ##    game.leave_site() -> leave_for_home(): the return animation, the road's
 ##    minutes, the car's cargo box (P's poi.take_cargo()), then a scene change
 ##    home with {"state", "home", "travel", "cargo"}.
-## 5. Home (arrive_home()): the house is the snapshot (the game loaded it),
+## 5. Home (arrive() -> arrive_home()): the house is the snapshot (the game loaded it),
 ##    the attacks recorded while away are resolved (OffscreenHome), the car's
 ##    cargo goes into the household (leftovers into a pile by the car), Eli
 ##    stands at the fog edge, autosave "returned".
@@ -104,7 +104,16 @@ func _refuse(why: String) -> String:
 
 # --- at the POI ---------------------------------------------------------------------------
 
-## The game calls this once the POI scene is assembled (mode "carry").
+## The game calls this after site_ready when the scene came by travel.
+func arrive(carry: Dictionary) -> void:
+	if game.is_home():
+		var cargo: Variant = carry.get("cargo", {})
+		arrive_home(cargo if typeof(cargo) == TYPE_DICTIONARY else {})
+	else:
+		arrive_at_site()
+
+
+## At the POI (mode "carry"): the road's time, the visit, autosave "arrived".
 func arrive_at_site() -> void:
 	var s: GameState = game.state
 	var id: String = game.site_id()
@@ -198,7 +207,8 @@ func restore_poi(d: Variant) -> void:
 
 # --- back home ----------------------------------------------------------------------------
 
-## The game calls this once home is restored from the snapshot (mode "carry").
+## Home again, restored from the snapshot (mode "carry"): resolve what happened
+## while away, unload the car, report, autosave "returned".
 func arrive_home(cargo: Dictionary) -> void:
 	var s: GameState = game.state
 	last_report = OffscreenHome.resolve(game.world, s, int(s.run.get("seed", 0)) * 13 + int(s.total_minutes))

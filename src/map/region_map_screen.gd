@@ -727,6 +727,12 @@ func _add_travel_section() -> void:
 	_info.add_child(_travel_status)
 
 
+## A line under the Travel button (the game's refusals).
+func show_travel_status(text: String) -> void:
+	if _travel_status != null:
+		_travel_status.text = text
+
+
 ## On foot or by car (C). The car needs to run and have fuel.
 func set_by_car(on: bool) -> void:
 	if on and not TravelRules.can_drive(state):
@@ -776,6 +782,8 @@ func play_travel(id: String, car: bool, outbound: bool, seconds: float, from_tot
 	_traveller.setup(car)
 	view.add_child(_traveller)
 	_traveller.follow(pts, 0.0)
+	markers.traveller_world = pts[0]
+	markers.traveller_label = "Eli" if not car else "Eli, by car"
 	view.set_view(pts[0], 44.0, true)
 	_show_travel_card(true)
 	_update_travel_card(0.0)
@@ -797,6 +805,8 @@ func _step_travel(delta: float) -> void:
 	if _traveller != null and is_instance_valid(_traveller):
 		_traveller.follow(_travel["pts"], e)
 		view.set_view(_traveller.position, 44.0)
+		markers.traveller_world = _traveller.position
+		view.set_clear_points(Vector2.INF, _traveller.position)     # the clouds part over him
 	_update_travel_card(e)
 	if f >= 1.0:
 		_finish_travel()
@@ -811,6 +821,7 @@ func _finish_travel() -> void:
 	if _traveller != null and is_instance_valid(_traveller):
 		_traveller.queue_free()
 	_traveller = null
+	markers.traveller_world = Vector3.INF
 	_travel = {}
 	travel_finished.emit()
 

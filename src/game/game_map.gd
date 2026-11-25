@@ -49,6 +49,10 @@ func is_open() -> bool:
 func open() -> void:
 	screen.open(game.state)
 	_set_world_render(false)
+	if game.has_method("is_home") and not game.is_home() and RegionLocations.has(game.site_id()):
+		screen.select(game.site_id(), true)          # Exp 007 (T): "you are here"
+		screen.markers.traveller_world = screen.view.terrain.anchor_of(game.site_id())
+		screen.markers.traveller_label = "You are here"
 
 
 func close() -> void:
@@ -77,8 +81,14 @@ func _on_planned(id: String, purpose: String) -> void:
 
 func _on_travel_requested(id: String, by_car: bool) -> void:
 	var t: Variant = game.get("travel")
-	if t is Object and is_instance_valid(t) and t.has_method("depart"):
-		t.depart(id, by_car)
+	if not (t is Object and is_instance_valid(t) and t.has_method("depart")):
+		return
+	var why: String = game.travel_block_reason() if game.has_method("travel_block_reason") else ""
+	if why != "":
+		screen.show_travel_status(why)      # the HUD's toast is under the map
+		game.toast(why, "warn")
+		return
+	t.depart(id, by_car)
 
 
 ## Shows a leg of travel on the map (opening it if needed) and returns when
