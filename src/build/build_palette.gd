@@ -329,18 +329,9 @@ func refresh() -> void:
 	_recent_box.visible = ids.size() > 1
 
 
-## What a tile says instead of a cost (tools and free pieces).
+## What a tile says instead of a cost (tools and free pieces; BuildCatalog.note_for).
 static func _tile_note(p: Dictionary) -> String:
-	match str(p["tool"]):
-		"repair":
-			return "uses the material"
-		"demolish":
-			return "gives back"
-		"move":
-			return "free"
-		"dig":
-			return "shovel, +1 stone"
-	return "free"
+	return BuildCatalog.note_for(p)
 
 
 func status_text() -> String:

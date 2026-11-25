@@ -50,7 +50,19 @@ const PIECES := {
 	"floor_lamp": ["utilities", "lamp"], "table_lamp": ["utilities", "lamp"],
 	"rug": ["decor", "rug"], "painting": ["decor", "painting"], "plant": ["decor", "plant"],
 	"repair": ["tools", "wrench"], "upgrade": ["tools", "plate"], "demolish": ["tools", "demolish"], "move": ["tools", "move"],
+	# Exp 006 (D, B): the defences and the house pieces (their entries carry "cat"; icons here)
+	"spikes_wood": ["defense", "spikes"], "spikes_metal": ["defense", "spikes_metal"], "trench": ["defense", "trench"],
+	"trench_water": ["defense", "moat"], "backfill": ["defense", "shovel"], "drawbridge_1": ["defense", "bridge"],
+	"drawbridge_2": ["defense", "bridge"], "timber_footing": ["walls", "slab"], "remove_window": ["tools", "window"],
+	"tv_stand": ["utilities", "tv"], "radio": ["utilities", "radio"],
 }
+
+## What a tile says instead of a cost (free tools and pieces), by piece id, then by tool.
+const NOTES := {
+	"excavate": "shovel, +1 stone", "trench": "shovel, free", "trench_water": "rain or bottled water",
+	"backfill": "shovel, free",
+}
+const TOOL_NOTES := {"repair": "uses the material", "demolish": "gives back", "move": "free", "dig": "shovel"}
 
 ## Experiment 004-005 palette slots -> category (entries that only set "slot").
 const SLOT_CAT := {0: "walls", 1: "defense", 2: "doors", 3: "doors", 4: "furniture", 5: "utilities",
@@ -191,6 +203,14 @@ static func stored(build: Object, item: String) -> int:
 	if build != null and build.has_method("stored"):
 		return int(build.call("stored", item))
 	return 0
+
+
+## What a tile shows instead of a cost for a piece without one.
+static func note_for(p: Dictionary) -> String:
+	var id := str(p.get("id", ""))
+	if NOTES.has(id):
+		return NOTES[id]
+	return str(TOOL_NOTES.get(str(p.get("tool", "")), "free"))
 
 
 ## True when the menu should compare the piece's cost with what is available
