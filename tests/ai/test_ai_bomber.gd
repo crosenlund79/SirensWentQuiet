@@ -88,7 +88,7 @@ func test_ai_bomber_ignores_the_player_and_blows_the_front_door() -> void:
 	check(fuse.size() == 1, "one fuse")
 	if fuse.is_empty():
 		return
-	check(is_equal_approx(fuse[0]["s"], 2.5), "a 2.5 s fuse")
+	check(is_equal_approx(fuse[0]["s"], float(EnemyDefs.get_def("bomber")["fuse"])), "the table's fuse (Exp 006: 2.2 s)")
 	var fp: Vector3 = fuse[0]["pos"]
 	check(Vector2(fp.x, fp.z).distance_to(expect["approach"]) < 0.5, "lit at the door's outside stand point %s (%s)" % [expect["approach"], fp])
 	var blast := _ev("blast")
@@ -212,7 +212,7 @@ func test_ai_bomber_killed_during_the_fuse_only_pops() -> void:
 	var t := await _run_until(func(): return not _ev("fuse").is_empty(), 15.0)
 	check(not _ev("fuse").is_empty(), "fuse lit (%.1f s)" % t)
 	var bystander: AIEnemy = roster.spawn_type("psycho", Vector2(5.4, 10.3))
-	await physics_frames(30)                 # 0.5 s into the 2.5 s fuse
+	await physics_frames(30)                 # 0.5 s into the 2.2 s fuse
 	b.take_hit(Vector3.FORWARD)
 	b.take_hit(Vector3.FORWARD)
 	await physics_frames(10)

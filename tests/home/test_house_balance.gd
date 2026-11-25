@@ -106,6 +106,9 @@ func test_window_becomes_a_real_wall() -> void:
 	var b := BuildMode.new()
 	var st := _empty_run()
 	st.cheats["unlimited"] = true
+	var R = load("res://src/research/research.gd") if ResourceLoader.exists("res://src/research/research.gd") else null
+	if R != null:
+		R.learn_all(st)          # Exp 006 (R): iron plating is gated
 	b.setup(w, st, null, null)
 	add(b)
 	await physics_frames(1)
