@@ -75,6 +75,36 @@ func _process(delta: float) -> void:
 		_t = REFRESH
 		_watch_worlds()
 		refresh_lamps()
+		settle_piles()
+
+
+## Loot piles upstairs with no floor under them any more (a collapse, a hole)
+## fall to the storey below, merged into a pile there. Returns how many fell.
+func settle_piles() -> int:
+	var n := 0
+	for w in worlds():
+		if not (w is LevelWorld) or int(w.get("storey")) <= 0 or not w.has_method("has_floor_at"):
+			continue
+		for o in w.objects.duplicate():
+			if o.kind != "loot_pile" or w.has_floor_at(o.pos):
+				continue
+			var below := _world_below(int(w.get("storey")))
+			if below == null:
+				continue
+			var keep: Dictionary = o.items.duplicate()
+			o.items.clear()
+			w.remove_object(o)
+			below.drop_loot(o.pos, keep)
+			n += 1
+	return n
+
+
+func _world_below(storey: int) -> HouseWorld:
+	var l: Variant = game.get("levels")
+	if storey - 1 == 0 or not (l is Object) or not is_instance_valid(l) or not l.has_method("world_of"):
+		return game.world
+	var w: Variant = l.world_of(storey - 1)
+	return w if w is HouseWorld else game.world
 
 
 # --- storage ---------------------------------------------------------------------------

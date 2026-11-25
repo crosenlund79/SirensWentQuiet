@@ -1,7 +1,8 @@
 extends RefCounted
 ## Picks what [E] acts on: the nearest interactable (SPEC §7.3 duck type:
 ## interact_prompt() -> String, "" hides; interact(game)) within RADIUS of the
-## player whose prompt is not empty.
+## player whose prompt is not empty (and, Exp 005, whose optional
+## interact_reach(p) allows the player's plan point p).
 
 const RADIUS := 1.6
 
@@ -20,6 +21,8 @@ static func nearest(candidates: Array, p: Vector2, radius := RADIUS) -> Node3D:
 			continue
 		if str(n.interact_prompt()) == "":
 			continue
+		if n.has_method("interact_reach") and not n.interact_reach(p):
+			continue          # Exp 005 (F): e.g. a cupboard isn't opened from behind its wall
 		best = n
 		best_d = d
 	return best

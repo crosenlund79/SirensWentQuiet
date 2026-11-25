@@ -590,7 +590,9 @@ func _make_spot(f: Dictionary) -> Node3D:
 	var r: Rect2 = f["rect"]
 	var dir: Vector2 = WorldObject.front_dir(FurnitureCatalog.rot_of_facing(f["facing"]))
 	var depth := r.size.y if absf(dir.y) > 0.5 else r.size.x
-	var at: Vector2 = r.get_center() + dir * (depth * 0.5 + 0.15)
+	# at its back edge: in front of the piece it is still within reach, while
+	# things standing in front of it (the fireplace by the bookshelf) win
+	var at: Vector2 = r.get_center() - dir * (depth * 0.5)
 	spot.position = Vector3(at.x, 0.0, at.y)
 	world.add_child(spot)
 	return spot
@@ -623,6 +625,17 @@ func spot_prompt(id: String) -> String:
 	if t == "" or not ok(id):
 		return ""
 	return "[E] Open the %s (%s)" % [FurnitureStorage.name_of(t).to_lower(), FurnitureStorage.fill_text(t, items_of(id))]
+
+
+## True if plan point p is not behind the piece (the side its back faces).
+func can_reach(id: String, p: Vector2) -> bool:
+	if not pieces.has(id):
+		return false
+	var f: Dictionary = pieces[id]["f"]
+	var r: Rect2 = f["rect"]
+	var dir: Vector2 = WorldObject.front_dir(FurnitureCatalog.rot_of_facing(f["facing"]))
+	var depth := r.size.y if absf(dir.y) > 0.5 else r.size.x
+	return (p - r.get_center()).dot(dir) > -depth * 0.5
 
 
 func open_spot(id: String, game: Node) -> void:
@@ -718,7 +731,7 @@ func take_out(id: String) -> Dictionary:
 	return out
 
 
-## An original storage piece's E target (in front of it).
+## An original storage piece's E target (at its back edge).
 class StorageSpot extends Node3D:
 	var owner_f: RefCounted
 	var id := ""
@@ -729,3 +742,7 @@ class StorageSpot extends Node3D:
 	func interact(game: Node) -> void:
 		if owner_f != null:
 			owner_f.open_spot(id, game)
+
+	## Only from in front of the piece or beside it, never from behind (its wall).
+	func interact_reach(p: Vector2) -> bool:
+		return owner_f == null or owner_f.can_reach(id, p)

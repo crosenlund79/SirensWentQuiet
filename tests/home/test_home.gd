@@ -171,11 +171,14 @@ func test_home_in_the_game() -> void:
 	g.debug_interact()
 	check(s.hydration > 65.0 and s.total_minutes >= t0 + 0.99, "a drink from the tap takes a minute (%.1f)" % s.hydration)
 	s.hunger = 30.0
-	s.inventory.add("canned_food", 1)
-	var cans := s.inventory.count("canned_food")
-	check_eq(await _at(g, Vector2(8.6, 1.5)), "[E] Eat from the fridge")
+	# Exp 005 (F): the fridge is storage now: E opens it, food is eaten from it
+	check_eq(await _at(g, Vector2(8.6, 1.5)), "[E] Open the fridge (2/24)")
 	g.debug_interact()
-	check(s.inventory.count("canned_food") == cans - 1 and s.hunger > 55.0, "ate a can from the fridge")
+	var cans := int(g.debug_world().storage_of("fridge").get("canned_food", 0))
+	check(g.storage.panel.use("canned_food") != "" and s.hunger > 55.0, "ate a can from the fridge")
+	check_eq(int(g.debug_world().storage_of("fridge").get("canned_food", 0)), cans - 1, "it came out of the fridge")
+	g.storage.close_panel()
+	await frames(1)
 	# sprint
 	g.debug_teleport_player(Vector2(-2.0, 6.0))
 	var e0 := s.energy

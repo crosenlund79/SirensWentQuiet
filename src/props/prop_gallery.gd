@@ -49,10 +49,15 @@ const GROUPS := {
 		["dead_tree"], ["streetlight_dead"], ["mailbox"], ["trash_bin_tipped"], ["car"], ["step"],
 		["deck"], ["path"], ["driveway"],
 	],
+	# Exp 005 (F): new furniture and the loot pile
+	"storage": [
+		["cupboard"], ["storage_chest"], ["tool_cabinet"], ["painting"], ["loot_pile"], ["table_lamp", {"lit": true}, "table lamp lit"],
+		["storage_chest", {"damage": 0.7, "seed": 3}, "chest 0.7"],
+	],
 }
-const ORDER := ["survival", "living", "kitchen", "bedroom", "yard"]
+const ORDER := ["survival", "living", "kitchen", "bedroom", "yard", "storage"]
 ## Floor swatch under each group (Version A's voxel art, read-only).
-const FLOORS := {"living": "floor_wood", "kitchen": "floor_kitchen", "bedroom": "floor_wood_light", "survival": "", "yard": ""}
+const FLOORS := {"living": "floor_wood", "kitchen": "floor_kitchen", "bedroom": "floor_wood_light", "survival": "", "yard": "", "storage": "floor_wood"}
 
 var lighting: VoxelLighting
 var camera: Camera3D
