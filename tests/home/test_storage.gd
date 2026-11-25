@@ -174,7 +174,7 @@ func test_place_validate_move_and_demolish_furniture() -> void:
 	s.inventory.add("scrap", 20)
 	check_eq(BuildPieces.SLOTS[4]["name"], "Furniture & storage")
 	var v := BuildPieces.variants(4)
-	check(v.size() >= 21, "key 5 holds the crate, Move and the furniture (%d)" % v.size())
+	check(v.size() >= 15, "key 5 holds the crate and the furniture (%d)" % v.size())   # Exp 006 (U): Move is a tool, decor and lamps elsewhere
 	b.select_id("cupboard")
 	check_eq(b.slot(), 4, "the cupboard is on key 5")
 	var r := b.evaluate(Vector2(-2.0, 5.0))

@@ -21,6 +21,11 @@ extends Node3D
 ## moving with `carry`, validation, ghosts); Demolish keeps the salvage of a
 ## moved house piece and leaves loot piles alone.
 ##
+## Exp 006 (U): the palette is a category menu (BuildCatalog): keys 1-8 pick
+## a category (its last-used piece; the same key again steps to the next
+## piece), F / X / G pick Repair / Demolish / Move directly, Q goes back to
+## the previous piece; `recent` lists the last pieces picked.
+##
 ## Input while active (handles_input() is true, so the game doesn't fire):
 ## LMB place / apply (drag for runs), RMB (`secondary`) cancels a drag,
 ## `build_rotate` (R) rotates, number keys select. Esc is the game's: it
@@ -71,7 +76,9 @@ var _ghost_key := ""
 var _eval_key := ""
 var _eval_age := 0.0
 var _mats := {}
-var _slot_pick := {}            # palette slot -> LIST index last used in it
+var _slot_pick := {}            # menu category -> LIST index last used in it
+## Exp 006 (U): ids of the last pieces picked, newest first (the menu's Recent row).
+var recent: Array[String] = []
 var _ptr_furniture := ""        # furniture piece under the demolish pointer (aim ray)
 var _ghost_label: Label3D       # Refinement 01: "Replace wood → stone" over a replacing ghost
 ## Exp 005 (F): the furniture piece the Move tool holds ({} = none): {"world",
@@ -101,7 +108,9 @@ func _ready() -> void:
 	add_child(_ghost_root)
 	palette = BuildPalette.new()
 	palette.visible = false
+	palette.build = self                                    # Exp 006 (U): the menu reads costs, locks, level
 	palette.slot_pressed.connect(select_slot)
+	palette.category_pressed.connect(select_category)       # Exp 006 (U)
 	palette.variant_pressed.connect(select)
 	add_child(palette)
 
@@ -136,6 +145,7 @@ func select(i: int) -> void:
 		return
 	piece = i
 	_slot_pick[BuildPieces.slot_of(i)] = i
+	_note_recent(BuildPieces.LIST[i]["id"])     # Exp 006 (U)
 	_dragging = false
 	carry = {}          # Exp 005 (F)
 	_eval_key = ""
@@ -148,8 +158,8 @@ func select_id(id: String) -> void:
 	select(BuildPieces.index_of(id))
 
 
-## A palette slot (0-9; keys 1-9 and 0): its last-used variant, or the next
-## variant when the slot is already selected.
+## A menu category (0-7; keys 1-8; Exp 006): its last-used piece, or the next
+## piece when the category is already selected.
 func select_slot(slot: int) -> void:
 	var v := BuildPieces.variants(slot)
 	if v.is_empty():
@@ -162,6 +172,30 @@ func select_slot(slot: int) -> void:
 
 func slot() -> int:
 	return BuildPieces.slot_of(piece)
+
+
+## Exp 006 (U): a category tab: its last-used piece (no stepping).
+func select_category(cat: int) -> void:
+	var v := BuildPieces.variants(cat)
+	if v.is_empty():
+		return
+	if BuildPieces.slot_of(piece) != cat:
+		select(int(_slot_pick.get(cat, v[0])))
+
+
+## Exp 006 (U): back to the piece picked before this one (Q).
+func select_previous() -> void:
+	for id in recent:
+		if id != piece_id() and BuildPieces.index_of(id) >= 0:
+			select_id(id)
+			return
+
+
+func _note_recent(id: String) -> void:
+	recent.erase(id)
+	recent.push_front(id)
+	if recent.size() > BuildCatalog.RECENT_MAX:
+		recent.resize(BuildCatalog.RECENT_MAX)
 
 
 func rotate_piece() -> void:
@@ -185,12 +219,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k: int = (event as InputEventKey).keycode
-		if k >= KEY_1 and k <= KEY_9:
+		if k >= KEY_1 and k < KEY_1 + BuildCatalog.count():      # Exp 006 (U): 1-8 categories
 			select_slot(k - KEY_1)
 			get_viewport().set_input_as_handled()
 			return
-		if k == KEY_0:
-			select_slot(9)
+		for q in BuildCatalog.QUICK:                              # Exp 006 (U): F / X / G tools
+			if k == int(q["keycode"]):
+				select_id(str(q["id"]))
+				get_viewport().set_input_as_handled()
+				return
+		if k == KEY_Q:                                            # Exp 006 (U): previous piece
+			select_previous()
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("build_rotate"):

@@ -325,7 +325,7 @@ func step_view(dir: int) -> String:
 		set_view_storey(target)
 		text = "Building on %s" % Levels.label(target)
 		if world_of(target) == null:
-			text += " (not there yet: %s)" % ("Next storey, key 0, builds it" if target > 0 else "Excavate, key 0, digs it")
+			text += " (not there yet: %s)" % ("Next storey (build key 2) builds it" if target > 0 else "Excavate (build key 2) digs it")   # Exp 006 (U)
 		text += "."
 	if game.has_method("toast"):
 		game.toast(text, "info")
@@ -535,7 +535,7 @@ func use_stairs(st: Dictionary, walked := false) -> void:
 	var to := Levels.other_storey(st, player_storey)
 	if world_of(to) == null:
 		if not walked or _blocked != _key(st):
-			game.toast("The stairs end at the ceiling. Build the next storey (key 0 in build mode)." if to > player_storey
+			game.toast("The stairs end at the ceiling. Build the next storey (key 2 in build mode)." if to > player_storey
 				else "There's nothing dug out down there yet.", "warn")
 		_blocked = _key(st)
 		return

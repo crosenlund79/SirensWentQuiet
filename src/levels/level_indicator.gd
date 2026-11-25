@@ -81,20 +81,20 @@ func refresh() -> void:
 	_key = key
 	if not building:
 		_title.text = Levels.label(p)
-		_title.add_theme_font_size_override("font_size", 15)
+		_title.add_theme_font_size_override("font_size", UiTheme.px(15))
 		_sub.visible = false
 		_style.border_color = UiTheme.LINE
 		_style.set_border_width_all(1)
 		_title.add_theme_color_override("font_color", UiTheme.TEXT)
 		return
 	_title.text = "Building on " + Levels.label(v)
-	_title.add_theme_font_size_override("font_size", 19)
+	_title.add_theme_font_size_override("font_size", UiTheme.px(19))
 	_title.add_theme_color_override("font_color", UiTheme.ACCENT)
 	_style.border_color = UiTheme.ACCENT
 	_style.set_border_width_all(2)
 	var lines := PackedStringArray()
 	if not built:
-		lines.append("Not built yet: " + ("Next storey (0) builds it" if v > 0 else "Excavate (0) digs it"))
+		lines.append("Not built yet: " + ("Next storey (key 2, Floors) builds it" if v > 0 else "Excavate (key 2, Floors) digs it"))   # Exp 006 (U): the menu's Floors key
 	if v != p:
 		lines.append("You are on " + Levels.label(p))
 	lines.append("PgUp / PgDn: change level")

@@ -292,43 +292,70 @@ func test_workbench_turns_scrap_into_iron() -> void:
 	check(w2.load_data(d) and w2.count_objects("workbench") == 1, "the workbench persists")
 
 
-func test_palette_slots_and_material_variants() -> void:
+## Exp 006 (U): the category menu: keys 1-8 pick categories (the same key
+## again steps through its pieces), F / X / G the frequent tools, Q the
+## previous piece; tabs and tiles come from BuildCatalog.
+func test_palette_categories_quick_keys_and_recent() -> void:
 	var setup: Array = await _setup(true)
 	var b: BuildMode = setup[2]
 	b.set_active(true)
 	await frames(1)
-	check_eq(b.palette.slot_labels().size(), 10, "ten building classes")
+	check_eq(b.palette.slot_labels().size(), 8, "eight categories")
+	check_eq(b.palette.slot_labels()[0], "1 Walls", "1: walls first")
 	b.select_slot(2)
 	b.select_slot(0)
 	check_eq(b.piece_id(), "wall", "1: walls, wood first")
 	b.select_slot(0)
 	check_eq(b.piece_id(), "stone_wall", "1 again: stone")
 	b.select_slot(0)
-	check_eq(b.piece_id(), "wall", "and back to wood")
-	b.select_slot(1)
-	b.select_slot(1)
-	check_eq(b.piece_id(), "iron_barricade", "2, 2: iron barricade")
+	check_eq(b.piece_id(), "foundation", "1 again: the stone foundation (walls and foundations)")
+	b.select_slot(3)
+	b.select_slot(3)
+	check_eq(b.piece_id(), "iron_barricade", "4, 4: iron barricade (fortifications)")
 	b.select_slot(2)
 	check_eq(b.piece_id(), "door", "3: door")
+	b.select_slot(3)
+	check_eq(b.piece_id(), "iron_barricade", "4 remembers the iron barricade")
+	b.select_category(3)
+	check_eq(b.piece_id(), "iron_barricade", "clicking the open tab keeps the piece")
 	b.select_slot(1)
-	check_eq(b.piece_id(), "iron_barricade", "2 remembers the iron variant")
-	b.select_slot(9)
-	check_eq(b.piece_id(), "foundation", "0: stone foundation")
+	check_eq(b.piece_id(), "wood_floor", "2: floors and stairs")
 	b.select_slot(5)
 	b.select_slot(5)
-	check_eq(b.piece_id(), "workbench", "6, 6: workbench")
-	# number keys through the real input handler
+	check_eq(b.piece_id(), "workbench", "6, 6: workbench (utilities)")
+	# number and quick keys through the real input handler
 	var ev := InputEventKey.new()
-	ev.keycode = KEY_7
 	ev.pressed = true
+	ev.keycode = KEY_F
 	b._unhandled_input(ev)
-	check_eq(b.piece_id(), "repair", "key 7: repair (as in Experiment 002)")
-	ev.keycode = KEY_2
+	check_eq(b.piece_id(), "repair", "F: repair")
+	ev.keycode = KEY_X
 	b._unhandled_input(ev)
-	check_eq(b.piece_id(), "iron_barricade", "key 2: the barricade slot's last variant")
-	ev.keycode = KEY_0
+	check_eq(b.piece_id(), "demolish", "X: demolish")
+	ev.keycode = KEY_G
 	b._unhandled_input(ev)
-	check_eq(b.piece_id(), "foundation", "key 0: foundation")
+	check_eq(b.piece_id(), "move", "G: move")
+	ev.keycode = KEY_Q
+	b._unhandled_input(ev)
+	check_eq(b.piece_id(), "demolish", "Q: back to the previous piece")
+	ev.keycode = KEY_4
+	b._unhandled_input(ev)
+	check_eq(b.piece_id(), "iron_barricade", "key 4: the fortifications' last piece")
+	ev.keycode = KEY_8
+	b._unhandled_input(ev)
+	check_eq(b.slot(), 7, "key 8: tools")
+	ev.keycode = KEY_9
+	b._unhandled_input(ev)
+	check_eq(b.slot(), 7, "9 is not a category")
+	check(b.recent.size() >= 4 and b.recent[0] == b.piece_id(), "recent pieces, newest first (%s)" % str(b.recent))
+	# the menu follows the selection
+	b.select_id("sofa")
+	await frames(1)
+	var ids := b.palette.tile_ids()
+	check(ids.has(BuildPieces.index_of("sofa")) and ids.has(BuildPieces.index_of("crate")), "the furniture tab shows its pieces")
+	check(not ids.has(BuildPieces.index_of("rug")), "the rug is a decoration")
+	check(b.palette.tile_of(BuildPieces.index_of("sofa")).button_pressed, "the sofa's tile is selected")
+	check(b.palette.level_text().contains("Level 0"), "the header names the level (%s)" % b.palette.level_text())
 	# Experiment 002 indices still select the same pieces
 	for i in 9:
 		b.select(i)

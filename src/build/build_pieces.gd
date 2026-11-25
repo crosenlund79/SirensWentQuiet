@@ -2,10 +2,16 @@ class_name BuildPieces
 extends RefCounted
 ## Construction pieces, tools and costs (SPEC-002 §6, SPEC-003 §4). Pure data.
 ##
+## Exp 006 (U): the build menu is now a category menu (BuildCatalog,
+## src/build/build_catalog.gd): eight categories on keys 1-8, each piece in one
+## category with an icon. New entries set "cat" (a BuildCatalog category id),
+## "icon" (a UiIcons name) and, when gated, "requires" (a skill id, SPEC-006
+## §1-2); the older entries are categorised in BuildCatalog.PIECES. The
+## "slot" field below is the Experiment 002-005 palette slot, kept for older
+## code and as a fallback; SLOTS / variants() / slot_of() now mean categories.
+##
 ## LIST is flat and its first nine entries keep their Experiment 002 index
-## (select(i) and the keys 1-9 still pick them first). Every piece belongs to a
-## palette slot (one building class); a slot with several pieces holds
-## material variants: pressing the slot's key again cycles them.
+## (select(i) still picks them). The Experiment 002-005 slots were:
 ##   key 1 Walls (wood, stone) · 2 Barricades (wood, iron, window boards) ·
 ##   3 Doors (wood, reinforced, metal) · 4 Doorway · 5 Furniture & storage
 ##   (crate, Move, then FurnitureCatalog.PLACEABLE; Exp 005, F) ·
@@ -22,14 +28,17 @@ extends RefCounted
 ## demolish), "slot", "cost", "per_m" (cost per 1 m segment), "hint", and
 ## for objects "kind" + "mat" (WorldObject kind and material).
 
+## Exp 006 (U): the menu's categories in key order (1-8); they replace the ten
+## Experiment 002-005 slots. A plain mirror of BuildCatalog.CATEGORIES (ids
+## and names; a const can't refer to that class without a parse cycle).
 const SLOTS := [
-	{"key": "1", "name": "Walls"}, {"key": "2", "name": "Barricades"}, {"key": "3", "name": "Doors"},
-	{"key": "4", "name": "Doorway"}, {"key": "5", "name": "Furniture & storage"}, {"key": "6", "name": "Equipment"},   # Exp 005 (F): 5 was "Storage"
-	{"key": "7", "name": "Repair"}, {"key": "8", "name": "Reinforce"}, {"key": "9", "name": "Demolish"},
-	{"key": "0", "name": "Floors & levels"},   # Experiment 004 (L): was "Foundation"
+	{"id": "walls", "key": "1", "name": "Walls & foundations"}, {"id": "floors", "key": "2", "name": "Floors & stairs"},
+	{"id": "doors", "key": "3", "name": "Doors & windows"}, {"id": "defense", "key": "4", "name": "Fortifications"},
+	{"id": "furniture", "key": "5", "name": "Furniture & storage"}, {"id": "utilities", "key": "6", "name": "Utilities"},
+	{"id": "decor", "key": "7", "name": "Decorations"}, {"id": "tools", "key": "8", "name": "Demolition & modifications"},
 ]
-## Palette order of the slots: pieces first, then the tools.
-const SLOT_ORDER := [0, 9, 1, 2, 3, 4, 5, 6, 7, 8]
+## Menu order of the categories (key order).
+const SLOT_ORDER := [0, 1, 2, 3, 4, 5, 6, 7]
 
 const LIST := [
 	{"id": "wall", "name": "Wooden wall", "short": "Wood", "tool": "place", "slot": 0, "cost": {"wood": 4, "nails": 6}, "per_m": true,
@@ -218,17 +227,14 @@ static func index_of(id: String) -> int:
 	return -1
 
 
-## LIST indices of the pieces in palette slot `slot`, in variant order.
+## LIST indices of the pieces in menu category `slot` (0-7, keys 1-8; Exp 006).
 static func variants(slot: int) -> Array:
-	var out := []
-	for i in LIST.size():
-		if int(LIST[i]["slot"]) == slot:
-			out.append(i)
-	return out
+	return BuildCatalog.pieces_in(slot)
 
 
+## The menu category (0-7) of LIST[i], or -1 (Exp 006: was the palette slot).
 static func slot_of(i: int) -> int:
-	return int(LIST[i]["slot"]) if i >= 0 and i < LIST.size() else -1
+	return BuildCatalog.category_index_of(i) if i >= 0 and i < LIST.size() else -1
 
 
 static func times(cost: Dictionary, n: int) -> Dictionary:
