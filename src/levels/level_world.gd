@@ -1,7 +1,8 @@
 class_name LevelWorld
 extends HouseWorld
-## Experiment 004 (owner L): an extra storey of the house, the upper floor or
-## the basement, as its own HouseWorld so the existing construction, damage,
+## Experiment 004 (owner L): an extra storey of the house (Exp 005 (V): any of
+## -2, -1, +1, +2; one set of rules: above ground a deck with outer walls,
+## below ground solid earth to dig), as its own HouseWorld so the existing construction, damage,
 ## repair, demolition, objects (doors, crates, workbench...) and navigation
 ## code work on it unchanged; BuildMode simply targets it while the player is
 ## on it.
@@ -44,13 +45,13 @@ func configure(s: int, light: VoxelLighting) -> void:
 	storey = s
 	base_y = Levels.base_y(s)
 	lighting = light
-	name = "Level_%s" % ("Basement" if s == Levels.BASEMENT else "Upper")
+	name = "Level_%s" % {-2: "LowerBasement", -1: "Basement", 1: "Upper", 2: "Upper2"}.get(s, str(s))
 
 
 static func create_grid(s: int) -> VoxelGrid:
 	var g := VoxelGrid.new(SIZE, VoxelHouse.VS, Vector3(ORIGIN_XZ.x, VoxelHouse.LOT_ORIGIN.y + Levels.base_y(s), ORIGIN_XZ.y))
 	g.cap_row = VoxelHouse.TOP_ROW
-	g.cap_color = 0x2f271f if s == Levels.BASEMENT else VoxelArt.pal(VoxelArt.Slot.CAP)
+	g.cap_color = 0x2f271f if s < Levels.GROUND else VoxelArt.pal(VoxelArt.Slot.CAP)
 	return g
 
 
@@ -59,7 +60,7 @@ static func create_grid(s: int) -> VoxelGrid:
 static func level_pristine(s: int) -> VoxelGrid:
 	if not _level_pristine.has(s):
 		var g := create_grid(s)
-		if s == Levels.BASEMENT:
+		if s < Levels.GROUND:
 			_fill_earth(g)
 		else:
 			_build_deck(g)
@@ -195,7 +196,7 @@ func _build_level(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list
 	fx.grid = grid
 	fx.debris_scale = 1.0 + 0.45 * (damage_quantum - 1)
 	add_child(fx)
-	if storey == Levels.UPPER:
+	if storey > Levels.GROUND:
 		for s in perimeter_segments():
 			sections[s] = _new_section(true, "frame")
 	var stone := {}
@@ -302,7 +303,7 @@ func load_data(d: Dictionary) -> bool:
 ## Digs a 1 m basement cell (design and current): the earth in the wall rows
 ## goes, a packed-earth floor stays. Returns false if already dug.
 func dig(c: Vector2i) -> bool:
-	if storey != Levels.BASEMENT or dug.has(c):
+	if storey >= Levels.GROUND or dug.has(c):
 		return false
 	var xr := design.centre_range(0, c.x, c.x + 1.0)
 	var zr := design.centre_range(2, c.y, c.y + 1.0)
@@ -326,6 +327,23 @@ func is_dug(c: Vector2i) -> bool:
 	return dug.has(c)
 
 
+## Exp 005 (V): as HouseWorld.repair_all, without the ground floor's furniture
+## and fuse box: the voxels back to the design, the objects intact.
+func repair_all() -> void:
+	grid.mat = design.mat.duplicate()
+	grid.col = design.col.duplicate()
+	grid.pcol = design.pcol.duplicate()
+	grid.pmask = design.pmask.duplicate()
+	grid.solid_count = design.solid_count
+	for o in objects:
+		o.restore()
+	chunks.mark_dirty(Vector3i.ZERO, Vector3i(grid.sx, grid.sy, grid.sz))
+	_full_nav()
+	for s in sections:
+		_count_section(s)
+	structure_changed.emit()
+
+
 # --- floors and navigation ---------------------------------------------------------------
 
 ## True if the current grid has a floor under plan point p (most of a 0.3 m patch).
@@ -345,16 +363,15 @@ func _earth_at(p: Vector2) -> bool:
 	return design.get_mat(c.x, VoxelHouse.NAV_ROW_LO, c.z) == VoxelMat.EARTH
 
 
-## Basement: undug earth and everything outside the footprint is SOLID.
-## Upper floor: cells without a floor (holes, stairwells, outside) are SOLID.
+## Underground: undug earth is SOLID. Every storey: outside the footprint
+## and cells without a floor (holes, stairwells) are SOLID.
 func _cell_kind(c: Vector2i) -> int:
 	var p := nav.center_of(c)
 	if not HousePlan.FOOTPRINT.has_point(p):
 		return GridNav.SOLID
-	if storey == Levels.BASEMENT:
-		if _earth_at(p):
-			return GridNav.SOLID
-	elif not has_floor_at(p):
+	if storey < Levels.GROUND and _earth_at(p):
+		return GridNav.SOLID
+	if not has_floor_at(p):
 		return GridNav.SOLID
 	return super(c)
 
@@ -403,8 +420,8 @@ func level_block_reason(r: Rect2) -> String:
 		probe = Rect2(r.get_center(), Vector2.ZERO)
 	for p in [probe.position, Vector2(probe.end.x, probe.position.y), Vector2(probe.position.x, probe.end.y), probe.end, probe.get_center()]:
 		if not HousePlan.FOOTPRINT.grow(0.2).has_point(p):
-			return "Not outside the house up here." if storey == Levels.UPPER else "That's solid earth."
-		if storey == Levels.BASEMENT:
+			return "Not outside the house up here." if storey > Levels.GROUND else "That's solid earth."
+		if storey < Levels.GROUND:
 			if _earth_at(p) and not _near_wall_line(p):
 				return "That's solid earth: dig it out first."
 		elif not has_floor_at(p) and not _near_wall_line(p):
@@ -450,13 +467,13 @@ func is_cut(c: Vector3i) -> bool:
 	return (rel - _cut_dir * t).length() < _cut_radius - 0.15
 
 
-## As HouseWorld.aim_ray; in the basement the ray starts at its ceiling (the
-## ground floor above is hidden and must not catch it), and the fallback plane
-## is the basement floor.
+## As HouseWorld.aim_ray; underground the ray starts at the storey's ceiling
+## (the storeys above are hidden and must not catch it), and the fallback
+## plane is its floor (above ground: the floor of the storey below).
 func aim_ray(from: Vector3, dir: Vector3, low := false) -> Vector3:
 	var start := from
 	var top := base_y + 2.7
-	if storey == Levels.BASEMENT and from.y > top and dir.y < -0.001:
+	if storey < Levels.GROUND and from.y > top and dir.y < -0.001:
 		start = from + dir * ((top - from.y) / dir.y)
 	var best := 200.0
 	var vh := grid.raycast(start, dir, best, _bullet_skip, is_cut)
@@ -467,7 +484,7 @@ func aim_ray(from: Vector3, dir: Vector3, low := false) -> Vector3:
 	var ph := get_world_3d().direct_space_state.intersect_ray(q)
 	if not ph.is_empty():
 		best = start.distance_to(ph["position"])
-	var plane := base_y if storey == Levels.BASEMENT else 0.0
+	var plane := base_y if storey < Levels.GROUND else maxf(0.0, base_y - Levels.HEIGHT)
 	if dir.y < -0.001:
 		var tg := (plane - start.y) / dir.y
 		if tg >= 0.0 and tg < best:

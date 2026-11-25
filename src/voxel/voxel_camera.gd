@@ -21,6 +21,9 @@ var _shake_t := 0.0
 var yaw := 0.0                     ## Refinement 01: current orbit angle (rad); 0 = from the south, looking north
 var turns := 0                     ## the goal in quarter turns, 0..3 (1 = from the east, looking west)
 var _goal_yaw := 0.0
+## Exp 005 (V): metres the look point sits above the target (build mode
+## looking at another storey: the camera lifts to that level).
+var lift := 0.0
 
 
 func _ready() -> void:
@@ -66,7 +69,7 @@ func nudge(amount: float) -> void:
 
 func snap() -> void:
 	if target != null:
-		_focus = target.global_position
+		_focus = target.global_position + Vector3(0.0, lift, 0.0)
 	distance = _goal_distance
 	yaw = _goal_yaw
 	_place(0.0)
@@ -80,7 +83,7 @@ func back_dir() -> Vector3:
 
 func _process(delta: float) -> void:
 	if target != null:
-		_focus = _focus.lerp(target.global_position, 1.0 - exp(-delta * 6.0))
+		_focus = _focus.lerp(target.global_position + Vector3(0.0, lift, 0.0), 1.0 - exp(-delta * 6.0))
 	distance = lerpf(distance, _goal_distance, 1.0 - exp(-delta * 8.0))
 	yaw = _goal_yaw if absf(_goal_yaw - yaw) < 0.001 else lerpf(yaw, _goal_yaw, 1.0 - exp(-delta * TURN_RATE))
 	_place(delta)

@@ -27,6 +27,18 @@ extends RefCounted
 ## Signals carry {"zone", "name", "rect", "roof": bool, "upper": bool,
 ## "storeys": [storeys whose bodies are hit], "text"}; the game shows the
 ## text and hurts whoever stands there (src/world/game_support.gd).
+##
+## Exp 005 (V): a chain of storeys 0, +1, +2 (`storeys`; `upper` is +1). Each
+## storey's perimeter carries everything above it: when storey s fails over a
+## zone, the decks of every storey above s fall there (with their walls and
+## objects), and the roof (on the topmost storey) too. Pillars (GameLevels,
+## `levels`) prop a perimeter line like a built wall: a standing pillar at
+## most PROP_REACH + 0.5 m inside props the line's sections within 1 m of it.
+## Upper storeys also keep a simple support grid of 1 m floor cells: a cell
+## is held if it lies on the footprint's edge, or a wall or pillar of the
+## storey below stands at its edges, or it joins a held cell; floor cells
+## that aren't held fall (no floating rooms). tile_support_reason() is build
+## mode's check for a new tile.
 
 signal collapsed(info: Dictionary)
 signal strained(info: Dictionary)
@@ -55,7 +67,11 @@ const LINES := {
 }
 
 var world: HouseWorld              ## the ground floor
-var upper: HouseWorld              ## the upper storey (a LevelWorld) or null
+var storeys := {}                  ## Exp 005 (V): storey (>= 1) -> its LevelWorld
+var levels: Object = null          ## Exp 005 (V): GameLevels (pillars_on(w)); optional
+var upper: HouseWorld:             ## the first upper storey (a LevelWorld) or null
+	get:
+		return storeys.get(1)
 var roof_gone := {}                ## zone id -> true: that part of the roof collapsed (saved)
 var strained_zones := {}           ## zone id -> true (warned once per strain)
 var dirty := false
@@ -78,13 +94,30 @@ func mark_dirty() -> void:
 ## loaded); its changes count as structural changes too. Linking alone
 ## evaluates nothing (a loaded save stands as it was saved).
 func set_upper(u: HouseWorld) -> void:
-	if u == upper:
+	set_storey(1, u)
+
+
+## Exp 005 (V): links storey s (>= 1) or unlinks it (null).
+func set_storey(s: int, u: HouseWorld) -> void:
+	if storeys.get(s) == u:
 		return
-	upper = u
-	if u != null:
-		u.support = self
-		if not u.structure_changed.is_connected(mark_dirty):
-			u.structure_changed.connect(mark_dirty)
+	if u == null:
+		storeys.erase(s)
+		return
+	storeys[s] = u
+	u.support = self
+	if not u.structure_changed.is_connected(mark_dirty):
+		u.structure_changed.connect(mark_dirty)
+
+
+## The chain of storey worlds from the ground floor up, without gaps.
+func chain() -> Array:
+	var out := [world]
+	var s := 1
+	while storeys.has(s) and is_instance_valid(storeys[s]):
+		out.append(storeys[s])
+		s += 1
+	return out
 
 
 ## HouseWorld._process: one evaluation per frame at most, only after changes.
@@ -167,6 +200,19 @@ func line_bears(w: HouseWorld, key: String, k: int, skip := Vector3i(-1, -1, -1)
 			continue
 		if s != skip and section_bears(w, s):
 			return true
+	return _pillar_props(w, l, k)
+
+
+## Exp 005 (V): a standing pillar inside line l, within reach of section k.
+func _pillar_props(w: HouseWorld, l: Dictionary, k: int) -> bool:
+	if levels == null or not levels.has_method("pillars_on"):
+		return false
+	for c in levels.pillars_on(w):
+		var cc := Levels.cell_center(c)
+		var across := (cc.y if int(l["axis"]) == 0 else cc.x) - float(l["line"])
+		var along := (cc.x if int(l["axis"]) == 0 else cc.y) - (float(k) + 0.5)
+		if across * float(l["in"]) > 0.0 and absf(across) <= PROP_REACH + 0.5 and absf(along) <= 1.01:
+			return true
 	return false
 
 
@@ -193,7 +239,7 @@ func is_bearing(w: HouseWorld, s: Vector3i) -> bool:
 ## Build mode's demolish preview: "" or a warning about what removing
 ## section s of storey world w would bring down.
 func demolish_warning(w: HouseWorld, s: Vector3i) -> String:
-	if w == null or (w != world and w != upper) or not is_bearing(w, s) or not section_bears(w, s):
+	if w == null or not chain().has(w) or not is_bearing(w, s) or not section_bears(w, s):
 		return ""
 	var before := zone_states(w)
 	var after := zone_states(w, s)
@@ -203,13 +249,13 @@ func demolish_warning(w: HouseWorld, s: Vector3i) -> String:
 		var id: String = z["id"]
 		if before[id]["fail"]:
 			continue
-		var lost: bool = roof_gone.has(id) and not (w == world and upper != null)
+		var lost: bool = roof_gone.has(id) and w == chain().back()
 		if after[id]["fail"] and not lost:
 			names.append(z["name"])
 		elif after[id]["run"] == FAIL_RUN - 1 and before[id]["run"] < FAIL_RUN - 1 and not lost:
 			strain = true
 	if not names.is_empty():
-		var what := "the upper floor and the roof" if w == world and upper != null else "the roof"
+		var what := "the storeys above and the roof" if w != chain().back() else "the roof"
 		return "Load-bearing! %s over %s will come down." % [what.substr(0, 1).to_upper() + what.substr(1), " and ".join(names)]
 	if strain:
 		return "Load-bearing: the roof above will sag."
@@ -218,20 +264,31 @@ func demolish_warning(w: HouseWorld, s: Vector3i) -> String:
 
 ## One line per zone for the developer menu.
 func status_text() -> String:
-	var g := zone_states(world)
-	var u := zone_states(upper) if upper != null else {}
+	var states := []
+	for w in chain():
+		states.append(zone_states(w))
 	var parts := []
 	for z in ZONES:
 		var id: String = z["id"]
-		var failing: bool = g[id]["fail"] or (u.has(id) and u[id]["fail"])
+		var failing := false
+		var run := 0
+		for g in states:
+			failing = failing or g[id]["fail"]
+			run = maxi(run, g[id]["run"])
 		var st := "standing"
 		if roof_gone.has(id):
 			st = "roof gone" + (", unsupported" if failing else "")
 		elif failing:
 			st = "UNSUPPORTED"
-		elif g[id]["run"] == FAIL_RUN - 1 or (u.has(id) and u[id]["run"] == FAIL_RUN - 1):
+		elif run == FAIL_RUN - 1:
 			st += ", strained"
-		parts.append("%s: %s (gap %d m)" % [z["name"].trim_prefix("the "), st, maxi(g[id]["run"], u.get(id, {}).get("run", 0))])
+		parts.append("%s: %s (gap %d m)" % [z["name"].trim_prefix("the "), st, run])
+	if levels != null and levels.get("pillars") is Dictionary:
+		var n := 0
+		for s in levels.pillars:
+			n += (levels.pillars[s] as Dictionary).size()
+		if n > 0:
+			parts.append("%d pillar%s" % [n, "" if n == 1 else "s"])
 	return "; ".join(parts)
 
 
@@ -244,35 +301,47 @@ func evaluate() -> void:
 	if world == null or world.grid == null:
 		return
 	var t0 := Time.get_ticks_usec()
-	if upper != null and not is_instance_valid(upper):
-		upper = null
-	var g := zone_states(world)
-	var u := zone_states(upper) if upper != null else {}
+	for s in storeys.keys():
+		if not is_instance_valid(storeys[s]):
+			storeys.erase(s)
+	var ch := chain()
+	var top := ch.size() - 1
+	var states := []
+	for w in ch:
+		states.append(zone_states(w))
+	var g: Dictionary = states[0]
 	var fell := false
 	for z in ZONES:
 		var id: String = z["id"]
-		var ground_fail: bool = g[id]["fail"]
-		var upper_fail: bool = u.has(id) and u[id]["fail"]
+		var low := -1                    # the lowest storey whose walls fail over this zone
+		for s in ch.size():
+			if states[s][id]["fail"]:
+				low = s
+				break
 		var info := {"zone": id, "name": z["name"], "rect": z["rect"], "roof": false, "upper": false, "storeys": []}
-		var fallen := _collapse_deck(z) if ground_fail and upper != null else 0
+		var fallen := 0
+		if low >= 0:
+			for s in range(low + 1, ch.size()):
+				fallen += _collapse_deck(ch[s], z, s)
 		if fallen > 0:
 			info["upper"] = true
 			# a few tiles laid again over a zone that already came down: no harm done
-			info["storeys"] = [Levels.GROUND, Levels.UPPER] if fallen >= MINOR_VOXELS else []
-		if (ground_fail or upper_fail) and not roof_gone.has(id):
+			if fallen >= MINOR_VOXELS:
+				info["storeys"] = range(low, top + 1)
+		if low >= 0 and not roof_gone.has(id):
 			roof_gone[id] = true
 			_update_roof()
 			_roof_fx(z)
 			info["roof"] = true
 			if info["storeys"].is_empty():
-				info["storeys"] = [Levels.UPPER if upper != null else Levels.GROUND]
+				info["storeys"] = [top]
 		if info["roof"] or info["upper"]:
 			strained_zones.erase(id)
 			collapses += 1
 			if info["upper"] and fallen < MINOR_VOXELS and not info["roof"]:
 				info["text"] = "The new floor over %s has nothing to stand on: it fell." % z["name"]
 			elif info["upper"]:
-				info["text"] = "The upper floor over %s came down!" % z["name"]
+				info["text"] = "The floor%s above %s came down!" % ["s" if top - low > 1 else "", z["name"]]
 			else:
 				info["text"] = "The roof over %s gave way!" % z["name"]
 			Sfx.play("structure/break", _centre(z, 2.4))
@@ -280,7 +349,9 @@ func evaluate() -> void:
 			fell = true
 			collapsed.emit(info)
 			continue
-		var run := maxi(g[id]["run"], u.get(id, {}).get("run", 0))
+		var run := 0
+		for st in states:
+			run = maxi(run, st[id]["run"])
 		var at_risk := run == FAIL_RUN - 1 and not roof_gone.has(id)
 		if at_risk and not strained_zones.has(id):
 			strained_zones[id] = true
@@ -288,6 +359,9 @@ func evaluate() -> void:
 			strained.emit(info)
 		elif not at_risk:
 			strained_zones.erase(id)
+	for s in range(1, ch.size()):
+		if _drop_unheld(ch[s], ch[s - 1], s) > 0:
+			fell = true
 	last_ms = (Time.get_ticks_usec() - t0) / 1000.0
 	if fell:
 		world.structure_changed.emit()        # the roof is part of the structure (lights, listeners)
@@ -395,11 +469,10 @@ func _update_roof() -> void:
 	world.yard.set_roof_holes(rects)
 
 
-## Removes the upper deck over zone z with everything standing on it (the
+## Removes storey s's deck over zone z with everything standing on it (the
 ## outer walls over its outer sides included); objects there fall. Returns
 ## the voxels removed (0 if it was already gone).
-func _collapse_deck(z: Dictionary) -> int:
-	var u := upper
+func _collapse_deck(u: HouseWorld, z: Dictionary, s := 1) -> int:
 	var r := _outer_grown(z["rect"], DECK_EDGE)
 	var xr := u.grid.centre_range(0, r.position.x, r.end.x)
 	var zr := u.grid.centre_range(2, r.position.y, r.end.y)
@@ -416,12 +489,12 @@ func _collapse_deck(z: Dictionary) -> int:
 					VoxelCarver._remove(u.grid, i, ch)
 	var n := (ch["cells"] as PackedInt32Array).size()
 	for o in u.objects_in(r).duplicate():
-		u.damage_object(o, o.hp + 1, Vector3(o.pos.x, Levels.HEIGHT + 2.0, o.pos.y), true)
+		u.damage_object(o, o.hp + 1, Vector3(o.pos.x, Levels.base_y(s) + 2.0, o.pos.y), true)
 	if n == 0:
 		return 0
 	u._edited(lo, hi)
 	u.settle(lo - Vector3i(3, 0, 3), hi + Vector3i(3, 0, 3), true)
-	_fall_fx(u.fx, u.grid, ch, Levels.HEIGHT)
+	_fall_fx(u.fx, u.grid, ch, Levels.base_y(s))
 	if world.fx != null:
 		_dust(world.fx, z["rect"], 0.2)
 	return n
@@ -451,11 +524,12 @@ static func _fall_fx(fx: VoxelFx, g: VoxelGrid, ch: Dictionary, _from_y: float) 
 ## The roof over zone z falls: chunks of roofing and snow from the roof's
 ## height into the room (on the upper floor if there is one), and dust.
 func _roof_fx(z: Dictionary) -> void:
-	var fx: VoxelFx = upper.fx if upper != null and is_instance_valid(upper) else world.fx
+	var ch := chain()
+	var fx: VoxelFx = ch.back().fx
 	if fx == null:
 		return
 	var r: Rect2 = z["rect"]
-	var base := Levels.HEIGHT if upper != null else 0.0
+	var base := Levels.base_y(ch.size() - 1)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(z["id"])
 	var tones := [Color(0.89, 0.91, 0.93), Color(0.78, 0.8, 0.84), Color(0.3, 0.29, 0.28), Color(0.42, 0.36, 0.3)]
@@ -475,3 +549,116 @@ static func _dust(fx: VoxelFx, r: Rect2, y: float) -> void:
 		var p := Vector3(rng.randf_range(r.position.x, r.end.x), y + rng.randf_range(0.0, 0.8), rng.randf_range(r.position.y, r.end.y))
 		fx.puff(p, Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(0.2, 0.9), rng.randf_range(-0.8, 0.8)),
 			Color(0.62, 0.6, 0.56, 0.75), 0.55, 2.0, rng.randf_range(1.8, 3.2))
+
+
+# --- Exp 005 (V): the support grid of an upper storey's floor -------------------------------
+
+## True if a wall or a pillar of storey world `below` stands at the edges of
+## (or in) 1 m cell c: it carries the floor cell above.
+static func carried_from_below(below: HouseWorld, c: Vector2i) -> bool:
+	var r := Levels.cell_rect(c).grow(0.12)
+	return below.grid.any_struct_in(r.position, r.end, VoxelHouse.NAV_ROW_LO + 4, VoxelHouse.NAV_ROW_HI)
+
+
+## The floor cells of storey world u that are held: on the footprint's edge,
+## carried from below, or joined (4-neighbours) to a held cell. Returns
+## {"floor": {cell: true}, "held": {cell: true}}. Cheap: a floor sample per
+## cell; the walls below are only looked at for cells the edges don't reach.
+static func held_cells(u: HouseWorld, below: HouseWorld) -> Dictionary:
+	var f := HousePlan.FOOTPRINT
+	var floor := {}
+	var held := {}
+	var queue: Array[Vector2i] = []
+	for j in range(int(f.position.y), int(f.end.y)):
+		for i in range(int(f.position.x), int(f.end.x)):
+			var c := Vector2i(i, j)
+			if not _floor_sample(u, c):
+				continue
+			floor[c] = true
+			if i == int(f.position.x) or j == int(f.position.y) or i == int(f.end.x) - 1 or j == int(f.end.y) - 1:
+				held[c] = true
+				queue.append(c)
+	_flood(floor, held, queue)
+	for c in floor:
+		if not held.has(c) and carried_from_below(below, c):
+			held[c] = true
+			queue.append(c)
+			_flood(floor, held, queue)
+	return {"floor": floor, "held": held}
+
+
+static func _flood(floor: Dictionary, held: Dictionary, queue: Array[Vector2i]) -> void:
+	while not queue.is_empty():
+		var c: Vector2i = queue.pop_back()
+		for d in Levels.DIRS:
+			var n: Vector2i = c + d
+			if floor.has(n) and not held.has(n):
+				held[n] = true
+				queue.append(n)
+
+
+## True if the current grid has a floor finish in the middle of cell c (3 x 3 voxels).
+static func _floor_sample(u: HouseWorld, c: Vector2i) -> bool:
+	var cc := Levels.cell_center(c)
+	var v := u.grid.cell_of(Vector3(cc.x, u.grid.origin.y + 0.35, cc.y))
+	var n := 0
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var m := u.grid.get_mat(v.x + dx, VoxelHouse.FLOOR_ROW, v.z + dz)
+			if m != VoxelMat.AIR and m != VoxelMat.EARTH:
+				n += 1
+	return n >= 5
+
+
+## Why a floor tile can't be laid in cell c of storey s (>= 1) whose world is
+## u (maybe null: not built) over `below` ("" = it can): the walls below
+## must carry the zone, and the cell needs a wall or pillar under its edges
+## or a floor next to it.
+func tile_support_reason(u: HouseWorld, below: HouseWorld, c: Vector2i) -> String:
+	if below == null:
+		return "There's nothing below to stand on."
+	var z := zone_at(Levels.cell_center(c))
+	if not z.is_empty() and zone_states(below)[z["id"]]["fail"]:
+		return "The walls below can't carry a floor over %s." % z["name"]
+	if carried_from_below(below, c):
+		return ""
+	if u != null:
+		for d in Levels.DIRS:
+			var n: Vector2i = c + d
+			if Levels.in_house(n) and _floor_sample(u, n):
+				return ""
+	return "Nothing holds a floor here: build a wall or a pillar under it, or lay it next to floor."
+
+
+## Floor cells of storey world u (storey s) that nothing holds fall: their
+## floor and what stands inside them (objects, a pillar). Returns the cells
+## dropped.
+func _drop_unheld(u: HouseWorld, below: HouseWorld, s: int) -> int:
+	if u == null or below == null or u.grid == null:
+		return 0
+	var hc := held_cells(u, below)
+	var n := 0
+	for c in hc["floor"]:
+		if hc["held"].has(c):
+			continue
+		var r := Levels.cell_rect(c)
+		for o in u.objects_in(r.grow(-0.1)).duplicate():
+			u.damage_object(o, o.hp + 1, Vector3(o.pos.x, Levels.base_y(s) + 2.0, o.pos.y), true)
+		var inner := r.grow(-0.1)
+		var xr := u.grid.centre_range(0, inner.position.x, inner.end.x)
+		var zr := u.grid.centre_range(2, inner.position.y, inner.end.y)
+		var ch := VoxelCarver.empty_change()
+		for y in range(VoxelHouse.BASE_ROW, u.grid.sy - 1):
+			for z in range(zr.x, zr.y):
+				for x in range(xr.x, xr.y):
+					var i := u.grid.idx(x, y, z)
+					if u.design.mat[i] != 0:
+						u.design.clear_index(i)
+					if u.grid.mat[i] != 0:
+						VoxelCarver._remove(u.grid, i, ch)
+		Levels.remove_floor(u, c)
+		_fall_fx(u.fx, u.grid, ch, Levels.base_y(s))
+		n += 1
+	if n > 0:
+		Sfx.play("structure/crumble", Vector3(7.0, Levels.base_y(s), 4.5))
+	return n

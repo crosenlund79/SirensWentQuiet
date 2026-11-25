@@ -602,9 +602,14 @@ func _build_levels_section(box: VBoxContainer) -> void:
 		["Give shovel", _levels_call.bind("dev_give_shovel", [], "A shovel")],
 		["Build upper floor", _levels_call.bind("dev_build_upper", [], "Upper floor built")],
 		["Dig 3×3 basement", _levels_call.bind("dev_dig_basement", [], "Basement dug")],
-		["Go: basement", _levels_call.bind("dev_goto", [-1], "Basement")],
-		["Go: ground floor", _levels_call.bind("dev_goto", [0], "Ground floor")],
-		["Go: upper floor", _levels_call.bind("dev_goto", [1], "Upper floor")],
+		# Exp 005 (V): all five levels, teleports to each, repair on every level
+		["Build all 5 levels", _levels_call.bind("dev_build_all", [], "+1, +2, -1, -2 with stairs")],
+		["Go: level -2", _levels_call.bind("dev_goto", [-2], "Lower basement")],
+		["Go: basement (-1)", _levels_call.bind("dev_goto", [-1], "Basement")],
+		["Go: ground floor (0)", _levels_call.bind("dev_goto", [0], "Ground floor")],
+		["Go: upper floor (+1)", _levels_call.bind("dev_goto", [1], "First upper floor")],
+		["Go: level +2", _levels_call.bind("dev_goto", [2], "Second upper floor")],
+		["Repair all levels", _levels_call.bind("dev_repair_levels", [], "Every level repaired")],
 	]))
 
 

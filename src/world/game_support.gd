@@ -33,12 +33,16 @@ func _process(_delta: float) -> void:
 	_link_upper()
 
 
+## Exp 005 (V): links every storey above ground (+1, +2) and the pillars.
 func _link_upper() -> void:
 	if model == null or game.get("levels") == null:
 		return
-	var u = game.levels.get("upper")
-	if u != model.upper and (u == null or is_instance_valid(u)):
-		model.set_upper(u)
+	if model.levels == null:
+		model.levels = game.levels
+	for s in range(Levels.UPPER, Levels.HIGHEST + 1):
+		var u = game.levels.world_of(s) if game.levels.has_method("world_of") else (game.levels.get("upper") if s == Levels.UPPER else null)
+		if u != model.storeys.get(s) and (u == null or is_instance_valid(u)):
+			model.set_storey(s, u)
 
 
 func _on_collapsed(info: Dictionary) -> void:

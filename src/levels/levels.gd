@@ -1,25 +1,34 @@
 class_name Levels
 extends RefCounted
-## Experiment 004 (owner L): the house's storeys and stairs as pure data and
-## small helpers (no scene). Storeys: -1 basement, 0 ground floor, 1 upper
-## floor. Every storey has the same row layout as the ground floor's voxel
-## grid (VoxelHouse rows), shifted by HEIGHT per storey, so the floor finish of
-## storey s is at y = s * HEIGHT.
+## Experiment 004 (owner L), generalised in Experiment 005 (V): the house's
+## storeys and stairs as pure data and small helpers (no scene). Storeys:
+## -2 lower basement, -1 basement, 0 ground floor, +1 first upper floor, +2
+## second upper floor (LOWEST..HIGHEST; nothing below or above). Every
+## storey has the same row layout as the ground floor's voxel grid
+## (VoxelHouse rows), shifted by HEIGHT per storey, so the floor finish of
+## storey s is at y = s * HEIGHT. One set of rules for all of them.
 ##
-## Floor tiles and basement cells are 1 m x 1 m plan cells: cell (i, j) covers
+## Floor tiles and dug cells are 1 m x 1 m plan cells: cell (i, j) covers
 ## [i, i + 1) x [j, j + 1). A stairs piece covers two cells in a line, from its
 ## start cell in direction DIRS[rot]; it joins storey `lo` and `lo + 1`:
-##   "up" stairs (lo 0): on the ground floor, rising from the start edge to
-##     the upper floor; the upper deck has a stairwell over both cells.
-##   "down" stairs (lo -1): in a hole in the ground floor, descending from the
-##     start edge into dug basement cells.
+##   "up" stairs (lo >= 0): stand on storey lo, rising from the start edge to
+##     storey lo + 1, whose floor has a stairwell over both cells.
+##   "down" stairs (lo < 0): in a hole in storey lo + 1's floor, descending
+##     from the start edge into dug cells of storey lo.
+## So above ground you build stairs up from the floor you stand on, below
+## ground stairs down; the start storey (start_storey) is where the foot is.
 ## Each end has an exit point 0.5 m outside the stairs (where a body arrives).
 
 const HEIGHT := 2.9
+const LOWEST := -2               ## Exp 005 (V): nothing below the lower basement
+const HIGHEST := 2               ## Exp 005 (V): nothing above the second upper floor
+const LOWER_BASEMENT := -2
 const BASEMENT := -1
 const GROUND := 0
 const UPPER := 1
-const NAMES := {-1: "Basement", 0: "Ground floor", 1: "Upper floor"}
+const UPPER2 := 2
+const ALL := [-2, -1, 0, 1, 2]
+const NAMES := {-2: "Lower basement", -1: "Basement", 0: "Ground floor", 1: "First upper floor", 2: "Second upper floor"}
 ## Plan directions of the stairs' quarter turns (0 north, 1 east, 2 south, 3 west).
 const DIRS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 const EXIT_GAP := 0.5          ## m from the stairs' end to its exit point
@@ -28,6 +37,7 @@ const STEPS := 13
 const WOOD_FLOOR_COST := {"wood": 2, "nails": 2}
 const STAIRS_COST := {"wood": 8, "nails": 10}
 const UPPER_FLOOR_COST := {"wood": 40, "nails": 40, "iron": 4}
+const PILLAR_COST := {"stone": 4}      ## Exp 005 (V): a 0.4 m masonry column
 ## Digging one basement cell: game minutes, energy, stone found.
 const DIG_MINUTES := 25.0
 const DIG_ENERGY := 6.0
@@ -43,9 +53,25 @@ static func name_of(storey: int) -> String:
 	return NAMES.get(storey, "Storey %d" % storey)
 
 
+## Exp 005 (V): "Level +1 · First upper floor" (the HUD indicator, toasts).
+static func label(storey: int) -> String:
+	return "Level %s · %s" % [number(storey), name_of(storey)]
+
+
+## "+1", "0", "-2".
+static func number(storey: int) -> String:
+	if storey == 0:
+		return "0"
+	return ("+%d" % storey) if storey > 0 else ("-%d" % -storey)
+
+
+static func valid(storey: int) -> bool:
+	return storey >= LOWEST and storey <= HIGHEST
+
+
 ## The storey whose floor is nearest below height y (bodies stand on floors).
 static func storey_at(y: float) -> int:
-	return clampi(roundi(y / HEIGHT), BASEMENT, UPPER)
+	return clampi(roundi(y / HEIGHT), LOWEST, HIGHEST)
 
 
 static func cell_of(p: Vector2) -> Vector2i:
@@ -72,6 +98,16 @@ static func make_stairs(lo: int, start: Vector2i, rot: int) -> Dictionary:
 	return {"lo": lo, "cell": start, "rot": posmod(rot, 4)}
 
 
+## Exp 005 (V): up stairs stand on `lo` (lo >= 0); down stairs hang from lo + 1.
+static func is_up(st: Dictionary) -> bool:
+	return int(st["lo"]) >= GROUND
+
+
+## The storey with the stairs' start edge and foot cell (where they are built).
+static func start_storey(st: Dictionary) -> int:
+	return int(st["lo"]) if is_up(st) else int(st["lo"]) + 1
+
+
 static func stairs_dir(st: Dictionary) -> Vector2i:
 	return DIRS[int(st["rot"])]
 
@@ -86,12 +122,12 @@ static func stairs_rect(st: Dictionary) -> Rect2:
 	return r.merge(cell_rect((st["cell"] as Vector2i) + stairs_dir(st)))
 
 
-## The cell before the start edge (on the ground floor: where you step on).
+## The cell before the start edge (on the start storey: where you step on).
 static func foot_cell(st: Dictionary) -> Vector2i:
 	return (st["cell"] as Vector2i) - stairs_dir(st)
 
 
-## The cell past the far edge (up stairs: on the upper floor; down stairs: in the basement).
+## The cell past the far edge (on the storey the stairs lead to from their start).
 static func far_cell(st: Dictionary) -> Vector2i:
 	return (st["cell"] as Vector2i) + stairs_dir(st) * 2
 
@@ -104,12 +140,11 @@ static func _far_edge(st: Dictionary) -> Vector2:
 	return _start_edge(st) + Vector2(stairs_dir(st)) * 2.0
 
 
-## Plan point where a body arrives on `storey` (one of the two the stairs join).
-## Up stairs: the foot on the ground, the top on the upper floor. Down stairs:
-## the start edge on the ground, the bottom in the basement.
+## Plan point where a body arrives on `storey` (one of the two the stairs join):
+## before the start edge on the start storey, past the far edge on the other.
 static func exit_point(st: Dictionary, storey: int) -> Vector2:
 	var d := Vector2(stairs_dir(st))
-	if storey == GROUND:          # both kinds start on the ground floor
+	if storey == start_storey(st):
 		return _start_edge(st) - d * EXIT_GAP
 	return _far_edge(st) + d * EXIT_GAP
 
@@ -131,15 +166,15 @@ static func joins(st: Dictionary, storey: int) -> bool:
 ## Yaw a body faces after arriving on `storey` (away from the stairs).
 static func arrival_yaw(st: Dictionary, storey: int) -> float:
 	var d := Vector2(stairs_dir(st))
-	var away := -d if storey == GROUND else d
+	var away := -d if storey == start_storey(st) else d
 	return atan2(-away.x, -away.y)
 
 
-## Height of the stairs' walking surface at plan point p (for the mesh): from
-## the start edge (y 0) to the far edge (+HEIGHT up, -HEIGHT down).
+## Height of step k's walking surface over the start storey's floor (for the
+## mesh): from the start edge (0) to the far edge (+HEIGHT up, -HEIGHT down).
 static func step_height(st: Dictionary, k: int) -> float:
 	var h := HEIGHT * float(k + 1) / float(STEPS)
-	return h if int(st["lo"]) == GROUND else -h
+	return h if is_up(st) else -h
 
 
 ## Stairs from `storey` toward `target` that a body at plan point `from` should
@@ -173,7 +208,7 @@ static func stairs_from_array(v: Variant) -> Variant:
 		if typeof(x) != TYPE_INT and typeof(x) != TYPE_FLOAT:
 			return null
 	var lo := int(v[0])
-	if lo != BASEMENT and lo != GROUND:
+	if lo < LOWEST or lo >= HIGHEST:
 		return null
 	var st := make_stairs(lo, Vector2i(int(v[1]), int(v[2])), int(v[3]))
 	for c in stairs_cells(st):
@@ -281,3 +316,86 @@ static func _cell_box(g: VoxelGrid, c: Vector2i, row_lo: int, row_hi: int) -> Ar
 	var xr := g.centre_range(0, c.x, c.x + 1.0)
 	var zr := g.centre_range(2, c.y, c.y + 1.0)
 	return [Vector3i(xr.x, row_lo, zr.x), Vector3i(xr.y, row_hi + 1, zr.y)]
+
+
+# --- Exp 005 (V): pillars ------------------------------------------------------------------
+# A pillar is a 0.4 m x 0.4 m masonry column in the middle of a 1 m cell, the
+# full wall height. Its voxels live in the storey's grids (so they are saved,
+# shot, carved and repaired like walls); GameLevels keeps the cells.
+
+const PILLAR_HALF := 0.2
+const PILLAR_TONES := [0x8a8478, 0x7d776c, 0x938c80, 0x857f73]
+const PILLAR_MORTAR := 0xb3ab9c
+
+
+static func pillar_rect(c: Vector2i) -> Rect2:
+	var cc := cell_center(c)
+	return Rect2(cc - Vector2.ONE * PILLAR_HALF, Vector2.ONE * PILLAR_HALF * 2.0)
+
+
+static func stamp_pillar(w: HouseWorld, c: Vector2i) -> void:
+	var r := pillar_rect(c)
+	var xr := w.design.centre_range(0, r.position.x, r.end.x)
+	var zr := w.design.centre_range(2, r.position.y, r.end.y)
+	for z in range(zr.x, zr.y):
+		for x in range(xr.x, xr.y):
+			for k in VoxelHouse.WALL_ROWS:
+				var y := VoxelHouse.BASE_ROW + k
+				if w.design.get_mat(x, y, z) != VoxelMat.AIR:
+					continue
+				if k % 3 == 2:
+					var mc := VoxelArt.jitter(PILLAR_MORTAR, x, y, z, 0.04)
+					_put(w, x, y, z, VoxelMat.MORTAR, mc, mc, 0)
+				else:
+					var t: int = PILLAR_TONES[(k / 3 + x + z) % PILLAR_TONES.size()]
+					var col := VoxelArt.jitter(t, x, y, z, 0.05)
+					_put(w, x, y, z, VoxelMat.MASONRY, col, col, 0)
+	w._edited(Vector3i(xr.x, VoxelHouse.BASE_ROW, zr.x), Vector3i(xr.y, VoxelHouse.TOP_ROW + 1, zr.y))
+
+
+## Takes a pillar's masonry out of the design and the current grid.
+static func clear_pillar(w: HouseWorld, c: Vector2i) -> int:
+	var r := pillar_rect(c)
+	var xr := w.design.centre_range(0, r.position.x, r.end.x)
+	var zr := w.design.centre_range(2, r.position.y, r.end.y)
+	var n := 0
+	for z in range(zr.x, zr.y):
+		for x in range(xr.x, xr.y):
+			for y in range(VoxelHouse.BASE_ROW, VoxelHouse.TOP_ROW + 1):
+				var i := w.design.idx(x, y, z)
+				var m := w.design.mat[i]
+				if m != VoxelMat.MASONRY and m != VoxelMat.MORTAR:
+					continue
+				w.design.clear_index(i)
+				if w.grid.mat[i] != VoxelMat.AIR:
+					w.grid.clear_index(i)
+				n += 1
+	w._edited(Vector3i(xr.x, VoxelHouse.BASE_ROW, zr.x), Vector3i(xr.y, VoxelHouse.TOP_ROW + 1, zr.y))
+	return n
+
+
+## True if at least half of the pillar's masonry (by its design) still stands.
+static func pillar_stands(w: HouseWorld, c: Vector2i) -> bool:
+	var r := pillar_rect(c)
+	var xr := w.grid.centre_range(0, r.position.x, r.end.x)
+	var zr := w.grid.centre_range(2, r.position.y, r.end.y)
+	var want := 0
+	var have := 0
+	for z in range(zr.x, zr.y):
+		for x in range(xr.x, xr.y):
+			for y in range(VoxelHouse.BASE_ROW, VoxelHouse.TOP_ROW + 1):
+				var i := w.grid.idx(x, y, z)
+				var m := w.design.mat[i]
+				if m == VoxelMat.MASONRY or m == VoxelMat.MORTAR:
+					want += 1
+					if w.grid.mat[i] != VoxelMat.AIR:
+						have += 1
+	return want > 0 and have * 2 >= want
+
+
+## Plan rects of the stairs (helper for callers that only hold the list).
+static func stairs_rect_any(list: Array, p: Vector2) -> bool:
+	for st in list:
+		if stairs_rect(st).has_point(p):
+			return true
+	return false

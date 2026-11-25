@@ -1,11 +1,12 @@
 extends Node3D
 ## Experiment 004 (owner L): the look of one stairs piece (Levels stairs
 ## record): Levels.STEPS solid wooden steps over its two cells, rising from
-## the ground floor to the upper floor ("up") or descending into the basement
-## ("down"), with a stringer on each side. Visual only: bodies change storey
-## through GameLevels, so the steps have no collision. Stairs down also get
-## a dark "Pit" over their hole, seen from the ground floor (the yard's ground
-## plane, just under the floor, would otherwise show through the hole).
+## their start storey to the one above ("up") or descending to the one below
+## ("down"), with a stringer on each side. Exp 005 (V): the node stands at its
+## start storey's floor height, so any two adjacent storeys work the same.
+## Visual only: bodies change storey through GameLevels, so the steps have no
+## collision. Stairs down also get a dark "Pit" over their hole, seen from
+## above (the storey below is hidden then; GameLevels shows the pit).
 
 const TREAD := 0x7b5d40
 const RISER := 0x5f4630
@@ -19,6 +20,7 @@ static func make(st: Dictionary) -> Node3D:
 	var n: Node3D = load("res://src/levels/stairs_view.gd").new()
 	n.stairs = st
 	n.name = "Stairs_%d_%d_%d" % [(st["cell"] as Vector2i).x, (st["cell"] as Vector2i).y, int(st["lo"])]
+	n.position.y = Levels.base_y(Levels.start_storey(st))
 	n._build()
 	return n
 
@@ -26,7 +28,7 @@ static func make(st: Dictionary) -> Node3D:
 func _build() -> void:
 	var d := Vector2(Levels.stairs_dir(stairs))
 	var start := Levels.cell_center(stairs["cell"]) - d * 0.5
-	var up: bool = int(stairs["lo"]) == Levels.GROUND
+	var up: bool = Levels.is_up(stairs)
 	var depth := 2.0 / float(Levels.STEPS)
 	var along_x := absf(d.x) > 0.5
 	var tread := _mat(TREAD)

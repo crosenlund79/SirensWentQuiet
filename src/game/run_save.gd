@@ -4,7 +4,8 @@ extends RefCounted
 ##
 ## Layout: {"summary", "state": GameState.to_dict(), "world": HouseWorld.save_data(),
 ##          "game": {"version", "player": {"pos": [x, z], "yaw", "storey"}, "time_scale", "director"}}
-## Experiment 004: "storey" (optional; -1 basement, 0 ground, 1 upper floor)
+## Experiment 004: "storey" (optional; -1 basement, 0 ground, 1 upper floor;
+## Exp 005: -2..+2)
 ## and world["levels"] (src/levels/game_levels.gd). Older saves: the ground floor.
 ## (Saves from the foundation stub era kept "game" in "game_data"; still read.)
 
@@ -64,7 +65,7 @@ static func parse(data: Dictionary) -> Dictionary:
 		out["yaw"] = yaw if is_finite(yaw) else 0.0
 		var storey = p.get("storey", 0)
 		if typeof(storey) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(storey)):
-			out["storey"] = clampi(int(storey), -1, 1)
+			out["storey"] = clampi(int(storey), Levels.LOWEST, Levels.HIGHEST)      # Exp 005 (V): -2..+2
 	out["ok"] = true
 	out["state"] = st
 	out["world"] = wd

@@ -12,7 +12,8 @@ extends RefCounted
 ##   6 Equipment (rain collector, workbench, fuse box) · 7 Repair ·
 ##   8 Reinforce (iron plating; doors: wood -> reinforced -> metal) ·
 ##   9 Demolish · 0 Floors & levels (stone foundation, wooden floor, stairs up
-##   and down, upper floor, excavate; Experiment 004, src/levels/level_build.gd)
+##   and down, next storey, excavate, pillar; Experiments 004-005,
+##   src/levels/level_build.gd)
 ## Experiment 004 refunds: the player's own pieces give back their FULL
 ## cost; original structures (walls, windows, doors, the fuse box) and
 ## furniture give salvage, about half (ORIGINAL_SALVAGE, object_refund,
@@ -80,14 +81,17 @@ const LIST := [
 	# --- Experiment 004: floors, stairs and storeys (owner L; src/levels/level_build.gd) ----
 	{"id": "wood_floor", "name": "Wooden floor", "short": "Wood floor", "tool": "place", "slot": 9, "cost": {"wood": 2, "nails": 2},
 		"hint": "A 1 m plank tile where there is no floor · Demolish takes floor tiles up"},
+	# Exp 005 (V): hints for five levels (-2..+2); "upper_floor" is the "Next storey" piece; the pillar.
 	{"id": "stairs_up", "name": "Stairs up", "short": "Stairs up", "tool": "place", "slot": 9, "cost": {"wood": 8, "nails": 10},
-		"hint": "Ground floor, 1 x 2 m plus a free cell at the foot · R turns · walk onto them or E"},
+		"hint": "Ground floor or higher, 1 x 2 m plus a free cell at the foot · R turns · walk onto them or E"},
 	{"id": "stairs_down", "name": "Stairs down", "short": "Stairs down", "tool": "place", "slot": 9, "cost": {"wood": 8, "nails": 10},
-		"hint": "Ground floor over dug basement: the 2 cells under them and 1 past the end · R turns"},
-	{"id": "upper_floor", "name": "Upper floor", "short": "Upper floor", "tool": "place", "slot": 9, "cost": {"wood": 40, "nails": 40, "iron": 4},
-		"hint": "Needs stairs up · a deck over the house with outer walls and windows; build on it like downstairs"},
+		"hint": "Ground floor or lower, over dug cells below: the 2 under them and 1 past the end · R turns"},
+	{"id": "upper_floor", "name": "Next storey", "short": "Next storey", "tool": "place", "slot": 9, "cost": {"wood": 40, "nails": 40, "iron": 4},
+		"hint": "Needs stairs up · a deck over the house with outer walls and windows, one level up (+1, then +2) · PgUp / PgDn change level"},
 	{"id": "excavate", "name": "Excavate", "short": "Dig", "tool": "dig", "slot": 9, "cost": {},
-		"hint": "Shovel · digs a 1 m basement cell under the house (25 min, energy, +1 stone) · in the basement: next to dug space"},
+		"hint": "Shovel · a 1 m cell under the house (25 min, energy, +1 stone) · down there: next to dug space · PgDn from the basement: the lower basement"},
+	{"id": "pillar", "name": "Stone pillar", "short": "Pillar", "tool": "place", "slot": 9, "cost": {"stone": 4},
+		"hint": "A 0.4 m masonry column in a cell · carries a floor tile above · props an outer wall within 2 m"},
 	# --- Exp 005 (F): furniture and storage (key 5; FurnitureCatalog, src/home/) ----------
 	{"id": "move", "name": "Move furniture", "short": "Move", "tool": "move", "slot": 4, "cost": {},
 		"hint": "Click a piece to pick it up (yours or the house's) · click again to set it down · R turns it · RMB puts it back · free"},
