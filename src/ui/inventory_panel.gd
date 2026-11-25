@@ -17,7 +17,7 @@ signal closed
 const GROUPS := [["food", "Food"], ["water", "Water"], ["medical", "Medical"], ["ammo", "Ammo"], ["material", "Materials"]]
 const GEAR_GROUPS := [["weapon", "Weapons"], ["protective", "Protective"], ["utility", "Utility"], ["tool", "Tools"]]
 const USE_SOUNDS := {"food": "player/eat", "water": "player/drink", "medical": "player/bandage"}
-const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"]]
+const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"], ["home", "Home"]]   # Exp 005 (C): Home
 ## What each piece of gear does when equipped (Equipment and the expedition rules).
 const EFFECTS := {
 	"handgun": "9 mm · magazine 12 · quick",
@@ -37,6 +37,7 @@ var _tabs := {}           # tab -> Button
 var _bars := {}
 var _feedback: Label
 var _crates: Label
+var home_source: Object   # Exp 005 (C): the game's comfort helper (report()); the Home tab shows only with one
 
 
 func _init() -> void:
@@ -48,8 +49,10 @@ func _init() -> void:
 func open(s: GameState, which := "") -> void:
 	_disconnect_state()
 	state = s
-	if which in ["supplies", "equipment"]:
+	if which in ["supplies", "equipment", "home"]:
 		tab = which
+	if tab == "home" and home_source == null:
+		tab = "supplies"
 	var focus := _build_tab()
 	_refresh()
 	if state != null and not state.changed.is_connected(_refresh):
@@ -58,7 +61,7 @@ func open(s: GameState, which := "") -> void:
 
 
 func show_tab(which: String) -> void:
-	if not which in ["supplies", "equipment"] or not is_open:
+	if not which in ["supplies", "equipment", "home"] or not is_open or (which == "home" and home_source == null):
 		return
 	tab = which
 	var focus := _build_tab()
@@ -78,6 +81,8 @@ func _build_tab() -> Control:
 	head.add_theme_constant_override("separation", 6)
 	box.add_child(head)
 	for t in TABS:
+		if t[0] == "home" and home_source == null:
+			continue
 		var b := UiTheme.make_button(t[1])
 		b.name = "Tab_" + t[0]
 		b.toggle_mode = true
@@ -117,6 +122,8 @@ func _build_tab() -> Control:
 		lists[side] = list
 	if tab == "supplies":
 		_build_supplies(lists)
+	elif tab == "home":
+		HomePanelView.build(lists, home_source)     # Exp 005 (C)
 	else:
 		_build_equipment(lists)
 	box.add_child(UiTheme.make_spacer(2))
@@ -134,7 +141,7 @@ func _build_tab() -> Control:
 	foot.add_child(bar_hint)
 	foot.move_child(bar_hint, 1)
 	box.add_child(foot)
-	var first := _first_action_button() if tab == "supplies" else _tabs["equipment"] as Button
+	var first := _first_action_button() if tab == "supplies" else _tabs.get(tab) as Button
 	return first if first != null else close_b
 
 

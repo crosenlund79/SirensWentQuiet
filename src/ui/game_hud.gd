@@ -77,6 +77,8 @@ var _flash_tween: Tween
 var _mode_tween: Tween
 var _banner_t := 0.0
 var _pending := []
+var _home_room: Label                   # Exp 005 (C): "Living room · Comfortable" (set_home_line)
+var _home_mood: Label                   # Exp 005 (C): "Mood: Content"
 
 
 func _init() -> void:
@@ -283,7 +285,30 @@ func debug_texts() -> Dictionary:
 		"warnings": warns, "toasts": toasts, "fps_visible": _fps.visible,
 		"bars": _bars.keys().map(func(k): return [k, (_bars[k] as UiStatBar).value]),
 		"flash": _flash.modulate.a,
+		"home_room": _home_room.text if _home_room != null else "",       # Exp 005 (C)
+		"home_mood": _home_mood.text if _home_mood != null else "",
 	}
+
+
+## Exp 005 (C): the room and mood line under the materials, in the status card.
+## `level`: the room's comfort level 0..4 (-1 outdoors); `band`: the mood band 0..4.
+func set_home_line(room_text: String, level: int, mood_text: String, band: int) -> void:
+	if _materials == null:
+		return
+	if _home_room == null:
+		var col := _materials.get_parent()
+		_home_room = UiTheme.make_hud_label("", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
+		_home_room.name = "HomeRoom"
+		col.add_child(_home_room)
+		_home_mood = UiTheme.make_hud_label("", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
+		_home_mood.name = "HomeMood"
+		col.add_child(_home_mood)
+	var tone := func(i: int) -> Color:
+		return UiTheme.BAD if i == 0 else (UiTheme.WARN if i == 1 else (UiTheme.GOOD if i >= 3 else UiTheme.TEXT_DIM))
+	_home_room.text = room_text
+	_home_room.add_theme_color_override("font_color", tone.call(level) if level >= 0 else UiTheme.TEXT_DIM)
+	_home_mood.text = mood_text
+	_home_mood.add_theme_color_override("font_color", tone.call(band))
 
 
 # --- input and update ---------------------------------------------------------

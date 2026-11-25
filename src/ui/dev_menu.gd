@@ -509,6 +509,7 @@ func _build() -> void:
 	_build_structure_section(box)     # Refinement 01 (S)
 	_build_furniture_section(box)     # Exp 005 (F)
 	_build_audio_section(box)     # Exp 005 (A)
+	_build_comfort_section(box)     # Exp 005 (C)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -778,3 +779,30 @@ func audio_call(method: String, args: Array) -> void:
 		return
 	_say(str(a.callv(method, args)))
 	_audio_refresh()
+
+
+# --- Exp 005 (C): comfort and mood (methods on src/home/game_comfort.gd) ----------------
+
+func _build_comfort_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Comfort & mood"))
+	box.add_child(_grid(3, [["Show comfort", _comfort_call.bind("dev_show", [])], ["Recompute", _comfort_call.bind("dev_recompute", [])],
+		["Home panel", _comfort_home_panel],
+		["Mood low", _comfort_call.bind("dev_mood", ["low"])], ["Mood normal", _comfort_call.bind("dev_mood", ["normal"])],
+		["Mood high", _comfort_call.bind("dev_mood", ["high"])]]))
+
+
+func _comfort_call(method: String, args: Array) -> void:
+	var h = game.get("comfort") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no comfort.%s()" % method, true)
+		return
+	_say(str(h.callv(method, args)))
+
+
+func _comfort_home_panel() -> void:
+	var h = game.get("comfort") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method("dev_open_panel")):
+		_say("No Home panel here.", true)
+		return
+	set_open(false)
+	_say(str(h.call("dev_open_panel")))

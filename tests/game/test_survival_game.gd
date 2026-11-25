@@ -194,10 +194,11 @@ func test_sleep_advances_the_time_once() -> void:
 	s.energy = 40.0
 	var e0 := s.energy
 	var h0 := s.hunger
+	var rest := s.rest_scale           # Exp 005 (C): the sleep bonus of the mood and the bedroom
 	var plan: Dictionary = await g.debug_sleep(120.0)
 	check(not plan.is_empty(), "slept")
 	check(absf(s.total_minutes - (10.0 * 60.0 + 120.0)) < 0.01, "exactly two hours later (%s)" % s.clock_text())
-	check(absf((s.energy - e0) - 2.0 * SurvivalTuning.SLEEP_ENERGY_PER_HOUR) < 0.2, "energy restored once (%.1f -> %.1f)" % [e0, s.energy])
+	check(absf((s.energy - e0) - 2.0 * SurvivalTuning.SLEEP_ENERGY_PER_HOUR * rest) < 0.2, "energy restored once (%.1f -> %.1f, rest x%.2f)" % [e0, s.energy, rest])
 	check(absf((h0 - s.hunger) - 2.0 * SurvivalTuning.HUNGER_PER_HOUR * SurvivalTuning.SLEEP_DECAY_SCALE) < 0.2, "hunger decayed once, at the sleep rate")
 	check_eq(g.debug_modal(), "", "awake")
 	check(not tree.paused, "world resumed")

@@ -67,6 +67,10 @@ var auto_equip := true
 ## older saves load with an empty bar (filled by the game) and a broken car.
 var hotbar := Hotbar.new_bar()
 var car_repaired := false
+# Exp 005 (C): Eli's mood (Mood, src/survival/mood.gd). Saved; older saves get Mood.START.
+var mood := Mood.START                          ## 0..100
+var mood_state := {}                            ## Mood memories and bleak hours ({"mem", "bleak"})
+var rest_scale := 1.0                           ## sleep energy x this (mood and bedroom comfort; set by the game, not saved)
 
 var _quiet := false                             ## restoring: no equipment sync
 var _gear_seen := {}                            ## equippable ids owned at the last sync
@@ -210,7 +214,7 @@ func _live(hours: float, asleep: bool, start: float) -> void:
 	var k := T.SLEEP_DECAY_SCALE if asleep else 1.0
 	var hunger_rate := T.HUNGER_PER_HOUR * k
 	var water_rate := T.HYDRATION_PER_HOUR * k
-	var energy_rate := T.SLEEP_ENERGY_PER_HOUR if asleep else -T.ENERGY_PER_HOUR
+	var energy_rate := T.SLEEP_ENERGY_PER_HOUR * rest_scale if asleep else -T.ENERGY_PER_HOUR   # Exp 005 (C): rest_scale
 	var regen := T.REGEN_ASLEEP if asleep else T.REGEN_AWAKE
 	var done := 0.0
 	for _i in 16:   # at most five thresholds can split the span
@@ -1013,6 +1017,7 @@ func to_dict() -> Dictionary:
 		"active_weapon": active_weapon_slot, "region": region.to_dict(),
 		"hotbar": hotbar.duplicate(true), "car_repaired": car_repaired,
 		"home": home.duplicate(true),
+		"mood": mood, "mood_state": mood_state.duplicate(true),     # Exp 005 (C)
 	}
 
 
@@ -1067,6 +1072,8 @@ static func from_dict(d) -> GameState:
 	s.car_repaired = _flag(d.get("car_repaired"))
 	var h = d.get("home", {})            # Experiment 004; older saves have none
 	s.home = (h as Dictionary).duplicate(true) if typeof(h) == TYPE_DICTIONARY else {}
+	s.mood = Mood.clean_value(d.get("mood"))           # Exp 005 (C); older saves: Mood.START
+	s.mood_state = Mood.clean(d.get("mood_state"))
 	return s
 
 

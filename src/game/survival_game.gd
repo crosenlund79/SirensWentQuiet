@@ -35,6 +35,7 @@ const GameLevels := preload("res://src/levels/game_levels.gd")   # Experiment 00
 const HotbarCtl := preload("res://src/game/game_hotbar.gd")   # Experiment 004 (E)
 const CarCtl := preload("res://src/game/game_car.gd")         # Experiment 004 (E)
 const HomeLink := preload("res://src/home/game_home.gd")   # Experiment 004 (H): atmosphere, lights, household
+const ComfortLink := preload("res://src/home/game_comfort.gd")   # Exp 005 (C): rooms, comfort, mood
 const SupportLink := preload("res://src/world/game_support.gd")   # Refinement 01 (S): collapses
 const StorageLink := preload("res://src/home/game_storage.gd")   # Exp 005 (F): storage furniture, placed lamps
 const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): footsteps, ambience layers, Eli
@@ -66,6 +67,7 @@ var home: Node                         ## src/home/game_home.gd (Experiment 004:
 var support: Node                      ## src/world/game_support.gd (Refinement 01: roof and upper-floor collapses)
 var storage: Node                      ## src/home/game_storage.gd (Exp 005, F: storage panel, placed lamps, F10 Furniture)
 var audio: Node                        ## src/audio/game_audio.gd (Exp 005, A: footsteps, ambience layers, voice)
+var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C): rooms, comfort, mood)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -260,6 +262,10 @@ func _assemble() -> void:
 	storage.name = "Storage"
 	add_child(storage)
 	storage.setup(self)
+	comfort = ComfortLink.new()        # Exp 005 (C): rooms, comfort and mood (after home and levels, which it reads)
+	comfort.name = "Comfort"
+	add_child(comfort)
+	comfort.setup(self)
 	audio = AudioLink.new()            # Exp 005 (A): after home and levels, which it reads
 	audio.name = "Audio"
 	add_child(audio)
@@ -985,6 +991,8 @@ func dev_info() -> String:
 		dev.info(),
 		home.info(),
 	]
+	if comfort != null:
+		lines.append(comfort.info())       # Exp 005 (C)
 	return "\n".join(lines)
 
 
