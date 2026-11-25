@@ -204,7 +204,8 @@ func _draw_dashed_ring(c: Vector2, r: float, col: Color) -> void:
 
 
 func _label(text: String, pos: Vector2, size: int, col: Color) -> void:
-	var f := ThemeDB.fallback_font
+	var f := UiTheme.font()                  # Exp 006 (U): the pixel font at a crisp size
+	size = UiTheme.px(size)
 	draw_string_outline(f, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 4, Color(0.02, 0.02, 0.03, 0.85))
 	draw_string(f, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 
@@ -212,18 +213,18 @@ func _label(text: String, pos: Vector2, size: int, col: Color) -> void:
 func _draw_card(e: Dictionary, at: Vector2) -> void:
 	if e.is_empty():
 		return
-	var f := ThemeDB.fallback_font
+	var f := UiTheme.font()                  # Exp 006 (U)
 	var name: String = e["name"]
 	var sub: String = e.get("sub", "")
-	var w := maxf(f.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x, f.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 24.0
+	var w := maxf(UiTheme.font("bold").get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x, f.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x) + 24.0
 	var rect := Rect2(at + Vector2(-w * 0.5, -HEAD_R - 58.0), Vector2(w, 44.0))
 	rect.position.x = clampf(rect.position.x, 8.0, size.x - w - 8.0)
 	rect.position.y = maxf(rect.position.y, 8.0)
 	var sb := UiTheme.card_style()
 	sb.bg_color = Color(0.03, 0.032, 0.04, 0.88)
 	draw_style_box(sb, rect)
-	draw_string(f, rect.position + Vector2(12, 19), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UiTheme.TEXT)
-	draw_string(f, rect.position + Vector2(12, 36), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.TEXT_DIM)
+	draw_string(UiTheme.font("bold"), rect.position + Vector2(12, 19), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, UiTheme.TEXT)
+	draw_string(f, rect.position + Vector2(12, 36), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, UiTheme.TEXT_DIM)
 
 
 ## Small dark category glyphs inside the pin.

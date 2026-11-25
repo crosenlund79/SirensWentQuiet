@@ -6,7 +6,7 @@ extends Control
 ##   var bar := UiTheme.make_stat_bar("food", "Food")
 ##   bar.set_value(state.hunger)
 
-const ICON := 16.0
+const ICON := 12.0      ## Exp 006 (U): the pixel icons' native size
 const NUMBER_W := 30.0
 
 @export var kind := "health":
@@ -75,13 +75,13 @@ func _draw() -> void:
 	if level() != "normal":
 		glow = 0.7 + 0.3 * (0.5 + 0.5 * cos(_pulse * TAU))
 	var icon_col := Color(col, glow) if level() != "normal" else Color(UiTheme.TEXT, 0.9)
-	var ir := Rect2(Vector2(0, (h - ICON) * 0.5), Vector2(ICON, ICON))
-	UiIcons.paint(self, kind, Rect2(ir.position + Vector2(0.6, 1.0), ir.size), Color(0, 0, 0, 0.45))
+	var ir := Rect2(Vector2(0, roundf((h - ICON) * 0.5)), Vector2(ICON, ICON))
+	UiIcons.paint(self, kind, Rect2(ir.position + Vector2(1.0, 1.0), ir.size), Color(0, 0, 0, 0.5))   # Exp 006 (U): hard pixel shadow
 	UiIcons.paint(self, kind, ir, icon_col)
 	var x0 := ICON + 8.0
 	var x1 := size.x - (NUMBER_W + 6.0 if show_number else 0.0)
 	var bh := 6.0
-	var y := (h - bh) * 0.5
+	var y := roundf((h - bh) * 0.5)
 	var track := Rect2(x0, y, maxf(x1 - x0, 4.0), bh)
 	draw_rect(track.grow(1.0), Color(0, 0, 0, 0.35))
 	draw_rect(track, Color(1, 1, 1, 0.1))
@@ -93,9 +93,9 @@ func _draw() -> void:
 	var tx := track.position.x + track.size.x * clampf(warn_level / maxf(max_value, 0.001), 0.0, 1.0)
 	draw_line(Vector2(tx, y - 2), Vector2(tx, y + bh + 2), Color(1, 1, 1, 0.22), 1.0)
 	if show_number:
-		var font := ThemeDB.fallback_font
+		var font := UiTheme.font()          # Exp 006 (U): Pixel Operator
 		var fs := UiTheme.FONT_SMALL
 		var text := str(int(ceil(value)))
-		var pos := Vector2(size.x - NUMBER_W, h * 0.5 + fs * 0.36)
+		var pos := Vector2(size.x - NUMBER_W, roundf(h * 0.5 + fs * 0.32))
 		draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_RIGHT, NUMBER_W, fs, 4, Color(0, 0, 0, 0.6))
 		draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_RIGHT, NUMBER_W, fs, col if level() != "normal" else UiTheme.TEXT)

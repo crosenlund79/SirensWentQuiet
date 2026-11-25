@@ -24,7 +24,7 @@ static func build(lists: Dictionary, source: Object) -> void:
 
 
 static func _build_room(box: VBoxContainer, rep: Dictionary) -> void:
-	box.add_child(UiTheme.make_section("This room"))
+	box.add_child(UiTheme.make_section("This room", "storey"))
 	var here: Dictionary = rep.get("here", {})
 	if here.is_empty():
 		var t := UiTheme.make_label("Outdoors", UiTheme.FONT_LARGE)
@@ -51,7 +51,7 @@ static func _build_room(box: VBoxContainer, rep: Dictionary) -> void:
 
 
 static func _build_mood(box: VBoxContainer, rep: Dictionary) -> void:
-	box.add_child(UiTheme.make_section("Eli's mood"))
+	box.add_child(UiTheme.make_section("Eli's mood", "mood"))
 	var m := float(rep.get("mood", Mood.START))
 	var t := float(rep.get("target", m))
 	var arrow := "steady" if absf(t - m) < 2.0 else ("rising toward %.0f" % t if t > m else "sinking toward %.0f" % t)
@@ -75,7 +75,7 @@ static func _build_mood(box: VBoxContainer, rep: Dictionary) -> void:
 
 static func _build_house(box: VBoxContainer, rep: Dictionary) -> void:
 	box.add_child(UiTheme.make_spacer(4))
-	box.add_child(UiTheme.make_section("The house"))
+	box.add_child(UiTheme.make_section("The house", "levels"))
 	var hv := float(rep.get("house", 0.0))
 	var head := UiTheme.make_label("%s (%.0f)" % [rep.get("house_name", ""), hv], UiTheme.FONT_BODY, level_color(ComfortCatalog.level_of(hv)))
 	head.name = "HouseTitle"

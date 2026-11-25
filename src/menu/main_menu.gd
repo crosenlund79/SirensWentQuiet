@@ -308,10 +308,12 @@ func _build() -> void:
 
 	var title := UiTheme.make_label("SIRENS WENT QUIET", 50, UiTheme.TEXT)
 	title.name = "Title"
-	title.add_theme_font_override("font", UiTheme.tracked_font(7))
-	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
-	title.add_theme_constant_override("shadow_offset_y", 3)
-	title.add_theme_constant_override("shadow_outline_size", 8)
+	# Exp 006 (U): the bold 8 px pixel face at 5x, with a hard pixel shadow
+	title.add_theme_font_override("font", UiTheme.font("heading_bold"))
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	title.add_theme_constant_override("shadow_offset_x", 4)
+	title.add_theme_constant_override("shadow_offset_y", 4)
 	menu.add_child(title)
 	var rule := ColorRect.new()
 	rule.color = UiTheme.ACCENT
@@ -330,7 +332,8 @@ func _build() -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(420, 46)
 		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		b.add_theme_font_size_override("font_size", 18)
+		b.add_theme_font_size_override("font_size", UiTheme.px(18))
+		b.add_theme_font_override("font", UiTheme.font("heading"))     # Exp 006 (U): chunky 2x menu face
 		b.pressed.connect(actions[it[0]])
 		menu.add_child(b)
 		_buttons[it[0]] = b

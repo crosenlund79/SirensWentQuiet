@@ -484,14 +484,14 @@ func _build() -> void:
 	_mission_place = OptionButton.new()
 	_mission_place.name = "MissionPlace"
 	_mission_place.focus_mode = Control.FOCUS_NONE
-	_mission_place.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	_mission_place.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
 	for id in RegionLocations.ids():
 		_mission_place.add_item(RegionLocations.name_of(id))
 		_mission_place.set_item_metadata(_mission_place.item_count - 1, id)
 	_mission_approach = OptionButton.new()
 	_mission_approach.name = "MissionApproach"
 	_mission_approach.focus_mode = Control.FOCUS_NONE
-	_mission_approach.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	_mission_approach.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
 	for a in ExpeditionData.approaches():
 		_mission_approach.add_item(str(a["name"]))
 		_mission_approach.set_item_metadata(_mission_approach.item_count - 1, a["id"])
@@ -527,7 +527,7 @@ func _build() -> void:
 	_inspect.selection_enabled = true
 	_inspect.focus_mode = Control.FOCUS_NONE
 	_inspect.custom_minimum_size.x = WIDTH - 52
-	_inspect.add_theme_font_size_override("normal_font_size", 12)
+	_inspect.add_theme_font_size_override("normal_font_size", UiTheme.px(12))
 	_inspect.add_theme_color_override("default_color", UiTheme.TEXT)
 	box.add_child(_inspect)
 
@@ -553,7 +553,7 @@ func _small(text: String, cb: Callable) -> Button:
 	var b := UiTheme.make_button(text)
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size.y = 30
-	b.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	b.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
 	for st in ["normal", "hover", "pressed", "disabled", "focus", "hover_pressed"]:
 		var sb := UiTheme.button_style(st)
 		sb.content_margin_left = 8
@@ -735,7 +735,7 @@ func _build_audio_section(box: VBoxContainer) -> void:
 	_audio_pick.fit_to_longest_item = false
 	_audio_pick.clip_text = true
 	_audio_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_audio_pick.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	_audio_pick.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
 	for n in Sfx.all_names():
 		var src := Sfx.source_of(n)
 		_audio_pick.add_item("%s  (%s)" % [n, src if src != "" else "no file"])
@@ -754,7 +754,7 @@ func _build_audio_section(box: VBoxContainer) -> void:
 	_audio_text.selection_enabled = true
 	_audio_text.focus_mode = Control.FOCUS_NONE
 	_audio_text.custom_minimum_size.x = WIDTH - 52
-	_audio_text.add_theme_font_size_override("normal_font_size", 11)
+	_audio_text.add_theme_font_size_override("normal_font_size", UiTheme.px(11))
 	_audio_text.add_theme_color_override("default_color", UiTheme.TEXT)
 	box.add_child(_audio_text)
 	_audio_refresh()

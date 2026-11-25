@@ -409,7 +409,7 @@ func _rebuild_list() -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+		b.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
 		b.clip_text = true
 		var cat := MapInfo.HOME if is_home else str(RegionLocations.get_def(id)["category"])
 		var dot := ColorRect.new()
@@ -570,7 +570,7 @@ func _show_info() -> void:
 		b.button_group = group
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2((INFO_W - 42) * 0.5, 34)
-		b.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
+		b.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL))
 		b.clip_text = true
 		b.disabled = not a["available"]
 		b.tooltip_text = a["reason"] if not a["available"] else a["desc"]
@@ -643,7 +643,7 @@ func _set_approach(id: String, tgt: String) -> void:
 				b.button_group = group
 				b.focus_mode = Control.FOCUS_NONE
 				b.custom_minimum_size.y = 28
-				b.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
+				b.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL))
 				b.set_pressed_no_signal(item == target)
 				b.pressed.connect(func(): target = item; _update_plan_button())
 				flow.add_child(b)

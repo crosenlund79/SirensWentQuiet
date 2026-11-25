@@ -2,53 +2,75 @@ class_name UiTheme
 extends RefCounted
 ## One visual language for every menu, panel and HUD element (SPEC §8). Owner: U.
 ##
-## Dark translucent panels, warm off-white text, one amber accent (the siren),
-## small-caps headings (upper case at a reduced size with wide tracking), the
-## same button everywhere and the same short fades. Other modules (the build
-## palette, the expedition screens) use these helpers instead of styling their
-## own controls; see docs/experiment-002/ui.md for the rules and examples.
+## Exp 006 (U), the voxel-friendly overhaul: the Pixel Operator font (CC0,
+## assets/fonts/pixel_operator/), square panels with a hard drop shadow,
+## dark muted slate backgrounds, warm off-white text, one amber accent (the
+## siren), pixel icons (UiIcons) and the same button everywhere. Other
+## modules use these helpers instead of styling their own controls; see
+## docs/experiment-002/ui.md for the rules and examples.
 ##
 ##   var panel := UiTheme.make_panel()                 # themed PanelContainer
 ##   box.add_child(UiTheme.make_title("Into the fog")) # panel heading (accent)
 ##   box.add_child(UiTheme.make_section("Supplies"))   # small-caps rule
 ##   box.add_child(UiTheme.make_button("Go", "2 h"))   # button + right caption
 ##   box.add_child(UiTheme.make_key_hint("E", "Search"))
+##   box.add_child(UiTheme.make_icon_label("water", "Water 3"))   # Exp 006
+##
+## Type sizes: pixel fonts stay crisp only at whole multiples of their design
+## size (PixelOperator: 16 px; PixelOperator8: 8 px). px() snaps any size to
+## 16 or 32 (48 for huge), so older call sites asking for 13 or 22 still get
+## a clean size. Roles: "regular" (PixelOperator, text), "bold" (emphasis),
+## "heading" (PixelOperator8 at 16 = 2x: titles), "caps" (PixelOperatorSC:
+## section rules), "mono" (numbers in tables). Antialiasing and hinting are
+## off in the fonts' import settings, so under the canvas_items stretch the
+## glyphs are rasterised at the window's scale with hard edges.
 ##
 ## A whole modal screen with scrim, fade and Esc handling: extend UiModal.
 
 # --- palette ------------------------------------------------------------------
-const BG := Color(0.035, 0.037, 0.045, 0.86)        ## panels
-const BG_SOLID := Color(0.03, 0.032, 0.04, 1.0)     ## full-screen backgrounds
-const BG_SOFT := Color(0.03, 0.032, 0.04, 0.58)     ## HUD cards (lighter, over the game)
-const SCRIM := Color(0.0, 0.0, 0.0, 0.5)            ## behind modal panels
-const LINE := Color(1, 1, 1, 0.09)                  ## hairlines and borders
-const LINE_STRONG := Color(1, 1, 1, 0.18)
+const BG := Color(0.045, 0.052, 0.062, 0.9)         ## panels (dark slate)
+const BG_SOLID := Color(0.035, 0.04, 0.048, 1.0)    ## full-screen backgrounds
+const BG_SOFT := Color(0.035, 0.042, 0.05, 0.66)    ## HUD cards (lighter, over the game)
+const SCRIM := Color(0.0, 0.01, 0.02, 0.55)         ## behind modal panels
+const LINE := Color(0.75, 0.82, 0.9, 0.13)          ## hairlines and borders (cold)
+const LINE_STRONG := Color(0.75, 0.82, 0.9, 0.26)
 const TEXT := Color(0.92, 0.89, 0.83)               ## warm off-white
-const TEXT_DIM := Color(0.66, 0.64, 0.6)
-const TEXT_FAINT := Color(0.46, 0.45, 0.43)
+const TEXT_DIM := Color(0.67, 0.67, 0.65)
+const TEXT_FAINT := Color(0.47, 0.48, 0.48)
 const ACCENT := Color(0.95, 0.62, 0.22)             ## the siren amber (the one accent)
 const ACCENT_SOFT := Color(0.95, 0.62, 0.22, 0.16)
+const FROST := Color(0.64, 0.76, 0.86)              ## Exp 006: cold secondary (levels, info chips)
 const GOOD := Color(0.56, 0.82, 0.55)
 const WARN := Color(0.98, 0.74, 0.32)
 const BAD := Color(0.94, 0.38, 0.32)
 const INFO := TEXT
 const KIND_COLORS := {"info": TEXT, "good": GOOD, "warn": WARN, "bad": BAD}
+const SHADOW := Color(0, 0, 0, 0.5)                 ## hard drop shadows
 
 # --- metrics ------------------------------------------------------------------
-const FONT_SMALL := 13
+## Exp 006: Pixel Operator sizes (see px()). LARGE and TITLE are nominal:
+## make_label renders LARGE in bold at 16, make_title renders the heading face.
+const FONT_SMALL := 16
 const FONT_BODY := 16
-const FONT_LARGE := 19
+const FONT_LARGE := 20
 const FONT_TITLE := 22
+const FONT_BIG := 32
 const PAD := 18          ## panel content margin
 const GAP := 10          ## vertical rhythm between rows
-const RADIUS := 4
+const RADIUS := 0        ## Exp 006: square, pixel-style corners
 const BUTTON_HEIGHT := 38
 const FADE_IN := 0.16    ## seconds; every panel uses the same fades
 const FADE_OUT := 0.12
+const FONT_DIR := "res://assets/fonts/pixel_operator/"
+const FONT_FILES := {
+	"regular": "PixelOperator.ttf", "bold": "PixelOperator-Bold.ttf", "heading": "PixelOperator8.ttf",
+	"heading_bold": "PixelOperator8-Bold.ttf", "caps": "PixelOperatorSC.ttf", "mono": "PixelOperatorMono.ttf",
+}
 
 static var _theme: Theme
 static var _fonts := {}
 static var _quiet_until := 0
+static var _font_cache := {}
 
 
 # --- theme --------------------------------------------------------------------
@@ -57,6 +79,7 @@ static func theme() -> Theme:
 	if _theme != null:
 		return _theme
 	var t := Theme.new()
+	t.default_font = font("regular")
 	t.default_font_size = FONT_BODY
 	# labels
 	t.set_color("font_color", "Label", TEXT)
@@ -76,6 +99,12 @@ static func theme() -> Theme:
 	t.set_color("font_focus_color", "Button", Color(1, 0.96, 0.9))
 	t.set_color("font_disabled_color", "Button", TEXT_FAINT)
 	t.set_constant("h_separation", "Button", 8)
+	t.set_color("icon_normal_color", "Button", Color(TEXT, 0.9))
+	t.set_color("icon_hover_color", "Button", Color(1, 0.96, 0.9))
+	t.set_color("icon_pressed_color", "Button", ACCENT)
+	t.set_color("icon_hover_pressed_color", "Button", ACCENT)
+	t.set_color("icon_focus_color", "Button", Color(1, 0.96, 0.9))
+	t.set_color("icon_disabled_color", "Button", Color(TEXT_FAINT, 0.6))
 	# separators
 	var sep := StyleBoxLine.new()
 	sep.color = LINE
@@ -89,7 +118,7 @@ static func theme() -> Theme:
 	# sliders
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(1, 1, 1, 0.1)
-	track.set_corner_radius_all(2)
+	track.set_corner_radius_all(0)
 	track.content_margin_top = 2
 	track.content_margin_bottom = 2
 	t.set_stylebox("slider", "HSlider", track)
@@ -107,7 +136,7 @@ static func theme() -> Theme:
 	t.set_stylebox("panel", "ScrollContainer", StyleBoxEmpty.new())
 	var bar := StyleBoxFlat.new()
 	bar.bg_color = Color(1, 1, 1, 0.03)
-	bar.set_corner_radius_all(3)
+	bar.set_corner_radius_all(0)
 	bar.content_margin_left = 3
 	bar.content_margin_right = 3
 	t.set_stylebox("scroll", "VScrollBar", bar)
@@ -115,7 +144,7 @@ static func theme() -> Theme:
 	for g in [["grabber", Color(1, 1, 1, 0.18)], ["grabber_highlight", Color(ACCENT, 0.55)], ["grabber_pressed", ACCENT]]:
 		var gs := StyleBoxFlat.new()
 		gs.bg_color = g[1]
-		gs.set_corner_radius_all(3)
+		gs.set_corner_radius_all(0)
 		t.set_stylebox(g[0], "VScrollBar", gs)
 	# tooltips and rich text
 	var tip := panel_style()
@@ -124,14 +153,23 @@ static func theme() -> Theme:
 	tip.set_content_margin_all(8)
 	t.set_stylebox("panel", "TooltipPanel", tip)
 	t.set_color("font_color", "TooltipLabel", TEXT)
-	t.set_font_size("font_size", "TooltipLabel", FONT_SMALL + 1)
+	t.set_font_size("font_size", "TooltipLabel", FONT_SMALL)
 	t.set_color("default_color", "RichTextLabel", TEXT)
-	t.set_font_size("normal_font_size", "RichTextLabel", FONT_SMALL + 1)
-	t.set_font_size("bold_font_size", "RichTextLabel", FONT_SMALL + 1)
+	t.set_font_size("normal_font_size", "RichTextLabel", FONT_BODY)
+	t.set_font_size("bold_font_size", "RichTextLabel", FONT_BODY)
+	t.set_font_size("mono_font_size", "RichTextLabel", FONT_BODY)
+	t.set_font("bold_font", "RichTextLabel", font("bold"))
+	t.set_font("mono_font", "RichTextLabel", font("mono"))
+	# line edits and option buttons (settings, dev menu) share the button look
+	t.set_stylebox("normal", "LineEdit", button_style("normal"))
+	t.set_stylebox("focus", "LineEdit", button_style("focus"))
+	t.set_color("font_color", "LineEdit", TEXT)
+	t.set_color("caret_color", "LineEdit", ACCENT)
+	t.set_color("selection_color", "LineEdit", ACCENT_SOFT)
 	# progress bars (if a module wants a plain one; UiStatBar is preferred)
 	var pb_bg := StyleBoxFlat.new()
 	pb_bg.bg_color = Color(1, 1, 1, 0.08)
-	pb_bg.set_corner_radius_all(2)
+	pb_bg.set_corner_radius_all(0)
 	t.set_stylebox("background", "ProgressBar", pb_bg)
 	var pb_fill := pb_bg.duplicate() as StyleBoxFlat
 	pb_fill.bg_color = Color(TEXT, 0.85)
@@ -148,8 +186,10 @@ static func panel_style() -> StyleBoxFlat:
 	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(RADIUS)
 	sb.set_content_margin_all(PAD)
-	sb.shadow_color = Color(0, 0, 0, 0.35)
-	sb.shadow_size = 18
+	# Exp 006 (U): a hard, offset drop shadow instead of a soft glow (pixel style)
+	sb.shadow_color = SHADOW
+	sb.shadow_size = 1
+	sb.shadow_offset = Vector2(5, 5)
 	return sb
 
 
@@ -157,7 +197,7 @@ static func panel_style() -> StyleBoxFlat:
 static func card_style() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = BG_SOFT
-	sb.border_color = Color(1, 1, 1, 0.06)
+	sb.border_color = Color(LINE, 0.09)
 	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(RADIUS)
 	sb.content_margin_left = 12
@@ -169,7 +209,7 @@ static func card_style() -> StyleBoxFlat:
 
 static func button_style(state: String) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
-	sb.set_corner_radius_all(3)
+	sb.set_corner_radius_all(RADIUS)
 	sb.set_border_width_all(1)
 	sb.content_margin_left = 16
 	sb.content_margin_right = 16
@@ -177,8 +217,9 @@ static func button_style(state: String) -> StyleBoxFlat:
 	sb.content_margin_bottom = 8
 	match state:
 		"normal":
-			sb.bg_color = Color(1, 1, 1, 0.045)
+			sb.bg_color = Color(0.7, 0.8, 0.9, 0.05)
 			sb.border_color = LINE
+			sb.border_width_bottom = 2          # Exp 006: a pixel "key" bottom edge
 		"hover":
 			sb.bg_color = Color(ACCENT, 0.13)
 			sb.border_color = Color(ACCENT, 0.55)
@@ -197,14 +238,43 @@ static func button_style(state: String) -> StyleBoxFlat:
 	return sb
 
 
-## Upper case with wide tracking: the "small caps" heading face.
+## Upper case with wide tracking: the "small caps" heading face. Exp 006:
+## Pixel Operator with whole-pixel letter spacing (about half the old value).
 static func tracked_font(spacing := 2) -> Font:
 	if not _fonts.has(spacing):
 		var f := FontVariation.new()
-		f.base_font = ThemeDB.fallback_font
-		f.spacing_glyph = spacing
+		f.base_font = font("regular")
+		f.spacing_glyph = clampi(spacing / 2, 1, 3)
 		_fonts[spacing] = f
 	return _fonts[spacing]
+
+
+## Exp 006: the Pixel Operator faces by role ("regular", "bold", "heading",
+## "heading_bold", "caps", "mono"); the engine's font if a file is missing.
+static func font(role := "regular") -> Font:
+	if _font_cache.has(role):
+		return _font_cache[role]
+	var path: String = FONT_DIR + str(FONT_FILES.get(role, FONT_FILES["regular"]))
+	var f: Font = load(path) as Font if ResourceLoader.exists(path) else null
+	if f == null:
+		f = ThemeDB.fallback_font
+	_font_cache[role] = f
+	return f
+
+
+## Exp 006: a crisp pixel-font size for `size`: 16 (1x) below 26, 32 (2x)
+## below 40, else 48 (3x).
+static func px(size: int) -> int:
+	if size < 26:
+		return 16
+	if size < 40:
+		return 32
+	return 48
+
+
+## Exp 006: a texture of a UiIcons icon for Button.icon / TextureRect.
+static func icon_texture(kind: String, size := 24) -> Texture2D:
+	return UiIcons.texture(kind, size)
 
 
 # --- building blocks ----------------------------------------------------------
@@ -225,24 +295,33 @@ static func make_card() -> PanelContainer:
 
 
 ## Panel heading: small caps in the accent colour.
+## Exp 006: PixelOperator8 at 16 (2x; 24 = 3x for sizes from 30 up).
 static func make_title(text: String, size := FONT_TITLE) -> Label:
 	var l := Label.new()
 	l.text = text.to_upper()
-	l.add_theme_font_override("font", tracked_font(3 if size >= 20 else 2))
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_override("font", font("heading"))
+	l.add_theme_font_size_override("font_size", 24 if size >= 30 else 16)
 	l.add_theme_color_override("font_color", ACCENT)
+	l.add_theme_color_override("font_shadow_color", SHADOW)
+	l.add_theme_constant_override("shadow_offset_x", 2)
+	l.add_theme_constant_override("shadow_offset_y", 2)
 	return l
 
 
 ## Section header: dim small caps followed by a hairline.
-static func make_section(text: String) -> HBoxContainer:
+## Exp 006: `icon` (a UiIcons name) adds a pixel icon before the text.
+static func make_section(text: String, icon := "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if icon != "":
+		var ic := make_icon(icon, 12, TEXT_DIM)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(ic)
 	var l := Label.new()
-	l.text = text.to_upper()
-	l.add_theme_font_override("font", tracked_font(2))
-	l.add_theme_font_size_override("font_size", 12)
+	l.text = text            # Exp 006: true small caps (PixelOperatorSC)
+	l.add_theme_font_override("font", font("caps"))
+	l.add_theme_font_size_override("font_size", 16)
 	l.add_theme_color_override("font_color", TEXT_DIM)
 	row.add_child(l)
 	var line := HSeparator.new()
@@ -254,17 +333,21 @@ static func make_section(text: String) -> HBoxContainer:
 	return row
 
 
+## Exp 006: `size` snaps to a crisp pixel size (px()); 18-25 render in bold
+## at 16 (emphasis: FONT_LARGE).
 static func make_label(text: String, size := FONT_BODY, color := TEXT) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", px(size))
+	if size >= 18 and size < 26:
+		l.add_theme_font_override("font", font("bold"))
 	l.add_theme_color_override("font_color", color)
 	return l
 
 
 ## Dim explanatory text. With `width` > 0 it wraps at that width.
 static func make_caption(text: String, width := 0.0, color := TEXT_DIM) -> Label:
-	var l := make_label(text, FONT_SMALL + 1, color)
+	var l := make_label(text, FONT_SMALL, color)
 	if width > 0.0:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size.x = width
@@ -275,7 +358,7 @@ static func make_caption(text: String, width := 0.0, color := TEXT_DIM) -> Label
 static func make_hud_label(text: String, size := FONT_BODY, color := TEXT) -> Label:
 	var l := make_label(text, size, color)
 	l.add_theme_constant_override("outline_size", 4)
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	l.add_theme_color_override("font_outline_color", Color(0, 0.01, 0.02, 0.72))
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
@@ -327,19 +410,19 @@ static func caption_of(b: Button) -> String:
 static func make_key_chip(key: String) -> PanelContainer:
 	var p := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(1, 1, 1, 0.09)
-	sb.border_color = Color(1, 1, 1, 0.28)
+	sb.bg_color = Color(0.75, 0.82, 0.9, 0.1)
+	sb.border_color = Color(0.85, 0.9, 0.95, 0.34)
 	sb.set_border_width_all(1)
-	sb.border_width_bottom = 2
-	sb.set_corner_radius_all(3)
-	sb.content_margin_left = 6
-	sb.content_margin_right = 6
+	sb.border_width_bottom = 3          # Exp 006: a chunky pixel key cap
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left = 5
+	sb.content_margin_right = 5
 	sb.content_margin_top = 0
-	sb.content_margin_bottom = 1
+	sb.content_margin_bottom = 0
 	p.add_theme_stylebox_override("panel", sb)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var l := make_label(key, FONT_SMALL - 1, TEXT)
+	var l := make_label(key, FONT_SMALL, TEXT)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.custom_minimum_size.x = 10
 	p.add_child(l)
@@ -349,7 +432,7 @@ static func make_key_chip(key: String) -> PanelContainer:
 
 ## One or more key chips followed by a label: make_key_hint("I / Tab", "Inventory").
 ## Keys separated by " / " become separate chips.
-static func make_key_hint(keys: String, text: String, size := FONT_SMALL + 1, color := TEXT_DIM) -> HBoxContainer:
+static func make_key_hint(keys: String, text: String, size := FONT_SMALL, color := TEXT_DIM) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 5)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -403,6 +486,58 @@ static func make_icon(kind: String, size := 18.0, color := TEXT) -> UiIcon:
 	i.color = color
 	i.custom_minimum_size = Vector2(size, size)
 	return i
+
+
+## Exp 006: an icon followed by a label ("water" + "Water 3"); the label is
+## the child named "Text".
+static func make_icon_label(kind: String, text: String, size := FONT_BODY, color := TEXT, icon_size := 24.0) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var i := make_icon(kind, icon_size, color)
+	i.name = "Icon"
+	i.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(i)
+	var l := make_label(text, size, color)
+	l.name = "Text"
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(l)
+	return row
+
+
+## Exp 006: make_button with a pixel icon on the left.
+static func make_icon_button(text: String, kind: String, caption := "") -> Button:
+	var b := make_button(text, caption)
+	b.icon = icon_texture(kind, 24)
+	b.expand_icon = false
+	return b
+
+
+## Exp 006: a compact toggle tab with a pixel icon (the build menu's
+## categories); the pressed tab gets the amber stripe and a thick underline.
+static func make_tab(text: String, kind := "") -> Button:
+	var b := Button.new()
+	b.text = text
+	b.theme = theme()
+	b.toggle_mode = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.custom_minimum_size.y = 34
+	if kind != "":
+		b.icon = icon_texture(kind, 24)
+	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		var sb := button_style(st)
+		sb.content_margin_left = 7
+		sb.content_margin_right = 10
+		sb.content_margin_top = 3
+		sb.content_margin_bottom = 3
+		if st == "pressed" or st == "hover_pressed":
+			sb.border_width_bottom = 3
+		b.add_theme_stylebox_override(st, sb)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_constant_override("h_separation", 6)
+	wire_sounds(b)
+	return b
 
 
 ## Full-screen dimmer that also swallows clicks meant for the game.

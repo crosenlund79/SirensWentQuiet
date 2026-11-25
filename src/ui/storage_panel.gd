@@ -98,7 +98,7 @@ func _column(parent: Control, heading: String) -> VBoxContainer:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.custom_minimum_size.x = 450
 	parent.add_child(col)
-	col.add_child(UiTheme.make_section(heading))
+	col.add_child(UiTheme.make_section(heading, "inventory" if heading == "You carry" else "storage"))   # Exp 006 (U)
 	return col
 
 
@@ -106,6 +106,9 @@ func _row(id: String, n: int, carried: bool) -> Control:
 	var row := HBoxContainer.new()
 	row.name = ("Carry_" if carried else "Stored_") + id
 	row.add_theme_constant_override("separation", 8)
+	var icon := UiTheme.make_icon(UiIcons.for_item(id), 24, UiTheme.TEXT)    # Exp 006 (U)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(icon)
 	var name_l := UiTheme.make_label(Items.name_of(id), UiTheme.FONT_BODY)
 	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_l)
@@ -131,7 +134,7 @@ func _small(text: String, cb: Callable, off: bool) -> Button:
 	var b := UiTheme.make_button(text)
 	b.name = text.replace(" ", "")
 	b.custom_minimum_size.x = 76
-	b.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL + 1)
+	b.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
 	b.disabled = off
 	b.pressed.connect(cb)
 	return b

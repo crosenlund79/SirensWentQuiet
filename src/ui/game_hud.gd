@@ -81,6 +81,7 @@ var _banner_t := 0.0
 var _pending := []
 var _home_room: Label                   # Exp 005 (C): "Living room · Comfortable" (set_home_line)
 var _home_mood: Label                   # Exp 005 (C): "Mood: Content"
+var _mat_row: HBoxContainer             # Exp 006 (U): wood / stone / iron with pixel icons
 
 
 func _init() -> void:
@@ -136,7 +137,7 @@ func set_prompt(text: String) -> void:
 		body = m.get_string(2)
 	if key != "":
 		_prompt_holder.add_child(UiTheme.make_key_chip(key))
-	var l := UiTheme.make_hud_label(body, UiTheme.FONT_BODY + 1)
+	var l := UiTheme.make_hud_label(body, UiTheme.FONT_LARGE)     # Exp 006 (U): bold pixel text
 	l.name = "Text"
 	_prompt_holder.add_child(l)
 	_prompt_card.visible = mode == "play"
@@ -384,6 +385,10 @@ func _refresh(force: bool) -> void:
 	if mkey != _mat_key or force:
 		_mat_key = mkey
 		_materials.text = mkey
+		for m in MATERIALS:                # Exp 006 (U)
+			var t: Label = _mat_row.get_node_or_null("%s/Text" % m[0])
+			if t != null:
+				t.text = str(state.inventory.count(m[0]))
 	# cheats
 	var cheats := active_cheats(state)
 	var ckey := ", ".join(cheats)
@@ -529,7 +534,7 @@ func _set_warnings(warns: Array) -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 7)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var icon := UiTheme.make_icon("warn", 13, col)
+		var icon := UiTheme.make_icon("warn", 12, col)      # Exp 006 (U): pixel icon at its native size
 		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(icon)
 		var l := UiTheme.make_hud_label(w[0], UiTheme.FONT_SMALL + 1, col)
@@ -601,22 +606,23 @@ func _build() -> void:
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(head)
 	var glyph := Control.new()
-	glyph.custom_minimum_size = Vector2(22, 22)
+	glyph.custom_minimum_size = Vector2(24, 24)          # Exp 006 (U): 2x pixel icons
 	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(glyph)
-	_sun = UiTheme.make_icon("sun", 22, Color(1.0, 0.88, 0.62))
+	_sun = UiTheme.make_icon("sun", 24, Color(1.0, 0.88, 0.62))
 	_sun.set_anchors_preset(Control.PRESET_FULL_RECT)
 	glyph.add_child(_sun)
-	_moon = UiTheme.make_icon("moon", 22, Color(0.8, 0.85, 0.98))
+	_moon = UiTheme.make_icon("moon", 24, Color(0.8, 0.85, 0.98))
 	_moon.set_anchors_preset(Control.PRESET_FULL_RECT)
 	glyph.add_child(_moon)
 	var clock_col := VBoxContainer.new()
-	clock_col.add_theme_constant_override("separation", -3)
+	clock_col.add_theme_constant_override("separation", 1)
 	clock_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	head.add_child(clock_col)
 	_clock = UiTheme.make_hud_label("", 20)
 	_clock.name = "Clock"
+	_clock.add_theme_font_override("font", UiTheme.font("heading"))     # Exp 006 (U): PixelOperator8 at 16 (2x)
 	clock_col.add_child(_clock)
 	_period = UiTheme.make_hud_label("", 12, UiTheme.TEXT_DIM)
 	_period.add_theme_font_override("font", UiTheme.tracked_font(2))
@@ -636,7 +642,20 @@ func _build() -> void:
 	col.add_child(_warn_box)
 	_materials = UiTheme.make_hud_label("", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
 	_materials.name = "Materials"
+	_materials.visible = false             # Exp 006 (U): kept for debug_texts; the icon row shows it
 	col.add_child(_materials)
+	_mat_row = HBoxContainer.new()
+	_mat_row.name = "MaterialIcons"
+	_mat_row.add_theme_constant_override("separation", 12)
+	_mat_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_mat_row)
+	for m in MATERIALS:
+		var ml := UiTheme.make_icon_label(m[0], "0", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM, 12.0)
+		ml.name = m[0]
+		var t: Label = ml.get_node("Text")
+		t.add_theme_constant_override("outline_size", 4)
+		t.add_theme_color_override("font_outline_color", Color(0, 0.01, 0.02, 0.72))
+		_mat_row.add_child(ml)
 
 	# top centre: banner + toasts
 	var top := VBoxContainer.new()
@@ -650,10 +669,10 @@ func _build() -> void:
 	_root.add_child(top)
 	_banner = PanelContainer.new()
 	var bsb := StyleBoxFlat.new()
-	bsb.bg_color = Color(0.1, 0.025, 0.02, 0.78)
-	bsb.border_color = Color(UiTheme.BAD, 0.7)
-	bsb.border_width_top = 1
-	bsb.border_width_bottom = 1
+	bsb.bg_color = Color(0.1, 0.025, 0.02, 0.82)
+	bsb.border_color = Color(UiTheme.BAD, 0.8)
+	bsb.border_width_top = 2
+	bsb.border_width_bottom = 2
 	bsb.content_margin_left = 28
 	bsb.content_margin_right = 28
 	bsb.content_margin_top = 8
@@ -664,7 +683,7 @@ func _build() -> void:
 	_banner.visible = false
 	top.add_child(_banner)
 	_banner_label = UiTheme.make_hud_label("", 17, Color(1.0, 0.86, 0.8))
-	_banner_label.add_theme_font_override("font", UiTheme.tracked_font(4))
+	_banner_label.add_theme_font_override("font", UiTheme.font("heading"))   # Exp 006 (U)
 	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.add_child(_banner_label)
 	_alert = PanelContainer.new()
@@ -673,7 +692,7 @@ func _build() -> void:
 	asb.bg_color = Color(0.16, 0.07, 0.01, 0.85)
 	asb.border_color = Color(UiTheme.ACCENT, 0.95)
 	asb.set_border_width_all(2)
-	asb.set_corner_radius_all(3)
+	asb.set_corner_radius_all(0)
 	asb.content_margin_left = 22
 	asb.content_margin_right = 22
 	asb.content_margin_top = 6
@@ -687,7 +706,7 @@ func _build() -> void:
 	arow0.add_theme_constant_override("separation", 9)
 	arow0.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_alert.add_child(arow0)
-	var aicon := UiTheme.make_icon("warn", 16, UiTheme.ACCENT)
+	var aicon := UiTheme.make_icon("warn", 12, UiTheme.ACCENT)
 	aicon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	arow0.add_child(aicon)
 	_alert_label = UiTheme.make_hud_label("", 16, Color(1.0, 0.82, 0.55))
@@ -706,7 +725,7 @@ func _build() -> void:
 	csb.bg_color = Color(0.16, 0.08, 0.02, 0.8)
 	csb.border_color = Color(UiTheme.ACCENT, 0.85)
 	csb.set_border_width_all(1)
-	csb.set_corner_radius_all(3)
+	csb.set_corner_radius_all(0)
 	csb.content_margin_left = 10
 	csb.content_margin_right = 12
 	csb.content_margin_top = 5
@@ -752,7 +771,7 @@ func _build() -> void:
 	arow.add_theme_constant_override("separation", 9)
 	arow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ammo_card.add_child(arow)
-	_ammo_icon = UiTheme.make_icon("ammo", 22)
+	_ammo_icon = UiTheme.make_icon("ammo", 24)
 	_ammo_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	arow.add_child(_ammo_icon)
 	var wcol := VBoxContainer.new()
@@ -783,14 +802,14 @@ func _build() -> void:
 	_ammo_cap = UiTheme.make_hud_label("", 15, UiTheme.TEXT_DIM)
 	_ammo_cap.name = "AmmoCap"
 	_ammo_cap.size_flags_vertical = Control.SIZE_SHRINK_END
-	_ammo_cap.custom_minimum_size.y = 28
+	_ammo_cap.custom_minimum_size.y = 34
 	_ammo_cap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	nrow.add_child(_ammo_cap)
 	_ammo_note = UiTheme.make_hud_label("", 12, UiTheme.TEXT_DIM)
 	_ammo_note.add_theme_font_override("font", UiTheme.tracked_font(2))
 	_ammo_note.uppercase = true
 	_ammo_note.size_flags_vertical = Control.SIZE_SHRINK_END
-	_ammo_note.custom_minimum_size = Vector2(150, 28)
+	_ammo_note.custom_minimum_size = Vector2(150, 34)
 	_ammo_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	nrow.add_child(_ammo_note)
 	_reload_bar = ProgressBar.new()
@@ -847,7 +866,7 @@ func _build() -> void:
 	for h in HELP:
 		var keys := UiTheme.make_key_hint(h[0], "")
 		hgrid.add_child(keys)
-		hgrid.add_child(UiTheme.make_hud_label(h[1], UiTheme.FONT_SMALL + 1, UiTheme.TEXT))
+		hgrid.add_child(UiTheme.make_hud_label(h[1], UiTheme.FONT_SMALL, UiTheme.TEXT))
 	var hint_card := UiTheme.make_card()
 	var hsb := UiTheme.card_style()
 	hsb.content_margin_left = 7

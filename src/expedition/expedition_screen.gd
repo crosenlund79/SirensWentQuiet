@@ -18,6 +18,8 @@ extends CanvasLayer
 signal finished(result: Dictionary)
 signal cancelled
 
+## Exp 006 (U): pixel icons of the location categories.
+const SECTION_ICONS := {"construction": "hammer", "weapons": "pistol", "medical": "medkit", "food": "food", "residential": "storey"}
 const D := preload("res://src/expedition/expedition_data.gd")
 const VEIL_SHADER := preload("res://src/expedition/shaders/fog_veil.gdshader")
 const FADE_IN := 0.7
@@ -455,6 +457,10 @@ func _begin(title: String, sub := "") -> void:
 	_box.add_theme_constant_override("separation", 10)
 	_panel.add_child(_box)
 	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	var hicon := UiTheme.make_icon("scavenging", 24, UiTheme.ACCENT)     # Exp 006 (U): the expeditions' icon
+	hicon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(hicon)
 	head.add_child(UiTheme.make_title(title))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -604,7 +610,7 @@ func _show_list() -> void:
 		var in_cat := ids.filter(func(id): return D.destination(id)["category"] == cat)
 		if in_cat.is_empty():
 			continue
-		var sec := UiTheme.make_section(str(RegionLocations.CATEGORIES.get(cat, cat)))
+		var sec := UiTheme.make_section(str(RegionLocations.CATEGORIES.get(cat, cat)), str(SECTION_ICONS.get(cat, "")))   # Exp 006 (U)
 		sec.custom_minimum_size.y = 24
 		sec.set_meta("category", cat)
 		list.add_child(sec)

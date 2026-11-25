@@ -224,7 +224,7 @@ func _version_button(i: int) -> Button:
 
 	var key := Label.new()
 	key.text = v["key"]
-	key.add_theme_font_size_override("font_size", 38)
+	key.add_theme_font_size_override("font_size", UiTheme.px(38))
 	key.add_theme_color_override("font_color", UiTheme.ACCENT if available else UiTheme.TEXT_FAINT)
 	key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	key.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -236,13 +236,13 @@ func _version_button(i: int) -> Button:
 	row.add_child(texts)
 	var t := Label.new()
 	t.text = v["title"] + ("" if available else "   (not built)")
-	t.add_theme_font_size_override("font_size", 22)
+	t.add_theme_font_size_override("font_size", UiTheme.px(22))
 	t.add_theme_color_override("font_color", UiTheme.TEXT if available else UiTheme.TEXT_FAINT)
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texts.add_child(t)
 	var d := Label.new()
 	d.text = v["blurb"]
-	d.add_theme_font_size_override("font_size", 14)
+	d.add_theme_font_size_override("font_size", UiTheme.px(14))
 	d.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
 	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texts.add_child(d)

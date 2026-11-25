@@ -52,7 +52,8 @@ func open(d: int, c: String) -> void:
 
 	var title := UiTheme.make_label("YOU DIDN'T MAKE IT", 40)
 	title.name = "Title"
-	title.add_theme_font_override("font", UiTheme.tracked_font(8))
+	title.add_theme_font_override("font", UiTheme.font("heading_bold"))   # Exp 006 (U): 8 px face at 4x
+	title.add_theme_font_size_override("font_size", 32)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_box.add_child(title)
 	var rule := ColorRect.new()

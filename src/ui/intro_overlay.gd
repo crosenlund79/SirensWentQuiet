@@ -74,7 +74,7 @@ func _set_line(i: int) -> void:
 	_line.modulate.a = 0.0
 	var last := i == LINES.size() - 1
 	_line.add_theme_color_override("font_color", UiTheme.ACCENT if last else UiTheme.TEXT)
-	_line.add_theme_font_size_override("font_size", 28 if last else 24)
+	_line.add_theme_font_size_override("font_size", UiTheme.px(28 if last else 24))
 
 
 func _finish() -> void:
