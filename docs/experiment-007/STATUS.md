@@ -1,6 +1,7 @@
 # Experiment 007 — status and how to resume
 
 **Started:** 2026-11-25, 21:16 CET.
+**Done:** all five agents merged; suite 519/519; menu and game boot cleanly. Checkpoint `checkpoint/exp007-scavenging`. Report: `REPORT.md`. Every worktree is removed.
 **Branch:** `exp007/house-has-ears`; base `10acb92`.
 
 Agents per SPEC.md:

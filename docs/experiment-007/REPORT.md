@@ -124,7 +124,7 @@
 
 ## Verification
 
-- **Tests:** the full headless suite on the merged branch (see `STATUS.md` / the final commit). New tests: travel (including a real-scene store trip that brings an item home), POIs (12), noise, stragglers, visibility, holes, security.
+- **Tests:** the full headless suite on the merged branch: **519 passed, 0 failed**. The main menu and the game scene boot headless without script errors. New tests: travel (including a real-scene store trip that brings an item home), POIs (12), noise, stragglers, visibility, holes, security.
 - **Frames looked at:** by the agents, the travel panel, walking and driving, the store on arrival, each POI, the overview cutaway and blueprint, room visibility from the bedroom, turrets in the yard.
 
 ## Known limitations

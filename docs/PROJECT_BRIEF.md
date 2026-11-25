@@ -167,7 +167,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "The House Has Ears / Beyond the Front Door" (Experiment 007)
 
-**Status: Approved by the user's message of 2026-11-25 ("Combined Milestone — The House Has Ears / Beyond the Front Door", autonomous Rapid Delivery); in progress since 21:16 CET.** Experiment 007 had not started before, so this is one combined milestone. Branch `exp007/house-has-ears` from Experiment 006. Contracts: `docs/experiment-007/SPEC.md`.
+**Status: Approved by the user's message of 2026-11-25 ("Combined Milestone — The House Has Ears / Beyond the Front Door", autonomous Rapid Delivery). Delivered on the branch 2026-11-25 and as the source-only checkpoint `checkpoint/exp007-scavenging` (report: `docs/experiment-007/REPORT.md`; suite 519/519); awaiting the user's playtest.** Experiment 007 had not started before, so this is one combined milestone. Branch `exp007/house-has-ears` from Experiment 006. Contracts: `docs/experiment-007/SPEC.md`.
 
 - **Scope:**
   - playable scavenging replaces the dialogue expeditions: visible travel on the regional map (on foot and by car), enterable POIs (Pine Woods, Convenience Store, Public Library, plus a reusable placeholder for other locations), physical looting with persistence, enemy encounters, return home with offscreen home consequences;
