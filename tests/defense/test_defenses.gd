@@ -190,6 +190,10 @@ func test_spikes_hurt_with_a_cooldown_and_break() -> void:
 	e.spike_cd = 0.0
 	w.defense.enemy_step(e, 0.016)
 	check_eq(e.hp, 4, "not from a distance")
+	e.global_position = Vector3(2.5, 0, -2.75)
+	e.spike_cd = 0.0
+	w.defense.spike_swing(e, Vector2(2.5, -2.0))
+	check_eq(e.hp, 3, "bashing them from arm's length hurts too")
 	var hp0 := sp.hp
 	w.enemy_strike(Vector3(2.5, 0, -2.6), Vector2(2.5, -2.0))
 	check(sp.hp < hp0, "blows wear them down")

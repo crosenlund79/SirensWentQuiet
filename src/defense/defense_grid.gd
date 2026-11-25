@@ -593,17 +593,34 @@ func enemy_step(e: AIEnemy, delta: float) -> void:
 		if not is_instance_valid(o) or o.hp <= 0:
 			continue
 		var fp: Rect2 = o.footprint()
-		var q := p.clamp(fp.position, fp.end)
-		if q.distance_to(p) > reach:
-			continue
-		var hit: Array = SPIKE_HIT.get(o.kind, [1, 1.8])
-		e.spike_cd = float(hit[1])
-		var dir := Vector3(p.x - q.x, 0, p.y - q.y)
-		e.take_damage(int(hit[0]), dir if dir.length() > 0.01 else Vector3.FORWARD, "spikes")
-		if world != null and world.fx != null:
-			var at := Vector3(q.x, 0.6, q.y)
-			world.fx.debris(at, Vector3(dir.x, 1.2, dir.z), Color(0.45, 0.06, 0.05), 0.5)
+		if p.clamp(fp.position, fp.end).distance_to(p) <= reach:
+			_spike_hit(e, o)
+			return
+
+
+## An enemy's swing at a wall cell (AIEnemy calls it): hitting spikes hurts
+## the attacker too (bashing from arm's length is no way around them), on the
+## same contact cooldown.
+func spike_swing(e: AIEnemy, target: Vector2) -> void:
+	if _spikes.is_empty() or e.spike_cd > 0.0 or world == null or world.nav == null:
 		return
+	var o: Variant = world._obj_cells.get(world.nav.cell_of(target))
+	if o is WorldObject and is_spikes((o as WorldObject).kind):
+		_spike_hit(e, o)
+
+
+func _spike_hit(e: AIEnemy, o: WorldObject) -> void:
+	var p := e.plan_pos()
+	var fp := o.footprint()
+	var q := p.clamp(fp.position, fp.end)
+	var hit: Array = SPIKE_HIT.get(o.kind, [1, 1.8])
+	e.spike_cd = float(hit[1])
+	var dir := Vector3(p.x - q.x, 0, p.y - q.y)
+	if dir.length() < 0.01:
+		dir = Vector3.FORWARD
+	if world != null and world.fx != null:
+		world.fx.debris(Vector3(q.x, 0.6, q.y), Vector3(dir.x, 1.2, dir.z).normalized() * 1.5, Color(0.45, 0.06, 0.05), 0.5)
+	e.take_damage(int(hit[0]), dir, "spikes")
 
 
 ## The player's step (the game calls it while the player is on the ground

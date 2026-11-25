@@ -243,6 +243,8 @@ func _physics_process(delta: float) -> void:
 		if _swing_pending <= 0.0 and alive:
 			if _swing_kind == "wall":
 				swings["wall"] += 1
+				if storey == 0 and world != null and world.defense != null:      # Exp 006 (D): bashing spikes hurts
+					world.defense.spike_swing(self, _swing_target)
 				wall_swing.emit(self, _swing_target)
 			elif _swing_kind == "player":
 				swings["player"] += 1
