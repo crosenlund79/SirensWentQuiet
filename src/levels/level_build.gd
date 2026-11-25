@@ -426,7 +426,7 @@ func apply(bm: Node, r: Dictionary) -> String:
 			if levels.game.has_method("dev_advance"):
 				levels.game.dev_advance(Levels.DIG_MINUTES)
 			Sfx.play("impact/ground", at)
-			Sfx.play("build/demolish", at)
+			Sfx.play_first(["build/dig", "build/demolish"], at)     # Exp 005 (A): a recorded dig sound when the inbox has one
 			var txt := "Dug out 1 m² of %s (%d min%s)." % [Levels.name_of(t).to_lower(), int(Levels.DIG_MINUTES), ", +1 stone" if got > 0 else ""]
 			if first:
 				txt = "You start the %s (%s). " % [Levels.name_of(t).to_lower(), Levels.label(t)] + txt + " Stairs down need 3 dug cells in a line."
