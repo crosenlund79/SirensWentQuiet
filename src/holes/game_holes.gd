@@ -6,7 +6,7 @@ extends Node
 ##             the aimed wooden wall, door, barricade or boards within reach.
 ##             Eli stands and drills for a few game minutes (HoleRules.MINUTES;
 ##             the clock runs on), with a sound (build/drill, else the hammer)
-##             and moderate noise (Noise.emit, agent N, when that class exists).
+##             and moderate noise (level 2: `game.noise.emit`, or NoiseEvent.emit; agent N).
 ##             Taking a hit interrupts it.
 ##   holes     every open hole has an invisible [E] spot in its world's
 ##             `hole_spots` (HouseWorld.interactables lists them): "[E] Look
@@ -16,9 +16,9 @@ extends Node
 ##             hole looking away from Eli, 32 degrees wide, aimed a little with
 ##             the mouse (+/- 20 degrees, +/- 10 up and down), behind a keyhole mask
 ##             (peek_view.gd). The cutaway is off while it lasts, enemies inside
-##             the view cone are shown, and the room visibility (agent N) is
-##             asked to reveal only that cone (`visibility.set_peek(origin,
-##             dir, half_angle_deg, range)` / `clear_peek()`, if it has them).
+##             the view cone are shown, and the room visibility (agent N,
+##             `game.visibility`) reveals the rooms while it lasts
+##             (`reveal_all(true / false)`; `set_peek` if it has one).
 ##             E or Esc stops; a hit, death or a panel stop it too. Time runs.
 ##   cover     F at the hole (or in the view): a plank, or two nails, fills
 ##             it (wall voxels from the design; an object's flag). The Repair
@@ -26,7 +26,7 @@ extends Node
 ##   enemies   an enemy within 3 m of an open hole may notice it (a chance
 ##             every 2 s, higher while Eli is looking through it): it is sent to
 ##             investigate (`investigate(p)` if the enemy has it, else a low
-##             Noise at the hole), and if it stands right at the hole it pokes
+##             noise at the hole), and if it stands right at the hole it pokes
 ##             at it once (one blow on that spot, through world.enemy_strike).
 ##   F10       "Overview & holes" (dev_menu.gd): a drill, a hole in the
 ##             nearest wall now, the list of holes.
@@ -59,7 +59,7 @@ var _refresh_t := 0.0
 var _notice_t := 0.0
 var _sound_t := 0.0
 var _poke_cd := {}                     ## hole key -> seconds
-var _noise_script: Variant = false     ## false = not looked up yet; null = no Noise class
+var _noise_script: Variant = false     ## false = not looked up yet; null = no NoiseEvent class
 
 
 func setup(g: Node) -> void:
@@ -411,16 +411,23 @@ func _show_enemies_in_view(cam: Camera3D) -> void:
 			(e as Node3D).visible = true
 
 
-## Agent N's room visibility, if present: reveal only the view cone.
+## Agent N's room visibility (`game.visibility`), if present: the rooms are
+## revealed while looking (`reveal_all(true)`, back with `reveal_all(false)`);
+## the narrow camera and the mask keep the view to the cone. A finer
+## `set_peek(origin, dir, half_angle_deg, range)` / `clear_peek()` is used
+## instead when the visibility helper has it.
 func _set_vis_peek(on: bool) -> void:
 	var vis: Variant = game.get("visibility")
 	if not (vis is Object) or not is_instance_valid(vis):
 		return
-	if on and vis.has_method("set_peek") and not peeking.is_empty():
-		var cam: Camera3D = peeking["cam"]
-		vis.set_peek(cam.global_position, -cam.global_transform.basis.z, PEEK_FOV * 0.5 + PEEK_YAW, PEEK_RANGE)
-	elif not on and vis.has_method("clear_peek"):
-		vis.clear_peek()
+	if vis.has_method("set_peek"):
+		if on and not peeking.is_empty():
+			var cam: Camera3D = peeking["cam"]
+			vis.set_peek(cam.global_position, -cam.global_transform.basis.z, PEEK_FOV * 0.5 + PEEK_YAW, PEEK_RANGE)
+		elif not on and vis.has_method("clear_peek"):
+			vis.clear_peek()
+	elif vis.has_method("reveal_all"):
+		vis.reveal_all(on)
 
 
 # --- covering -----------------------------------------------------------------------------
@@ -523,12 +530,18 @@ func notice(a: AIEnemy, w: HouseWorld, rec: Dictionary, looking := false) -> voi
 
 # --- noise (agent N) ---------------------------------------------------------------------
 
-## Noise.emit(game, pos, level, source) when the Noise class exists; else nothing.
+## Agent N's noise: the game's `noise` helper (`noise.emit(pos, level, source)`),
+## else the NoiseEvent class (`NoiseEvent.emit(game, pos, level, source)`),
+## else nothing (audio and noise are separate).
 func emit_noise(pos: Vector3, level: float, source: String) -> bool:
+	var nz: Variant = game.get("noise") if game != null else null
+	if nz is Object and is_instance_valid(nz) and nz.has_method("emit"):
+		nz.emit(pos, level, source)
+		return true
 	if typeof(_noise_script) == TYPE_BOOL:
 		_noise_script = null
 		for c in ProjectSettings.get_global_class_list():
-			if str(c.get("class", "")) == "Noise":
+			if str(c.get("class", "")) == "NoiseEvent":
 				_noise_script = load(str(c.get("path", "")))
 	if _noise_script == null:
 		return false

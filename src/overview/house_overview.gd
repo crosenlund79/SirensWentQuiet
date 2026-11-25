@@ -118,6 +118,10 @@ func open_overview(m := "") -> String:
 	cam.set("_goal_distance", DISTANCE)
 	game.lighting.set_amount(minf(game.lighting.night_amount, DAY_LIGHT))
 	_hide_clutter()
+	if lv != null and lv.get("indicator") is CanvasLayer:
+		_saved["indicator"] = (lv.indicator as CanvasLayer).visible
+		(lv.indicator as CanvasLayer).visible = false     # the card names the level
+	_set_vis_overview(true)
 	_build_ui()
 	is_open = true
 	opened += 1
@@ -146,7 +150,10 @@ func close_overview() -> void:
 	cam.set("_goal_distance", float(_saved.get("distance", 20.0)))
 	cam.process_mode = int(_saved.get("cam_mode", Node.PROCESS_MODE_INHERIT))
 	var lv: Node = game.get("levels")
+	_set_vis_overview(false)
 	if lv != null:
+		if lv.get("indicator") is CanvasLayer:
+			(lv.indicator as CanvasLayer).visible = bool(_saved.get("indicator", true))
 		lv.view_storey = int(_saved.get("view", lv.player_storey))
 		lv.roofs_hidden = bool(_saved.get("roofs_hidden", false))
 		lv._update_visibility()
@@ -163,6 +170,17 @@ func close_overview() -> void:
 	if game.debug_modal() == "overview":
 		game._set_modal("", false)
 	_saved = {}
+
+
+## Agent N's room visibility (`game.visibility`), if present: every room
+## shows while the overview is open (`reveal_all(true)`, then `reveal_all(false)`).
+func _set_vis_overview(on: bool) -> void:
+	var vis: Variant = game.get("visibility")
+	if vis is Object and is_instance_valid(vis):
+		if vis.has_method("set_overview"):
+			vis.set_overview(on)
+		elif vis.has_method("reveal_all"):
+			vis.reveal_all(on)
 
 
 func _refuse(text: String) -> String:
@@ -402,7 +420,7 @@ func _build_ui() -> void:
 	_ui.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_ui)
 	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.theme = UiTheme.theme()
 	_ui.add_child(root)

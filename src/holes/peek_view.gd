@@ -28,7 +28,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mask = ColorRect.new()
 	mask.name = "Keyhole"
-	mask.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mask.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sh := Shader.new()
 	sh.code = MASK

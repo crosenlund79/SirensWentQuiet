@@ -32,7 +32,7 @@ var _centre := HousePlan.FOOTPRINT.get_center()
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func show_plan(p: Dictionary, y: float) -> void:
