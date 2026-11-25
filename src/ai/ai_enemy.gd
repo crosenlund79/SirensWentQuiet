@@ -163,6 +163,13 @@ func is_calm() -> bool:
 	return mind != null and alive
 
 
+## A person who'd harm Eli (for sensors and turrets, agent S): every living
+## enemy, calm, wandering or investigating ones included; false only while it
+## leaves (retreating at dawn or walking off into the fog) or once dead.
+func is_hostile() -> bool:
+	return alive and not retreating and not has_meta("retreat")
+
+
 ## A noise it heard (NoiseEvent): `loud` = level x exposure x fall-off.
 func hear(at: Vector2, loud: float, source := "") -> void:
 	if mind != null and alive and not retreating:

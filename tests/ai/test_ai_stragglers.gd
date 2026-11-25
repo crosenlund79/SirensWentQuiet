@@ -43,6 +43,9 @@ func test_straggler_is_calm_plans_and_never_swings() -> void:
 	check(e.plan_pos().distance_to(start) > 1.0, "it moves (%.1f m)" % e.plan_pos().distance_to(start))
 	check(e.is_calm(), "still calm: Eli is inside, out of sight (%s)" % e.provoked_by)
 	check_eq(roster.calm_count(), 1, "the roster counts it as calm")
+	check(e.is_hostile(), "calm, it still counts as hostile for sensors and turrets")
+	e.retreat_to(Vector2(20.5, 4.0))
+	check(not e.is_hostile(), "leaving, it doesn't")
 
 
 func test_noise_draws_then_turns_it() -> void:
