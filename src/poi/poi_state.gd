@@ -65,41 +65,59 @@ static func _int(v: Variant, fallback := 0) -> int:
 	return int(v) if typeof(v) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(v)) else fallback
 
 
+## Cleans a record in place: the dictionaries the game holds on to (a
+## container's items, the visit's pack and boot) stay the same objects.
 static func _clean(r: Dictionary) -> void:
-	var c: Variant = r.get("c", {})
-	var cc := {}
-	if typeof(c) == TYPE_DICTIONARY:
-		for cid in c:
-			var e: Variant = c[cid]
-			if typeof(e) != TYPE_DICTIONARY:
-				continue
-			cc[str(cid)] = {"items": FurnitureStorage.clean(e.get("items", {})), "searched": e.get("searched", false) == true,
-				"day": _int(e.get("day"))}
-	r["c"] = cc
+	var c := _dict_in(r, "c")
+	for cid in c.keys():
+		var e: Variant = c[cid]
+		if typeof(cid) != TYPE_STRING or typeof(e) != TYPE_DICTIONARY:
+			c.erase(cid)
+			continue
+		_items_in(e, "items")
+		e["searched"] = e.get("searched", false) == true
+		e["day"] = _int(e.get("day"))
 	for k in ["taken", "chop"]:
-		var v: Variant = r.get(k, {})
-		var out := {}
-		if typeof(v) == TYPE_DICTIONARY:
-			for key in v:
-				out[str(key)] = maxi(_int(v[key]), 0)
-		r[k] = out
-	var f: Variant = r.get("forced", {})
-	var fo := {}
-	if typeof(f) == TYPE_DICTIONARY:
-		for key in f:
-			if f[key] == true:
-				fo[str(key)] = true
-	r["forced"] = fo
+		var d := _dict_in(r, k)
+		for key in d.keys():
+			if typeof(key) != TYPE_STRING:
+				d.erase(key)
+			else:
+				d[key] = maxi(_int(d[key]), 0)
+	var f := _dict_in(r, "forced")
+	for key in f.keys():
+		if f[key] != true or typeof(key) != TYPE_STRING:
+			f.erase(key)
 	r["visits"] = maxi(_int(r.get("visits")), 0)
 	r["last_day"] = maxi(_int(r.get("last_day")), 0)
 	r["stock0"] = clampf(float(r.get("stock0", 1.0)) if typeof(r.get("stock0")) in [TYPE_INT, TYPE_FLOAT] else 1.0, 0.0, 1.0)
 	r["total"] = maxf(float(r.get("total", 0.0)) if typeof(r.get("total")) in [TYPE_INT, TYPE_FLOAT] else 0.0, 0.0)
 	var vis: Variant = r.get("visit")
 	if typeof(vis) == TYPE_DICTIONARY:
-		r["visit"] = {"day": _int(vis.get("day")), "car": vis.get("car", false) == true,
-			"pack": FurnitureStorage.clean(vis.get("pack", {})), "cargo": FurnitureStorage.clean(vis.get("cargo", {}))}
+		vis["day"] = _int(vis.get("day"))
+		vis["car"] = vis.get("car", false) == true
+		_items_in(vis, "pack")
+		_items_in(vis, "cargo")
 	else:
 		r.erase("visit")
+
+
+## r[key] as a Dictionary (replaced by {} when it is something else).
+static func _dict_in(r: Dictionary, key: String) -> Dictionary:
+	if typeof(r.get(key)) != TYPE_DICTIONARY:
+		r[key] = {}
+	return r[key]
+
+
+## r[key] as clean item counts, in place (FurnitureStorage.clean's rules).
+static func _items_in(r: Dictionary, key: String) -> void:
+	var d := _dict_in(r, key)
+	for id in d.keys():
+		var n := Inventory.to_count(d[id]) if Items.has(id) else 0
+		if n <= 0:
+			d.erase(id)
+		else:
+			d[id] = n
 
 
 static func generated(r: Dictionary) -> bool:

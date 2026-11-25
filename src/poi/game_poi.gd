@@ -682,6 +682,7 @@ func dev_restore_loot() -> String:
 	if world == null:
 		return "Not at a POI."
 	cancel_action("")
+	close_panel()
 	PoiState.restore(state, poi_id)
 	world.apply_record()
 	return "%s: loot, pickups and wood restored (%d containers)." % [RegionLocations.name_of(poi_id), (record["c"] as Dictionary).size()]

@@ -523,7 +523,7 @@ func _build_fog_pines() -> void:
 	while placed.size() < 60 and tries < 3000:
 		tries += 1
 		var q := Vector2(rng.randf_range(area.position.x, area.end.x), rng.randf_range(area.position.y, area.end.y))
-		if HousePlan.YARD.grow(0.5).has_point(q) or q.y > 17.0:
+		if HousePlan.YARD.grow(0.5).has_point(q) or q.y > 9.0:      # none to the south (between the camera and Eli)
 			continue
 		var ok := true
 		for o in placed:
@@ -680,26 +680,29 @@ func encounter_plan(danger: float, seed: int) -> Array:
 				at = edges[rng.randi() % edges.size()]
 				when = rng.randf_range(60.0, 200.0)
 			_:
-				at = wander_point(rng, entry_point(), 7.0)
+				at = wander_point(rng, entry_point(), 9.0)
 		out.append({"kind": kind, "at": at, "when": when, "mode": mode})
 	return out
 
 
 ## A walkable point in one of the layout's wander areas, at least `away` m
-## from `from` when possible.
+## from `from` when possible (else the farthest one tried).
 func wander_point(rng: RandomNumberGenerator, from := Vector2.INF, away := 0.0) -> Vector2:
 	var areas: Array = layout.get("wander", [])
 	if areas.is_empty():
 		areas = [HousePlan.YARD.grow(-2.0)]
 	var best := Vector2.ZERO
-	for t in 30:
+	var best_d := -1.0
+	for t in 40:
 		var a: Rect2 = areas[rng.randi() % areas.size()]
 		var q := Vector2(rng.randf_range(a.position.x, a.end.x), rng.randf_range(a.position.y, a.end.y))
 		if nav != null and not nav.is_walkable(nav.cell_of(q)):
 			continue
-		best = q
 		if from == Vector2.INF or q.distance_to(from) >= away:
 			return q
+		if q.distance_to(from) > best_d:
+			best = q
+			best_d = q.distance_to(from)
 	return best
 
 

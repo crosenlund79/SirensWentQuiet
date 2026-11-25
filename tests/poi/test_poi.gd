@@ -245,6 +245,10 @@ func test_region_poi_survives_the_save() -> void:
 	var s := GameState.new_run(3)
 	var r := PoiState.begin_visit(s, "forest")
 	r["chop"]["log_a"] = 2
+	var pack: Dictionary = r["visit"]["pack"]
+	var first: Dictionary = r["c"]
+	PoiState.record(s, "forest")
+	check(is_same(pack, r["visit"]["pack"]) and is_same(first, r["c"]), "cleaning keeps the live dictionaries")
 	var back := GameState.from_dict(s.to_dict())
 	var r2 := PoiState.record(back, "forest")
 	check_eq(int(r2["chop"]["log_a"]), 2, "chops survive")
