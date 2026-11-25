@@ -121,7 +121,7 @@ static func _box(L: Dictionary, id: String, type: String, c: Vector2, facing: St
 	var r := rect_of(type, c, facing)
 	var big := type in ["boxes", "storage_chest", "crate", "tool_cabinet", "wardrobe"]
 	var e := {"id": id, "type": type, "rect": r, "facing": facing, "h": float(SIZES.get(type, Vector3.ONE).y), "label": label,
-		"holds": holds, "weight": 1.0, "table": "loot", "picked": false, "needs": "", "noise": 2 if big else 1,
+		"holds": holds, "weight": 1.0, "table": "loot", "picked": false, "needs": "", "noise": 1,
 		"secs": 2.4 if big else 1.6, "minutes": 10 if big else 6, "room": ""}
 	for k in opts:
 		e[k] = opts[k]
@@ -168,8 +168,8 @@ static func _pine_woods(_def: Dictionary) -> Dictionary:
 	]
 	L["trees"] = [Vector2(-3.4, -2.6), Vector2(-0.6, -3.0), Vector2(2.2, -2.2), Vector2(9.6, -2.8), Vector2(12.8, -1.2),
 		Vector2(15.6, -2.6), Vector2(18.2, -1.0), Vector2(-3.8, 1.6), Vector2(0.4, 6.2), Vector2(-3.6, 5.4),
-		Vector2(5.6, 6.8), Vector2(9.2, 8.0), Vector2(17.6, 4.4), Vector2(15.2, 4.8), Vector2(18.0, 9.8),
-		Vector2(-2.8, 11.0), Vector2(2.2, 10.6), Vector2(12.4, 10.2), Vector2(16.4, 12.0), Vector2(6.8, 2.2)]
+		Vector2(5.6, 6.8), Vector2(9.2, 7.6), Vector2(17.6, 4.4), Vector2(15.2, 4.8), Vector2(19.2, 8.0),
+		Vector2(-5.0, 8.6), Vector2(6.8, 2.2)]     # none on the south side: they would stand between the camera and Eli
 	_prop(L, "dead_tree", Vector2(4.4, 0.6), "S")
 	_prop(L, "dead_tree", Vector2(16.4, 7.0), "S")
 	_prop(L, "bush", Vector2(1.6, 4.4), "S", false)

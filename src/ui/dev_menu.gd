@@ -515,6 +515,7 @@ func _build() -> void:
 	_build_defense_section(box)     # Exp 006 (D)
 	_build_security_section(box)     # Exp 007 (S)
 	_build_noise_section(box)     # Exp 007 (N)
+	_build_poi_section(box)     # Exp 007 (P)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -888,6 +889,28 @@ func _security_call(method: String) -> void:
 		_say("The game has no security.", true)
 		return
 	_say(str(h.call(method)))
+
+
+## Exp 007 (P): POI — at a destination (the game's `poi` helper,
+## src/poi/game_poi.gd): restore its loot, a straggler, reveal containers,
+## the visit's state. Travel buttons are agent T's.
+func _build_poi_section(box: VBoxContainer) -> void:
+	var p: Variant = game.get("poi") if game != null else null
+	if not (p is Object and is_instance_valid(p) and p.has_method("dev_state_text")):
+		return
+	box.add_child(UiTheme.make_section("POI"))
+	box.add_child(_grid(2, [["Restore this POI's loot", _poi_call.bind("dev_restore_loot")],
+		["Spawn a straggler here", _poi_call.bind("dev_spawn_straggler")],
+		["Reveal containers", _poi_call.bind("dev_reveal")],
+		["POI state", _poi_call.bind("dev_state_text")]]))
+
+
+func _poi_call(method: String) -> void:
+	var p: Variant = game.get("poi") if game != null and is_instance_valid(game) else null
+	if not (p is Object and is_instance_valid(p) and p.has_method(method)):
+		_say("Not at a POI.", true)
+		return
+	_say(str(p.call(method)))
 
 
 func _defense_call(method: String, arg: String) -> void:

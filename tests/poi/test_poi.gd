@@ -230,10 +230,12 @@ func test_encounters_start_unaware_and_notice_the_player() -> void:
 	await physics_frames(2)
 	check(h.roster.living() >= 1, msg)
 	var en: AIEnemy = h.poi.watch.back()["e"]
-	check(not en.brain.attack_goal and en.goal_override != Vector2.INF, "it starts unaware")
-	h.player.global_position = en.global_position + Vector3(1.0, 0, 0)
-	await physics_frames(20)
-	check(h.poi.watch.back()["state"] == "hunt" and en.brain.attack_goal, "close by, it notices you")
+	check_eq(str(en.get_meta("poi_mode", "")), "wander", "a POI straggler")
+	if h.poi.own_awareness():          # without agent N's straggler AI the helper runs it
+		check(not en.brain.attack_goal and en.goal_override != Vector2.INF, "it starts unaware")
+		h.player.global_position = en.global_position + Vector3(1.0, 0, 0)
+		await physics_frames(20)
+		check(h.poi.watch.back()["state"] == "hunt" and en.brain.attack_goal, "close by, it notices you")
 	check(h.poi.dev_state_text().contains("Public Library"), "F10 state text")
 	check(h.poi.dev_reveal() == "Containers revealed.", "reveal")
 	check(h.poi.dev_restore_loot().contains("restored"), "restore")
@@ -252,3 +254,22 @@ func test_region_poi_survives_the_save() -> void:
 	check(not junk.poi.has("nowhere") and not junk.poi.has("forest"), "unknown or broken records are dropped")
 	var cleaned := PoiState.record(GameState.new_run(1), "library")
 	check(cleaned.has("c") and cleaned.has("taken"), "a record always has its fields")
+
+
+func test_f10_poi_section() -> void:
+	var h: Node = await _harness("hardware")
+	var m := DevMenu.new()
+	add(m)
+	m.setup(h.state, h)
+	m.set_open(true)
+	await frames(2)
+	for t in ["Restore this POI's loot", "Spawn a straggler here", "Reveal containers", "POI state"]:
+		check(m.button(t) != null, "F10 has '%s'" % t)
+	m.button("POI state").pressed.emit()
+	check(m.last_status.contains("Hardware Store") and m.last_status.contains("placeholder"), "state: %s" % m.last_status)
+	m.button("Reveal containers").pressed.emit()
+	check((h.world as PoiWorld).is_revealed(), "labels over the containers")
+	m.button("Spawn a straggler here").pressed.emit()
+	await physics_frames(2)
+	check(h.roster.living() >= 1, "a straggler")
+	m.set_open(false)

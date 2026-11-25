@@ -278,7 +278,7 @@ func _place_pieces() -> void:
 	rng.seed = hash(poi_id)
 	var t := 0
 	for q in layout.get("trees", []):
-		var h := rng.randf_range(5.4, 7.6)
+		var h := rng.randf_range(4.8, 6.6)
 		var node := PropKit.make("pine", Vector3(0.6, h, 0.6), {"seed": 60 + t})
 		node.position = Vector3(q.x, 0, q.y)
 		node.rotation.y = rng.randf() * TAU
@@ -634,6 +634,17 @@ func exit_points() -> Array[Vector2]:
 
 func rooms() -> Array:
 	return layout.get("rooms", [])
+
+
+## For agent N's room visibility (Rooms): the floor areas of this place's
+## rooms on `storey` (POIs have one storey: the ground).
+func room_floor_rects(storey := 0) -> Array:
+	var out := []
+	if storey != 0:
+		return out
+	for r in rooms():
+		out.append(r["rect"])
+	return out
 
 
 ## Who is here this visit: [{kind, at: Vector2, when: s after arrival (0 =

@@ -64,7 +64,7 @@ var _started := false
 var _rng := RandomNumberGenerator.new()
 var _seen_toast := false
 
-static var _noise_script: Variant = false     ## agent N's Noise script (looked up once; false = not yet)
+static var _noise_script: Variant = false     ## agent N's NoiseEvent script (looked up once; false = not yet)
 
 
 func setup(g: Node) -> void:
@@ -230,7 +230,7 @@ func _use_container(s: PoiSpot) -> void:
 		return
 	var secs: float = float(s.data.get("secs", 1.6)) + (FORCE_SECS if force else 0.0)
 	var minutes: float = float(s.data.get("minutes", 6)) + (float(FORCE_MINUTES) if force else 0.0)
-	_begin("force" if force else "search", s, null, secs, minutes, 3.0 if force else float(s.data.get("noise", 1)))
+	_begin("force" if force else "search", s, null, secs, minutes, 2.0 if force else float(s.data.get("noise", 1)))
 	Sfx.play_first(["poi/force", "door/bash"] if force else ["poi/search", "door/open"], Vector3(s.position.x, 1.0, s.position.z))
 
 
@@ -240,7 +240,7 @@ func force_door(d: PoiDoor) -> void:
 	if not owns("crowbar"):
 		_toast("Locked. A crowbar would open it.", "warn")
 		return
-	_begin("force", null, d, FORCE_SECS, FORCE_MINUTES, 3.0)
+	_begin("force", null, d, FORCE_SECS, FORCE_MINUTES, 2.0)
 	Sfx.play_first(["poi/force", "door/bash"], Vector3(d.pos.x, 1.0, d.pos.y))
 
 
@@ -292,7 +292,7 @@ func complete_action() -> void:
 	_action = {}
 	_advance(float(a["minutes"]))
 	var at := _target_pos_of(a)
-	emit_noise(Vector3(at.x, 1.0, at.y), float(a["noise"]), "chop" if a["what"] == "chop" else "search")
+	emit_noise(Vector3(at.x, 1.0, at.y), float(a["noise"]), {"chop": "chop", "force": "force"}.get(str(a["what"]), "search"))
 	match str(a["what"]):
 		"chop":
 			_chop_done(a["spot"])
@@ -481,12 +481,16 @@ func _spawn(p: Dictionary) -> Node:
 	var r := _roster()
 	if r == null:
 		return null
-	var e: Node = r.spawn_type(str(p["kind"]), p["at"], {"level": state.difficulty, "invasion": maxi(state.invasion_index(), 1)})
+	# "mode": agent N's roster spawns a calm straggler (hostile on noise, sight or damage)
+	var e: Node = r.spawn_type(str(p["kind"]), p["at"], {"level": state.difficulty, "invasion": maxi(state.invasion_index(), 1), "mode": str(p["mode"])})
 	if not (e is AIEnemy):
 		return e
 	e.set_meta("poi_mode", str(p["mode"]))
 	var w := {"e": e, "mode": str(p["mode"]), "state": "", "t": 0.0, "notice": 0.0, "lost": 0.0}
 	watch.append(w)
+	if not own_awareness():
+		w["state"] = "noise_ai"           # agent N's behaviours run it
+		return e
 	if p["mode"] == "hidden":
 		_calm(w, "idle")
 	elif p["mode"] == "arrive":
@@ -546,7 +550,7 @@ func _think(dt: float) -> void:
 			watch.erase(w)
 			continue
 		var en := e as AIEnemy
-		if en.has_meta("retreat"):
+		if en.has_meta("retreat") or w["state"] == "noise_ai":
 			continue
 		var me := en.plan_pos()
 		var d := me.distance_to(pp)
@@ -597,27 +601,43 @@ func can_see(from: Vector2, to: Vector2) -> bool:
 	return true
 
 
-## A noise at `pos` (level about 1 low .. 5 extreme): agent N's Noise system
-## when it exists, and this visit's own unaware enemies within level x
-## NOISE_RADIUS m go to look; a loud one (3+) brings arrivals sooner.
+## A noise at `pos` (levels as agent N's table: search 1, force 2, smash
+## and chopping 3, gunfire 4): agent N's noise system when it exists (the
+## game's `noise` helper, else the NoiseEvent class), then hear().
 func emit_noise(pos: Vector3, level: float, source: String) -> void:
-	var n := noise_class()
-	if n != null:
-		n.call("emit", game, pos, level, source)
+	var nz: Variant = game.get("noise") if game != null else null
+	if nz is Object and is_instance_valid(nz) and nz.has_method("emit"):
+		nz.emit(pos, level, source)
+	else:
+		var n := noise_class()
+		if n != null:
+			n.call("emit", game, pos, level, source)
 	hear(Vector2(pos.x, pos.z), level)
 
 
+## This visit's reaction to a noise: arrivals come sooner after a loud one
+## (2+), and, while this helper runs the awareness itself (own_awareness),
+## unaware enemies within level x NOISE_RADIUS m go to look.
 func hear(at: Vector2, level: float) -> void:
 	last_noise = {"at": at, "level": level}
-	for w in watch:
-		var e: Variant = w["e"]
-		if not is_instance_valid(e) or w["state"] == "hunt":
-			continue
-		if (e as AIEnemy).plan_pos().distance_to(at) <= level * NOISE_RADIUS:
-			_investigate(w, at)
-	if level >= 3.0:
+	if own_awareness():
+		for w in watch:
+			var e: Variant = w["e"]
+			if not is_instance_valid(e) or w["state"] in ["hunt", "noise_ai"]:
+				continue
+			if (e as AIEnemy).plan_pos().distance_to(at) <= level * NOISE_RADIUS:
+				_investigate(w, at)
+	if level >= 2.0:
 		for p in pending:
 			p["when"] = minf(float(p["when"]), _clock + 8.0)
+
+
+## True while agent N's straggler AI is absent: then this helper keeps POI
+## enemies unaware until they notice the player (goal_override, no swings).
+## With N's work merged (the NoiseEvent class), the roster's "mode" spawn
+## option does that and this helper only watches.
+static func own_awareness() -> bool:
+	return noise_class() == null
 
 
 func _on_fired(_id: String, _hits: Array) -> void:
@@ -626,12 +646,12 @@ func _on_fired(_id: String, _hits: Array) -> void:
 		hear(Vector2((pl as Node3D).global_position.x, (pl as Node3D).global_position.z), 4.0)
 
 
-## Agent N's Noise class (a script with a static emit()), or null.
+## Agent N's NoiseEvent class (a script with a static emit()), or null.
 static func noise_class() -> Script:
 	if typeof(_noise_script) == TYPE_BOOL:
 		_noise_script = null
 		for c in ProjectSettings.get_global_class_list():
-			if str(c.get("class", "")) == "Noise":
+			if str(c.get("class", "")) == "NoiseEvent":
 				var s: Variant = load(str(c["path"]))
 				if s is Script:
 					for m in (s as Script).get_script_method_list():
