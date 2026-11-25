@@ -39,7 +39,7 @@
 
 ## Verification
 
-- **Tests:** the full headless suite on the merged branch: see `STATUS.md` / the final commit.
+- **Tests:** the full headless suite on the merged branch: **484 passed, 0 failed**. The main menu and a new game boot headless without script errors.
 - **New tests:** `test_defenses`, `test_research` + `test_research_game`, `test_house_balance` and `test_build_menu`, plus updated build and UI tests.
 - **Rendered frames, looked at:** the build menu's Defence tab with locks and carried+stored counts, the HUD, the inventory and the main menu (by agent U); aurora before and after (agent B); the moat and raised bridge (agent D).
 
