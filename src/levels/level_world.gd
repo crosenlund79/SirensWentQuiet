@@ -38,6 +38,10 @@ static var _level_pristine := {}
 var storey := Levels.UPPER
 var base_y := Levels.HEIGHT
 var dug := {}                  ## basement: Vector2i plan cell -> true
+## Exp 005 (V): build mode on an underground storey: everything above knee
+## height is cut away over the whole storey (a floor plan of the dug space),
+## not just a circle around the player (GameLevels sets it).
+var plan_view := false
 
 
 ## Call before adding to the tree.
@@ -440,6 +444,17 @@ func update_view(player_pos: Vector3, camera: Camera3D, delta: float) -> void:
 	# Refinement 01: seen from a storey below (the yard, with the camera turned
 	# to any side), the cutaway goes through this storey's floor too.
 	var floor_y := minf(base_y, Levels.base_y(Levels.storey_at(player_pos.y)))
+	if plan_view:
+		var c := HousePlan.FOOTPRINT.get_center()
+		_cut_dir = (camera.global_position - Vector3(c.x, base_y, c.y)).normalized()
+		_cut_origin = Vector3(c.x, base_y + 1.0, c.y) - _cut_dir * 40.0
+		_cut_radius = 80.0
+		for m in cut_materials:
+			m.set_shader_parameter("cut_origin", _cut_origin)
+			m.set_shader_parameter("cut_dir", _cut_dir)
+			m.set_shader_parameter("cut_radius", _cut_radius)
+		floor_y = base_y
+		_update_mesh_cut()
 	for m in cut_materials:
 		m.set_shader_parameter("cut_floor", floor_y + 0.45)
 

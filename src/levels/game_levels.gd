@@ -106,7 +106,7 @@ func setup(g: Node) -> void:
 	box.size = Vector3(60.0, 0.4, 60.0)
 	_lid.mesh = box
 	_lid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-	_lid.position = Vector3(7.0, -0.3, 4.5)
+	_lid.position = Vector3(7.0, 0.0, 4.5)
 	_lid.visible = false
 	add_child(_lid)
 
@@ -592,9 +592,11 @@ func _process(delta: float) -> void:
 	_update_visibility()
 	var pp: Vector3 = game.player.global_position
 	var at := Vector3(pp.x, Levels.base_y(view_storey), pp.z) if view_storey != player_storey else pp
+	var building := _building()
 	for s in worlds:
 		var lw: LevelWorld = worlds[s]
 		if lw != null and lw.visible:
+			lw.plan_view = building and s < Levels.GROUND and s == view_storey
 			lw.update_view(at, game.camera, delta)
 
 

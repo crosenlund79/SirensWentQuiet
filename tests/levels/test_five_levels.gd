@@ -274,6 +274,10 @@ func test_five_levels_in_the_game() -> void:
 			s.energy = 100.0
 			check(_apply(g, "excavate", Vector3(i + 0.5, Levels.base_y(-1), j + 0.5)), "dig -1 (%d, %d)" % [i, j])
 	check(lv.basement != null and lv.basement.dug.size() == 8, "8 m² of basement")
+	await frames(1)
+	var bw: LevelWorld = lv.basement
+	check(bw.plan_view and bw.is_cut(bw.grid.cell_of(Vector3(1.5, Levels.base_y(-1) + 1.5, 1.5))), "building underground: a floor plan, the earth cut away")
+	check(not bw.is_cut(bw.grid.cell_of(Vector3(1.5, Levels.base_y(-1) + 0.2, 1.5))), "knee-high earth stays")
 	await _view(g, -1)
 	check_eq(lv.view_storey, -2, "PageDown shows -2")
 	for i in range(5, 8):
