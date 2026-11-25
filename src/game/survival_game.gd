@@ -42,6 +42,8 @@ const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): foo
 const ResearchLink := preload("res://src/research/game_research.gd")   # Exp 006 (R): skills, books, K
 const BalanceLink := preload("res://src/home/game_balance.gd")   # Exp 006 (B): house supply, TV and radio, F10 House & balance
 const DefenseLink := preload("res://src/defense/game_defense.gd")   # Exp 006 (D): trenches, moats, drawbridges, spikes
+const NoiseLink := preload("res://src/noise/game_noise.gd")   # Exp 007 (N): event-based noise
+const VisibilityLink := preload("res://src/visibility/game_visibility.gd")   # Exp 007 (N): room-based visibility
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -75,6 +77,8 @@ var research: Node                     ## src/research/game_research.gd (Exp 006
 var balance: Node                      ## src/home/game_balance.gd (Exp 006 (B): house supply, TV and radio)
 var defense: Node                      ## src/defense/game_defense.gd (Exp 006 (D): the player in trenches, F10 Defences)
 var security: Node                     ## src/security/security_system.gd (Exp 007 (S): sensors, turrets, their panel, F10 Security)
+var noise: Node                        ## src/noise/game_noise.gd (Exp 007 (N): noise events, gunfire, F10 Noise & visibility)
+var visibility: Node                   ## src/visibility/game_visibility.gd (Exp 007 (N): room-based visibility)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -293,6 +297,14 @@ func _assemble() -> void:
 	security.name = "Security"
 	add_child(security)
 	security.setup(self)
+	noise = NoiseLink.new()            # Exp 007 (N): after combat and roster (gunfire, provoked enemies)
+	noise.name = "Noise"
+	add_child(noise)
+	noise.setup(self)
+	visibility = VisibilityLink.new()  # Exp 007 (N): after levels, build and map (storeys, build mode, the map table)
+	visibility.name = "Visibility"
+	add_child(visibility)
+	visibility.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -582,7 +594,8 @@ func _check_stragglers(t0: float, t1: float) -> void:
 		# Not during an invasion, and not if a long skip already ended the night.
 		if state.run.get("invasion_active", false) or not state.is_night():
 			continue
-		roster.spawn_type("psycho", director.pick_spawn(player.plan_pos()), {"level": state.difficulty, "invasion": state.invasion_index()})
+		roster.spawn_type("psycho", director.pick_spawn(player.plan_pos()), {"level": state.difficulty, "invasion": state.invasion_index(),
+			"mode": "straggler"})          # Exp 007 (N): calm until provoked (src/ai/straggler_mind.gd)
 		toast("Something is moving out there.", "warn")
 
 

@@ -22,6 +22,8 @@ signal fuse_started(enemy: AIEnemy, at: Vector3, seconds: float)
 signal detonated(at: Vector3, radius: float, damage: float)
 signal fizzled(enemy: AIEnemy, at: Vector3)
 signal died(enemy: AIEnemy, cause: String)
+## Exp 007 (N): a calm enemy turned hostile (noise, seeing Eli, being hurt).
+signal provoked(enemy: AIEnemy, reason: String)
 
 const SWING_IMPACT := 0.28          ## s from the swing start to the impact
 const RETREAT_SPEED := 1.1          ## x speed while walking back into the fog
@@ -56,6 +58,11 @@ var goal_override := Vector2.INF
 ## contact cooldown). Brutes wade through water-filled trenches.
 var terrain_scale := 1.0
 var spike_cd := 0.0
+## Exp 007 (N): calm until provoked (src/ai/straggler_mind.gd). A StragglerMind
+## while calm (night stragglers, POI enemies); null = hostile (the archetype's
+## behaviour). Invasion enemies never get one.
+var mind: StragglerMind = null
+var provoked_by := ""
 
 var _retreat_goal := Vector2.ZERO
 var _yaw := 0.0
@@ -118,7 +125,7 @@ func _ready() -> void:
 
 
 func speed() -> float:
-	return float(def["speed"]) * speed_scale * terrain_scale
+	return float(def["speed"]) * speed_scale * terrain_scale * (mind.pace() if mind != null else 1.0)   # Exp 007 (N): calm pace
 
 
 ## Exp 006 (D): crosses water-filled trenches (slowly); the others can't.
@@ -133,7 +140,56 @@ func state_name() -> String:
 		return "dead"
 	if retreating:
 		return "retreat"
+	if mind != null:                     # Exp 007 (N): wander, pass, window, door, examine, investigate, lurk
+		return mind.state
 	return behaviour.state_name()
+
+
+# --- Exp 007 (N): calm until provoked ---------------------------------------------------
+
+## mode: "straggler" (home nights), "wander", "hidden", "arrive" (POIs); ""
+## or "hostile" turns a calm enemy hostile. Call after configure().
+func set_calm_mode(mode: String, seed := -1) -> void:
+	if mode == "" or mode == "hostile" or mode == "attack":
+		provoke("mode")
+		return
+	if not alive or brain == null:
+		return
+	mind = StragglerMind.new()
+	mind.setup(self, mode, seed if seed >= 0 else randi())
+
+
+func is_calm() -> bool:
+	return mind != null and alive
+
+
+## A noise it heard (NoiseEvent): `loud` = level x exposure x fall-off.
+func hear(at: Vector2, loud: float, source := "") -> void:
+	if mind != null and alive and not retreating:
+		mind.hear(self, at, loud, source)
+
+
+## Comes to look at plan point p (calm enemies only).
+func investigate(p: Vector2) -> void:
+	if mind != null and alive and not retreating:
+		mind.investigate(self, p)
+
+
+## Turns hostile: the archetype's behaviour takes over.
+func provoke(reason := "") -> void:
+	if mind == null or not alive:
+		return
+	mind = null
+	provoked_by = reason
+	if has_meta("calm_leave") and not has_meta("fade"):     # it was walking off into the fog: it turns back
+		remove_meta("calm_leave")
+		remove_meta("retreat")
+		remove_meta("retreat_to")
+		retreating = false
+	behaviour.configure(self)
+	brain.arrive_radius = 0.3 if str(def["behaviour"]) == "chase" else brain.arrive_radius
+	brain.invalidate()
+	provoked.emit(self, reason)
 
 
 func set_facing(yaw: float) -> void:
@@ -174,6 +230,8 @@ func take_damage(n: int, dir: Vector3, cause := "shot") -> void:
 	if hp <= 0:
 		death_cause = cause
 		_die(d)
+	elif mind != null:
+		provoke("hurt: " + cause)          # Exp 007 (N)
 
 
 ## Dev and test helper: dies at once, without a bomber's pop.
@@ -216,10 +274,15 @@ func _physics_process(delta: float) -> void:
 		world.defense.enemy_step(self, delta)
 		if not alive:
 			return
-	var goal := _retreat_goal if retreating else (goal_override if goal_override != Vector2.INF else behaviour.goal(self))
+	var goal := _retreat_goal
+	if not retreating:
+		if mind != null:                      # Exp 007 (N): calm: the mind's goal
+			goal = mind.goal_of(self)
+		else:
+			goal = goal_override if goal_override != Vector2.INF else behaviour.goal(self)
 	var r := brain.update(delta, me, goal)
 	if not retreating:
-		r = behaviour.think(self, delta, r)
+		r = mind.think(self, delta, r) if mind != null else behaviour.think(self, delta, r)
 	var move: Vector2 = r["move"]
 	var face: Vector2 = r["face"]
 	if _stagger > 0.0:

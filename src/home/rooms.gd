@@ -159,9 +159,51 @@ static func find(world: HouseWorld, storey: int) -> Dictionary:
 
 ## The plan rects that have a floor on this storey (the cells that can be rooms).
 static func floor_rects(world: HouseWorld, storey: int) -> Array:
+	if world.has_method("room_floor_rects"):      # Exp 007 (N): a POI world names its own floor
+		return world.call("room_floor_rects", storey)
+	if world.has_method("entry_point"):           # Exp 007 (N): a POI world without it: its floor voxels
+		return floor_voxel_rects(world)
 	var out := [HousePlan.FOOTPRINT]
 	if storey == 0 and not world is LevelWorld and world.has_method("_foundation_rects"):
 		out.append_array(world.call("_foundation_rects"))
+	return out
+
+
+## Exp 007 (N): the floor of a world that isn't the house (a POI) as plan
+## rects: runs of floor voxels (the floor row) in 0.25 m steps, merged down
+## the rows, largest first. Kept on the world (meta) after the first call.
+static func floor_voxel_rects(world: HouseWorld) -> Array:
+	if world.has_meta("room_floor_rects"):
+		return world.get_meta("room_floor_rects")
+	var out := []
+	var g := world.grid
+	if g == null:
+		return out
+	var step := maxi(int(round(CELL / g.vs)), 1)
+	var open := {}                    # Vector2i(x0, x1) -> Rect2 growing down the rows
+	for z in range(0, g.sz, step):
+		var runs := {}
+		var x := 0
+		while x < g.sx:
+			if g.get_mat(x, VoxelHouse.FLOOR_ROW, z) == 0:
+				x += step
+				continue
+			var x0 := x
+			while x < g.sx and g.get_mat(x, VoxelHouse.FLOOR_ROW, z) != 0:
+				x += step
+			runs[Vector2i(x0, x)] = true
+		var next := {}
+		for k in runs:
+			var a := g.center(Vector3i(k.x, VoxelHouse.FLOOR_ROW, z))
+			var r := Rect2(a.x - g.vs * 0.5, a.z - g.vs * 0.5, float(k.y - k.x) * g.vs, float(step) * g.vs)
+			next[k] = (open[k] as Rect2).merge(r) if open.has(k) else r
+		for k in open:
+			if not next.has(k):
+				out.append(open[k])
+		open = next
+	out.append_array(open.values())
+	out.sort_custom(func(a, b): return (a as Rect2).get_area() > (b as Rect2).get_area())
+	world.set_meta("room_floor_rects", out)
 	return out
 
 

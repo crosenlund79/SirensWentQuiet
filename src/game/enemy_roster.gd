@@ -24,6 +24,8 @@ signal fuse_started(enemy: VoxelEnemy, at: Vector3, seconds: float)
 ## centre, falling off linearly to 0 at `radius` (EnemyDefs.blast_damage_at).
 ## The roster already hurt the other enemies; the game hurts the player.
 signal detonated(at: Vector3, radius: float, damage: float)
+## Exp 007 (N): a calm enemy (a straggler, a POI enemy) turned hostile.
+signal enemy_provoked(enemy: VoxelEnemy, reason: String)
 
 const MOAN_GAP := Vector2(6.0, 14.0)    ## s between one enemy's moans
 const RETREAT_TIMEOUT := 14.0           ## s before a retreating enemy fades anyway
@@ -58,6 +60,9 @@ func spawn(at: Vector2, hp := Tuning.ENEMY_HP, speed := 1.0, invader := false) -
 ##   invader           counts for invaders_alive() (a wave member)
 ##   look              VoxelRig look (psychos vary by default)
 ##   facing            initial yaw (default random)
+##   mode              Exp 007 (N): calm until provoked: "straggler" (home
+##                     nights), "wander", "hidden", "arrive" (POIs); absent
+##                     or "hostile": attacks at once (invasions)
 func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 	var k := kind if EnemyDefs.has(kind) else "psycho"
 	var o := opts.duplicate()
@@ -79,6 +84,10 @@ func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 	e.fuse_started.connect(_on_fuse_started)
 	e.detonated.connect(_on_detonated.bind(e))
 	e.died.connect(_on_died)
+	e.provoked.connect(func(en: AIEnemy, why: String): enemy_provoked.emit(en, why))   # Exp 007 (N)
+	var mode := str(o.get("mode", o.get("calm", "")))
+	if mode != "" and mode != "hostile":
+		e.set_calm_mode(mode, rng.randi())
 	enemies.append(e)
 	enemy_spawned.emit(e, k)
 	return e
@@ -135,6 +144,15 @@ func positions() -> PackedVector2Array:
 
 func threats() -> Array:
 	return enemies.filter(func(e): return is_threat(e))
+
+
+## Exp 007 (N): calm enemies (stragglers and POI enemies not provoked yet).
+func calm_count() -> int:
+	var n := 0
+	for e in enemies:
+		if is_threat(e) and e is AIEnemy and (e as AIEnemy).is_calm():
+			n += 1
+	return n
 
 
 ## Every threat turns around and walks to the nearest fog point, then fades.

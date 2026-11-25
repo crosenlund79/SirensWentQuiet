@@ -514,6 +514,7 @@ func _build() -> void:
 	_build_balance_section(box)     # Exp 006 (B)
 	_build_defense_section(box)     # Exp 006 (D)
 	_build_security_section(box)     # Exp 007 (S)
+	_build_noise_section(box)     # Exp 007 (N)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -893,5 +894,28 @@ func _defense_call(method: String, arg: String) -> void:
 	var h = game.get("defense") if game != null and is_instance_valid(game) else null
 	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
 		_say("The game has no defences.%s()" % method, true)
+		return
+	_say(str(h.call(method, arg) if arg != "" else h.call(method)))
+
+
+# --- Exp 007 (N): noise, calm stragglers, room visibility ---------------------------------
+
+func _build_noise_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Noise & visibility"))
+	box.add_child(_grid(3, [["Noise: low", _noise_call.bind("noise", "dev_sample", "low")],
+		["Noise: high", _noise_call.bind("noise", "dev_sample", "high")],
+		["Noise: extreme", _noise_call.bind("noise", "dev_sample", "extreme")],
+		["Last noises", _noise_call.bind("noise", "dev_log_text", "")],
+		["Calm straggler", _noise_call.bind("noise", "dev_spawn_calm", "psycho")],
+		["Calm runner", _noise_call.bind("noise", "dev_spawn_calm", "runner")],
+		["Room boundaries", _noise_call.bind("visibility", "dev_toggle_bounds", "")],
+		["Visibility diagnostics", _noise_call.bind("visibility", "dev_toggle_diagnostics", "")],
+		["Reveal all", _noise_call.bind("visibility", "dev_toggle_reveal", "")]]))
+
+
+func _noise_call(helper: String, method: String, arg: String) -> void:
+	var h = game.get(helper) if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no %s.%s()" % [helper, method], true)
 		return
 	_say(str(h.call(method, arg) if arg != "" else h.call(method)))

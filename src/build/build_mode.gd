@@ -986,6 +986,7 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 		if not took.is_empty():
 			text += " (%s from storage)" % BuildPieces.cost_text(took)
 	_eval_key = ""
+	BuildNoise.after_apply(self, r, at)      # Exp 007 (N): hammering, masonry, smashing (src/noise/build_noise.gd)
 	message.emit(text, true)
 	changed.emit()
 	return true

@@ -683,7 +683,7 @@ func _process(delta: float) -> void:
 		var ph: float = l["phase"]
 		var f := 1.0 + 0.07 * sin(_t * 9.1 + ph) + 0.05 * sin(_t * 23.7 + ph * 1.7) + 0.03 * sin(_t * 41.0 + ph * 0.3)
 		o.light_energy = l["base"] * n * f
-		o.visible = n > 0.02 and not l.get("hidden", false)
+		o.visible = n > 0.02 and not l.get("hidden", false) and not l.get("room_hidden", false)   # Exp 007 (N): + room visibility
 		var lit := clampf(n * 1.4, 0.0, 1.0) * (0.9 + 0.1 * f)
 		for gi in l["geos"]:
 			if is_instance_valid(gi):
@@ -1083,6 +1083,7 @@ func explode(center: Vector3, radius: float, power: float) -> Dictionary:
 	if grid == null or not center.is_finite() or not is_finite(radius) or not is_finite(power) or radius <= 0.0:
 		return out
 	var t0 := Time.get_ticks_usec()
+	NoiseEvent.emit(self, center, NoiseEvent.EXTREME, "explosion")      # Exp 007 (N): every blast is heard (src/noise/)
 	radius = minf(radius, 4.0)
 	power = maxf(power, 0.0)
 	var p := Vector2(center.x, center.z)
