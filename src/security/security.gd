@@ -336,7 +336,7 @@ static func turret_range(id: String) -> float:
 	return minf(float(WeaponDefs.get_def(id).get("range", 0.0)), TURRET_RANGE_CAP) if WeaponDefs.has(id) else 0.0
 
 
-## The gun's noise level for Noise.emit.
+## The gun's noise level for NoiseEvent.emit.
 static func gun_noise(id: String) -> float:
 	return float(WeaponDefs.get_def(id).get("noise", GUN_NOISE.get(id, 4.0)))
 
@@ -459,12 +459,13 @@ static func world_power(world: Node) -> bool:
 	return fb != null and is_instance_valid(fb) and bool(fb.get("mains_on"))
 
 
-## Noise.emit when agent N's class exists (SPEC-007 §3); nothing otherwise.
+## NoiseEvent.emit when agent N's class exists (SPEC-007 §3; the class is
+## `NoiseEvent` because Godot has a built-in `Noise`); nothing otherwise.
 static func noise(src: Object, pos: Vector3, level: float, source: String) -> void:
 	if _noise == null:
 		_noise = false
 		for c in ProjectSettings.get_global_class_list():
-			if str(c.get("class", "")) == "Noise":
+			if str(c.get("class", "")) == "NoiseEvent":
 				var s: Variant = load(str(c.get("path", "")))
 				if s is Script:
 					for m in (s as Script).get_script_method_list():

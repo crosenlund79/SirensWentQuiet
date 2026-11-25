@@ -10,7 +10,7 @@ extends Node
 ## Eli and never the world. On a detection (at most every SENSOR_COOLDOWN s):
 ##   - a toast names it: "Sensor at the back door: movement"
 ##   - a red "!" marks it on screen for MARK_TIME s (seen through walls)
-##   - audible: an alarm sound and a noise event (Noise.emit, "alarm");
+##   - audible: an alarm sound and a noise event (NoiseEvent.emit, "alarm");
 ##     silent: only a soft beep
 ##   - its linked turret wakes (a standby turret fires only while awake) and
 ##     turns toward the movement

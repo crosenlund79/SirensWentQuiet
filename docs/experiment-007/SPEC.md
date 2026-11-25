@@ -52,14 +52,14 @@ The lead handles the audio integration and production report (§20–23), the sh
 
 ## 3. Noise (N)
 
-- **API:** `Noise.emit(game_or_world, pos: Vector3, level: float, source: String)`. Levels are about 1 low, 2 moderate, 3 high, 4 very high, 5 extreme; exposure is scaled by place (outdoor, exterior room, central, upper interior, basement), and openings and breaches raise it.
+- **API:** `NoiseEvent.emit(game_or_world, pos: Vector3, level: float, source: String)`, or `game.noise.emit(pos, level, source)`. The class can't be called `Noise`: Godot has a built-in class of that name. Levels are about 1 low, 2 moderate, 3 high, 4 very high, 5 extreme; exposure is scaled by place (outdoor, exterior room, central, upper interior, basement), and openings and breaches raise it.
 - **Enemy response:** nearby existing enemies investigate, approach cautiously, check an entrance, wander away or turn aggressive. Noise never spawns enemies.
 - **Emitters (wired by N):**
   - gunfire (`WeaponHandler.fired`);
   - explosions;
   - build hammering (wood / metal);
   - smashing furniture.
-- **Emitters (other agents call `Noise.emit` with a `has_method` / class fallback):**
+- **Emitters (other agents call `NoiseEvent.emit` (or `game.noise.emit`) with a `has_method` / class fallback):**
   - drilling (O);
   - search actions (P);
   - alarms and turret fire (S).
