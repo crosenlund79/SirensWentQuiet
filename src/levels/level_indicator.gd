@@ -25,6 +25,7 @@ func _ready() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = UiTheme.theme()           # Exp 006 (U): the pixel font like the rest of the HUD
 	add_child(root)
 	_card = PanelContainer.new()
 	_card.name = "LevelCard"

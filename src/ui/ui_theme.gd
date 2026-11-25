@@ -30,7 +30,7 @@ extends RefCounted
 # --- palette ------------------------------------------------------------------
 const BG := Color(0.045, 0.052, 0.062, 0.9)         ## panels (dark slate)
 const BG_SOLID := Color(0.035, 0.04, 0.048, 1.0)    ## full-screen backgrounds
-const BG_SOFT := Color(0.035, 0.042, 0.05, 0.66)    ## HUD cards (lighter, over the game)
+const BG_SOFT := Color(0.035, 0.042, 0.05, 0.78)    ## HUD cards (lighter, over the game; legible over snow)
 const SCRIM := Color(0.0, 0.01, 0.02, 0.55)         ## behind modal panels
 const LINE := Color(0.75, 0.82, 0.9, 0.13)          ## hairlines and borders (cold)
 const LINE_STRONG := Color(0.75, 0.82, 0.9, 0.26)
@@ -349,8 +349,8 @@ static func make_label(text: String, size := FONT_BODY, color := TEXT) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", px(size))
-	if size >= 18 and size < 26:
-		l.add_theme_font_override("font", font("bold"))
+	# the face is set on the label itself, so it holds under any parent theme
+	l.add_theme_font_override("font", font("bold") if size >= 18 and size < 26 else font("regular"))
 	l.add_theme_color_override("font_color", color)
 	return l
 

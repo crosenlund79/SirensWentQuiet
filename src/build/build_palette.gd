@@ -23,7 +23,7 @@ signal variant_pressed(index: int)      ## a piece tile or a Recent button (Buil
 signal category_pressed(cat: int)       ## Exp 006: a category tab (no stepping)
 
 const COLUMNS := 8
-const TILE := Vector2(150, 48)
+const TILE := Vector2(156, 48)
 const KEY_HINTS := [["R", "Rotate"], ["RMB", "Cancel"], ["1-8", "Category (again: next)"], ["Q", "Previous"],
 	["PgUp / PgDn", "Level"], ["Esc", "Leave"]]
 
@@ -408,10 +408,10 @@ class BuildTile extends Button:
 		var font := UiTheme.font("regular")
 		var a := 0.42 if dimmed() else 1.0
 		var ic := UiTheme.ACCENT if button_pressed else UiTheme.TEXT
-		UiIcons.paint(self, icon_kind, Rect2(Vector2(9, 13), Vector2(24, 24)), Color(0, 0, 0, 0.5 * a))
-		UiIcons.paint(self, icon_kind, Rect2(Vector2(8, 12), Vector2(24, 24)), Color(ic, a))
-		var x := 40.0
-		var w := size.x - x - 6.0
+		UiIcons.paint(self, icon_kind, Rect2(Vector2(7, 13), Vector2(24, 24)), Color(0, 0, 0, 0.5 * a))
+		UiIcons.paint(self, icon_kind, Rect2(Vector2(6, 12), Vector2(24, 24)), Color(ic, a))
+		var x := 36.0
+		var w := size.x - x - 4.0
 		draw_string(font, Vector2(x, 20), _fit(font, title, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT, a))
 		var y := 38.0
 		if cost.is_empty():
