@@ -175,7 +175,13 @@ func test_five_levels_in_the_game() -> void:
 	check(lv.upper != null and lv.storeys() == [0, 1], "+1 exists")
 	check_eq(lv.roof_storey(), 1, "the roof sits on +1")
 	# --- PageUp: build on +1 while standing on the ground ---
-	await _view(g, 1)
+	var key := InputEventKey.new()
+	key.keycode = KEY_PAGEUP
+	key.pressed = true
+	Input.parse_input_event(key)
+	await frames(2)
+	cam.snap()
+	await frames(1)
 	check_eq(lv.view_storey, 1, "PageUp shows +1")
 	check_eq(lv.player_storey, 0, "the player stays on the ground")
 	check(bm.world == lv.upper and is_equal_approx(bm.plane_y, Levels.HEIGHT), "build mode targets +1")

@@ -738,6 +738,9 @@ func _update_visibility() -> void:
 	var table = game.map.get("table") if game.get("map") != null else null
 	if table is Node3D:
 		(table as Node3D).visible = show_ground      # the map on the dining table
+	var fire = game.home.get("fireplace") if game.get("home") != null else null
+	if fire is Node3D and (fire as Node3D).visible != show_ground:
+		(fire as Node3D).visible = show_ground       # Exp 005: the ground floor's fireplace and chimney
 	for s in worlds:
 		var lw: LevelWorld = worlds[s]
 		if lw != null:
