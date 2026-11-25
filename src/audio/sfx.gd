@@ -97,9 +97,9 @@ const DEFS := {
 	"stinger/dawn": {"bus": "Music", "cd": 5.0, "max": 1, "pos": false, "steal": false},
 	"music/menu": {"bus": "Music", "pos": false, "loop": true},
 	# Experiment 005 (A): names the audio inbox fills (docs/experiment-005/AUDIO.md).
-	"player/step_snow": {"pitch": 0.06, "cd": 0.12, "max": 2, "steal": false, "pos": false, "tpl": false},
-	"player/step_wood": {"pitch": 0.06, "cd": 0.12, "max": 2, "steal": false, "pos": false, "tpl": false},
-	"player/step_cement": {"pitch": 0.06, "cd": 0.12, "max": 2, "steal": false, "pos": false, "tpl": false},
+	"player/step_snow": {"pitch": 0.06, "cd": 0.12, "max": 3, "pos": false, "tpl": false},
+	"player/step_wood": {"pitch": 0.06, "cd": 0.12, "max": 3, "pos": false, "tpl": false},
+	"player/step_cement": {"pitch": 0.06, "cd": 0.12, "max": 3, "pos": false, "tpl": false},
 	"enemy/step_snow": {"pitch": 0.08, "cd": 0.05, "max": 4, "steal": false, "tpl": false},
 	"enemy/step_wood": {"pitch": 0.08, "cd": 0.05, "max": 4, "steal": false, "tpl": false},
 	"home/fireplace_light": {"pitch": 0.04, "cd": 0.5, "max": 1, "tpl": false},
