@@ -133,7 +133,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "A House Worth Living In" (Experiment 005)
 
-**Status: Approved by the user's message of 2026-11-25 ("Overnight Milestone — A House Worth Living In", autonomous overnight, Rapid Delivery); in progress since 01:45 CET.** Branch `exp005/house-worth-living-in`, built on Refinement 01 plus the user's audio upload. Contracts: `docs/experiment-005/SPEC.md`.
+**Status: Approved by the user's message of 2026-11-25 ("Overnight Milestone — A House Worth Living In", autonomous overnight, Rapid Delivery). Delivered on the branch 2026-11-25 (report: `docs/experiment-005/REPORT.md`; suite 457/457); awaiting the user's playtest.** Branch `exp005/house-worth-living-in`, built on Refinement 01 plus the user's audio upload. Contracts: `docs/experiment-005/SPEC.md`.
 
 - **Scope:**
   - five-level house architecture (−2..+2) with natural upstairs construction, basements by excavation, upper storeys, support, stairs and save;

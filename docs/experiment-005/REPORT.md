@@ -122,7 +122,7 @@
 
 ## Verification
 
-- **Tests:** the full suite on the merged branch: see the final commit message.
+- **Tests:** the full headless suite on the merged branch: **457 passed, 0 failed**.
 - **Each agent's new tests:**
   - `test_five_levels`: the in-game flow on all five levels, building upstairs through the real camera, save and continue.
   - `test_storage` and `test_storage_lamps`.
