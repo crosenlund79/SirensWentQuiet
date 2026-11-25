@@ -118,6 +118,7 @@ const ITEMS := {
 	"bandage": "health", "medkit": "medkit", "hammer": "hammer", "crowbar": "crowbar", "shovel": "shovel",
 	"flashlight": "flashlight", "vest": "vest", "backpack": "inventory", "ammo": "ammo", "shells": "ammo",
 	"wood": "wood", "stone": "stone", "iron": "iron", "nails": "nails", "scrap": "scrap",
+	"electronics": "fuse",      # Exp 007 (S)
 }
 ## Item categories -> icons (items not in ITEMS).
 const ITEM_CATEGORIES := {

@@ -45,6 +45,14 @@ const DEFS := {
 		"desc": "A technical manual: cutting, bending and riveting steel. Teaches metalworking."},
 	"book_advanced_metal": {"name": "Advanced Metal Fabrication", "category": "book", "cap": 1, "skill": "advanced_metal",
 		"desc": "An engineering text on plate work and structural steel. Teaches advanced metal fabrication."},
+	# --- Exp 007 (S): electronic security (src/security/). Components build
+	# motion sensors, turret mounts and auto-loaders; two books open them.
+	"electronics": {"name": "Electronic components", "category": "material", "cap": 20, "cap_per_crate": 10,
+		"desc": "Circuit boards, relays, wire and small motors: sensors, turret mounts and auto-loaders."},
+	"book_electronics": {"name": "Basic Electronics", "category": "book", "cap": 1, "skill": "electronics",
+		"desc": "A hobbyist's handbook: circuits, sensors and relays. Teaches basic electronics."},
+	"book_automation": {"name": "Automated Defense Systems", "category": "book", "cap": 1, "skill": "automation",
+		"desc": "A security contractor's manual: servo mounts, triggers and feeds. Teaches automated defences."},
 }
 
 ## Items the quick-access bar fills itself with when the player owns them, in

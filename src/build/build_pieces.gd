@@ -175,6 +175,13 @@ const LIST := [
 	{"id": "drawbridge_2", "name": "Long drawbridge", "short": "Bridge 2", "tool": "place", "slot": 1, "cost": {"wood": 14, "nails": 12, "iron": 2},
 		"kind": "drawbridge_2", "mat": "wood", "cat": "defense", "requires": "woodworking",
 		"hint": "Across a 2 m trench · R picks the axis · E raises and lowers it · 32 HP"},
+	# --- Exp 007 (S): electronic security (src/security/), category "defense" ----
+	{"id": "motion_sensor", "name": "Motion sensor", "short": "Sensor", "tool": "place", "slot": 5, "cost": {"electronics": 2, "scrap": 2},
+		"kind": "motion_sensor", "mat": "wood", "cat": "defense", "requires": "electronics", "icon": "warn",
+		"hint": "On a post · R turns its eye · sees movement in front (7 m) · needs power · E: alarm, silent, link a turret"},
+	{"id": "turret_mount", "name": "Turret mount", "short": "Turret", "tool": "place", "slot": 5, "cost": {"electronics": 4, "iron": 4, "scrap": 3},
+		"kind": "turret_mount", "mat": "wood", "cat": "defense", "requires": "automation", "icon": "pistol",
+		"hint": "R turns its arc (120°) · E: install a handgun or shotgun, fill its ammo box, switch it on · needs power"},
 ]
 
 ## Wall costs per 1 m segment by material (demolish refunds half).
@@ -201,6 +208,9 @@ const OBJECT_COST := {
 	"spikes_metal": {"iron": 3, "scrap": 2, "nails": 2},
 	"drawbridge_1": {"wood": 8, "nails": 8, "iron": 1},
 	"drawbridge_2": {"wood": 14, "nails": 12, "iron": 2},
+	# Exp 007 (S): security
+	"motion_sensor": {"electronics": 2, "scrap": 2},
+	"turret_mount": {"electronics": 4, "iron": 4, "scrap": 3},
 }
 const OBJECT_COST_MAT := {
 	"door": {"iron": {"wood": 4, "nails": 6, "iron": 3}, "metal": {"iron": 6, "scrap": 2, "nails": 4}},
@@ -210,7 +220,7 @@ const OBJECT_COST_MAT := {
 ## Timber framing: 1 plank / 150 voxels + 1 nail / 60 (Experiment 002);
 ## masonry: 1 stone / 90; iron plating: 1 iron / 60.
 const REPAIR_RATE := {"wood": 150.0, "nails": 60.0, "stone": 90.0, "iron": 60.0}
-const COST_ORDER := ["wood", "stone", "iron", "nails", "scrap", "water"]     # Exp 006 (D): + water (moats)
+const COST_ORDER := ["wood", "stone", "iron", "nails", "scrap", "water", "electronics"]     # Exp 006 (D): + water (moats); Exp 007 (S): + components
 ## Experiment 004: Reinforce on a door, material -> {"to", "cost"}.
 const REINFORCE := {
 	"door": {"wood": {"to": "iron", "cost": {"iron": 3, "nails": 4}}, "iron": {"to": "metal", "cost": {"iron": 4, "scrap": 2}}},
@@ -343,6 +353,8 @@ static func object_repair_cost(kind: String, hp: int, max_hp: int, mat := "wood"
 		if n > 0:
 			out[k] = n
 	var main := "iron" if mat != "wood" or kind == "fuse_box" or kind == "spikes_metal" else "wood"
+	if kind in ["motion_sensor", "turret_mount"]:      # Exp 007 (S): mended with scrap
+		main = "scrap"
 	out[main] = maxi(int(out.get(main, 0)), 1)
 	return out
 

@@ -28,7 +28,7 @@ func _reason(b: BuildMode, id: String, p: Vector2) -> String:
 func test_tree_books_and_reading() -> void:
 	var s := GameState.new_run(5)
 	check(s.skills.is_empty(), "a new run knows no skills")
-	check_eq(Research.ORDER.size(), 4, "four skills")
+	check_eq(Research.ORDER.size(), 6, "six skills (Exp 007 (S): + the electronics line)")
 	for id in Research.ORDER:
 		var book := Research.book_of(id)
 		check(Items.has(book) and Items.category(book) == "book" and Items.is_unique(book), "%s has a unique book item" % id)
@@ -55,7 +55,7 @@ func test_tree_books_and_reading() -> void:
 	Research.forget_all(s)
 	check(s.skills.is_empty(), "forget all")
 	Research.learn_all(s)
-	check_eq(Research.known(s).size(), 4, "learn all")
+	check_eq(Research.known(s).size(), Research.ORDER.size(), "learn all")
 	# test doubles without a skills property know everything
 	check(Research.knows(RefCounted.new(), "advanced_metal"), "no research system: ungated")
 
@@ -214,7 +214,7 @@ func test_skills_tab_reads_books() -> void:
 	check(Research.knows(s, "woodworking"), "Read learns the skill")
 	check(inv.find_child("Read_book_woodworking", true, false) == null, "the book is gone from the tab")
 	var known := inv.find_child("SkillsKnown", true, false) as Label
-	check(known != null and known.text.begins_with("1 of 4"), "the tab is rebuilt (%s)" % (known.text if known != null else "?"))
+	check(known != null and known.text.begins_with("1 of %d" % Research.ORDER.size()), "the tab is rebuilt (%s)" % (known.text if known != null else "?"))
 	inv.close()
 
 

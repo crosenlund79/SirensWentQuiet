@@ -513,6 +513,7 @@ func _build() -> void:
 	_build_research_section(box)     # Exp 006 (R)
 	_build_balance_section(box)     # Exp 006 (B)
 	_build_defense_section(box)     # Exp 006 (D)
+	_build_security_section(box)     # Exp 007 (S)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -864,6 +865,28 @@ func _build_defense_section(box: VBoxContainer) -> void:
 		["Psycho at the moat", _defense_call.bind("dev_spawn_at_moat", "psycho")],
 		["Brute at the moat", _defense_call.bind("dev_spawn_at_moat", "brute")],
 		["Defence info", _defense_call.bind("dev_defense_text", "")]]))
+
+
+## Exp 007 (S): Security — components, the research, a sensor or a loaded
+## turret where you stand, ammunition, the nearest sensor triggered, power.
+func _build_security_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Security"))
+	box.add_child(_grid(2, [["Components, iron, scrap", _security_call.bind("dev_give_components")],
+		["Unlock security research", _security_call.bind("dev_unlock")],
+		["Sensor here", _security_call.bind("dev_place_sensor")],
+		["Turret here (handgun)", _security_call.bind("dev_place_turret")],
+		["Supply ammo", _security_call.bind("dev_supply_ammo")],
+		["Trigger nearest sensor", _security_call.bind("dev_trigger_nearest")],
+		["Restore power", _security_call.bind("dev_restore_power")],
+		["Security info", _security_call.bind("dev_info")]]))
+
+
+func _security_call(method: String) -> void:
+	var h = game.get("security") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no security.", true)
+		return
+	_say(str(h.call(method)))
 
 
 func _defense_call(method: String, arg: String) -> void:

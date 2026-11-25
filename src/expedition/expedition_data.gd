@@ -214,8 +214,10 @@ const PROFILES := {
 			["book_woodworking", 1, 1, 0.45], ["book_reinforced", 1, 1, 0.25], ["book_metalworking", 1, 1, 0.14],
 			["book_advanced_metal", 1, 1, 0.06], ["water", 1, 2, 0.4], ["snacks", 1, 2, 0.45], ["bandage", 1, 1, 0.25],
 			["flashlight", 1, 1, 0.12], ["backpack", 1, 1, 0.06],
+			["book_electronics", 1, 1, 0.2], ["book_automation", 1, 1, 0.07],      # Exp 007 (S)
 		],
-		"locked": [["book_reinforced", 1, 1, 0.3], ["book_metalworking", 1, 1, 0.25], ["book_advanced_metal", 1, 1, 0.15], ["snacks", 1, 2, 0.4], ["water", 1, 2, 0.3]],
+		"locked": [["book_reinforced", 1, 1, 0.3], ["book_metalworking", 1, 1, 0.25], ["book_advanced_metal", 1, 1, 0.15], ["snacks", 1, 2, 0.4], ["water", 1, 2, 0.3],
+			["book_automation", 1, 1, 0.15]],      # Exp 007 (S)
 		"locked_name": "the locked archive", "locked_text": "The crowbar opened the locked archive in the basement.",
 		"events": {"dark_stacks": 3, "reading_room": 3, "lone_psycho": 2, "tracks": 1, "fog_bank": 1},
 		"deplete": 0.15, "regen": 0.03, "floor": 0.3,
@@ -286,7 +288,8 @@ const LOCATIONS := {
 	"hardware": {"profile": "construction_wood", "place": "hardware store", "danger": 1.0, "search": 210,
 		"mods": {"nails": 1.3, "scrap": 1.3, "hammer": 1.5, "crowbar": 1.4},
 		"extra": [["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.2],
-			["book_woodworking", 1, 1, 0.12], ["book_reinforced", 1, 1, 0.05]],      # Exp 006 (R): a DIY shelf
+			["book_woodworking", 1, 1, 0.12], ["book_reinforced", 1, 1, 0.05],      # Exp 006 (R): a DIY shelf
+			["electronics", 1, 3, 0.45], ["book_electronics", 1, 1, 0.1]],      # Exp 007 (S): the electrical aisle
 		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1}},
 	# Experiment 004 (E): the pine woods near home, a low-risk wood source
 	"forest": {"profile": "construction_wood", "place": "woods", "danger": 0.7, "search": 150,
@@ -311,15 +314,17 @@ const LOCATIONS := {
 	"construction_site": {"profile": "construction_stone", "place": "site", "danger": 1.1, "search": 190,
 		"mods": {"stone": 0.9},
 		"extra": [["wood", 3, 6, 0.8], ["iron", 1, 3, 0.55], ["fuel", 1, 2, 0.4],
-			["book_reinforced", 1, 1, 0.1], ["book_metalworking", 1, 1, 0.05]],      # Exp 006 (R): the site office
+			["book_reinforced", 1, 1, 0.1], ["book_metalworking", 1, 1, 0.05],      # Exp 006 (R): the site office
+			["book_electronics", 1, 1, 0.08]],      # Exp 007 (S)
 		"events": {"scaffold": 4, "heavy_load": 2, "lone_psycho": 2, "dogs": 1, "fog_bank": 1},
 		"two_events": 0.65, "deplete": 0.2, "regen": 0.03, "floor": 0.2},
 	"scrapyard": {"profile": "construction_iron", "place": "scrapyard", "danger": 1.05, "search": 180,
 		"mods": {"scrap": 1.4},
-		"extra": [["car_battery", 1, 1, 0.35], ["fuel", 1, 2, 0.3]]},
+		"extra": [["car_battery", 1, 1, 0.35], ["fuel", 1, 2, 0.3], ["electronics", 1, 3, 0.45]]},      # Exp 007 (S): stripped appliances
 	"warehouse": {"profile": "construction_iron", "place": "warehouse", "danger": 1.1, "search": 200,
 		"mods": {"scrap": 0.7, "iron": 0.8},
-		"extra": [["wood", 3, 6, 0.7], ["stone", 2, 4, 0.4], ["canned_food", 1, 2, 0.35], ["water", 1, 2, 0.35]],
+		"extra": [["wood", 3, 6, 0.7], ["stone", 2, 4, 0.4], ["canned_food", 1, 2, 0.35], ["water", 1, 2, 0.35],
+			["electronics", 1, 2, 0.35]],      # Exp 007 (S)
 		"events": {"storage_door": 3, "heavy_load": 2, "lone_psycho": 2, "collapsed_floor": 1, "fog_bank": 1},
 		"deplete": 0.22, "regen": 0.02, "floor": 0.15},
 	# weapons and ammunition (dangerous)
@@ -342,13 +347,15 @@ const LOCATIONS := {
 	"police": {"profile": "weapons", "place": "station", "danger": 1.6, "search": 220,
 		"mods": {"vest": 2.5, "shotgun": 1.5},
 		"extra": [["medkit", 1, 1, 0.25], ["flashlight", 1, 1, 0.2], ["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.15],
-			["book_reinforced", 1, 1, 0.06], ["book_metalworking", 1, 1, 0.05]],      # Exp 006 (R): the armourer's shelf
+			["book_reinforced", 1, 1, 0.06], ["book_metalworking", 1, 1, 0.05],      # Exp 006 (R): the armourer's shelf
+			["electronics", 1, 2, 0.35], ["book_electronics", 1, 1, 0.08], ["book_automation", 1, 1, 0.06]],      # Exp 007 (S): the security office
 		"events": {"armoury": 4, "patrol": 3, "waiting_room": 1, "lone_psycho": 1, "fog_bank": 1},
 		"two_events": 1.0, "prep": {"vest": 0.85, "shots": 0.85}, "prep_shots": 3},
 	"military": {"profile": "military", "place": "outpost",
 		"requires": ["flashlight"], "requires_text": "The bunkers are pitch dark.",
 		"prep": {"vest": 0.75, "shots": 0.7}, "prep_shots": 4,
-		"extra": [["book_advanced_metal", 1, 1, 0.06]]},      # Exp 006 (R): a field engineering manual
+		"extra": [["book_advanced_metal", 1, 1, 0.06],      # Exp 006 (R): a field engineering manual
+			["electronics", 2, 4, 0.5], ["book_automation", 1, 1, 0.12], ["book_electronics", 1, 1, 0.08]]},      # Exp 007 (S)
 	# Exp 006 (R): books and technical manuals
 	"library": {"profile": "library", "place": "library", "danger": 1.05, "search": 180,
 		"prep": {"flashlight": 0.85}},
@@ -1502,6 +1509,10 @@ const COUNT_NAMES := {
 	"book_reinforced": ["copy of 'Reinforced Construction'", "copies of 'Reinforced Construction'"],
 	"book_metalworking": ["copy of the 'Metalworking Manual'", "copies of the 'Metalworking Manual'"],
 	"book_advanced_metal": ["copy of 'Advanced Metal Fabrication'", "copies of 'Advanced Metal Fabrication'"],
+	# Exp 007 (S)
+	"electronics": ["electronic component", "electronic components"],
+	"book_electronics": ["copy of 'Basic Electronics'", "copies of 'Basic Electronics'"],
+	"book_automation": ["copy of 'Automated Defense Systems'", "copies of 'Automated Defense Systems'"],
 }
 
 

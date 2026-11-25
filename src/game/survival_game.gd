@@ -74,6 +74,7 @@ var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C):
 var research: Node                     ## src/research/game_research.gd (Exp 006 (R): K, book toasts, F10 Research)
 var balance: Node                      ## src/home/game_balance.gd (Exp 006 (B): house supply, TV and radio)
 var defense: Node                      ## src/defense/game_defense.gd (Exp 006 (D): the player in trenches, F10 Defences)
+var security: Node                     ## src/security/security_system.gd (Exp 007 (S): sensors, turrets, their panel, F10 Security)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -288,6 +289,10 @@ func _assemble() -> void:
 	defense.name = "Defense"
 	add_child(defense)
 	defense.setup(self)
+	security = SecuritySystem.new()    # Exp 007 (S): after storage (its storeys), home (power) and build (supply)
+	security.name = "Security"
+	add_child(security)
+	security.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -676,6 +681,8 @@ func _on_escape() -> void:
 			map.close()
 		"storage":
 			storage.close_panel()          # Exp 005 (F)
+		"security":
+			security.close_panel()         # Exp 007 (S)
 		"":
 			if build.active:
 				_set_build(false)

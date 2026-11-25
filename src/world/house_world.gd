@@ -438,6 +438,8 @@ static func _valid_extra(e: Dictionary, o: Dictionary) -> void:
 		o["lift"] = clampf(float(e["lift"]), 0.0, FurnitureCatalog.SURFACE_MAX)
 	if typeof(e.get("on")) == TYPE_BOOL:
 		o["on"] = e["on"]
+	if e.get("sec") is Dictionary and Security.is_kind(o["kind"]):      # Exp 007 (S): sensor and turret settings
+		o["sec"] = Security.clean(o["kind"], e["sec"])
 
 
 # --- building the scene ---------------------------------------------------------------
@@ -1008,6 +1010,7 @@ func place_object(kind: String, p: Vector2, rot: int, is_built := true, mat := "
 func remove_object(o: WorldObject) -> void:
 	if not objects.has(o):
 		return
+	Security.spill(o)        # Exp 007 (S): a turret's gun and magazine join its ammo box in the pile
 	# Exp 005 (F): what a storage piece held never vanishes: it drops into a pile
 	if not o.items.is_empty() and o.kind != "loot_pile":
 		var keep := o.items.duplicate()
