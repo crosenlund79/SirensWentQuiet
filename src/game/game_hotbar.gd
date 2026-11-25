@@ -226,6 +226,11 @@ func use(id: String) -> String:
 				text = "Dig in build mode (B): the excavate tool."
 		"crowbar":
 			text = "The crowbar opens locked doors and stockrooms on expeditions (equip it in the inventory)."
+		"drill":      # Exp 007 (O): an observation hole in the aimed wooden wall or door (src/holes/game_holes.gd)
+			var h: Variant = game.get("holes")
+			var r: Dictionary = h.use_drill() if h is Object and h.has_method("use_drill") else {"text": "Nothing to drill here.", "kind": "warn"}
+			text = str(r.get("text", ""))
+			kind = str(r.get("kind", "info"))
 		"gear":
 			if s.has_equipped(id):
 				s.unequip(s.slot_of(id))

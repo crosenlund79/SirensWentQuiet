@@ -162,6 +162,10 @@ static func held_model(kind: String) -> Node3D:
 		"shovel":
 			parts = [[Vector3(0.03, 0.03, 0.8), Vector3(0, -0.02, -0.1), Color(0.5, 0.36, 0.22)],
 				[Vector3(0.16, 0.02, 0.2), Vector3(0, -0.02, -0.58), Color(0.35, 0.37, 0.38)]]
+		"drill":      # Exp 007 (O): a hand drill
+			parts = [[Vector3(0.07, 0.08, 0.2), Vector3(0, -0.04, -0.1), Color(0.86, 0.58, 0.14)],
+				[Vector3(0.05, 0.12, 0.06), Vector3(0, 0.04, 0.0), Color(0.12, 0.12, 0.13)],
+				[Vector3(0.015, 0.015, 0.14), Vector3(0, -0.04, -0.27), Color(0.72, 0.72, 0.74)]]
 		"food":
 			parts = [[Vector3(0.08, 0.1, 0.08), Vector3(0, -0.05, 0.02), Color(0.7, 0.32, 0.2)]]
 		"water":

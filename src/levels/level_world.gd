@@ -261,6 +261,8 @@ func save_data() -> Dictionary:
 		"objects": objs, "built": _keys(built), "upgraded": _keys(upgraded), "openings": cut,
 		"stone": _keys(_stone_sections()), "foundations": _keys(foundations), "dug": cells,
 	}
+	if not holes.is_empty():
+		d["holes"] = holes.duplicate(true)     # Exp 007 (O), optional: observation holes (HoleRules)
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return d
 
@@ -298,6 +300,7 @@ func load_data(d: Dictionary) -> bool:
 	var g_cur := p.copy()
 	VoxelDiff.apply(g_cur, dc)
 	_build_level(g_design, g_cur, objs, b, u, cut, st, fd, cells)
+	holes = HoleRules.clean(d.get("holes", []))      # Exp 007 (O): optional
 	furniture_layout_changed.emit()     # Exp 005 (F)
 	return true
 

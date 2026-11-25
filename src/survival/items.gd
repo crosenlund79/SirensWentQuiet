@@ -30,6 +30,8 @@ const DEFS := {
 	"hammer": {"name": "Hammer", "category": "tool", "desc": "Needed to build and repair (kept at home).", "cap": 1, "slot": "tool"},
 	"shovel": {"name": "Shovel", "category": "tool", "desc": "Digs out a basement under the house (kept at home).", "cap": 1, "slot": "tool"},
 	"crowbar": {"name": "Crowbar", "category": "tool", "desc": "Equipped: opens stockrooms and locked doors on expeditions.", "cap": 1, "slot": "tool"},
+	# Exp 007 (O): observation holes (src/holes/): LMB with it in hand at a wooden wall, door, barricade or boards
+	"drill": {"name": "Hand drill", "category": "tool", "desc": "Bores a small observation hole through wood: walls, doors, barricades, window boards. Not stone or metal.", "cap": 1, "slot": "tool"},
 	"flashlight": {"name": "Flashlight", "category": "utility", "desc": "Equipped: needed in dark places like the clinic.", "cap": 1, "slot": "utility"},
 	"backpack": {"name": "Backpack", "category": "utility", "desc": "Equipped: carry half as much again from expeditions.", "cap": 1, "slot": "back"},
 	# --- Experiment 004 (E): the yard car's parts and fuel ---
@@ -58,7 +60,7 @@ const DEFS := {
 ## Items the quick-access bar fills itself with when the player owns them, in
 ## this order after the two equipped weapons (Experiment 004, E). Other
 ## consumables and gear can be put on the bar by hand (Hotbar.can_hold).
-const BAR_AUTO := ["flashlight", "hammer", "water", "canned_food", "snacks", "bandage", "medkit", "crowbar", "shovel"]
+const BAR_AUTO := ["flashlight", "hammer", "water", "canned_food", "snacks", "bandage", "medkit", "crowbar", "shovel", "drill"]   # Exp 007 (O): drill
 
 
 static func has(id) -> bool:
