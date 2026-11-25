@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://batgmcktixjlj"
+path="res://.godot/imported/Door open 4.wav-eb9f79442fccf7790507aa5d8376a511.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/foley/Door open 4.wav"
+dest_files=["res://.godot/imported/Door open 4.wav-eb9f79442fccf7790507aa5d8376a511.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

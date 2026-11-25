@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dn866bgfjt8u3"
+path="res://.godot/imported/Building or constructing 3.wav-592d862debce8bb5d84ad150ea170dd5.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/foley/Building or constructing 3.wav"
+dest_files=["res://.godot/imported/Building or constructing 3.wav-592d862debce8bb5d84ad150ea170dd5.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

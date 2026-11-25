@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://yx6tgarb35dl"
+path="res://.godot/imported/Enemy - Footsteps Snow 4.wav-e8b5f690f9c8d32b9edac62e85622ccf.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/foley/Enemy - Footsteps Snow 4.wav"
+dest_files=["res://.godot/imported/Enemy - Footsteps Snow 4.wav-e8b5f690f9c8d32b9edac62e85622ccf.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

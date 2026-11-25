@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://7sqp2q0jkevo"
+path="res://.godot/imported/Nighttime - Wolf howl 3.wav-45a4483d1364f25568982ce119bd47bf.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/ambiance/Environmental - Intermittent/Nighttime - Wolf howl 3.wav"
+dest_files=["res://.godot/imported/Nighttime - Wolf howl 3.wav-45a4483d1364f25568982ce119bd47bf.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b12p0nd40uhke"
+path="res://.godot/imported/Weapon - Handgun Shot 01.wav-bebe0d704e205f4fda022a40a743f45c.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/foley/Weapon - Handgun Shot 01.wav"
+dest_files=["res://.godot/imported/Weapon - Handgun Shot 01.wav-bebe0d704e205f4fda022a40a743f45c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

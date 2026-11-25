@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cjq0dlyc5l0uq"
+path="res://.godot/imported/Hammer on metal 1.wav-232efea2d33af44b395a67b95fb6a982.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/foley/Hammer on metal 1.wav"
+dest_files=["res://.godot/imported/Hammer on metal 1.wav-232efea2d33af44b395a67b95fb6a982.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

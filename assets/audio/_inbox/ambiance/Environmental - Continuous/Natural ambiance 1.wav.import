@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bwu6ar0oupjex"
+path="res://.godot/imported/Natural ambiance 1.wav-3cf835e4d10132d61d9b0ae6c8dc8776.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/ambiance/Environmental - Continuous/Natural ambiance 1.wav"
+dest_files=["res://.godot/imported/Natural ambiance 1.wav-3cf835e4d10132d61d9b0ae6c8dc8776.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

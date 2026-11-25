@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://c5dh7k4wqafuy"
+path="res://.godot/imported/Eli - Welcome to a new game.mp3-676706570a89e96b6fe30ab734ba3382.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/voice/Eli - Welcome to a new game.mp3"
+dest_files=["res://.godot/imported/Eli - Welcome to a new game.mp3-676706570a89e96b6fe30ab734ba3382.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bfjnof7cm65x"
+path="res://.godot/imported/Footsteps - wood floor.wav-d18f96c325789b375be31588cc1c3f4e.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/foley/Footsteps - wood floor.wav"
+dest_files=["res://.godot/imported/Footsteps - wood floor.wav-d18f96c325789b375be31588cc1c3f4e.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
