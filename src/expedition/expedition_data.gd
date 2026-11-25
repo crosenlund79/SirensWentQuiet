@@ -289,7 +289,7 @@ const LOCATIONS := {
 		"mods": {"nails": 1.3, "scrap": 1.3, "hammer": 1.5, "crowbar": 1.4},
 		"extra": [["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.2],
 			["book_woodworking", 1, 1, 0.12], ["book_reinforced", 1, 1, 0.05],      # Exp 006 (R): a DIY shelf
-			["electronics", 1, 3, 0.45], ["book_electronics", 1, 1, 0.1]],      # Exp 007 (S): the electrical aisle
+			["electronics", 1, 3, 0.45], ["book_electronics", 1, 1, 0.1], ["drill", 1, 1, 0.25]],      # Exp 007 (S): the electrical aisle; (O): a hand drill
 		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1}},
 	# Experiment 004 (E): the pine woods near home, a low-risk wood source
 	"forest": {"profile": "construction_wood", "place": "woods", "danger": 0.7, "search": 150,

@@ -60,7 +60,7 @@ static func use_kind(id) -> String:
 		return "weapon"
 	if Items.is_consumable(id):
 		return "consume"
-	if id in ["hammer", "flashlight", "shovel", "crowbar"]:
+	if id in ["hammer", "flashlight", "shovel", "crowbar", "drill"]:     # Exp 007 (O): drill
 		return str(id)
 	if Equipment.is_equippable(id):
 		return "gear"

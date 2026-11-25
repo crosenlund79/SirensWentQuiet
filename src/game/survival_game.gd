@@ -44,6 +44,8 @@ const BalanceLink := preload("res://src/home/game_balance.gd")   # Exp 006 (B): 
 const DefenseLink := preload("res://src/defense/game_defense.gd")   # Exp 006 (D): trenches, moats, drawbridges, spikes
 const NoiseLink := preload("res://src/noise/game_noise.gd")   # Exp 007 (N): event-based noise
 const VisibilityLink := preload("res://src/visibility/game_visibility.gd")   # Exp 007 (N): room-based visibility
+const OverviewLink := preload("res://src/overview/house_overview.gd")   # Exp 007 (O): the structural house overview (O)
+const HolesLink := preload("res://src/holes/game_holes.gd")   # Exp 007 (O): the drill, observation holes, looking through
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -79,6 +81,8 @@ var defense: Node                      ## src/defense/game_defense.gd (Exp 006 (
 var security: Node                     ## src/security/security_system.gd (Exp 007 (S): sensors, turrets, their panel, F10 Security)
 var noise: Node                        ## src/noise/game_noise.gd (Exp 007 (N): noise events, gunfire, F10 Noise & visibility)
 var visibility: Node                   ## src/visibility/game_visibility.gd (Exp 007 (N): room-based visibility)
+var overview: Node                     ## src/overview/house_overview.gd (Exp 007 (O): O, the structural overview)
+var holes: Node                        ## src/holes/game_holes.gd (Exp 007 (O): drill, observation holes, look through)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -97,7 +101,7 @@ var last_expedition := {}
 var shots_fired := 0
 
 var _ok := false
-var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death | storage (Exp 005)
+var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death | storage (Exp 005) | overview (Exp 007 O)
 var _loaded := {}
 var _trigger := false
 var _migrated_from := 0                ## schema of an older save that was loaded (re-saved at once)
@@ -305,6 +309,14 @@ func _assemble() -> void:
 	visibility.name = "Visibility"
 	add_child(visibility)
 	visibility.setup(self)
+	holes = HolesLink.new()            # Exp 007 (O): after levels (holes on every storey) and build (covering pays)
+	holes.name = "Holes"
+	add_child(holes)
+	holes.setup(self)
+	overview = OverviewLink.new()      # Exp 007 (O): reads levels, support and holes
+	overview.name = "Overview"
+	add_child(overview)
+	overview.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -1033,6 +1045,8 @@ func dev_info() -> String:
 	]
 	if comfort != null:
 		lines.append(comfort.info())       # Exp 005 (C)
+	if holes != null:
+		lines.append(holes.info())         # Exp 007 (O)
 	return "\n".join(lines)
 
 

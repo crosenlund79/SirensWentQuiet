@@ -516,6 +516,7 @@ func _build() -> void:
 	_build_security_section(box)     # Exp 007 (S)
 	_build_noise_section(box)     # Exp 007 (N)
 	_build_poi_section(box)     # Exp 007 (P)
+	_build_overview_section(box)     # Exp 007 (O)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -942,3 +943,21 @@ func _noise_call(helper: String, method: String, arg: String) -> void:
 		_say("The game has no %s.%s()" % [helper, method], true)
 		return
 	_say(str(h.call(method, arg) if arg != "" else h.call(method)))
+
+
+# --- Exp 007 (O): the house overview and observation holes (src/overview/, src/holes/) -------
+
+func _build_overview_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Overview & holes"))
+	box.add_child(_grid(2, [["Open the overview", _overview_call.bind("overview", "dev_open")],
+		["Give a drill", _overview_call.bind("holes", "dev_give_drill")],
+		["Hole in the nearest wall", _overview_call.bind("holes", "dev_hole_here")],
+		["List holes", _overview_call.bind("holes", "dev_list_holes")]]))
+
+
+func _overview_call(helper: String, method: String) -> void:
+	var h = game.get(helper) if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no %s.%s()" % [helper, method], true)
+		return
+	_say(str(h.call(method)))

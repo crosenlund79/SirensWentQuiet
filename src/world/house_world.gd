@@ -180,6 +180,10 @@ var support: HouseSupport
 ## other storeys).
 var defense: DefenseGrid
 var settled := 0                ## voxels dropped by settle() (tests)
+## Exp 007 (O): observation holes on this storey (HoleRules records; saved as
+## "holes") and their [E] spots (src/holes/game_holes.gd keeps both up to date).
+var holes: Array = []
+var hole_spots: Array = []
 
 var _static_solid := PackedByteArray()
 var _opening_clip := {}        # nav cell -> Rect2 that clips its footprint (door gaps ignore their jambs)
@@ -280,6 +284,8 @@ func save_data() -> Dictionary:
 		d["collapsed"] = support.save_data()   # Refinement 01 (S), optional: zones whose roof came down
 	if defense != null and not defense.cells.is_empty():
 		d["defense"] = defense.save_data()     # Exp 006 (D), optional: trenches and their water
+	if not holes.is_empty():
+		d["holes"] = holes.duplicate(true)     # Exp 007 (O), optional: observation holes (HoleRules)
 	stats["save_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	return d
 
@@ -335,6 +341,7 @@ func load_data(d: Dictionary) -> bool:
 		support.load_data(d.get("collapsed", []))     # Refinement 01 (S)
 	if defense != null:
 		defense.load_data(d.get("defense", {}))       # Exp 006 (D): older saves have no trenches
+	holes = HoleRules.clean(d.get("holes", []))      # Exp 007 (O): optional
 	if furniture != null:
 		furniture.load_data(d.get("furniture", {}))
 		furniture.storage_load(d.get("storage", {}))     # Exp 005 (F)
@@ -711,6 +718,22 @@ func update_view(player_pos: Vector3, camera: Camera3D, delta: float) -> void:
 ## Tall meshes (furniture, yard props, doors, collectors, barricades) between
 ## the camera and the player, inside the cut radius, are hidden (they keep
 ## their shadow) and ignored by aim_ray.
+## Exp 007 (O): sets the voxel and mesh cutaway directly (the house overview
+## and the look-through view, every frame they last; the next update_view
+## takes over again). radius 0: nothing is cut.
+func set_cut_view(origin: Vector3, dir: Vector3, radius: float, floor_y: float) -> void:
+	_cut_on = radius > 0.0
+	_cut_origin = origin
+	_cut_dir = dir
+	_cut_radius = radius
+	for m in cut_materials:
+		m.set_shader_parameter("cut_origin", origin)
+		m.set_shader_parameter("cut_dir", dir)
+		m.set_shader_parameter("cut_radius", radius)
+		m.set_shader_parameter("cut_floor", floor_y)
+	_update_mesh_cut()
+
+
 func _update_mesh_cut() -> void:
 	_hidden_bodies.clear()
 	for p in props:
@@ -2277,6 +2300,7 @@ func interactables() -> Array:
 			out.append(o)
 	if furniture != null:
 		out.append_array(furniture.storage_spots())     # Exp 005 (F): the house's cupboards, wardrobe, fridge...
+	out.append_array(hole_spots)                        # Exp 007 (O): [E] look through an observation hole
 	return out
 
 
