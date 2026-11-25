@@ -200,8 +200,10 @@ func test_home_in_the_game() -> void:
 	dm.button("Northern lights tonight").pressed.emit()
 	dm.button("Time 23:00").pressed.emit()
 	await frames(2)
-	check(h.sky.tonight == 1.0 and h.sky.shown > 0.3, "forced northern lights at 23:00 (%.2f)" % h.sky.shown)
-	check(g.lighting.aurora > 0.3, "the night ambient takes the aurora tint")
+	# Exp 006 scaled everything the aurora shows by NorthernSky.opacity (0.4), and
+	# `shown` pulses by up to 30 %: compare against that scale, not the old 0.3.
+	check(h.sky.tonight == 1.0 and h.sky.shown > 0.5 * h.sky.opacity, "forced northern lights at 23:00 (%.2f)" % h.sky.shown)
+	check(g.lighting.aurora > 0.5 * h.sky.opacity, "the night ambient takes the aurora tint")
 	dm.button("Toggle fireplace").pressed.emit()
 	check(not h.fireplace.lit, "F10 puts the fire out")
 	g.debug_open("dev")
