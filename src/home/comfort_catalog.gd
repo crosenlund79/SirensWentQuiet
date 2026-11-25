@@ -59,6 +59,8 @@ const TYPES := {
 	# lamps: their light counts (LAMP_*), not the furniture
 	"floor_lamp": ["lamp", 0.0],
 	"table_lamp": ["lamp", 0.0],
+	# Exp 006 (B): a radio counts only while it plays (HouseMedia); the TV stand stays decor
+	"radio": ["media", 0.0],
 }
 const OTHER := ["other", 0.5]
 
@@ -74,6 +76,7 @@ const CATEGORIES := {
 	"bath": {"name": "Bathroom fittings", "cap": 5.0},
 	"utility": {"name": "Utilities", "cap": 2.0},
 	"lamp": {"name": "Lamps", "cap": 0.0},
+	"media": {"name": "TV and radio", "cap": 0.0},      # Exp 006 (B): HouseMedia adds the playing ones
 	"other": {"name": "Other furniture", "cap": 2.0},
 }
 ## Categories that count toward "well furnished" (a balanced room).

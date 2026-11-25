@@ -511,6 +511,7 @@ func _build() -> void:
 	_build_audio_section(box)     # Exp 005 (A)
 	_build_comfort_section(box)     # Exp 005 (C)
 	_build_research_section(box)     # Exp 006 (R)
+	_build_balance_section(box)     # Exp 006 (B)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -829,3 +830,25 @@ func _comfort_home_panel() -> void:
 		return
 	set_open(false)
 	_say(str(h.call("dev_open_panel")))
+
+
+# --- Exp 006 (B): House & balance (methods on src/home/game_balance.gd) ---------------------
+
+func _build_balance_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("House & balance"))
+	var rows := [["Aurora: old / subtle", _balance_call.bind("dev_aurora_preview", [])],
+		["Remove window here", _balance_call.bind("dev_remove_window", [])],
+		["TV / radio on/off", _balance_call.bind("dev_toggle_media", [])], ["Place a radio", _balance_call.bind("dev_place_radio", [])],
+		["Foundation kit", _balance_call.bind("dev_foundation_kit", [])], ["Fill a chest", _balance_call.bind("dev_fill_chest", [])],
+		["Show supply", _balance_call.bind("dev_supply_text", [])]]
+	for k in EnemyDefs.KINDS:
+		rows.append(["Spawn %s" % k, _balance_call.bind("dev_spawn", [k])])
+	box.add_child(_grid(2, rows))
+
+
+func _balance_call(method: String, args: Array) -> void:
+	var h = game.get("balance") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no balance.%s()" % method, true)
+		return
+	_say(str(h.callv(method, args)))

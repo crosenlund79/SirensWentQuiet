@@ -191,6 +191,10 @@ func _eval_next_storey(r: Dictionary) -> void:
 				if states[z["id"]]["fail"]:
 					r["reason"] = "The outer walls of %s can't carry another storey over %s: rebuild them first." % [Levels.label(t - 1), z["name"]]
 					return
+		if t >= 2:      # Exp 006 (B): a third level needs a stone footing along the house
+			var why := HouseSupport.footing_reason(levels.game.world)
+			if why != "":
+				r["reason"] = why
 
 
 func _eval_dig(bm: Node, r: Dictionary, p: Vector2) -> void:

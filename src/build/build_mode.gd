@@ -36,10 +36,12 @@ const GHOST_BAD := Color(1.0, 0.28, 0.22, 0.4)
 const GHOST_TOOL := {"repair": Color(1.0, 0.72, 0.3, 0.32), "upgrade": Color(0.55, 0.75, 1.0, 0.34), "demolish": Color(1.0, 0.45, 0.25, 0.34)}
 const GHOST_REPLACE := Color(0.35, 0.85, 1.0, 0.4)      ## Refinement 01: a wall segment that replaces another
 const SEAL_REASON := "That would seal the last way out."
-const FOUNDATION_REASON := "Stone walls need a foundation: the house floor or a stone foundation."
+## Exp 006 (B): the foundation rules in one line (build menu status).
+const FOUNDATION_HINT := "Walls on a foundation or the house floor are sturdier; outside the house only founded walls prop the roof; a third level needs a stone footing along the house."
+const FOUNDATION_REASON := "Stone walls need a foundation: the house floor or a stone foundation (a timber footing is too weak)."
 ## Pieces placed by dragging along a line, and pieces that follow the ground
 ## point under the mouse (the rest follow the aimed surface).
-const RUN_PIECES := ["wall", "stone_wall", "barricade", "iron_barricade", "foundation"]
+const RUN_PIECES := ["wall", "stone_wall", "barricade", "iron_barricade", "foundation", "timber_footing"]   # Exp 006 (B): + timber footing
 const FREE_PIECES := ["crate", "rain_collector", "workbench"]
 
 var active := false
@@ -75,6 +77,9 @@ var _ghost_label: Label3D       # Refinement 01: "Replace wood → stone" over a
 ## Exp 005 (F): the furniture piece the Move tool holds ({} = none): {"world",
 ## "object" | null, "piece" (house piece id), "kind", "size", "rot", "name"}.
 var carry := {}
+## Exp 006 (B): the house supply (HouseSupply: the pool plus the house's
+## storage furniture; the game's balance helper sets it). null = the pool only.
+var supply: Object = null
 
 
 func setup(w: HouseWorld, s: GameState, cam: Camera3D, p: Node3D) -> void:
@@ -302,11 +307,11 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 		r["reason"] = "You need a hammer."
 		return r
 	match id:
-		"wall", "stone_wall", "barricade", "iron_barricade", "foundation":
+		"wall", "stone_wall", "barricade", "iron_barricade", "foundation", "timber_footing":
 			var segs := [HouseWorld.nearest_seg(p)]
 			if from != Vector2.INF and from.distance_to(p) > 0.35:
 				segs = _run(from, p)
-			if id == "foundation":
+			if id == "foundation" or id == "timber_footing":
 				_eval_foundation(r, segs)
 			else:
 				_eval_run(r, id, segs)
@@ -328,6 +333,8 @@ func evaluate(p: Vector2, from := Vector2.INF) -> Dictionary:
 			_eval_demolish(r, p)
 	if FurniturePlace.handles(id):      # Exp 005 (F): furniture and Move
 		FurniturePlace.evaluate(self, r, p)
+	if WindowFill.handles(id):          # Exp 006 (B): wall up a window
+		WindowFill.evaluate(self, r, p)
 	if ext != null:      # Experiment 004 (L): the level pieces, stairs and floor tiles, level rules
 		ext.post_evaluate(self, r, p, from)
 	Research.gate(state, BuildPieces.LIST[piece], r)      # Exp 006 (R): locked recipes and Reinforce steps ("locked": true)
@@ -347,7 +354,31 @@ func _mat() -> String:
 
 
 func state_can_pay(cost: Dictionary) -> bool:
+	if supply != null and supply.has_method("can_pay"):      # Exp 006 (B): carried + stored in the house
+		return cost.is_empty() or supply.can_pay(cost)
 	return cost.is_empty() or state == null or state.can_pay(cost)
+
+
+## Exp 006 (B): pays a cost from the pool and then the house's storage
+## (atomic; the pool alone without a supply).
+func pay_cost(cost: Dictionary) -> bool:
+	if cost.is_empty():
+		return true
+	if supply != null and supply.has_method("pay"):
+		return supply.pay(cost)
+	return state == null or state.pay(cost)
+
+
+## Exp 006 (B): carried + stored in the house (the build menu's counts; U).
+func available(item: String) -> int:
+	if supply != null and supply.has_method("available"):
+		return supply.available(item)
+	return state.inventory.count(item) if state != null else 0
+
+
+## Exp 006 (B): how much of `item` is stored in the house's furniture.
+func stored(item: String) -> int:
+	return supply.stored(item) if supply != null and supply.has_method("stored") else 0
 
 
 ## Segments from the drag start to p along one axis (the larger drag), on the
@@ -496,7 +527,7 @@ func _check_line_piece(id: String, s: Vector3i, replacing := false) -> String:
 		return "Furniture is in the way."
 	if world.bodies_in(rect.grow(0.05)):
 		return "Someone is standing there."
-	if id == "stone_wall" and not info["founded"]:
+	if id == "stone_wall" and not world.is_stone_founded(s):      # Exp 006 (B): not on a timber footing
 		return FOUNDATION_REASON
 	return ""
 
@@ -659,6 +690,15 @@ func _eval_repair(r: Dictionary, p: Vector2) -> void:
 		return
 	var s := HouseWorld.nearest_seg(p)
 	r["segs"] = [s]
+	var tile := world.foundation_at(p)      # Exp 006 (B): a blasted foundation tile (when the wall here is fine)
+	if tile.x >= 0 and (not world.sections.has(s) or world.section_missing(s) <= 0):
+		var lost := world.foundation_missing(tile)
+		if lost > 0:
+			r["segs"] = [tile]
+			r["foundation_repair"] = true
+			var wood := world.foundation_material(tile) == "wood"
+			r["cost"] = {"wood": ceili(lost / BuildPieces.REPAIR_RATE["wood"])} if wood else {"stone": ceili(lost / BuildPieces.REPAIR_RATE["stone"])}
+			return
 	if not world.sections.has(s):
 		r["reason"] = "Aim at a damaged wall or door."
 		return
@@ -737,7 +777,7 @@ func _eval_demolish(r: Dictionary, p: Vector2) -> void:
 	if f.x >= 0:
 		r["segs"] = [f]
 		r["foundation"] = true
-		r["refund"] = BuildPieces.FOUNDATION_COST.duplicate()
+		r["refund"] = (BuildPieces.TIMBER_FOOTING_COST if world.foundation_material(f) == "wood" else BuildPieces.FOUNDATION_COST).duplicate()   # Exp 006 (B)
 		var tile := HouseWorld.seg_rect(f, HouseWorld.FOUNDATION_HALF)
 		for b in world.built:
 			if world.sections.get(b, {}).get("material", "") == "stone" and HouseWorld.seg_rect(b, 0.15).intersects(tile):
@@ -757,7 +797,7 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 		message.emit(r["reason"], false)
 		Sfx.play("build/invalid")
 		return false
-	if not r["cost"].is_empty() and state != null and not state.pay(r["cost"]):
+	if not r["cost"].is_empty() and state != null and not pay_cost(r["cost"]):      # Exp 006 (B): + house storage
 		message.emit("Needs %s." % BuildPieces.cost_text(r["cost"]), false)
 		Sfx.play("build/invalid")
 		return false
@@ -794,10 +834,13 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 				text += " Skipped %d m (doors, windows, walls already of that kind)." % int(r["skipped"])
 			Sfx.play("build/place", at)
 			Sfx.play("build/hammer", at)
-		"foundation":
-			world.build_foundation(r["segs"])
-			text = "Laid %d m² of stone foundation (%s)." % [r["segs"].size(), BuildPieces.cost_text(r["cost"])]
+		"foundation", "timber_footing":
+			var wood: bool = r["piece"] == "timber_footing"      # Exp 006 (B)
+			world.build_foundation(r["segs"], "wood" if wood else "stone")
+			text = "Laid %d m² of %s (%s)." % [r["segs"].size(), "timber footing" if wood else "stone foundation", BuildPieces.cost_text(r["cost"])]
 			Sfx.play("build/place", at)
+			if wood:
+				Sfx.play("build/hammer", at)
 		"barricade", "iron_barricade":
 			for s in r["segs"]:
 				world.place_object("barricade", HouseWorld.seg_center(s), world.seg_rot(s), true, _mat())
@@ -839,7 +882,10 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 					text = "Workbench set up: E turns 3 scrap into 1 iron."
 			Sfx.play("build/place", at)
 		"repair":
-			if r["object"] != null:
+			if r.get("foundation_repair", false):      # Exp 006 (B)
+				var n := world.repair_foundation(r["segs"][0])
+				text = "Foundation relaid: %d voxels (%s)." % [n, BuildPieces.cost_text(r["cost"])]
+			elif r["object"] != null:
 				world.repair_object(r["object"])
 				text = "%s repaired (%s)." % [r["object"].display_name(), BuildPieces.cost_text(r["cost"])]
 			else:
@@ -884,6 +930,12 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 		text = ext.apply(self, r)
 	if FurniturePlace.handles(r["piece"]):      # Exp 005 (F)
 		text = FurniturePlace.apply(self, r)
+	if WindowFill.handles(r["piece"]):          # Exp 006 (B)
+		text = WindowFill.apply(self, r)
+	if supply != null and not r["cost"].is_empty():      # Exp 006 (B): say what came out of storage
+		var took: Dictionary = supply.get("last_paid").get("stored", {})
+		if not took.is_empty():
+			text += " (%s from storage)" % BuildPieces.cost_text(took)
 	_eval_key = ""
 	message.emit(text, true)
 	changed.emit()
@@ -895,6 +947,12 @@ func apply(p: Vector2, from := Vector2.INF) -> bool:
 func _give_back(refund: Dictionary) -> String:
 	if refund.is_empty() or state == null or state.cheats.get("unlimited", false):
 		return ""
+	if supply != null and supply.has_method("give"):      # Exp 006 (B): overflow into a container
+		var g: Dictionary = supply.give(refund)
+		var t := " Got back %s." % BuildPieces.cost_text(g["inv"]) if not g["inv"].is_empty() else ""
+		if not g["stored"].is_empty():
+			t += " %s went into storage." % BuildPieces.cost_text(g["stored"])
+		return t
 	var got := {}
 	for k in refund:
 		var n := state.inventory.add(k, refund[k])
@@ -965,7 +1023,7 @@ func _show_ghost(r: Dictionary) -> void:
 				at = r["pos"]
 			if at != Vector2.INF:
 				items.append([kind, d["size"], Vector3(at.x, float(d.get("y0", 0.0)), at.y), WorldObject.YAW[rr], col_ok if r["ok"] else GHOST_BAD, ""])
-		"wall", "stone_wall", "barricade", "iron_barricade", "door", "iron_door", "metal_door", "doorway", "foundation":
+		"wall", "stone_wall", "barricade", "iron_barricade", "door", "iron_door", "metal_door", "doorway", "foundation", "timber_footing":
 			var reps: Dictionary = r.get("replace", {})
 			for s in r["segs"]:
 				var bad: bool = not r["ok"] and (r.get("bad", []).has(s) or not r.has("bad"))
@@ -982,7 +1040,7 @@ func _show_ghost(r: Dictionary) -> void:
 							size = Vector3(1.02, 2.66, maxf(size.z, 0.3) + 0.08)
 							if not bad:
 								col = GHOST_REPLACE
-					"foundation":
+					"foundation", "timber_footing":
 						size = Vector3(1.0, 0.06, 0.98)
 					"barricade", "iron_barricade":
 						type = "barricade"
@@ -1020,6 +1078,8 @@ func _show_ghost(r: Dictionary) -> void:
 		items = ext.ghost_items(self, r)
 	if FurniturePlace.handles(id):      # Exp 005 (F)
 		items = FurniturePlace.ghost_items(self, r, col_ok, GHOST_BAD)
+	if WindowFill.handles(id):          # Exp 006 (B)
+		items = WindowFill.ghost_items(self, r, GHOST_TOOL["upgrade"], GHOST_BAD)
 	var key := ""
 	for it in items:
 		key += "%s%s%s;" % [it[0], str(it[1]), it[5]]
@@ -1099,10 +1159,11 @@ func _refresh_palette() -> void:
 	var cost_txt := ""
 	match tool():
 		"place":
-			cost_txt = BuildPieces.cost_text(p["cost"]) + (" per metre" if p.get("per_m", false) and piece_id() != "foundation" else " per tile" if piece_id() == "foundation" else "")
+			var tiles := piece_id() == "foundation" or piece_id() == "timber_footing"      # Exp 006 (B): + timber footing
+			cost_txt = BuildPieces.cost_text(p["cost"]) + (" per metre" if p.get("per_m", false) and not tiles else " per tile" if tiles else "")
 			var n: int = last_eval.get("segs", []).size()
 			if n > 1:
-				cost_txt += ("  ·  %d tiles: %s" if piece_id() == "foundation" else "  ·  run %d m: %s") % [n, BuildPieces.cost_text(cost)]
+				cost_txt += ("  ·  %d tiles: %s" if tiles else "  ·  run %d m: %s") % [n, BuildPieces.cost_text(cost)]
 		"repair":
 			cost_txt = BuildPieces.cost_text(cost) if not cost.is_empty() else "paid in the damaged material"
 		"upgrade":
@@ -1115,10 +1176,17 @@ func _refresh_palette() -> void:
 			cost_txt = "refund %s" % BuildPieces.cost_text(rf) if not rf.is_empty() else "free"
 		"move":
 			cost_txt = "free" + ("  ·  holding: %s" % str(carry["name"]).to_lower() if not carry.is_empty() else "")
+		"remove_window":      # Exp 006 (B)
+			cost_txt = BuildPieces.cost_text(p["cost"]) + " per metre · the frame gives back " + BuildPieces.cost_text(BuildPieces.WINDOW_FRAME_SALVAGE)
 	var mats := "no inventory"
 	if state != null:
 		var inv := state.inventory
 		mats = "Planks %d · Stone %d · Iron %d · Nails %d · Scrap %d" % [inv.count("wood"), inv.count("stone"), inv.count("iron"), inv.count("nails"), inv.count("scrap")]
+		if supply != null and supply.has_method("count_text"):      # Exp 006 (B): "12 + 30 stored"
+			var parts := PackedStringArray()
+			for k in ["wood", "stone", "iron", "nails", "scrap"]:
+				parts.append("%s %s" % [Items.name_of(k), supply.count_text(k)])
+			mats = " · ".join(parts)
 		if state.cheats.get("unlimited", false):
 			mats += "  (unlimited)"
 	var status := "Ready: click to %s." % ("build" if tool() == "place" else tool())
@@ -1138,4 +1206,8 @@ func _refresh_palette() -> void:
 		status += "  " + str(last_eval["bearing"])      # Refinement 01 (S): what the wall carries
 	if FurniturePlace.handles(piece_id()) and FurniturePlace.status(self, last_eval) != "":
 		status = FurniturePlace.status(self, last_eval)      # Exp 005 (F)
+	if WindowFill.handles(piece_id()) and WindowFill.status(last_eval) != "":
+		status = WindowFill.status(last_eval)      # Exp 006 (B)
+	if piece_id() in ["foundation", "timber_footing"] and last_eval.get("ok", false):
+		status += "  " + FOUNDATION_HINT      # Exp 006 (B)
 	palette.show_state(piece, p["name"], cost_txt, mats, status, last_eval.get("ok", true), p["hint"])

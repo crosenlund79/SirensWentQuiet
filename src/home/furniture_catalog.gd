@@ -13,12 +13,13 @@ extends RefCounted
 ## Pieces the player can build, in palette order (key 5 variants after the
 ## crate and Move).
 const PLACEABLE := ["cupboard", "storage_chest", "tool_cabinet", "wardrobe", "shelves", "bookshelf", "dresser", "nightstand",
-	"bed", "sofa", "armchair", "chair", "dining_table", "coffee_table", "rug", "floor_lamp", "table_lamp", "painting", "plant"]
+	"bed", "sofa", "armchair", "chair", "dining_table", "coffee_table", "rug", "floor_lamp", "table_lamp", "painting", "plant",
+	"tv_stand", "radio"]          # Exp 006 (B): the TV (on its stand) and a radio
 ## Every WorldObject kind that is furniture (placeable plus the original types
 ## that can be moved: they become objects of the same kind).
 const KINDS := ["cupboard", "storage_chest", "tool_cabinet", "wardrobe", "shelves", "bookshelf", "dresser", "nightstand",
 	"bed", "sofa", "armchair", "chair", "dining_table", "coffee_table", "rug", "floor_lamp", "table_lamp", "painting", "plant",
-	"tv_stand", "fridge", "counter", "island", "stool", "boxes", "workbench"]
+	"tv_stand", "fridge", "counter", "island", "stool", "boxes", "workbench", "radio"]
 ## Original pieces that stay where they are (plumbed or wired in; the old bed
 ## is where the night starts and the exit rule begins).
 const FIXED := {"sink_counter": "It's plumbed in.", "bathtub": "It's plumbed in.", "toilet": "It's plumbed in.", "vanity": "It's plumbed in.",
@@ -45,6 +46,8 @@ const COST := {
 	"table_lamp": {"scrap": 2},
 	"painting": {"wood": 1, "nails": 1},
 	"plant": {"wood": 1},
+	"tv_stand": {"wood": 3, "nails": 4, "scrap": 6},      # Exp 006 (B)
+	"radio": {"scrap": 4, "nails": 1},
 }
 const SHORT := {"storage_chest": "Chest", "tool_cabinet": "Tool cabinet", "dining_table": "Table", "coffee_table": "Coffee table",
 	"floor_lamp": "Floor lamp", "table_lamp": "Table lamp", "nightstand": "Nightstand", "cupboard": "Cupboard"}
@@ -62,8 +65,14 @@ const HINT := {
 	"table_lamp": "Stands on a table or the floor · shines while the house has power · E switches it",
 	"painting": "Aim at a wall: it hangs on your side",
 	"rug": "Lies flat: furniture can stand on it",
+	"tv_stand": "A TV on a stand · E switches it · needs power",
+	"radio": "A mains radio · E switches it · needs power · on a table or the floor",
 }
 const LAMPS := ["floor_lamp", "table_lamp"]
+## Exp 006 (B): media sources (E switches them; HouseMedia, src/home/media.gd).
+const MEDIA := ["tv_stand", "radio"]
+## Exp 006 (B): small pieces that stand on a table, a dresser... or the floor.
+const ON_SURFACES := ["table_lamp", "radio"]
 ## Surfaces a table lamp may stand on (tops no higher than this).
 const SURFACE_MAX := 1.1
 const SNAP := 0.05
@@ -81,13 +90,21 @@ static func is_lamp(kind: String) -> bool:
 	return kind in LAMPS
 
 
+static func is_media(kind: String) -> bool:
+	return kind in MEDIA
+
+
+static func on_surfaces(kind: String) -> bool:
+	return kind in ON_SURFACES
+
+
 static func is_wall_hung(kind: String) -> bool:
 	return kind == "painting"
 
 
 ## Flat or tiny pieces other furniture may stand over or next to (they don't block).
 static func is_flat(kind: String) -> bool:
-	return kind == "rug" or kind == "painting" or kind == "table_lamp"
+	return kind == "rug" or kind == "painting" or kind == "table_lamp" or kind == "radio"
 
 
 static func cost(kind: String) -> Dictionary:

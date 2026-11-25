@@ -25,6 +25,10 @@ extends Node3D
 ## demolition, blast or bite, voxels without a chain to the ground fall, and
 ## doors, window boards and the fuse box fall with their wall), and the roof
 ## and the upper floor need their outer walls (`support`, HouseSupport).
+## Exp 006 (B): timber footings (`timber`: foundation tiles of planks; stone
+## walls still need stone), founded walls (is_founded: on the house floor or
+## a footing) resist blows better than walls on bare ground (UNFOUNDED_BITE),
+## and windows can be walled up (WindowFill, src/world/window_fill.gd).
 
 signal structure_changed
 signal object_destroyed(kind: String, at: Vector3)
@@ -81,6 +85,9 @@ const SECTION_MATERIALS := {
 }
 const PLATED_FACTOR := 2.0
 const UNFOUNDED_LOAD := 0.5            ## support factor of a wall without a foundation under it
+const UNFOUNDED_BITE := 1.35           ## Exp 006 (B): blows bite this much deeper into a wall on bare ground
+const TIMBER_TONES := [0x7a5c40, 0x86684a, 0x6e523a, 0x8f7354, 0x735840]   ## Exp 006 (B): footing planks
+const TIMBER_JOINT := 0x4a3a2a
 ## Blasts: objects within radius x this are damaged; scorch reaches radius x SCORCH_REACH.
 const BLAST_OBJECT_REACH := 1.5
 const SCORCH_REACH := 1.35
@@ -157,6 +164,7 @@ var sections := {}
 var built := {}                ## player-built wall segments (seg -> true)
 var upgraded := {}             ## sheathed (iron-plated) sections (seg -> true)
 var foundations := {}          ## stone foundation tiles laid by the player (seg -> true)
+var timber := {}               ## Exp 006 (B): the foundation tiles that are timber footings (seg -> true; saved "timber")
 var scars: Array = []          ## blast scorch marks on the ground: [x, z, radius]
 var openings: Array = []       ## door-like gaps: {"axis", "line", "from", "to", "orig"}
 var props: Array = []          ## tall meshes the cutaway hides: {"node", "centre", "half", "body", "cut"}
@@ -257,6 +265,7 @@ func save_data() -> Dictionary:
 		"design": VoxelDiff.encode(design, p), "current": VoxelDiff.encode(grid, p),
 		"objects": objs, "built": _keys(built), "upgraded": _keys(upgraded), "openings": cut,
 		"stone": _keys(_stone_sections()), "foundations": _keys(foundations), "scars": scars.duplicate(true),
+		"timber": _keys(timber),         # Exp 006 (B), optional: which foundation tiles are timber footings
 		# Experiment 004 (optional): furniture states; "exp4" marks a save that
 		# already knows the fuse box (older saves get the pristine one)
 		"furniture": furniture.save_data() if furniture != null else {}, "exp4": 1,
@@ -308,7 +317,14 @@ func load_data(d: Dictionary) -> bool:
 	VoxelDiff.apply(g_cur, dc)
 	if not d.has("exp4"):
 		objs.append(_pristine_fuse_box())        # a save from before Experiment 004
+	var tf: Variant = _valid_segs(d.get("timber", []), 3)      # Exp 006 (B): optional
+	if tf is Array:
+		for e in tf:
+			timber[Vector3i(int(e[0]), int(e[1]), int(e[2]))] = true
 	_build(g_design, g_cur, objs, b, u, cut, st, fd, sc)
+	for k in timber.keys():
+		if not foundations.has(k):
+			timber.erase(k)
 	if support != null:
 		support.load_data(d.get("collapsed", []))     # Refinement 01 (S)
 	if furniture != null:
@@ -922,6 +938,10 @@ func _bite(attacker_pos: Vector3, target: Vector2, strength: float) -> void:
 		m = vh["mat"]
 		n = vh["normal"]
 	var r := BITE_RADIUS * pow(strength, 1.0 / 3.0)
+	if not vh.is_empty() and VoxelMat.is_struct(m) and m != VoxelMat.EARTH:      # Exp 006 (B): walls on bare ground give more
+		var hc: Vector3i = vh["cell"]
+		if on_bare_ground(_section_of_index(grid.idx(hc.x, hc.y, hc.z))):
+			r *= UNFOUNDED_BITE
 	if m == VoxelMat.METAL_SHEET:
 		r *= SHEET_BITE
 	elif m == VoxelMat.MASONRY or m == VoxelMat.MORTAR:
@@ -1737,6 +1757,56 @@ func is_founded(s: Vector3i) -> bool:
 	return n > 0 and on >= n * 0.85
 
 
+## Exp 006 (B): true for a wall the player built on the ground storey that
+## stands on bare ground (no house floor and no foundation or footing under
+## it): blows bite UNFOUNDED_BITE deeper into it. The house's own walls and
+## the storeys' walls stand on their floors.
+func on_bare_ground(s: Variant) -> bool:
+	if s == null or not (s is Vector3i) or not sections.has(s) or sections[s].get("orig", false) or not layout_id().begins_with(LAYOUT):
+		return false
+	return not is_founded(s)
+
+
+## Exp 006 (B): founded for a stone wall: on the house floor or stone
+## foundation, not (only) on a timber footing.
+func is_stone_founded(s: Vector3i) -> bool:
+	if not is_founded(s):
+		return false
+	var r := seg_rect(s, STONE_HALF).grow(-0.02)
+	for t in timber:
+		if seg_rect(t, FOUNDATION_HALF).intersects(r):
+			return false
+	return true
+
+
+## Exp 006 (B): "stone" | "wood" for a laid foundation tile, "" for none.
+func foundation_material(s: Vector3i) -> String:
+	if not foundations.has(s):
+		return ""
+	return "wood" if timber.has(s) else "stone"
+
+
+## Exp 006 (B): design voxels of a foundation tile missing in the current grid (blasts).
+func foundation_missing(s: Vector3i) -> int:
+	var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW)
+	var n := 0
+	for y in range(b[0].y, b[1].y):
+		for z in range(b[0].z, b[1].z):
+			for x in range(b[0].x, b[1].x):
+				var i := grid.idx(x, y, z)
+				if design.mat[i] == VoxelMat.PAVING and grid.mat[i] != VoxelMat.PAVING:
+					n += 1
+	return n
+
+
+## Exp 006 (B): lays a damaged foundation tile again. Returns the voxels restored.
+func repair_foundation(s: Vector3i) -> int:
+	var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW)
+	var n := _copy_design(b[0], b[1])
+	_edited(b[0], b[1])
+	return n
+
+
 ## Missing design voxels of a section (as section_missing) by the resource
 ## that repairs them: "stone" (masonry, mortar), "iron" (plating), "wood"
 ## (everything else: timber framing, boards, drywall, trim, glass).
@@ -1978,9 +2048,10 @@ func demolish_wall(s: Vector3i) -> void:
 ## centred on each segment, two voxel rows of paving slabs (the top row flush
 ## with the house floor, 3 cm above the yard ground) in 0.5 m flagstones with
 ## dark joints. Cells that already have a floor are left alone.
-func build_foundation(segs: Array) -> void:
+func build_foundation(segs: Array, material := "stone") -> void:
 	var lo := Vector3i(1 << 20, 1 << 20, 1 << 20)
 	var hi := -lo
+	var wood := material == "wood"          # Exp 006 (B): a timber footing (planks, same PAVING voxels)
 	for s in segs:
 		var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW)
 		for z in range(b[0].z, b[1].z):
@@ -1994,12 +2065,22 @@ func build_foundation(segs: Array) -> void:
 				var c := VoxelArt.jitter(slab, x, 0, z, 0.05)
 				if posmod(xi, 5) == 0 or posmod(zi, 5) == 0:
 					c = VoxelArt.jitter(PAVING_JOINT, x, 0, z, 0.06)
+				if wood:            # Exp 006 (B): planks 0.2 m wide across the tile's line, dark gaps
+					var along := zi if s.x == 0 else xi
+					var plank: int = TIMBER_TONES[int(VoxelArt.hash3(floori(along / 2.0), s.y, s.z, 31) * TIMBER_TONES.size()) % TIMBER_TONES.size()]
+					c = VoxelArt.jitter(plank, x, 0, z, 0.04)
+					if posmod(along, 2) == 0 and VoxelArt.hash3(x, z, 1, 33) < 0.6:
+						c = VoxelArt.jitter(TIMBER_JOINT, x, 0, z, 0.05)
 				_put(x, VoxelHouse.FLOOR_ROW, z, VoxelMat.PAVING, c, c, 0)
 				var under := VoxelArt.scale(c, 0.8)
 				_put(x, VoxelHouse.SCREED_ROW, z, VoxelMat.PAVING, under, under, 0)
 		lo = lo.min(b[0])
 		hi = hi.max(b[1])
 		foundations[s] = true
+		if wood:
+			timber[s] = true
+		else:
+			timber.erase(s)
 	if hi.x > lo.x:
 		_edited(lo, hi)
 	_foundations_changed()
@@ -2011,6 +2092,7 @@ func remove_foundation(s: Vector3i) -> void:
 	if not foundations.has(s):
 		return
 	foundations.erase(s)
+	timber.erase(s)          # Exp 006 (B)
 	var b := _box_of(design, seg_rect(s, FOUNDATION_HALF), VoxelHouse.SCREED_ROW, VoxelHouse.FLOOR_ROW)
 	for z in range(b[0].z, b[1].z):
 		for x in range(b[0].x, b[1].x):

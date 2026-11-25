@@ -7,8 +7,9 @@ extends RefCounted
 ## Model: the household pool is what you carry and use. Furniture storage is
 ## extra, separately counted space: putting items into a cupboard takes them
 ## out of the pool's count (and out from under the pool's material caps);
-## taking them out puts them back. Building, crafting, eating from the bar
-## and expeditions only use the pool; food and drink can also be eaten
+## taking them out puts them back. Crafting, eating from the bar and
+## expeditions only use the pool (Exp 006 (B): building, repairing and
+## upgrading also draw on the containers, HouseSupply); food and drink can also be eaten
 ## straight out of storage (use_from). Every transfer moves exactly what it
 ## reports: the count leaves one side and arrives on the other, or nothing
 ## happens (no duplication, no deletion).
@@ -53,7 +54,8 @@ const NAMES := {"cupboard": "Kitchen cupboard", "counter": "Kitchen cupboard", "
 ## What the original house starts with in some of its containers (a small
 ## bonus on top of the start items, found by looking around).
 const START := {"fridge": {"canned_food": 1, "water": 1}, "shelves": {"nails": 6, "scrap": 1}, "vanity": {"bandage": 1}}
-const RULE_TEXT := "Stored items are kept aside: building, crafting and the quick bar use only what you carry. Take them out to use them."
+## Exp 006 (B): building, repairs and upgrades also draw on stored materials (HouseSupply).
+const RULE_TEXT := "Building and repairs also use materials stored in the house. Crafting, eating and the quick bar use only what you carry: take items out to use them."
 
 
 static func is_storage(type: String) -> bool:

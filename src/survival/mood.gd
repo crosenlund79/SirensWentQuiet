@@ -112,7 +112,7 @@ static func rest_scale(mood: float, room_level: int) -> float:
 
 ## The target and its causes ([[text, delta]], largest first). `inputs`:
 ## {"house": float, "fire_near": bool, "cold": bool, "exposed_rooms": int,
-## "night_light": "lit" | "dark" | ""},
+## "night_light": "lit" | "dark" | "", "media": "" | "tv_stand" | "radio" (Exp 006 (B))},
 ## the stats from `state`, the memories and bleak hours from state.mood_state.
 static func target(state: Object, inputs: Dictionary) -> Dictionary:
 	var causes := []
@@ -147,6 +147,9 @@ static func target(state: Object, inputs: Dictionary) -> Dictionary:
 		causes.append(["Hurt", HURT])
 	if bool(inputs.get("cold", false)):
 		causes.append(["Cold", COLD])
+	var media := HouseMedia.cause(str(inputs.get("media", "")))      # Exp 006 (B): a TV or radio in Eli's room
+	if not media.is_empty():
+		causes.append(media)
 	match str(inputs.get("night_light", "")):
 		"lit":
 			causes.append(["A warm light against the night", LAMPLIGHT])

@@ -20,7 +20,8 @@ const C := preload("res://src/home/comfort_catalog.gd")
 ## "wrecked": int, "lamps": int (lit), "fire": "here" | "near" | "",
 ## "fireplace": bool (a fireplace stands here, lit or not),
 ## "windows": {"intact", "broken", "boarded"}, "light": "day" | "dusk" | "night",
-## "floor": 0..1 (finished), "exposed": bool, "damaged_walls": int}.
+## "floor": 0..1 (finished), "exposed": bool, "damaged_walls": int,
+## "media": "" | "tv_stand" | "radio" (Exp 006 (B): the playing source that counts here)}.
 ## Returns {"comfort", "level", "level_name", "label", "factors": [[text, delta]],
 ## "hints": [text], "exposed": bool, "lit": bool}.
 static func evaluate(info: Dictionary) -> Dictionary:
@@ -106,6 +107,10 @@ static func evaluate(info: Dictionary) -> Dictionary:
 		else:
 			factors.append(["Dark at night", C.DARK_NIGHT])
 		hints.append("A lamp would help here.")
+	# --- Exp 006 (B): a TV or radio playing (one per room; HouseMedia caps the house) ---
+	var mf := HouseMedia.factor(str(info.get("media", "")))
+	if not mf.is_empty():
+		factors.append(mf)
 	# --- warmth -----------------------------------------------------------------------
 	if fire == "here":
 		factors.append(["Fireplace warmth", C.FIRE_HERE])

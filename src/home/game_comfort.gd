@@ -180,6 +180,9 @@ func _signature() -> String:
 		for o in w.objects:
 			if o.has_method("is_lit"):
 				parts.append("1" if o.call("is_lit") else "0")
+	var b = game.get("balance")          # Exp 006 (B): TVs and radios switched on or off
+	if b != null and b.has_method("media_signature"):
+		parts.append(str(b.call("media_signature")))
 	return "|".join(parts)
 
 
@@ -247,6 +250,7 @@ func _recompute_comfort() -> void:
 	var t0 := Time.get_ticks_usec()
 	var light := _light_bucket()
 	var fire := _fire_info()
+	var media := _media_rooms()          # Exp 006 (B): playing TVs and radios, capped house-wide
 	var all := []
 	for s in maps:
 		var w := world_of(s)
@@ -278,6 +282,8 @@ func _recompute_comfort() -> void:
 			var i := HouseRooms.room_index_at(map, nav, p, 3)
 			if i >= 0:
 				infos[i]["lamps"] += 1
+		for i in infos.size():          # Exp 006 (B)
+			infos[i]["media"] = str(media["bonus"].get("%d:%d" % [s, i], ""))
 		for win in windows.get(s, []):
 			var i := HouseRooms.room_index_at(map, nav, win["inside"], 2)
 			if i >= 0:
@@ -302,6 +308,7 @@ func _recompute_comfort() -> void:
 			e["centre"] = r["centre"]
 			e["id"] = "%d:%d" % [s, i]
 			e["fire"] = infos[i]["fire"]
+			e["media_here"] = str(media["here"].get(e["id"], ""))      # Exp 006 (B): for the mood
 			out.append(e)
 			all.append(e)
 		rooms[s] = out
@@ -311,6 +318,41 @@ func _recompute_comfort() -> void:
 	stats["comfort_runs"] += 1
 	_apply_rest()
 	_update_hud(true)
+
+
+## Exp 006 (B): the playing TVs and radios by room: {"here": {"s:i": best
+## kind there}, "bonus": {"s:i": kind whose comfort counts}} (HouseMedia caps
+## the bonus at ROOMS_MAX rooms). Sources come from the game's balance helper.
+func _media_rooms() -> Dictionary:
+	var here := {}
+	var bonus := {}
+	var b = game.get("balance")
+	if b == null or not b.has_method("playing_sources"):
+		return {"here": here, "bonus": bonus}
+	var keys := []
+	var lists := []
+	for src in b.call("playing_sources"):
+		var s := int(src["storey"])
+		var map: Dictionary = maps.get(s, {})
+		var w := world_of(s)
+		if map.is_empty() or w == null:
+			continue
+		var i := HouseRooms.room_index_at(map, w.nav, src["pos"], 3)
+		if i < 0:
+			continue
+		var key := "%d:%d" % [s, i]
+		var at := keys.find(key)
+		if at < 0:
+			keys.append(key)
+			lists.append([])
+			at = keys.size() - 1
+		lists[at].append(src["kind"])
+	var won := HouseMedia.room_bonuses(lists)
+	for k in keys.size():
+		here[keys[k]] = HouseMedia.best(lists[k])
+		if won[k] != "":
+			bonus[keys[k]] = won[k]
+	return {"here": here, "bonus": bonus}
 
 
 ## Furniture of a world as [{"type", "state", "pos", "id"}].
@@ -447,7 +489,8 @@ func _mood_inputs() -> Dictionary:
 	if night and not here.is_empty():
 		night_light = "lit" if here.get("lit", false) else "dark"
 	return {"house": house, "fire_near": not here.is_empty() and here.get("fire", "") != "",
-		"cold": night and (here.is_empty() or here["exposed"]), "exposed_rooms": exposed, "night_light": night_light}
+		"cold": night and (here.is_empty() or here["exposed"]), "exposed_rooms": exposed, "night_light": night_light,
+		"media": str(here.get("media_here", ""))}      # Exp 006 (B): a TV or radio playing in Eli's room
 
 
 func _mood_tick() -> void:

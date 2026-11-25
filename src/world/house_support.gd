@@ -40,6 +40,15 @@ extends RefCounted
 ## that aren't held fall (no floating rooms). tile_support_reason() is build
 ## mode's check for a new tile.
 
+## Exp 006 (B), foundations: a wall the player built OUTSIDE a perimeter
+## line (at most PROP_REACH m out, e.g. the outer wall of an extension after
+## the house wall came out) props it too, but only when it stands on a
+## foundation or footing (HouseWorld.is_founded); on bare ground it carries
+## nothing. Inside, every wall stands on the house floor. Raising a third
+## level (+2) needs a stone footing along the house: at least FOOTING_PER_SIDE
+## metres of stone foundation within FOOTING_REACH m outside each outer wall
+## (footing_reason; checked when the storey is built, not afterwards).
+
 signal collapsed(info: Dictionary)
 signal strained(info: Dictionary)
 
@@ -50,6 +59,8 @@ const MIN_VOXELS := 30             ## a section's design below this is no wall (
 const ROOF_EAVES := 0.65           ## the roof overhangs the footprint by 0.55 m
 const DECK_EDGE := 0.3             ## the upper deck and its outer walls past the footprint line
 const MINOR_VOXELS := 1200         ## fewer fallen deck voxels (a few re-laid tiles) hurt nobody
+const FOOTING_PER_SIDE := 2        ## Exp 006 (B): metres of stone footing per outer wall for a third level
+const FOOTING_REACH := 1.6         ## Exp 006 (B): m outside the wall line a footing tile's centre may be
 const ZONES := [
 	{"id": "bedroom", "name": "the bedroom", "rect": Rect2(0, 0, 5, 4)},
 	{"id": "bathroom", "name": "the bathroom", "rect": Rect2(5, 0, 3, 4)},
@@ -200,6 +211,10 @@ func line_bears(w: HouseWorld, key: String, k: int, skip := Vector3i(-1, -1, -1)
 			continue
 		if s != skip and section_bears(w, s):
 			return true
+	for d in range(1, PROP_REACH + 1):      # Exp 006 (B): founded walls outside the line
+		var s := Vector3i(l["axis"], l["line"] - d * int(l["in"]), k)
+		if s != skip and w.built.has(s) and section_bears(w, s) and w.is_founded(s):
+			return true
 	return _pillar_props(w, l, k)
 
 
@@ -233,6 +248,8 @@ func is_bearing(w: HouseWorld, s: Vector3i) -> bool:
 		var d := (s.y - int(l["line"])) * int(l["in"])
 		if d == 0 or (d > 0 and d <= PROP_REACH and w.built.has(s)):
 			return true
+		if d < 0 and d >= -PROP_REACH and w.built.has(s) and w.is_founded(s):      # Exp 006 (B)
+			return true
 	return false
 
 
@@ -260,6 +277,38 @@ func demolish_warning(w: HouseWorld, s: Vector3i) -> String:
 	if strain:
 		return "Load-bearing: the roof above will sag."
 	return "Load-bearing wall (carries the roof)."
+
+
+## Exp 006 (B): the outer walls (LINES keys) that lack a stone footing for a
+## third level: fewer than FOOTING_PER_SIDE stone foundation tiles centred
+## within FOOTING_REACH m outside the line, along it.
+static func footing_missing(w: HouseWorld) -> Array:
+	var out := []
+	if w == null:
+		return out
+	for key in LINES:
+		var l: Dictionary = LINES[key]
+		var n := 0
+		for t in w.foundations:
+			if w.timber.has(t):
+				continue
+			var c := HouseWorld.seg_center(t)
+			var across := (c.y if int(l["axis"]) == 0 else c.x) - float(l["line"])
+			var along := c.x if int(l["axis"]) == 0 else c.y
+			if across * float(l["in"]) < 0.0 and absf(across) <= FOOTING_REACH and along >= float(l["from"]) - 0.5 and along <= float(l["to"]) + 0.5:
+				n += 1
+		if n < FOOTING_PER_SIDE:
+			out.append(key)
+	return out
+
+
+## Exp 006 (B): "" or why a third level can't go up yet (build mode).
+static func footing_reason(w: HouseWorld) -> String:
+	var miss := footing_missing(w)
+	if miss.is_empty():
+		return ""
+	return "A third level needs a stone footing: lay %d m of stone foundation just outside the %s wall%s." % [
+		FOOTING_PER_SIDE, ", ".join(miss), "s" if miss.size() > 1 else ""]
 
 
 ## One line per zone for the developer menu.

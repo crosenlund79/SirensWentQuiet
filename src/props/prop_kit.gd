@@ -43,7 +43,7 @@ const PROP_TYPES := [
 const SURVIVAL_TYPES := ["door", "barricade", "crate", "rain_collector", "candle", "lantern", "bush", "wall_ghost",
 	"boards", "fuse_box", "rubble"]   # Experiment 004
 ## Experiment 004: electric fixtures, the wall switch and the fireplace (prop_home.gd).
-const HOME_TYPES := ["ceiling_light", "range_hood", "table_lamp", "bare_bulb", "bulb", "light_switch", "fireplace"]
+const HOME_TYPES := ["ceiling_light", "range_hood", "table_lamp", "bare_bulb", "bulb", "light_switch", "fireplace", "radio"]   # Exp 006 (B): + radio
 ## Exp 005 (F): new furniture and the loot pile (prop_storage.gd).
 const STORAGE_TYPES := ["cupboard", "storage_chest", "tool_cabinet", "painting", "loot_pile"]
 
@@ -85,7 +85,7 @@ const DEFAULT_SIZE := {
 	"bush": Vector3(1.2, 0.9, 1.0), "wall_ghost": Vector3(1.0, 2.6, 0.2),
 	"boards": Vector3(1.0, 1.3, 0.08), "fuse_box": Vector3(0.5, 0.7, 0.16), "rubble": Vector3(1.0, 0.2, 1.0),
 	"ceiling_light": Vector3(0.42, 0.2, 0.42), "range_hood": Vector3(0.75, 0.55, 0.5),
-	"table_lamp": Vector3(0.26, 0.42, 0.26), "bare_bulb": Vector3(0.12, 0.4, 0.12),
+	"table_lamp": Vector3(0.26, 0.42, 0.26), "bare_bulb": Vector3(0.12, 0.4, 0.12), "radio": Vector3(0.34, 0.2, 0.14),
 	"bulb": Vector3(0.1, 0.12, 0.1), "light_switch": Vector3(0.09, 0.13, 0.03),
 	"fireplace": Vector3(1.5, 2.6, 0.55),
 	"cupboard": Vector3(1.0, 0.92, 0.6), "storage_chest": Vector3(1.0, 0.6, 0.55), "tool_cabinet": Vector3(0.9, 1.8, 0.45),

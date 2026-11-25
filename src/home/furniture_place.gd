@@ -104,7 +104,7 @@ static func check(w: HouseWorld, kind: String, size: Vector3, pos: Vector2, rot:
 			or w.grid.any_struct_in(inner.position, inner.end, VoxelHouse.NAV_ROW_LO, VoxelHouse.NAV_ROW_HI):
 		out["reason"] = "There's a wall in the way."
 		return out
-	if kind == "table_lamp":
+	if FurnitureCatalog.on_surfaces(kind):
 		out["lift"] = surface_at(w, pos, ignore_obj, ignore_piece)
 	var flat := FurnitureCatalog.is_flat(kind)
 	for o in w.objects_in(inner):
@@ -114,13 +114,13 @@ static func check(w: HouseWorld, kind: String, size: Vector3, pos: Vector2, rot:
 			continue          # a rug lies under things
 		if kind != "rug" and o.kind == "rug":
 			continue
-		if kind == "table_lamp" and out["lift"] > 0.0 and FurnitureCatalog.is_furniture(o.kind) and o.footprint().has_point(pos):
+		if FurnitureCatalog.on_surfaces(kind) and out["lift"] > 0.0 and FurnitureCatalog.is_furniture(o.kind) and o.footprint().has_point(pos):
 			continue          # the surface it stands on
 		out["reason"] = "Something is already standing here."
 		return out
 	if kind != "rug":
 		var fid := _piece_in(w, inner, ignore_piece)
-		if fid != "" and not (kind == "table_lamp" and out["lift"] > 0.0):
+		if fid != "" and not (FurnitureCatalog.on_surfaces(kind) and out["lift"] > 0.0):
 			out["reason"] = "Furniture is in the way."
 			return out
 		if _blocked_static(w, inner):
@@ -410,7 +410,7 @@ static func status(bm: Node, r: Dictionary) -> String:
 static func settle_lamps(w: HouseWorld) -> int:
 	var n := 0
 	for o in w.objects:
-		if o.kind != "table_lamp" or o.lift <= 0.0:
+		if not FurnitureCatalog.on_surfaces(o.kind) or o.lift <= 0.0:
 			continue
 		var h := surface_at(w, o.pos, o)
 		if absf(h - o.lift) > 0.01:

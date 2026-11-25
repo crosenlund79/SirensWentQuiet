@@ -40,6 +40,7 @@ const SupportLink := preload("res://src/world/game_support.gd")   # Refinement 0
 const StorageLink := preload("res://src/home/game_storage.gd")   # Exp 005 (F): storage furniture, placed lamps
 const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): footsteps, ambience layers, Eli
 const ResearchLink := preload("res://src/research/game_research.gd")   # Exp 006 (R): skills, books, K
+const BalanceLink := preload("res://src/home/game_balance.gd")   # Exp 006 (B): house supply, TV and radio, F10 House & balance
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -70,6 +71,7 @@ var storage: Node                      ## src/home/game_storage.gd (Exp 005, F: 
 var audio: Node                        ## src/audio/game_audio.gd (Exp 005, A: footsteps, ambience layers, voice)
 var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C): rooms, comfort, mood)
 var research: Node                     ## src/research/game_research.gd (Exp 006 (R): K, book toasts, F10 Research)
+var balance: Node                      ## src/home/game_balance.gd (Exp 006 (B): house supply, TV and radio)
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -276,6 +278,10 @@ func _assemble() -> void:
 	research.name = "Research"
 	add_child(research)
 	research.setup(self)
+	balance = BalanceLink.new()        # Exp 006 (B): after build, storage and home (supply, TV and radio)
+	balance.name = "Balance"
+	add_child(balance)
+	balance.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -589,7 +595,7 @@ func _update_prompt() -> void:
 	var p := ""
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables() + car.interactables() + home.interactables()), player.plan_pos())   # + stairs, by storey (L); + the yard car (E); + home (H)
+		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables() + car.interactables() + home.interactables() + (balance.interactables() if balance != null else [])), player.plan_pos())   # + stairs, by storey (L); + the yard car (E); + home (H)
 		p = str(_focus.interact_prompt()) if _focus != null else boundary.prompt_text()
 	if p != _prompt:
 		_prompt = p

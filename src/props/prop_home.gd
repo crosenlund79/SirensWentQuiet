@@ -32,9 +32,36 @@ static func build(mm: PropMesh, type: String, w: float, h: float, d: float, rng:
 			_light_switch(mm, w, d, h)
 		"fireplace":
 			_fireplace(mm, w, d, h, rng, damage)
+		"radio":                  # Exp 006 (B)
+			_radio(mm, w, d, h)
 		_:
 			return false
 	return true
+
+
+## Exp 006 (B): a small mains radio: a two-tone cabinet, a speaker grille on
+## the left of the front, a tuning dial on the right (glows while it plays:
+## L_GLOW), a carrying handle and a telescopic antenna.
+static func _radio(mm: PropMesh, w: float, d: float, h: float) -> void:
+	var x := w * 0.5
+	var z := d * 0.5
+	mm.set_mat(M.L_GLOSSY, Color(0.36, 0.25, 0.18))
+	mm.chamfer_box(Vector3(-x, 0, -z), Vector3(x, h * 0.82, z), 0.015)
+	mm.set_mat(M.L_PLAIN, Color(0.83, 0.79, 0.68))
+	mm.box(Vector3(-x + 0.012, 0.02, z), Vector3(x - 0.012, h * 0.82 - 0.02, z + 0.004), ["-z"])
+	mm.set_mat(M.L_METAL, Color(0.25, 0.24, 0.22), 0.3)
+	for i in 5:                   # grille slots
+		var gy := 0.04 + i * (h * 0.6 / 5.0)
+		mm.box(Vector3(-x + 0.03, gy, z + 0.004), Vector3(-0.01, gy + 0.012, z + 0.008), ["-z"])
+	mm.set_mat(M.L_GLOW, Color(1.0, 0.78, 0.42))
+	mm.box(Vector3(0.02, h * 0.38, z + 0.004), Vector3(x - 0.03, h * 0.62, z + 0.007), ["-z"])
+	mm.set_mat(M.L_PLAIN, Color(0.12, 0.11, 0.1))
+	mm.cylinder(Vector3(x - 0.05, 0.05, z + 0.004), 0.016, 0.016, 0.01, 8, true)
+	mm.set_mat(M.L_METAL, Color(0.7, 0.71, 0.72), 0.15)
+	mm.box(Vector3(-x * 0.6, h * 0.82, -0.008), Vector3(-x * 0.6 + 0.012, h, 0.008))
+	mm.box(Vector3(x * 0.6 - 0.012, h * 0.82, -0.008), Vector3(x * 0.6, h, 0.008))
+	mm.box(Vector3(-x * 0.6, h - 0.012, -0.008), Vector3(x * 0.6, h, 0.008))
+	mm.cylinder(Vector3(x - 0.04, h * 0.82, -z + 0.02), 0.004, 0.003, h * 0.18, 5, false)
 
 
 ## A frosted glass bowl under a short stem and ceiling canopy.

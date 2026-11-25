@@ -133,12 +133,30 @@ const LIST := [
 		"hint": "Aim at a wall: it hangs on your side"},
 	{"id": "plant", "name": "Plant", "short": "Plant", "tool": "place", "slot": 4, "cost": {"wood": 1}, "kind": "plant", "mat": "wood",
 		"hint": "Furniture · R rotates"},
+	# --- Exp 006 (B): house and balance -------------------------------------------------
+	{"id": "timber_footing", "name": "Timber footing", "short": "Timber", "tool": "place", "slot": 9, "cost": {"wood": 2, "nails": 2}, "per_m": true,
+		"cat": "walls", "requires": "", "icon": "foundation",
+		"hint": "Cheap 1 m plank footing · wooden walls on it are founded (stone walls need stone) · drag for a strip"},
+	{"id": "remove_window", "name": "Remove window", "short": "Window", "tool": "remove_window", "slot": 8, "cost": {"wood": 3, "nails": 4}, "per_m": true,
+		"cat": "tools", "requires": "", "icon": "window",
+		"hint": "Aim at a window: it becomes solid wall like the wall around it · the frame gives back a plank, a nail and scrap per metre"},
+	{"id": "tv_stand", "name": "TV", "short": "TV", "tool": "place", "slot": 4, "cost": {"wood": 3, "nails": 4, "scrap": 6}, "kind": "tv_stand", "mat": "wood",
+		"cat": "utilities", "requires": "", "icon": "tv",
+		"hint": "A TV on a stand · E switches it · needs power · a little comfort and mood while it's on (one per room counts) · R rotates"},
+	{"id": "radio", "name": "Radio", "short": "Radio", "tool": "place", "slot": 4, "cost": {"scrap": 4, "nails": 1}, "kind": "radio", "mat": "wood",
+		"cat": "utilities", "requires": "", "icon": "radio",
+		"hint": "A mains radio: soft static and voices · E switches it · needs power · on a table or the floor · R rotates"},
 ]
 
 ## Wall costs per 1 m segment by material (demolish refunds half).
 const WALL_COST := {"wood": 4, "nails": 6}
 const WALL_COSTS := {"wood": {"wood": 4, "nails": 6}, "stone": {"stone": 6}}
 const FOUNDATION_COST := {"stone": 2}
+const TIMBER_FOOTING_COST := {"wood": 2, "nails": 2}       ## Exp 006 (B)
+## Exp 006 (B): "Remove window" per 1 m section: the wall that fills it
+## (cost) and what the frame gives back (glass breaks: nothing for it).
+const WINDOW_FILL_COST := {"wood": 3, "nails": 4}
+const WINDOW_FRAME_SALVAGE := {"wood": 1, "nails": 1, "scrap": 1}
 ## Costs of placed objects (object repair and demolish refunds); iron
 ## variants in OBJECT_COST_MAT.
 const OBJECT_COST := {

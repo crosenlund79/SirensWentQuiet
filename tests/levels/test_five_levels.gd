@@ -217,6 +217,11 @@ func test_five_levels_in_the_game() -> void:
 	check(_apply(g, "wall", Vector3(4.5, Levels.HEIGHT, 3.0)), "a wall on +1 from below")
 	check(lv.upper.built.has(Vector3i(0, 3, 4)) and not g.world.built.has(Vector3i(0, 3, 4)), "built on +1 only")
 	check(_apply(g, "stairs_up", Vector3(2.5, Levels.HEIGHT, 6.5), 1), "stairs up on +1")
+	# Exp 006 (B): a third level needs a stone footing outside each outer wall
+	bm.select_id("upper_floor")
+	check(bm.evaluate(Vector2(5, 5))["reason"].contains("stone footing"), "+2 needs a stone footing first (%s)" % bm.evaluate(Vector2(5, 5))["reason"])
+	g.world.build_foundation([Vector3i(0, -1, 2), Vector3i(0, -1, 3), Vector3i(0, 10, 2), Vector3i(0, 10, 3),
+		Vector3i(1, -1, 2), Vector3i(1, -1, 3), Vector3i(1, 15, 2), Vector3i(1, 15, 3)])
 	check(_apply(g, "upper_floor", Vector3(5.0, Levels.HEIGHT, 5.0)), "next storey: +2")
 	check(lv.world_of(2) != null and lv.roof_storey() == 2, "+2 exists, the roof on top of it")
 	await _view(g, 1)

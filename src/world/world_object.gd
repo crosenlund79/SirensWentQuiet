@@ -64,6 +64,8 @@ const DEFS := {
 	"island": {"name": "Kitchen island", "hp": 14, "size": Vector3(1.9, 0.92, 0.85), "segment": false, "layers": 16, "impact": VoxelMat.Impact.WOOD},
 	"stool": {"name": "Stool", "hp": 4, "size": Vector3(0.4, 0.7, 0.4), "segment": false, "layers": 16, "impact": VoxelMat.Impact.METAL},
 	"boxes": {"name": "Cardboard boxes", "hp": 5, "size": Vector3(1.0, 0.6, 0.7), "segment": false, "layers": 16, "impact": VoxelMat.Impact.PAPER},
+	## Exp 006 (B): a small mains radio (HouseMedia); flat: it stands on tables too.
+	"radio": {"name": "Radio", "hp": 3, "size": Vector3(0.34, 0.2, 0.14), "segment": false, "layers": 0, "impact": VoxelMat.Impact.METAL},
 	## Exp 005 (F): what a destroyed or demolished storage piece leaves (E searches it).
 	"loot_pile": {"name": "Pile of belongings", "hp": 1, "size": Vector3(0.8, 0.3, 0.8), "segment": false, "layers": 0, "impact": VoxelMat.Impact.PAPER},
 }
@@ -97,6 +99,7 @@ var size_override := Vector3.ZERO   ## a moved original keeps its own size (w, h
 var lift := 0.0                  ## a table lamp standing on a surface: the surface's height
 var lamp_on := true              ## a lamp's own switch (saved)
 var powered := false             ## the house has power (set by the game's storage helper)
+var media_on := false            ## Exp 006 (B): a TV's or radio's own switch (saved as "on")
 var _lamp_light: OmniLight3D
 
 static var _next_uid := 1
@@ -330,6 +333,8 @@ func to_dict() -> Dictionary:
 		d["lift"] = lift
 	if FurnitureCatalog.is_lamp(kind):
 		d["on"] = lamp_on
+	elif FurnitureCatalog.is_media(kind):      # Exp 006 (B)
+		d["on"] = media_on
 	return d
 
 
@@ -345,7 +350,10 @@ func apply_extra(e: Dictionary) -> void:
 	if typeof(e.get("lift")) == TYPE_FLOAT and float(e["lift"]) > 0.0:
 		set_lift(float(e["lift"]))
 	if typeof(e.get("on")) == TYPE_BOOL:
-		set_lamp(e["on"])
+		if FurnitureCatalog.is_media(kind):      # Exp 006 (B)
+			media_on = e["on"]
+		else:
+			set_lamp(e["on"])
 
 
 ## Exp 005 (F): a moved original's own size (before it is in the tree).
@@ -435,6 +443,8 @@ func interact_prompt() -> String:
 			return "[E] Sleep"
 		"floor_lamp", "table_lamp":
 			return "[E] Turn the lamp off" if lamp_on else "[E] Turn the lamp on"
+		"tv_stand", "radio":      # Exp 006 (B)
+			return HouseMedia.prompt(kind, media_on)
 	if storage_type() != "":
 		return "[E] Open the %s (%s)" % [FurnitureStorage.name_of(kind).to_lower(), FurnitureStorage.fill_text(kind, items)]
 	return ""
@@ -480,6 +490,12 @@ func interact(game: Node) -> void:
 				game.toast("Nothing. There's no power.", "warn")
 			if world != null and world.has_signal("furniture_layout_changed"):
 				world.emit_signal("furniture_layout_changed")
+		"tv_stand", "radio":      # Exp 006 (B): the game's balance helper switches it (power, effects)
+			var b: Variant = game.get("balance") if game != null else null
+			if b is Object and is_instance_valid(b) and b.has_method("toggle_object"):
+				b.toggle_object(self)
+			else:
+				media_on = not media_on
 		_:
 			if storage_type() != "" or kind == "loot_pile":
 				var h: Variant = game.get("storage") if game != null else null
