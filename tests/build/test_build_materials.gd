@@ -298,6 +298,9 @@ func test_workbench_turns_scrap_into_iron() -> void:
 func test_palette_categories_quick_keys_and_recent() -> void:
 	var setup: Array = await _setup(true)
 	var b: BuildMode = setup[2]
+	var research = load("res://src/research/research.gd") if ResourceLoader.exists("res://src/research/research.gd") else null
+	if research != null:
+		research.learn_all(setup[1])          # Exp 006: agent R's gates (a new run knows no skills)
 	b.set_active(true)
 	await frames(1)
 	check_eq(b.palette.slot_labels().size(), 8, "eight categories")

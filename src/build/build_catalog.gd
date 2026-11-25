@@ -16,8 +16,8 @@ extends RefCounted
 ## Adding a category = one CATEGORIES line and its icon alias in UiIcons.
 ##
 ## Gating (SPEC-006 §2): lock_reason() asks R's `Research.locked_reason(state,
-## piece)` when that class exists, else checks the entry's "requires" against
-## `state.skills`. Availability (SPEC-006 §3): available() asks B's supply
+## piece)` when that class exists (R keeps the gates in Research.GATES by
+## piece id), else checks an entry's "requires" against `state.skills`. Availability (SPEC-006 §3): available() asks B's supply
 ## helper when build mode has one (`supply.available(item)`) or the state does
 ## (`available(item)`), else counts the household inventory.
 
@@ -159,8 +159,11 @@ static func _research_script() -> Script:
 		for c in ProjectSettings.get_global_class_list():
 			if str(c.get("class", "")) == "Research":
 				var s: Variant = load(str(c.get("path", "")))
-				if s is Script and (s as Script).has_method("locked_reason"):
-					_research = s
+				if s is Script:
+					for m in (s as Script).get_script_method_list():
+						if str(m.get("name", "")) == "locked_reason":
+							_research = s
+							break
 				break
 	return _research as Script
 

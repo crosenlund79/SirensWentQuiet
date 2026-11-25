@@ -15,11 +15,24 @@ func _build(unlimited := false) -> BuildMode:
 	w.build_new()
 	var s := GameState.new_run(7)
 	s.cheats["unlimited"] = unlimited
+	_learn_all(s)
 	var b := BuildMode.new()
 	b.setup(w, s, null, null)
 	add(b)
 	await physics_frames(2)
 	return b
+
+
+## Agent R's research (when merged): a new run knows no skills, so learn them
+## all for tests that are not about the locks.
+static func _research() -> Variant:
+	return load("res://src/research/research.gd") if ResourceLoader.exists("res://src/research/research.gd") else null
+
+
+static func _learn_all(s: GameState) -> void:
+	var r: Variant = _research()
+	if r != null:
+		r.learn_all(s)
 
 
 func test_every_piece_has_a_category_and_a_drawable_icon() -> void:
@@ -53,15 +66,22 @@ func test_new_entries_bring_their_own_category_and_icon() -> void:
 
 
 func test_lock_reason_reads_research_or_the_skills() -> void:
+	check_eq(BuildCatalog.lock_reason(GameState.new_run(1), {"id": "chair", "cost": {}}), "", "a real state: plain pieces stay open")
+	if _research() != null:
+		# Agent R's gates (Research.GATES): a new run knows nothing yet.
+		var s := GameState.new_run(1)
+		var md: Dictionary = BuildPieces.LIST[BuildPieces.index_of("metal_door")]
+		check(BuildCatalog.lock_reason(s, md) != "", "the metal door is locked at first (%s)" % BuildCatalog.lock_reason(s, md))
+		_learn_all(s)
+		check_eq(BuildCatalog.lock_reason(s, md), "", "and open once learned")
+		return
+	# Without R's code: the entry's "requires" against state.skills.
 	var piece := {"id": "metal_spikes", "cat": "defense", "requires": "metalworking", "cost": {}}
 	var st := FakeState.new()
-	check(BuildCatalog.lock_reason(st, piece) != "", "locked without the skill (%s)" % BuildCatalog.lock_reason(st, piece))
+	check_eq(BuildCatalog.lock_reason(st, piece), "Requires Metalworking", "the fallback names the skill")
 	check_eq(BuildCatalog.lock_reason(st, {"id": "chair", "cost": {}}), "", "no requirement, no lock")
-	if BuildCatalog._research_script() == null:
-		check_eq(BuildCatalog.lock_reason(st, piece), "Requires Metalworking", "the fallback names the skill")
-		st.skills["metalworking"] = true
-		check_eq(BuildCatalog.lock_reason(st, piece), "", "known skill: unlocked")
-	check_eq(BuildCatalog.lock_reason(GameState.new_run(1), {"id": "chair", "cost": {}}), "", "a real state: plain pieces stay open")
+	st.skills["metalworking"] = true
+	check_eq(BuildCatalog.lock_reason(st, piece), "", "known skill: unlocked")
 
 
 func test_tiles_show_costs_against_what_is_available() -> void:
