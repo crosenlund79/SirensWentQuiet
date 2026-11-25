@@ -119,6 +119,16 @@ const DEFS := {
 	"home/light_switch": {"pitch": 0.05, "cd": 0.1, "max": 1, "pos": false, "tpl": false},
 	"car/start": {"cd": 1.0, "max": 1, "pos": false, "tpl": false},
 	"build/dig": {"pitch": 0.06, "cd": 0.2, "max": 2, "tpl": false},
+	# Exp 007: played through play_first when the audio inbox provides them
+	# (the code falls back to existing sounds otherwise).
+	"build/drill": {"pitch": 0.05, "cd": 0.3, "max": 1, "tpl": false},
+	"poi/search": {"pitch": 0.08, "cd": 0.3, "max": 2, "tpl": false},
+	"poi/chop": {"pitch": 0.08, "cd": 0.2, "max": 2, "tpl": false},
+	"poi/force": {"pitch": 0.05, "cd": 0.4, "max": 1, "tpl": false},
+	"poi/pickup": {"pitch": 0.08, "cd": 0.1, "max": 2, "pos": false, "tpl": false},
+	"security/alarm": {"cd": 2.0, "max": 2, "far": true, "tpl": false},
+	"security/sensor_beep": {"pitch": 0.03, "cd": 0.5, "max": 2, "tpl": false},
+	"security/turret_reload": {"pitch": 0.04, "cd": 0.3, "max": 2, "tpl": false},
 }
 
 ## The scene host gets an AudioListener3D that follows the point the current

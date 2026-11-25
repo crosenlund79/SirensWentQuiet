@@ -105,6 +105,15 @@ const RULES := [
 	{"name": "home/light_switch", "all": [["light", "lamp"], "switch"], "none": ["weapon"], "kind": "oneshot", "db": -24.0},
 	{"name": "car/start", "all": ["car", ["start", "engine", "ignition"]], "kind": "oneshot", "db": -18.0},
 	{"name": "build/dig", "all": [["shovel", "dig"]], "kind": "oneshot", "db": -19.0},
+	# Exp 007: drilling, scavenging and electronic security
+	{"name": "build/drill", "all": ["drill"], "kind": "oneshot", "db": -20.0},
+	{"name": "poi/search", "all": [["search", "rummage", "loot"]], "kind": "oneshot", "db": -24.0},
+	{"name": "poi/chop", "all": [["chop", "axe"]], "kind": "oneshot", "db": -18.0},
+	{"name": "poi/force", "all": [["force", "pry", "crowbar"]], "kind": "oneshot", "db": -18.0},
+	{"name": "poi/pickup", "all": [["pickup", "pick"]], "none": ["axe"], "kind": "oneshot", "db": -24.0},
+	{"name": "security/alarm", "all": ["alarm"], "none": ["distant", "theme", "music"], "kind": "oneshot", "db": -16.0},
+	{"name": "security/sensor_beep", "all": [["sensor", "motion"], ["beep", "chirp", "alert"]], "kind": "oneshot", "db": -22.0},
+	{"name": "security/turret_reload", "all": ["turret", ["reload", "load"]], "kind": "oneshot", "db": -19.0},
 	# interface
 	{"name": "ui/click", "all": ["ui", "click"], "kind": "oneshot", "db": -24.0},
 	{"name": "ui/hover", "all": ["ui", "hover"], "kind": "oneshot", "db": -31.0},
