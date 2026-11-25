@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 005 — A House Worth Living In**, built on Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 006 — Defensive Living**, built on Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -85,20 +85,23 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | F3 | FPS line |
 | F10 | Developer (cheat) menu |
 
-**Build mode** (press a class's key again to switch its variant):
-
-| Key | Class | Variants |
-|---|---|---|
-| 1 | Walls | wood, stone; build straight over a wall of another material to replace it |
-| 2 | Barricades | wood, iron, window boards (on a window) |
-| 3 | Doors | wood, reinforced, metal |
-| 4 | Doorway | |
-| 5 | Furniture & storage | crate, **Move** (pick up any piece and set it down elsewhere, R turns it, free), cupboard, chest, tool cabinet, wardrobe, shelves, bookshelf, dresser, nightstand, bed, sofa, armchair, chair, table, coffee table, rug, floor lamp, table lamp, painting, plant |
-| 6 | Equipment | rain collector, workbench, fuse box (only when none exists) |
-| 7 | Repair | |
-| 8 | Reinforce | iron plating; on a door: wood → reinforced → metal |
-| 9 | Demolish | anything: your own pieces refund in full; furniture, original walls, windows, doors and floor tiles give salvage |
-| 0 | Floors & levels | stone foundation, wooden floor, stairs up, stairs down, next storey (builds the level above), excavate (needs a shovel), stone pillar |
+**Build mode (B), Experiment 006 category menu:**
+- **Categories (keys 1–8, or click the tabs):** 1 Walls · 2 Floors · 3 Doors · 4 Defence · 5 Furniture · 6 Utilities · 7 Decor · 8 Tools.
+  - A key picks that category's last-used piece; press it again to step to the next one, or click a tile.
+- **Direct tools:** **F** Repair · **X** Demolish · **G** Move · **Q** previous piece.
+- **Tiles:** each tile shows its cost against what you have (carried + stored).
+  - Locked pieces show a padlock and the skill they need.
+  - Unaffordable pieces are dimmed, with the missing amounts in red.
+- **Level:** **PgUp / PgDn** choose the level you build on.
+- **What's in each category:**
+  - **Walls:** wood and stone walls, stone foundation, timber footing, stone pillar.
+  - **Floors:** wooden floor, stairs up and down, next storey, excavate.
+  - **Doors:** wood, reinforced and metal doors, doorway, window boards.
+  - **Defence:** barricades, wooden and metal spikes, dig trench, fill with water, backfill, 1- and 2-tile drawbridges.
+  - **Furniture:** storage and furniture pieces.
+  - **Utilities:** collector, workbench, fuse box, lamps, TV, radio.
+  - **Decor:** rug, painting, plant.
+  - **Tools:** repair, reinforce, demolish, move, remove window.
 
 **R** rotates, **RMB** cancels, click-drag for wall runs.
 
@@ -124,6 +127,16 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 - **Comfort:** each room has a comfort level from its furniture, light, daylight, the fireplace and its condition. Repeated pieces count less and less.
 - **Mood:** Eli's mood drifts with comfort, needs, sleep and events. It changes how well he rests.
 - **Where to see them:** the HUD shows the room and mood in two short lines. **I → Home** explains the factors and gives hints.
+
+**Defences (Experiment 006):**
+- **Spikes:** wooden or metal; they hurt enemies who push or swing against them.
+- **Moats:** dig trenches outside with the shovel, then fill them with water. Filling is free next to a rain collector, or costs 1 bottle per 4 cells. Only brutes wade through water; dry trenches slow everyone.
+- **Drawbridges:** 1 or 2 tiles across a trench. **E** raises and lowers them; when raised, enemies have to bash through.
+- **You can't seal yourself in:** the game refuses changes that would cut off your last way out.
+
+**Research (K):** read skill books found while scavenging (mostly at the new Public Library) to learn Woodworking → Reinforced construction → Metalworking → Advanced metal fabrication. These unlock drawbridges, reinforced doors and iron barricades, metal doors and metal spikes, and iron plating.
+
+**Building from storage:** building, repairing and upgrading also take materials stored in your cupboards, chests and shelves. Eating, the quick bar and crafting still use only what you carry.
 
 **Audio inbox:** drop sounds into `assets/audio inbox/`; the existing upload in `assets/audio/_inbox/` is read too. Descriptive names map to game sounds automatically (see `assets/audio inbox/README.md` and `docs/experiment-005/AUDIO.md`).
 
@@ -175,6 +188,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-006/REPORT.md`: the Experiment 006 report (Defensive Living)
 - `docs/experiment-005/REPORT.md`: the Experiment 005 report (A House Worth Living In); `AUDIO.md`, `AUDIO_REQUIREMENTS.md` (what to record next)
 - `docs/experiment-004/REPORT.md`: the Experiment 004 report (Make This House a Home)
 - `docs/experiment-003/REPORT.md`: the Experiment 003 report (what was built, tests, the playtest, limitations, screenshots)
