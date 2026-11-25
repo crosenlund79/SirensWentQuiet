@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 004 — Make This House a Home**, built on Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, expand and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 005 — A House Worth Living In**, built on Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -93,14 +93,39 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
 | 2 | Barricades | wood, iron, window boards (on a window) |
 | 3 | Doors | wood, reinforced, metal |
 | 4 | Doorway | |
-| 5 | Storage | crate |
+| 5 | Furniture & storage | crate, **Move** (pick up any piece and set it down elsewhere, R turns it, free), cupboard, chest, tool cabinet, wardrobe, shelves, bookshelf, dresser, nightstand, bed, sofa, armchair, chair, table, coffee table, rug, floor lamp, table lamp, painting, plant |
 | 6 | Equipment | rain collector, workbench, fuse box (only when none exists) |
 | 7 | Repair | |
 | 8 | Reinforce | iron plating; on a door: wood → reinforced → metal |
 | 9 | Demolish | anything: your own pieces refund in full; furniture, original walls, windows, doors and floor tiles give salvage |
-| 0 | Floors & levels | stone foundation, wooden floor, stairs up, stairs down, upper floor, excavate (needs a shovel) |
+| 0 | Floors & levels | stone foundation, wooden floor, stairs up, stairs down, next storey (builds the level above), excavate (needs a shovel), stone pillar |
 
 **R** rotates, **RMB** cancels, click-drag for wall runs.
+
+**Levels (Experiment 005):** the house can grow to five levels.
+- **The levels:**
+  - −2 lower basement
+  - −1 basement
+  - 0 ground floor
+  - +1 first upper floor
+  - +2 second upper floor
+- **Building them:**
+  - Go up with stairs up plus "Next storey".
+  - Go down by excavating, then stairs down.
+- **Which level:** the card at the top right always shows your level. In build mode, **PgUp / PgDn** choose the level you build on without moving Eli.
+- **Support:** higher levels rest on the outer walls below; pillars and inner walls can prop them.
+
+**Furniture and storage:** press **E** at a cupboard, wardrobe, chest, shelf, tool cabinet, dresser, nightstand or the fridge to open its storage.
+- Moving items: Put and Take move them between the storage and the household supplies.
+- Stored items are kept aside: building and crafting use only what's out.
+- Destroyed storage leaves a **pile of belongings** to search with E.
+
+**Comfort and mood:**
+- **Comfort:** each room has a comfort level from its furniture, light, daylight, the fireplace and its condition. Repeated pieces count less and less.
+- **Mood:** Eli's mood drifts with comfort, needs, sleep and events. It changes how well he rests.
+- **Where to see them:** the HUD shows the room and mood in two short lines. **I → Home** explains the factors and gives hints.
+
+**Audio inbox:** drop sounds into `assets/audio inbox/`; the existing upload in `assets/audio/_inbox/` is read too. Descriptive names map to game sounds automatically (see `assets/audio inbox/README.md` and `docs/experiment-005/AUDIO.md`).
 
 **Replacing walls:** pick the other material and build over an existing wall (yours or the house's). It is one action: the old wall comes down with its usual refund (yours in full, the house's as salvage), the new one is paid, and only the difference changes hands. If you can't pay the difference, or the new wall can't stand there, nothing changes. Iron plating stays on. In a run, empty sections are built, other walls replaced, and doors, windows and walls already of that material are skipped. It works upstairs too.
 
@@ -150,6 +175,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-005/REPORT.md`: the Experiment 005 report (A House Worth Living In); `AUDIO.md`, `AUDIO_REQUIREMENTS.md` (what to record next)
 - `docs/experiment-004/REPORT.md`: the Experiment 004 report (Make This House a Home)
 - `docs/experiment-003/REPORT.md`: the Experiment 003 report (what was built, tests, the playtest, limitations, screenshots)
 - `docs/HANDOFF_EXP004.md`: the state of the code for the next milestone, and what to reuse
