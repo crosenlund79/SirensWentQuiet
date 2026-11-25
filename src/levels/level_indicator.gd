@@ -30,7 +30,7 @@ func _ready() -> void:
 	_card.name = "LevelCard"
 	_style = StyleBoxFlat.new()
 	_style.bg_color = UiTheme.BG_SOFT
-	_style.set_corner_radius_all(6)
+	_style.set_corner_radius_all(0)          # Exp 006 (U): square, like every panel
 	_style.set_border_width_all(1)
 	_style.border_color = UiTheme.LINE
 	_style.content_margin_left = 12

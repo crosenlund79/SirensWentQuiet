@@ -641,13 +641,12 @@ static func fade(item: CanvasItem, to_alpha: float, time := FADE_IN) -> Tween:
 	return tw
 
 
+## Exp 006 (U): a square pixel knob with a darker rim (slider grabbers).
 static func _dot_texture(d: int, color: Color) -> ImageTexture:
 	var img := Image.create(d, d, false, Image.FORMAT_RGBA8)
-	var c := (d - 1) * 0.5
+	var rim := color.darkened(0.45)
 	for y in d:
 		for x in d:
-			var dist := Vector2(x - c, y - c).length()
-			var a := clampf(c - dist + 0.5, 0.0, 1.0)
-			var ring := clampf(dist - (c - 2.2), 0.0, 1.0) * 0.35
-			img.set_pixel(x, y, Color(color.r * (1.0 - ring), color.g * (1.0 - ring), color.b * (1.0 - ring), a))
+			var edge := x == 0 or y == 0 or x == d - 1 or y == d - 1
+			img.set_pixel(x, y, rim if edge else color)
 	return ImageTexture.create_from_image(img)

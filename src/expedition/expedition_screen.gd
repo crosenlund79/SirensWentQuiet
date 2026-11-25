@@ -523,7 +523,7 @@ func _mark(b: Button, on: bool) -> void:
 		sb.border_color = UiTheme.ACCENT
 		sb.set_border_width_all(1)
 		sb.border_width_left = 3
-		sb.set_corner_radius_all(3)
+		sb.set_corner_radius_all(UiTheme.RADIUS)      # Exp 006 (U): square
 		sb.content_margin_left = 16
 		sb.content_margin_right = 16
 		sb.content_margin_top = 7
@@ -869,7 +869,7 @@ func _flat_check(cb: CheckBox) -> void:
 		sb.bg_color = Color(1, 1, 1, 0.04) if state_name in ["hover", "hover_pressed"] else Color(0, 0, 0, 0)
 		sb.border_color = UiTheme.ACCENT if state_name in ["hover", "hover_pressed", "focus"] else Color(0, 0, 0, 0)
 		sb.set_border_width_all(1 if state_name in ["hover", "hover_pressed", "focus"] else 0)
-		sb.set_corner_radius_all(3)
+		sb.set_corner_radius_all(UiTheme.RADIUS)      # Exp 006 (U): square
 		sb.content_margin_left = 6
 		sb.content_margin_right = 8
 		sb.content_margin_top = 3

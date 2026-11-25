@@ -27,10 +27,10 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	var r := Rect2(Vector2(size.x - 16 - PILL.x, (size.y - PILL.y) * 0.5), PILL)
+	var r := Rect2(Vector2(size.x - 16 - PILL.x, roundf((size.y - PILL.y) * 0.5)), PILL)
 	var on := button_pressed
 	var track := StyleBoxFlat.new()
-	track.set_corner_radius_all(int(PILL.y * 0.5))
+	track.set_corner_radius_all(UiTheme.RADIUS)      # Exp 006 (U): a square pixel switch
 	track.bg_color = Color(UiTheme.ACCENT, 0.5) if on else Color(1, 1, 1, 0.1)
 	track.border_color = Color(UiTheme.ACCENT, 0.9) if on else Color(1, 1, 1, 0.2)
 	track.set_border_width_all(1)
@@ -42,4 +42,5 @@ func _draw() -> void:
 	var knob := Color(1, 0.92, 0.8) if on else UiTheme.TEXT_DIM
 	if disabled:
 		knob = UiTheme.TEXT_FAINT
-	draw_circle(Vector2(kx, r.get_center().y), PILL.y * 0.5 - 2.0, knob)
+	var k := PILL.y - 6.0
+	draw_rect(Rect2(Vector2(roundf(kx - k * 0.5), roundf(r.get_center().y - k * 0.5)), Vector2(k, k)), knob)
