@@ -107,6 +107,32 @@ func test_support_grid_and_pillars() -> void:
 	check(not u.has_floor_at(Levels.cell_center(mid)), "without the pillar the tile falls")
 
 
+## Stands in for GameLevels' pillar registry.
+class PillarStub extends RefCounted:
+	var pillars := {0: {}}
+	func pillars_on(w: HouseWorld) -> Array:
+		return pillars[0].keys().filter(func(c): return Levels.pillar_stands(w, c))
+
+
+func test_pillars_prop_an_outer_wall() -> void:
+	var w := HouseWorld.new()
+	add(w)
+	w.build_new()
+	await physics_frames(1)
+	var stub := PillarStub.new()
+	w.support.levels = stub
+	Levels.stamp_pillar(w, Vector2i(2, 1))
+	stub.pillars[0][Vector2i(2, 1)] = true
+	for k in range(0, 5):
+		w.cut_opening(Vector3i(0, 0, k), true)
+	w.process_structure()
+	check(not w.support.roof_gone.has("bedroom"), "a pillar 1.5 m inside props the bedroom's roof over a 5 m gap")
+	check(w.support.status_text().contains("1 pillar"), "the support status counts it")
+	Levels.clear_pillar(w, Vector2i(2, 1))
+	w.process_structure()
+	check(w.support.roof_gone.has("bedroom"), "without it the roof comes down")
+
+
 func _boot(mode := "new") -> Node:
 	SaveGame.path_override = SAVE
 	GameLaunch.mode = mode
