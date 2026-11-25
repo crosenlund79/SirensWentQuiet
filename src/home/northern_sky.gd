@@ -22,6 +22,7 @@ extends Node3D
 const AURORA_CHANCE := 0.7
 const AURORA_MIN := 0.45
 const OPACITY := 0.4               ## Exp 006 (B): x everything the aurora shows (1.0 = the Experiment 004 look)
+const CURTAINS := 0.75             ## Exp 006 (B): the curtains a little fainter still (0.3 of the old look)
 const RIBBONS := [
 	{"x": -6.0, "back": 0.0, "width": 46.0, "height": 15.0, "seed": 0.0, "strength": 1.0},
 	{"x": 9.0, "back": 3.5, "width": 54.0, "height": 18.0, "seed": 4.3, "strength": 0.75},
@@ -173,7 +174,7 @@ func tick(total_minutes: float, night: float) -> void:
 		var mi := ribbons[i]
 		mi.visible = shown > 0.01
 		if mi.visible:
-			(mi.material_override as ShaderMaterial).set_shader_parameter("strength", shown * float(RIBBONS[i]["strength"]))
+			(mi.material_override as ShaderMaterial).set_shader_parameter("strength", shown * float(RIBBONS[i]["strength"]) * (CURTAINS if opacity < 0.99 else 1.0))
 	if _snow_mat != null:
 		_snow_mat.set_shader_parameter("tint", SNOW_DAY.lerp(SNOW_NIGHT, night))
 
