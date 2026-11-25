@@ -12,10 +12,11 @@ extends Node
 ##    the car's fuel can, then a scene change to the game scene in POI mode
 ##    with GameLaunch.site = id and GameLaunch.carry = {"state", "home",
 ##    "travel"}.
-## 3. At the POI (after the game's site_ready, arrive() -> arrive_at_site()): the road's
-##    minutes pass on the clock, the region records the visit (visits, last
-##    day, discovery; 30 % to spot a new place nearby, TravelRules), Eli
-##    stands at the POI's entry, autosave "arrived".
+## 3. At the POI (agent P's PoiWorld and helper; after the game's
+##    site_ready, arrive() -> arrive_at_site()): the road's minutes pass on
+##    the clock, the place is known, 30 % to spot a new place nearby
+##    (TravelRules), Eli stands at world.entry_point(), autosave "arrived".
+##    P starts the visit (pack, boot) and counts it when it ends.
 ## 4. An exit's "[E] Leave for home": agent P's helper ends the visit
 ##    (game.poi.finish(): the place's stock and visit count, GameLaunch.carry
 ##    ["poi"] = {site, by_car, cargo, pack, left}) and calls leave_poi() ->
