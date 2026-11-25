@@ -13,7 +13,7 @@ var inventory: InventoryPanel
 var sleep_dialog: SleepDialog
 var death_screen: DeathScreen
 var dev_menu: DevMenu
-var expedition: ExpeditionScreen
+var expedition: ExpeditionScreen       ## Exp 007 (T): no longer created (travel replaced the dialogue expedition); stays null
 var intro: IntroOverlay
 var fade: CanvasLayer
 
@@ -26,7 +26,6 @@ func _ready() -> void:
 func build(state: GameState, game: Node, with_intro: bool) -> void:
 	hud = _add(GameHud.new(), "Hud")
 	hud.setup(state)
-	expedition = _add(ExpeditionScreen.new(), "ExpeditionScreen")
 	inventory = _add(InventoryPanel.new(), "InventoryPanel")
 	sleep_dialog = _add(SleepDialog.new(), "SleepDialog")
 	pause_menu = _add(PauseMenu.new(), "PauseMenu")

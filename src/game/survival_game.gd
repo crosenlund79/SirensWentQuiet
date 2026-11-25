@@ -15,11 +15,22 @@ extends Node3D
 ## enemy blows, the bomber's fuse and blast), game_map.gd (the region map and
 ## its table), game_dev.gd (the new F10 tools).
 ## See docs/experiment-002/game.md and docs/experiment-003/game.md.
+##
+## Exp 007 (T): two modes. At home (`site` "home") everything is as before. At
+## a POI (`site` = a RegionLocations id) the world is the POI's (TravelSites:
+## agent P's PoiWorld) and the home-only helpers (levels, car, home, support,
+## comfort, balance, defense, the fog boundary, the map table) are not
+## created; the shared gameplay (player, camera, HUD, combat, roster, bar,
+## inventory, storage panel, research, pause, dev menu, clock and needs, audio)
+## runs unchanged. Invasions and stragglers that fall due while Eli is away
+## happen at the house offscreen (OffscreenHome). Moving between the two is
+## `travel` (src/travel/travel_flow.gd); `site_ready` fires after assembly.
 
 signal sleep_finished(plan: Dictionary)
 signal invasion_started
 signal invasion_ended(reason: String)
 signal autosaved(reason: String)
+signal site_ready                      ## Exp 007 (T): after assembly, at home or at a POI
 
 const Director := preload("res://src/game/invasion_director.gd")
 const Roster := preload("res://src/game/enemy_roster.gd")
@@ -42,6 +53,7 @@ const AudioLink := preload("res://src/audio/game_audio.gd")   # Exp 005 (A): foo
 const ResearchLink := preload("res://src/research/game_research.gd")   # Exp 006 (R): skills, books, K
 const BalanceLink := preload("res://src/home/game_balance.gd")   # Exp 006 (B): house supply, TV and radio, F10 House & balance
 const DefenseLink := preload("res://src/defense/game_defense.gd")   # Exp 006 (D): trenches, moats, drawbridges, spikes
+const TravelLink := preload("res://src/travel/travel_flow.gd")   # Exp 007 (T): visible travel, home <-> POI
 
 const DAY_MIN := 1440.0
 const WAKE_OFFSET := Vector3(0, 0, 1.45)       ## from the bed to where you wake
@@ -74,6 +86,9 @@ var comfort: Node                      ## src/home/game_comfort.gd (Exp 005 (C):
 var research: Node                     ## src/research/game_research.gd (Exp 006 (R): K, book toasts, F10 Research)
 var balance: Node                      ## src/home/game_balance.gd (Exp 006 (B): house supply, TV and radio)
 var defense: Node                      ## src/defense/game_defense.gd (Exp 006 (D): the player in trenches, F10 Defences)
+var travel: Node                       ## src/travel/travel_flow.gd (Exp 007 (T): travel, the home <-> POI flow)
+var poi: Node                          ## Exp 007 (P): the POI helper at a POI (looting, exits, encounters); null at home
+var site := "home"                     ## Exp 007 (T): "home" or the POI id this scene is
 var time_scale := 1.0
 
 # Set before the node enters the tree (tests, tools).
@@ -92,7 +107,7 @@ var last_expedition := {}
 var shots_fired := 0
 
 var _ok := false
-var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death | storage (Exp 005)
+var _modal := ""                       ## "" | intro | pause | inventory | map | sleep | sleeping | expedition | death | storage (Exp 005) | travel (Exp 007)
 var _loaded := {}
 var _trigger := false
 var _migrated_from := 0                ## schema of an older save that was loaded (re-saved at once)
@@ -107,6 +122,7 @@ var _stragglers_done := {}             ## night (day number) -> true
 var _death_handled := false
 var _start_hour := -1.0
 var _backup_notice := ""
+var _carry := {}                       ## Exp 007 (T): what this scene was launched with (GameLaunch.carry, or a POI save's parts)
 
 
 # --- launch ----------------------------------------------------------------------------
@@ -118,22 +134,21 @@ func _ready() -> void:
 	lighting = VoxelLighting.new()
 	lighting.name = "Lighting"
 	add_child(lighting)
-	world = HouseWorld.new()
-	world.name = "World"
-	world.setup(lighting)
-	add_child(world)
-	var err := _launch()
+	var err := _launch()                   # Exp 007 (T): creates the world (the house, or a POI's)
 	if err != "":
 		_fail(err)
 		return
 	_assemble()
 	_ok = true
-	if GameLaunch.mode == "continue":
+	if GameLaunch.mode == "carry":
+		_begin_carry()                     # Exp 007 (T): arrived by travel
+	elif GameLaunch.mode == "continue":
 		_begin_continue()
 	else:
 		_begin_new()
 	if _start_hour >= 0.0:
 		dev_skip_to(_start_hour)
+	site_ready.emit()
 
 
 func _read_user_args() -> void:
@@ -149,9 +164,16 @@ func _read_user_args() -> void:
 
 
 ## Creates or loads the state and the house. Returns "" or a readable error.
+## Exp 007 (T): mode "carry" (a scene change home <-> POI) and a save made at
+## a POI build the POI's world instead.
 func _launch() -> String:
+	if GameLaunch.mode == "carry":
+		return _launch_carry()
 	if GameLaunch.mode != "continue":
+		GameLaunch.site = "home"
+		GameLaunch.carry = {}
 		state = GameState.new_run(GameLaunch.seed, Difficulty.valid(GameLaunch.difficulty))
+		_make_home_world()
 		world.build_new()
 		return ""
 	var r: Dictionary = SaveGame.read()
@@ -165,6 +187,12 @@ func _launch() -> String:
 	if not p["ok"]:
 		return p["error"]
 	state = p["state"]
+	var at: Dictionary = p.get("site", {})
+	if not at.is_empty():                  # Exp 007 (T): saved at a POI
+		return _launch_site_save(p, at)
+	GameLaunch.site = "home"
+	GameLaunch.carry = {}
+	_make_home_world()
 	var wd: Dictionary = p["world"]
 	if wd.is_empty():
 		# Only a save written before HouseWorld had persistence has no house data.
@@ -173,6 +201,71 @@ func _launch() -> String:
 	elif not world.load_data(wd):
 		return "the house could not be restored."
 	_loaded = p
+	return ""
+
+
+func _make_home_world() -> void:
+	site = "home"
+	world = HouseWorld.new()
+	world.name = "World"
+	world.setup(lighting)
+	add_child(world)
+
+
+## Exp 007 (T): the world of the POI `id` (TravelSites: agent P's PoiWorld, or
+## the stand-in test site). Returns "" or an error.
+func _make_site_world(id: String) -> String:
+	site = id
+	world = TravelSites.build_world(id, self)
+	if world == null:
+		return "the place %s could not be built." % RegionLocations.name_of(id)
+	if world.get_parent() == null:
+		if world.lighting == null:
+			world.setup(lighting)
+		world.name = "World"
+		add_child(world)
+	return ""
+
+
+## Exp 007 (T): launched by a scene change (GameLaunch.carry): the travelling
+## state, and either the POI or the home restored from its snapshot.
+func _launch_carry() -> String:
+	_carry = GameLaunch.carry
+	var sd = _carry.get("state")
+	var st: GameState = GameState.from_dict(sd) if typeof(sd) == TYPE_DICTIONARY else null
+	if st == null or st.dead:
+		return "the journey could not be continued."
+	state = st
+	var to := GameLaunch.site
+	if to != "home" and TravelSites.is_site(to):
+		return _make_site_world(to)
+	GameLaunch.site = "home"
+	var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
+	var p: Dictionary = RunSave.parse({"state": sd, "world": home.get("world", {}), "game": home.get("game", {})})
+	if not p["ok"]:
+		return p["error"]
+	_make_home_world()
+	var wd: Dictionary = p["world"]
+	if wd.is_empty():
+		world.build_new()
+	elif not world.load_data(wd):
+		return "the house could not be restored."
+	_loaded = p
+	return ""
+
+
+## Exp 007 (T): Continue from a save made at a POI: the POI again, with the
+## home snapshot carried as when Eli left it.
+func _launch_site_save(p: Dictionary, at: Dictionary) -> String:
+	var id := str(at.get("id", ""))
+	_carry = {"home": {"world": p["world"], "game": p["game"]}, "travel": at.get("travel", {}), "poi": at.get("poi", {})}
+	GameLaunch.site = id
+	GameLaunch.carry = _carry
+	var err := _make_site_world(id)
+	if err != "":
+		return err
+	_loaded = {"player_pos": at.get("player_pos"), "yaw": float(at.get("yaw", 0.0)), "game": {"camera_turns": at.get("camera_turns", 0),
+		"time_scale": (p["game"] as Dictionary).get("time_scale", 1.0), "director": (p["game"] as Dictionary).get("director", {})}}
 	return ""
 
 
@@ -196,11 +289,12 @@ func _assemble() -> void:
 	listener = AudioListener3D.new()
 	add_child(listener)
 	listener.make_current()
-	boundary = FogBoundary.new()
-	boundary.name = "FogBoundary"
-	boundary.setup(player, lighting.environment)
-	add_child(boundary)
-	boundary.exit_requested.connect(_on_exit_requested)
+	if is_home():                          # Exp 007 (T): the lot's fog ring is home's
+		boundary = FogBoundary.new()
+		boundary.name = "FogBoundary"
+		boundary.setup(player, lighting.environment)
+		add_child(boundary)
+		boundary.exit_requested.connect(_on_exit_requested)
 	roster = Roster.new()
 	roster.name = "Enemies"
 	roster.setup(world, player, seed)
@@ -217,7 +311,7 @@ func _assemble() -> void:
 	ui = GameUI.new()
 	ui.name = "UI"
 	add_child(ui)
-	ui.build(state, self, GameLaunch.mode != "continue" and not skip_intro)
+	ui.build(state, self, GameLaunch.mode == "new" and not skip_intro)     # Exp 007 (T): no intro after travel
 	hud = ui.hud
 	ui.pause_menu.resume_requested.connect(_resume)
 	ui.pause_menu.save_requested.connect(_on_save_requested)
@@ -227,8 +321,7 @@ func _assemble() -> void:
 	ui.sleep_dialog.sleep_chosen.connect(_on_sleep_chosen)
 	ui.sleep_dialog.closed.connect(_on_sleep_closed)
 	ui.death_screen.main_menu_requested.connect(request_main_menu)
-	ui.expedition.finished.connect(_on_expedition_finished)
-	ui.expedition.cancelled.connect(_on_expedition_cancelled)
+	# Exp 007 (T): the dialogue expedition screen is no longer part of play (see _on_exit_requested)
 	combat = Combat.new()
 	combat.name = "Combat"
 	add_child(combat)
@@ -242,36 +335,40 @@ func _assemble() -> void:
 	dev.name = "Dev"
 	add_child(dev)
 	dev.setup(self)
-	levels = GameLevels.new()          # Experiment 004 (L): after build and combat, which it retargets
-	levels.name = "Levels"
-	add_child(levels)
-	levels.setup(self)
+	var at_home := is_home()           # Exp 007 (T): the home-only helpers are not created at a POI
+	if at_home:
+		levels = GameLevels.new()          # Experiment 004 (L): after build and combat, which it retargets
+		levels.name = "Levels"
+		add_child(levels)
+		levels.setup(self)
 	# Experiment 004 (E): the quick-access bar and the yard car.
 	bar = HotbarCtl.new()
 	bar.name = "Hotbar"
 	add_child(bar)
 	bar.setup(self)
-	car = CarCtl.new()
-	car.name = "Car"
-	add_child(car)
-	car.setup(self)
-	# Experiment 004 (H): northern atmosphere, electric lights, household interactions.
-	home = HomeLink.new()
-	home.name = "Home"
-	add_child(home)
-	home.setup(self)
-	support = SupportLink.new()        # Refinement 01 (S): structural support (collapse toasts, damage, F10)
-	support.name = "Support"
-	add_child(support)
-	support.setup(self)
+	if at_home:
+		car = CarCtl.new()
+		car.name = "Car"
+		add_child(car)
+		car.setup(self)
+		# Experiment 004 (H): northern atmosphere, electric lights, household interactions.
+		home = HomeLink.new()
+		home.name = "Home"
+		add_child(home)
+		home.setup(self)
+		support = SupportLink.new()        # Refinement 01 (S): structural support (collapse toasts, damage, F10)
+		support.name = "Support"
+		add_child(support)
+		support.setup(self)
 	storage = StorageLink.new()        # Exp 005 (F): after home (lamps follow its mains)
 	storage.name = "Storage"
 	add_child(storage)
 	storage.setup(self)
-	comfort = ComfortLink.new()        # Exp 005 (C): rooms, comfort and mood (after home and levels, which it reads)
-	comfort.name = "Comfort"
-	add_child(comfort)
-	comfort.setup(self)
+	if at_home:
+		comfort = ComfortLink.new()        # Exp 005 (C): rooms, comfort and mood (after home and levels, which it reads)
+		comfort.name = "Comfort"
+		add_child(comfort)
+		comfort.setup(self)
 	audio = AudioLink.new()            # Exp 005 (A): after home and levels, which it reads
 	audio.name = "Audio"
 	add_child(audio)
@@ -280,14 +377,25 @@ func _assemble() -> void:
 	research.name = "Research"
 	add_child(research)
 	research.setup(self)
-	balance = BalanceLink.new()        # Exp 006 (B): after build, storage and home (supply, TV and radio)
-	balance.name = "Balance"
-	add_child(balance)
-	balance.setup(self)
-	defense = DefenseLink.new()        # Exp 006 (D): after levels (the player's storey); the rules live in world.defense
-	defense.name = "Defense"
-	add_child(defense)
-	defense.setup(self)
+	if at_home:
+		balance = BalanceLink.new()        # Exp 006 (B): after build, storage and home (supply, TV and radio)
+		balance.name = "Balance"
+		add_child(balance)
+		balance.setup(self)
+		defense = DefenseLink.new()        # Exp 006 (D): after levels (the player's storey); the rules live in world.defense
+		defense.name = "Defense"
+		add_child(defense)
+		defense.setup(self)
+	travel = TravelLink.new()          # Exp 007 (T): travel and the home <-> POI flow
+	travel.name = "Travel"
+	add_child(travel)
+	travel.setup(self)
+	if not at_home:
+		var h := TravelSites.make_helper(self)   # Exp 007 (P): looting, exits, encounters (adds itself as `poi`)
+		if poi == null and h != null:
+			poi = h
+			if h.get_parent() == null:
+				add_child(h)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -320,16 +428,16 @@ func _on_intro_done() -> void:
 
 func _begin_continue() -> void:
 	var pos = _loaded.get("player_pos")
+	if not is_home():                      # Exp 007 (T): a save made at a POI
+		_place_player(pos if pos != null else _site_entry(), float(_loaded.get("yaw", 0.0)))
+		_apply_loaded_extras()
+		travel.restore_poi(_carry.get("poi", {}))
+		_update_cursor()
+		toast("%s · Day %d, %s" % [RegionLocations.name_of(site), state.day(), state.clock_text()])
+		return
 	_place_player(pos if pos != null else world.bed_position() + WAKE_OFFSET, float(_loaded.get("yaw", 0.0)))
 	levels.restore(_loaded.get("world", {}), int(_loaded.get("storey", 0)), pos)   # Experiment 004 (L)
-	var g: Dictionary = _loaded.get("game", {})
-	time_scale = clampf(float(g.get("time_scale", 1.0)), 0.0, 600.0)
-	camera.set_turns(int(g.get("camera_turns", 0)) if typeof(g.get("camera_turns")) in [TYPE_INT, TYPE_FLOAT] else 0)   # Refinement 01
-	levels.set_roofs_hidden(typeof(g.get("roofs_hidden")) == TYPE_BOOL and g["roofs_hidden"])
-	var d = g.get("director", {})
-	if typeof(d) == TYPE_DICTIONARY:
-		for n in d.get("stragglers_done", []):
-			_stragglers_done[int(n)] = true
+	_apply_loaded_extras()
 	_update_cursor()
 	if state.run.get("invasion_active", false):
 		start_invasion()      # defensive: saves are refused during invasions
@@ -340,6 +448,51 @@ func _begin_continue() -> void:
 		# An older save (Experiment 002): loaded with defaults, re-saved in the current format.
 		toast("Save from an earlier version loaded (%s difficulty)." % Difficulty.name_of(state.difficulty), "info")
 		_autosave("migrated")
+
+
+## Time scale, camera turns, roofs and the director's bookkeeping from the
+## loaded "game" dictionary (Continue, and the home snapshot after travel).
+func _apply_loaded_extras() -> void:
+	var g: Dictionary = _loaded.get("game", {}) if typeof(_loaded.get("game")) == TYPE_DICTIONARY else {}
+	time_scale = clampf(float(g.get("time_scale", 1.0)), 0.0, 600.0)
+	camera.set_turns(int(g.get("camera_turns", 0)) if typeof(g.get("camera_turns")) in [TYPE_INT, TYPE_FLOAT] else 0)   # Refinement 01
+	if levels != null:
+		levels.set_roofs_hidden(typeof(g.get("roofs_hidden")) == TYPE_BOOL and g["roofs_hidden"])
+	var d = g.get("director", {})
+	if typeof(d) == TYPE_DICTIONARY and typeof(d.get("stragglers_done", [])) == TYPE_ARRAY:
+		for n in d.get("stragglers_done", []):
+			_stragglers_done[int(n)] = true
+
+
+## Exp 007 (T): arrived by a scene change (GameLaunch.carry). At a POI: Eli
+## stands at its entry and the road's time passes (travel.arrive_at_site).
+## Home: the house is the snapshot, Eli stands at the fog edge, and what
+## happened while he was away is resolved (travel.arrive_home).
+func _begin_carry() -> void:
+	if not is_home():
+		var e := _site_entry()
+		_place_player(e, PI)
+		_apply_loaded_extras()
+		travel.restore_poi(_carry.get("poi", {}))
+		_update_cursor()
+		travel.arrive_at_site()
+		return
+	var from = _loaded.get("player_pos")
+	var back := boundary.return_point(from if from != null else Vector3(9.0, 0.0, 11.0))
+	var c := FogBoundary.LOT.get_center()
+	_place_player(back, atan2(-(c.x - back.x), -(c.y - back.z)))
+	levels.restore(_loaded.get("world", {}), 0, back)
+	_apply_loaded_extras()
+	_update_cursor()
+	var cargo = _carry.get("cargo", {})
+	travel.arrive_home(cargo if typeof(cargo) == TYPE_DICTIONARY else {})
+
+
+## Exp 007 (T): where Eli enters a POI (PoiWorld.entry_point()).
+func _site_entry() -> Vector3:
+	var e: Variant = world.entry_point() if world.has_method("entry_point") else TravelTestSite.ENTRY
+	var v: Vector2 = e if e is Vector2 else TravelTestSite.ENTRY
+	return Vector3(v.x, 0.0, v.y)
 
 
 func _place_player(pos: Vector3, yaw: float) -> void:
@@ -380,7 +533,8 @@ func _process(delta: float) -> void:
 		_night = n
 		lighting.set_amount(n)
 		player.set_night(n)
-		boundary.set_night_amount(n)
+		if boundary != null:
+			boundary.set_night_amount(n)
 		ambience.set_night_amount(n)
 	player.speed_scale = state.move_speed_scale()
 	player.move_yaw = camera.yaw          # Refinement 01: WASD follows the turned view
@@ -398,7 +552,9 @@ func _physics_process(_delta: float) -> void:
 		_trigger = false
 	if _modal == "" and aim_with_mouse and is_inside_tree():
 		var mp := get_viewport().get_mouse_position()
-		player.aim_point = levels.aim_ray(camera.project_ray_origin(mp), camera.project_ray_normal(mp))   # the player's storey
+		var o := camera.project_ray_origin(mp)
+		var dr := camera.project_ray_normal(mp)
+		player.aim_point = levels.aim_ray(o, dr) if levels != null else world.aim_ray(o, dr)   # the player's storey (Exp 007: a POI has one)
 	if _trigger:
 		combat.fire(player.aim_point)      # the weapon owns the fire interval and the dry clicks
 
@@ -434,7 +590,10 @@ func _on_input(event: InputEvent) -> void:
 		_open_inventory()
 	elif event.is_action_pressed("build_mode"):
 		_handled()
-		_set_build(not build.active)
+		if not is_home() and not build.active:
+			toast("You can only build at home.", "warn")      # Exp 007 (T)
+		else:
+			_set_build(not build.active)
 	elif event.is_action_pressed("open_map"):
 		_handled()
 		open_map()
@@ -466,6 +625,8 @@ func turn_camera(dir: int) -> void:
 ## Refinement 01: V. Hidden: the roof and the storeys above the player stay
 ## hidden, also from outside; automatic: they fade only while you're inside.
 func toggle_roofs() -> void:
+	if levels == null:
+		return                              # Exp 007 (T): no storeys at a POI
 	levels.set_roofs_hidden(not levels.roofs_hidden)
 	toast("Roofs hidden (V shows them)." if levels.roofs_hidden else "Roofs shown; they fade while you're inside (V hides them).", "info")
 
@@ -508,6 +669,10 @@ func _process_events(events: Array) -> void:
 
 
 func _on_dawn(at: float) -> void:
+	if not is_home():                      # Exp 007 (T): the collectors at home fill while Eli is away
+		OffscreenHome.record_dawn(state, at)
+		Sfx.play("stinger/dawn")
+		return
 	var collectors := world.count_objects("rain_collector")
 	var water := int(state.on_dawn(collectors, at).get("water", 0))
 	if water > 0:
@@ -525,6 +690,10 @@ func _on_dawn(at: float) -> void:
 ## invasion index, or exactly `kinds` (dev menu).
 func start_invasion(kinds: Array = []) -> void:
 	if director.active:
+		return
+	if not is_home() or _modal == "travel":    # Exp 007 (T): it happens at the house, offscreen
+		OffscreenHome.record_invasion(state)
+		toast("Far off, a noise like a siren: they're at your house tonight.", "bad")
 		return
 	if not state.run.get("invasion_active", false):
 		state.start_invasion()
@@ -574,6 +743,9 @@ func _check_stragglers(t0: float, t1: float) -> void:
 		if s < 0.0 or s <= t0 - 0.001 or s > t1 + 0.01:
 			continue
 		_stragglers_done[d] = true
+		if not is_home() or _modal == "travel":    # Exp 007 (T): one of them prowls round the empty house
+			OffscreenHome.record_straggler(state, s)
+			continue
 		# Not during an invasion, and not if a long skip already ended the night.
 		if state.run.get("invasion_active", false) or not state.is_night():
 			continue
@@ -601,18 +773,33 @@ func _update_prompt() -> void:
 	var p := ""
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(levels.interactables(world.interactables() + map.interactables() + car.interactables() + home.interactables() + (balance.interactables() if balance != null else [])), player.plan_pos())   # + stairs, by storey (L); + the yard car (E); + home (H)
-		p = str(_focus.interact_prompt()) if _focus != null else boundary.prompt_text()
+		_focus = Finder.nearest(_interactables(), player.plan_pos())
+		p = str(_focus.interact_prompt()) if _focus != null else (boundary.prompt_text() if boundary != null else "")
 	if p != _prompt:
 		_prompt = p
 		hud.set_prompt(p)
+
+
+## What E can reach: the world's, the map table, the yard car, home and
+## balance (TV, radio), by storey (L); at a POI the POI helper's (P).
+func _interactables() -> Array:
+	var l: Array = world.interactables() + map.interactables()
+	if car != null:
+		l += car.interactables()           # the yard car (E)
+	if home != null:
+		l += home.interactables()          # home (H)
+	if balance != null:
+		l += balance.interactables()
+	if poi != null and is_instance_valid(poi) and poi.has_method("interactables"):
+		l += poi.interactables()           # Exp 007 (P): exits, containers, pickups
+	return levels.interactables(l) if levels != null else l     # + stairs, by storey (L)
 
 
 func _interact() -> void:
 	_update_prompt()
 	if _focus != null and is_instance_valid(_focus):
 		_focus.interact(self)
-	elif boundary.prompt_text() != "":
+	elif boundary != null and boundary.prompt_text() != "":
 		boundary.request_exit()
 
 
@@ -622,13 +809,15 @@ func _update_banner() -> void:
 		var left: int = director.remaining_to_spawn() + roster.invaders_alive()
 		b = "They're here · %d left" % left
 	elif state.invasion_due_soon():
-		b = "Something is coming tonight."
+		b = "Something is coming tonight." if is_home() else "They'll come for the house tonight."   # Exp 007 (T)
 	if b != _banner:
 		_banner = b
 		hud.set_banner(b)
 
 
 func _on_structure_changed() -> void:
+	if not is_home():
+		return                              # Exp 007 (T): the household's crates are at home
 	state.inventory.storage_crates = world.count_objects("crate")
 
 
@@ -676,6 +865,8 @@ func _on_escape() -> void:
 			map.close()
 		"storage":
 			storage.close_panel()          # Exp 005 (F)
+		"travel":
+			pass                           # Exp 007 (T): the map's travel animation (Space skips)
 		"":
 			if build.active:
 				_set_build(false)
@@ -820,38 +1011,34 @@ func _sleep(minutes: float) -> Dictionary:
 	return plan
 
 
-# --- expeditions -----------------------------------------------------------------------
+# --- expeditions and travel ------------------------------------------------------------
 
+## E at the fog edge. Exp 007 (T): opens the region map to pick a destination
+## and travel there (the dialogue expedition screen is no longer part of play).
 func _on_exit_requested(at: Vector3) -> void:
 	if not _ok or _modal != "" or state.dead:
 		return
 	if _threats():
 		toast("Not with them out there.", "warn")
 		return
-	if build.active:
-		_set_build(false)
 	_exit_at = at
-	_set_modal("expedition", true)
-	ui.expedition.open(state)
+	open_map()
+	if _modal == "map" and RegionLocations.has(state.region.planned):
+		map.screen.select(state.region.planned)
 
 
-func _on_expedition_finished(result: Dictionary) -> void:
-	if _modal != "expedition":
-		return                         # applied exactly once, only while the screen is open
-	apply_expedition_result(result)
-
-
-## Applies an expedition result (the screen's `finished`, or F10's instant
-## mission): the survival state once (by the result id), then the region
+## Applies a simulated expedition result (F10's instant mission only, since
+## Exp 007): the survival state once (by the result id), then the region
 ## (stock, discoveries, the used plan; once-only too), then home through the fog.
 func apply_expedition_result(result: Dictionary) -> void:
 	var t0 := state.total_minutes
 	var events: Array = state.apply_expedition(result)
 	var region_applied := ExpeditionData.apply_region(state, result)
 	last_expedition = {"result": result, "from": t0, "to": state.total_minutes, "region_applied": region_applied}
-	var back := boundary.return_point(_exit_at if _modal == "expedition" else player.global_position)
-	var c := FogBoundary.LOT.get_center()
-	_place_player(back, atan2(-(c.x - back.x), -(c.y - back.z)))
+	if boundary != null:
+		var back := boundary.return_point(player.global_position)
+		var c := FogBoundary.LOT.get_center()
+		_place_player(back, atan2(-(c.x - back.x), -(c.y - back.z)))
 	if state.dead:
 		return                         # the death flow owns the screen now
 	_set_modal("", false)
@@ -862,13 +1049,46 @@ func apply_expedition_result(result: Dictionary) -> void:
 	_autosave("expedition")
 
 
-func _on_expedition_cancelled() -> void:
-	if _modal != "expedition":
-		return
-	_set_modal("", false)
-	var d := (FogBoundary.LOT.get_center() - player.plan_pos()).normalized()
-	player.global_position += Vector3(d.x, 0, d.y)
-	player.velocity = Vector3.ZERO
+## Exp 007 (T): true at home, false at a POI.
+func is_home() -> bool:
+	return site == "home"
+
+
+## Exp 007 (T): "home" or the POI id (RegionLocations).
+func site_id() -> String:
+	return site
+
+
+## Exp 007 (T): a POI exit's "[E] Leave for home" (agent P's exits call this).
+func leave_site() -> void:
+	if travel != null and _modal == "" and not state.dead:
+		travel.leave_for_home()
+
+
+## Exp 007 (T): the game's own reasons not to set out now ("" = go): an open
+## panel, build mode, a fight. At a POI only enemies close by hold Eli back.
+func travel_block_reason(at_site := false) -> String:
+	if not _ok or state.dead:
+		return "Not now."
+	if _modal not in ["", "map"]:
+		return "Not now."
+	if director.active or state.run.get("invasion_active", false):
+		return "Not with them at the door."
+	if at_site:
+		for e in roster.positions():
+			if (e as Vector2).distance_to(player.plan_pos()) < TravelLink.NEAR_ENEMY:
+				return "Not with them this close."
+		return ""
+	if roster.living() > 0:
+		return "Not with them out there."
+	return ""
+
+
+## Exp 007 (T): the scene change to GameLaunch.site (set by travel).
+func change_scene_to_site() -> void:
+	if map != null and map.is_open():
+		map.screen.close()
+	_leave_to(GameLaunch.GAME_SCENE)
 
 
 # --- death -----------------------------------------------------------------------------
@@ -914,6 +1134,8 @@ func can_save() -> String:
 		return "You can't save while asleep."
 	if _modal == "expedition":
 		return "You can't save during an expedition."
+	if _modal == "travel":
+		return "You can't save while travelling."      # Exp 007 (T): the departure / the POI is the checkpoint
 	if director.active or state.run.get("invasion_active", false):
 		return "You can't save during an invasion."
 	if roster.living() > 0:
@@ -921,15 +1143,21 @@ func can_save() -> String:
 	return ""
 
 
+## The home's full save dictionary (RunSave layout): what save_now writes at
+## home, and Exp 007's snapshot when Eli leaves (all storeys, objects...).
+func compose_home_save() -> Dictionary:
+	var extra := {"time_scale": time_scale, "director": {"stragglers_done": _stragglers_done.keys()},
+		"camera_turns": camera.turns, "roofs_hidden": levels.roofs_hidden}      # Refinement 01
+	return RunSave.compose(state, levels.world_save(world.save_data()), player.global_position, player.rig.rotation.y, extra,
+		levels.player_storey)          # Experiment 004 (L): storeys in the world save, the player's in "game"
+
+
 ## Writes the save now. Returns "" or the reason it didn't.
 func save_now() -> String:
 	var why := can_save()
 	if why != "":
 		return why
-	var extra := {"time_scale": time_scale, "director": {"stragglers_done": _stragglers_done.keys()},
-		"camera_turns": camera.turns, "roofs_hidden": levels.roofs_hidden}      # Refinement 01
-	var data: Dictionary = RunSave.compose(state, levels.world_save(world.save_data()), player.global_position, player.rig.rotation.y, extra,
-		levels.player_storey)          # Experiment 004 (L): storeys in the world save, the player's in "game"
+	var data: Dictionary = compose_home_save() if is_home() else travel.compose_site_save()   # Exp 007 (T): at a POI
 	var err := SaveGame.write(data)
 	if err != OK:
 		return "Saving failed: %s" % (SaveGame.last_error if SaveGame.last_error != "" else error_string(err))
@@ -1009,7 +1237,8 @@ func dev_info() -> String:
 		"House: %d voxels missing, %d objects damaged · crates %d" % [int(dmg.get("missing_voxels", 0)), int(dmg.get("damaged_objects", 0)), world.count_objects("crate")],
 		"Save: %s" % (can_save() if can_save() != "" else "allowed"),
 		dev.info(),
-		home.info(),
+		home.info() if home != null else "",
+		travel.info_text() if travel != null else "",      # Exp 007 (T)
 	]
 	if comfort != null:
 		lines.append(comfort.info())       # Exp 005 (C)
@@ -1138,17 +1367,9 @@ func debug_sleep(minutes: float) -> Dictionary:
 	return last_sleep.get("plan", {})
 
 
+## E at the fog edge (Exp 007: opens the map to travel).
 func debug_start_expedition() -> void:
 	_on_exit_requested(player.global_position)
-
-
-## As if the expedition screen finished with `result` (SPEC §7.7).
-func debug_finish_expedition(result: Dictionary) -> void:
-	ui.expedition.finished.emit(result)
-
-
-func debug_cancel_expedition() -> void:
-	ui.expedition.cancelled.emit()
 
 
 func debug_save() -> String:

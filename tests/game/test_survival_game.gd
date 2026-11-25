@@ -233,43 +233,42 @@ func test_sleep_is_interrupted_by_an_invasion() -> void:
 
 # --- expeditions -----------------------------------------------------------------------
 
+## Exp 007 (T): the simulated expedition only remains as F10's instant
+## mission (apply_expedition_result); play travels to the place instead.
 func test_an_expedition_is_applied_once_and_time_advances_once() -> void:
 	var g: Node = await _boot()
 	var s: GameState = g.debug_state()
 	_set_time(g, 9.0 * 60.0)
 	g.debug_teleport_player(Vector2(4.5, 12.2))
 	await frames(2)
-	g.debug_start_expedition()
-	check_eq(g.debug_modal(), "expedition", "the expedition screen is open")
-	check(tree.paused, "the world is paused")
 	var t0 := s.total_minutes
-	await frames(30)
-	check_eq(s.total_minutes, t0, "no clock while the screen is open")
 	var water := s.inventory.count("water")
 	var result := {"id": "test_exp_1", "destination": "homes", "name": "Nearby Homes", "minutes": 90,
 		"gained": {"water": 2}, "consumed": {}, "lost": {}, "left_behind": {}, "damage": 0.0, "events": [], "summary": "Quiet."}
-	g.debug_finish_expedition(result)
+	g.apply_expedition_result(result)
 	check(absf(s.total_minutes - (t0 + 90.0)) < 0.01, "time advanced once by the result")
 	check_eq(s.inventory.count("water"), water + 2, "gains applied")
 	check_eq(g.debug_modal(), "", "back in the world")
 	check(not tree.paused, "resumed")
 	check(FogBoundary.LOT.has_point(g.debug_player_pos()), "returned inside the lot")
 	check("expedition" in g.autosave_log, "autosave after the expedition")
-	g.debug_finish_expedition(result)
-	check(absf(s.total_minutes - (t0 + 90.0)) < 0.01, "a second finished signal changes nothing")
+	g.apply_expedition_result(result)
+	check(absf(s.total_minutes - (t0 + 90.0)) < 0.01, "a second application changes nothing")
 	check_eq(s.inventory.count("water"), water + 2, "not applied twice")
 
 
+## Exp 007 (T): E at the fog edge opens the region map (to travel), and is
+## refused with enemies around.
 func test_an_expedition_can_be_cancelled_and_is_refused_with_enemies() -> void:
 	var g: Node = await _boot()
 	g.debug_teleport_player(Vector2(4.5, 12.2))
 	await frames(2)
 	g.debug_start_expedition()
+	check_eq(g.debug_modal(), "map", "the fog opens the map")
 	var t0: float = g.debug_state().total_minutes
-	g.debug_cancel_expedition()
-	check_eq(g.debug_modal(), "", "cancel resumes")
+	g.debug_close()
+	check_eq(g.debug_modal(), "", "Esc closes it")
 	check_eq(g.debug_state().total_minutes, t0, "no time passed")
-	check(g.debug_player_pos().y < 12.2 - 0.5, "nudged back into the lot")
 	g.debug_spawn_enemy(Vector2(-6.0, -5.0))
 	g.debug_start_expedition()
 	check_eq(g.debug_modal(), "", "refused with a psycho around")

@@ -270,9 +270,9 @@ func test_the_map_on_the_dining_table_and_planning() -> void:
 	g.debug_teleport_player(Vector2(4.5, 12.2))
 	await frames(2)
 	g.debug_start_expedition()
-	check_eq(g.debug_modal(), "expedition", "the expedition screen opens at the fog")
-	check_eq(g.debug_ui().expedition.selected, "hardware", "and preselects the map's plan")
-	g.debug_cancel_expedition()
+	check_eq(g.debug_modal(), "map", "the fog opens the map (Exp 007: to travel)")
+	check_eq(screen.selected, "hardware", "and preselects the map's plan")
+	g.debug_close()
 
 
 # --- expeditions and the region ---------------------------------------------------------
@@ -284,17 +284,16 @@ func test_an_expedition_result_reaches_the_region_exactly_once() -> void:
 	s.region.plan("homes", "general")
 	g.debug_teleport_player(Vector2(4.5, 12.2))
 	await frames(2)
-	g.debug_start_expedition()
 	var r := ExpeditionRun.simulate(s, "homes", ExpeditionData.default_gear(s, "homes"))
 	check(not r.is_empty(), "a real result")
-	g.debug_finish_expedition(r)
+	g.apply_expedition_result(r)          # Exp 007 (T): F10's instant mission (the screen is gone from play)
 	check(g.last_expedition.get("region_applied", false), "apply_region ran")
 	check_eq(s.region.visits("homes"), 1, "one visit")
 	check_eq(s.region.planned, "", "the plan is used up")
 	check(float(s.region.stock_of("homes")) <= 1.0, "stock recorded")
 	var stock := s.region.stock_of("homes")
 	var t := s.total_minutes
-	g.debug_finish_expedition(r)       # a repeated signal
+	g.apply_expedition_result(r)       # a repeated application
 	check(ExpeditionData.apply_region(s, r) == false, "a second apply_region is refused")
 	check_eq(s.region.visits("homes"), 1, "still one visit")
 	check_eq(s.region.stock_of("homes"), stock, "stock unchanged")

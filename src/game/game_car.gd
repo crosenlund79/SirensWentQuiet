@@ -76,7 +76,7 @@ func interact() -> void:
 	if _busy or s.dead:
 		return
 	if s.car_repaired:
-		game.toast("The car runs. Take it on an expedition: carries far more, faster there and back, 1 fuel can a trip (%d left)." % s.inventory.count("fuel"), "good")
+		game.toast("The car runs. Pick \"By car\" on the map's travel panel: faster there and back, a boot for cargo, 1 fuel can a trip (%d left)." % s.inventory.count("fuel"), "good")   # Exp 007 (T)
 		blink()
 		return
 	var m := missing(s)
@@ -114,7 +114,7 @@ func repair() -> String:
 	_busy = false
 	if s.dead:
 		return "dead"
-	game.toast("The engine coughs, then catches. The car runs: pick it on the expedition screen.", "good")
+	game.toast("The engine coughs, then catches. The car runs: pick \"By car\" on the map's travel panel.", "good")   # Exp 007 (T)
 	Sfx.play_first(["car/start", "ui/open"])   # Exp 005 (A): a recorded engine start when there is one
 	blink()
 	game._autosave("car")

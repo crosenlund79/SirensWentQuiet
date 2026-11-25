@@ -47,7 +47,9 @@ func setup(g: Node) -> void:
 	if game.has_signal("invasion_started"):
 		game.invasion_started.connect(_on_invasion_started)
 	var intro: Node = game.ui.get("intro") if game.get("ui") != null else null
-	if GameLaunch.mode == "continue":
+	if GameLaunch.mode == "carry":
+		pass                               # Exp 007 (T): arriving by travel, not a new game
+	elif GameLaunch.mode == "continue":
 		_schedule_voice("voice/eli_continue")
 	elif intro != null and intro.has_signal("done"):
 		intro.done.connect(_schedule_voice.bind("voice/eli_new_game"), CONNECT_ONE_SHOT)

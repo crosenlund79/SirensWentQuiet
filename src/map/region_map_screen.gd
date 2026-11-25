@@ -16,10 +16,21 @@ extends CanvasLayer
 ##   map.open(state)
 ##
 ## Keys while open: drag / WASD / arrows pan, wheel / + / - zoom, H your house,
-## Tab / Shift+Tab next place, 1-4 mission purpose, Enter plan, Esc or M close.
+## Tab / Shift+Tab next place, Enter travel, C on foot / by car, Esc or M close.
+##
+## Exp 007 (T): the info panel is the travel panel (travel time on foot and by
+## car, route, what might be found, danger, fuel, carrying capacity, whether
+## there is daylight for the round trip) with a "Travel" button that emits
+## `travel_requested(id, by_car)`; the game decides (src/travel/travel_flow.gd).
+## The dialogue-expedition purpose picker and "Plan expedition" are gone from
+## the panel (plan_selected() stays as an API). `play_travel()` animates a tiny
+## voxel Eli (or the car) along the road route (MapTraveller), with the clock
+## running in a card, in a few real seconds; Space or Enter skips it.
 
 signal closed
 signal destination_selected(id: String, purpose: String)
+signal travel_requested(id: String, by_car: bool)     # Exp 007 (T)
+signal travel_finished                                # Exp 007 (T): play_travel() is done
 
 const LIST_W := 272.0
 const INFO_W := 384.0
@@ -53,6 +64,20 @@ var _status: Label
 var _tween: Tween
 var _summary := {}
 
+# Exp 007 (T): travel
+var travel_enabled := true       ## the Travel button (false at a POI: leave through an exit)
+var travel_note := ""            ## shown instead of the button when travel is disabled
+var by_car := false              ## the chosen travel mode
+var travelling := false          ## play_travel() is running (input is held)
+var _travel := {}                ## {"pts", "t", "seconds", "from", "minutes", "label"}
+var _traveller: MapTraveller
+var _travel_card: PanelContainer
+var _travel_title: Label
+var _travel_clock: Label
+var _travel_bar: ProgressBar
+var _travel_button: Button
+var _travel_status: Label
+
 
 func _init() -> void:
 	layer = 65
@@ -78,6 +103,7 @@ func open(game_state: GameState) -> void:
 	if _root == null:
 		_build_ui()
 	state = game_state if game_state != null else GameState.new()
+	by_car = TravelRules.can_drive(state)      # Exp 007 (T): the running car comes along by default
 	view.build()
 	layout_ok = state.region.layout == RegionTerrain.LAYOUT_ID
 	view.set_night(state.night_amount())
@@ -194,6 +220,12 @@ func find_home() -> void:
 func _input(event: InputEvent) -> void:
 	if not is_open or not visible:
 		return
+	if travelling:                       # Exp 007 (T): Space / Enter skip; nothing else while travelling
+		if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).physical_keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER]:
+			skip_travel()
+		if event is InputEventKey or event is InputEventAction or event is InputEventMouseButton:
+			get_viewport().set_input_as_handled()
+		return
 	if UiModal.is_cancel_event(event) or (event.is_action_pressed("open_map") and not event.is_echo()):
 		get_viewport().set_input_as_handled()
 		close()
@@ -208,11 +240,9 @@ func _input(event: InputEvent) -> void:
 		KEY_TAB:
 			_cycle(-1 if k.shift_pressed else 1)
 		KEY_ENTER, KEY_KP_ENTER:
-			plan_selected()
-		KEY_1, KEY_2, KEY_3, KEY_4:
-			var i := k.physical_keycode - KEY_1
-			if selected != "" and selected != MapInfo.HOME and i < _summary.get("approaches", []).size():
-				_set_approach(_summary["approaches"][i]["id"], "")
+			request_travel()                 # Exp 007 (T): was "plan"
+		KEY_C:
+			set_by_car(not by_car)           # Exp 007 (T)
 		KEY_EQUAL, KEY_KP_ADD, KEY_PAGEUP:
 			view.zoom_by(0.8)
 		KEY_MINUS, KEY_KP_SUBTRACT, KEY_PAGEDOWN:
@@ -225,6 +255,9 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if not is_open:
+		return
+	if travelling:
+		_step_travel(delta)
 		return
 	var v := Vector2(Input.get_axis("move_left", "move_right"), Input.get_axis("move_up", "move_down"))
 	if v != Vector2.ZERO:
@@ -456,7 +489,7 @@ func _build_footer() -> void:
 	hint_card.offset_bottom = -MARGIN
 	var hints := HBoxContainer.new()
 	hints.add_theme_constant_override("separation", 16)
-	for h in [["Drag / WASD", "Pan"], ["Wheel", "Zoom"], ["H", "House"], ["Tab", "Next place"], ["1-4", "Purpose"], ["Enter", "Plan"], ["Esc", "Close"]]:
+	for h in [["Drag / WASD", "Pan"], ["Wheel", "Zoom"], ["H", "House"], ["Tab", "Next place"], ["C", "Foot / car"], ["Enter", "Travel"], ["Esc", "Close"]]:
 		hints.add_child(UiTheme.make_key_hint(h[0], h[1]))
 	hints.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_card.add_child(hints)
@@ -520,8 +553,6 @@ func _show_info() -> void:
 	_info.add_child(sub)
 	_info.add_child(UiTheme.make_caption(s["desc"], INFO_W - 40, UiTheme.TEXT))
 	if selected == MapInfo.HOME:
-		if state.region.planned != "":
-			_info.add_child(UiTheme.make_caption("Planned: %s, %s." % [RegionLocations.name_of(state.region.planned), MapInfo.purpose_text(state.region.planned_purpose).to_lower()], INFO_W - 40, UiTheme.ACCENT))
 		_fit_info.call_deferred()
 		return
 	var grid := GridContainer.new()
@@ -529,6 +560,8 @@ func _show_info() -> void:
 	grid.add_theme_constant_override("h_separation", 14)
 	grid.add_theme_constant_override("v_separation", 4)
 	var travel := "about %s each way  ·  %.1f km" % [UiTheme.duration_text(s["travel_minutes"]), s["km"]]
+	if TravelRules.can_drive(state):       # Exp 007 (T)
+		travel = "%s on foot, %s by car  ·  %.1f km" % [UiTheme.duration_text(TravelRules.minutes(selected)), UiTheme.duration_text(TravelRules.minutes(selected, true)), s["km"]]
 	_row(grid, "Travel", travel, UiTheme.TEXT)
 	var risk_text: String = s["risk_name"] if s["risk_name"] != "" else "Unknown"
 	_row(grid, "Risk", risk_text, MapInfo.risk_color(s["risk_tier"]))
@@ -554,44 +587,7 @@ func _show_info() -> void:
 			_info.add_child(l)
 	for n in s.get("notes", []):
 		_info.add_child(UiTheme.make_caption(str(n), INFO_W - 40, UiTheme.WARN))
-	if not s.get("available", true) and str(s.get("reason", "")) != "":
-		_info.add_child(UiTheme.make_caption("Right now: " + str(s["reason"]), INFO_W - 40, UiTheme.TEXT_DIM))
-	_info.add_child(UiTheme.make_section("Mission purpose"))
-	var ag := GridContainer.new()
-	ag.columns = 2
-	ag.add_theme_constant_override("h_separation", 6)
-	ag.add_theme_constant_override("v_separation", 6)
-	var group := ButtonGroup.new()
-	var i := 0
-	for a in s["approaches"]:
-		i += 1
-		var b := UiTheme.make_button("%d  %s" % [i, a["name"]])
-		b.toggle_mode = true
-		b.button_group = group
-		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2((INFO_W - 42) * 0.5, 34)
-		b.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL))
-		b.clip_text = true
-		b.disabled = not a["available"]
-		b.tooltip_text = a["reason"] if not a["available"] else a["desc"]
-		b.pressed.connect(_set_approach.bind(a["id"], ""))
-		ag.add_child(b)
-		_approach_buttons[a["id"]] = b
-	_info.add_child(ag)
-	var desc := UiTheme.make_caption("", INFO_W - 40)
-	desc.name = "ApproachDesc"
-	_info.add_child(desc)
-	var targets := HFlowContainer.new()
-	targets.name = "Targets"
-	targets.add_theme_constant_override("h_separation", 6)
-	targets.add_theme_constant_override("v_separation", 6)
-	_info.add_child(targets)
-	_plan_button = UiTheme.make_button("Plan expedition", "Enter")
-	_plan_button.focus_mode = Control.FOCUS_NONE
-	_plan_button.pressed.connect(plan_selected)
-	_info.add_child(_plan_button)
-	_status = UiTheme.make_caption("", INFO_W - 40, UiTheme.ACCENT)
-	_info.add_child(_status)
+	_add_travel_section()              # Exp 007 (T): replaces the mission purpose and "Plan expedition"
 	_set_approach(approach, target)
 	_fit_info.call_deferred()
 
@@ -618,6 +614,9 @@ func _set_approach(id: String, tgt: String) -> void:
 		a = _approach_def(id)
 	approach = id
 	target = tgt
+	var tl: Array = _summary.get("targets", [])
+	if id == "targeted" and not tl.is_empty() and (target == "" or not target in tl):
+		target = tl[0]                     # Exp 007 (T): also without the purpose buttons
 	if _approach_buttons.is_empty():
 		return
 	for k in _approach_buttons:
@@ -669,3 +668,184 @@ func _update_plan_button() -> void:
 func _on_place_clicked(id: String) -> void:
 	if id != "":
 		select(id, false)
+
+
+# --- Exp 007 (T): travel ------------------------------------------------------------------
+
+## The travel part of the info panel: mode (on foot / by car), fuel, carrying
+## capacity, the daylight check and the Travel button (or why not).
+func _add_travel_section() -> void:
+	_travel_button = null
+	_travel_status = null
+	_info.add_child(UiTheme.make_section("Travel"))
+	var drive_why := TravelRules.car_reason(state)
+	if drive_why != "":
+		by_car = false
+	var modes := HBoxContainer.new()
+	modes.add_theme_constant_override("separation", 6)
+	var group := ButtonGroup.new()
+	for m in [[false, "On foot"], [true, "By car"]]:
+		var b := UiTheme.make_button(m[1], "C" if m[0] else "")
+		b.name = "ByCar" if m[0] else "OnFoot"
+		b.toggle_mode = true
+		b.button_group = group
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2((INFO_W - 42) * 0.5, 32)
+		b.set_pressed_no_signal(by_car == m[0])
+		b.disabled = m[0] and drive_why != ""
+		b.tooltip_text = drive_why if b.disabled else ""
+		b.pressed.connect(set_by_car.bind(m[0]))
+		modes.add_child(b)
+	_info.add_child(modes)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 4)
+	var tm := TravelRules.timing(state, selected, by_car)
+	_row(grid, "There", "about %s %s" % [UiTheme.duration_text(tm["minutes"]), "by car" if by_car else "on foot"], UiTheme.TEXT)
+	if by_car:
+		var have := state.inventory.count("fuel")
+		var need := TravelRules.fuel_needed(true)
+		_row(grid, "Fuel", "%d can for the round trip (you have %d)" % [need, have], UiTheme.TEXT if have >= need or state.cheats.get("unlimited", false) else UiTheme.BAD)
+	else:
+		_row(grid, "Car", drive_why if drive_why != "" else "Left at home", UiTheme.TEXT_DIM)
+	_row(grid, "Stay", "about %s to look around" % UiTheme.duration_text(tm["stay"]), UiTheme.TEXT_DIM)
+	_info.add_child(grid)
+	_info.add_child(UiTheme.make_caption(tm["text"], INFO_W - 40, UiTheme.GOOD if tm["before_dark"] else UiTheme.WARN))
+	_info.add_child(UiTheme.make_caption("Carry: " + TravelRules.capacity_text(state, by_car), INFO_W - 40, UiTheme.TEXT_DIM))
+	if not travel_enabled:
+		_info.add_child(UiTheme.make_caption(travel_note if travel_note != "" else "You can't set out from here.", INFO_W - 40, UiTheme.TEXT_DIM))
+		return
+	var why := TravelRules.block_reason(state, selected, by_car)
+	_travel_button = UiTheme.make_button("Travel", "Enter")
+	_travel_button.name = "Travel"
+	_travel_button.focus_mode = Control.FOCUS_NONE
+	_travel_button.disabled = why != ""
+	_travel_button.pressed.connect(request_travel)
+	_info.add_child(_travel_button)
+	_travel_status = UiTheme.make_caption(why, INFO_W - 40, UiTheme.WARN)
+	_info.add_child(_travel_status)
+
+
+## On foot or by car (C). The car needs to run and have fuel.
+func set_by_car(on: bool) -> void:
+	if on and not TravelRules.can_drive(state):
+		on = false
+	if on == by_car:
+		return
+	by_car = on
+	if selected != "" and selected != MapInfo.HOME:
+		_show_info()
+
+
+## The Travel button / Enter: asks the game to set out for the selected place.
+## Returns false when nothing travellable is selected or the rules say no.
+func request_travel() -> bool:
+	if travelling or not travel_enabled or selected == "" or selected == MapInfo.HOME or not RegionLocations.has(selected):
+		return false
+	var why := TravelRules.block_reason(state, selected, by_car)
+	if why != "":
+		if _travel_status != null:
+			_travel_status.text = why
+		return false
+	travel_requested.emit(selected, by_car)
+	return true
+
+
+## Animates travel along the road route between the house and `id` (outbound:
+## house -> id; else id -> house) in `seconds` real seconds, while the card's
+## clock runs from `from_total` over `minutes` game minutes. The map must be
+## open. Emits travel_finished (also when `seconds` <= 0, at once).
+func play_travel(id: String, car: bool, outbound: bool, seconds: float, from_total: float, minutes: float) -> void:
+	if not is_open:
+		open(state)
+	select(id, false)
+	_info_panel.visible = false
+	var pts := _route(id)
+	if pts.size() < 2:
+		pts = PackedVector3Array([view.terrain.anchor_of(MapInfo.HOME) + Vector3(0, 0.12, 0), view.terrain.anchor_of(id) + Vector3(0, 0.12, 0)])
+	if not outbound:
+		pts.reverse()
+	var verb := ("Driving" if car else "Walking") + (" to " + RegionLocations.name_of(id) if outbound else " home from " + RegionLocations.name_of(id))
+	_travel = {"pts": pts, "t": 0.0, "seconds": maxf(seconds, 0.0), "from": from_total, "minutes": minutes, "label": verb}
+	travelling = true
+	if _traveller != null and is_instance_valid(_traveller):
+		_traveller.queue_free()
+	_traveller = MapTraveller.new()
+	_traveller.name = "Traveller"
+	_traveller.setup(car)
+	view.add_child(_traveller)
+	_traveller.follow(pts, 0.0)
+	view.set_view(pts[0], 44.0, true)
+	_show_travel_card(true)
+	_update_travel_card(0.0)
+	if seconds <= 0.0 or not is_inside_tree():
+		_finish_travel.call_deferred()
+
+
+## Space / Enter while travelling: arrive now.
+func skip_travel() -> void:
+	if travelling:
+		_travel["t"] = float(_travel.get("seconds", 0.0))
+
+
+func _step_travel(delta: float) -> void:
+	_travel["t"] = float(_travel["t"]) + delta
+	var dur := float(_travel["seconds"])
+	var f := clampf(float(_travel["t"]) / dur, 0.0, 1.0) if dur > 0.0 else 1.0
+	var e := f * f * (3.0 - 2.0 * f) * 0.35 + f * 0.65          # a gentle start and stop
+	if _traveller != null and is_instance_valid(_traveller):
+		_traveller.follow(_travel["pts"], e)
+		view.set_view(_traveller.position, 44.0)
+	_update_travel_card(e)
+	if f >= 1.0:
+		_finish_travel()
+
+
+func _finish_travel() -> void:
+	if not travelling:
+		return
+	travelling = false
+	_update_travel_card(1.0)
+	_show_travel_card(false)
+	if _traveller != null and is_instance_valid(_traveller):
+		_traveller.queue_free()
+	_traveller = null
+	_travel = {}
+	travel_finished.emit()
+
+
+func _show_travel_card(on: bool) -> void:
+	if _travel_card == null:
+		_travel_card = UiTheme.make_card()
+		_travel_card.name = "TravelCard"
+		_travel_card.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		_travel_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_travel_card.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		_travel_card.offset_bottom = -MARGIN - 64.0
+		_travel_card.custom_minimum_size.x = 420.0
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 6)
+		_travel_title = UiTheme.make_title("", UiTheme.FONT_LARGE)
+		box.add_child(_travel_title)
+		_travel_clock = UiTheme.make_caption("", 0, UiTheme.TEXT)
+		box.add_child(_travel_clock)
+		_travel_bar = ProgressBar.new()
+		_travel_bar.min_value = 0.0
+		_travel_bar.max_value = 1.0
+		_travel_bar.show_percentage = false
+		_travel_bar.custom_minimum_size = Vector2(396, 10)
+		box.add_child(_travel_bar)
+		box.add_child(UiTheme.make_key_hint("Space", "Skip", UiTheme.FONT_SMALL, UiTheme.TEXT_FAINT))
+		_travel_card.add_child(box)
+		_root.add_child(_travel_card)
+	_travel_card.visible = on
+
+
+func _update_travel_card(f: float) -> void:
+	if _travel_title == null or _travel.is_empty():
+		return
+	var t := float(_travel["from"]) + float(_travel["minutes"]) * f
+	_travel_title.text = str(_travel["label"])
+	_travel_clock.text = "%s  ·  %s of %s" % [TravelRules.day_clock(t), UiTheme.duration_text(float(_travel["minutes"]) * f), UiTheme.duration_text(float(_travel["minutes"]))]
+	_travel_bar.value = f

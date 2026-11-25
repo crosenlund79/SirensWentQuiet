@@ -8,6 +8,10 @@ extends Node
 ## (WASD pan, wheel zoom, Tab, 1-4, Enter) and closes on Esc or M; the game
 ## restores its state on `closed`. Planning shows a toast "Planned: <place>
 ## (<purpose>)" and autosaves. Docs: docs/experiment-003/game.md.
+## Exp 007 (T): the map's Travel button goes to the game's travel helper
+## (src/travel/travel_flow.gd), and `play_travel()` shows the trip on the map.
+## At a POI there is no table, and travel from the map is off (Eli leaves
+## through the POI's exits).
 
 const TABLE_POS := Vector3(7.8, 0.0, 5.65)     ## the dining table (HousePlan.FURNITURE)
 const TABLE_TOP := 0.76
@@ -26,6 +30,11 @@ func setup(g: Node) -> void:
 	game.ui.add_child(screen)
 	screen.destination_selected.connect(_on_planned)
 	screen.closed.connect(_on_closed)
+	screen.travel_requested.connect(_on_travel_requested)     # Exp 007 (T)
+	if game.has_method("is_home") and not game.is_home():
+		screen.travel_enabled = false
+		screen.travel_note = "You're at %s. Leave through an exit ([E] Leave for home) to head back." % RegionLocations.name_of(game.site_id())
+		return
 	table = MapTable.new()
 	table.name = "MapTable"
 	game.add_child(table)
@@ -62,6 +71,27 @@ func _on_planned(id: String, purpose: String) -> void:
 	last_plan = id + "|" + purpose
 	game.toast("Planned: %s (%s)" % [RegionLocations.name_of(id), purpose_text(purpose)], "good")
 	game._autosave("plan")
+
+
+# Exp 007 (T): travel ----------------------------------------------------------------------
+
+func _on_travel_requested(id: String, by_car: bool) -> void:
+	var t: Variant = game.get("travel")
+	if t is Object and is_instance_valid(t) and t.has_method("depart"):
+		t.depart(id, by_car)
+
+
+## Shows a leg of travel on the map (opening it if needed) and returns when
+## the animation is over. `seconds` <= 0 returns at once.
+func play_travel(id: String, by_car: bool, outbound: bool, seconds: float, from_total: float, minutes: float) -> void:
+	if seconds <= 0.0 or screen == null:
+		return
+	if not screen.is_open:
+		screen.open(game.state)
+	_set_world_render(false)
+	screen.play_travel(id, by_car, outbound, seconds, from_total, minutes)
+	if screen.travelling:
+		await screen.travel_finished
 
 
 ## "targeted:stone" -> "Targeted collection: stone".

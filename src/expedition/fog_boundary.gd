@@ -18,7 +18,7 @@ signal exit_requested(at: Vector3)
 
 const LOT := Rect2(-4.5, -3.5, 23.0, 16.0)
 const PROMPT_DISTANCE := 0.7
-const PROMPT := "[E] Leave the property and head into the fog"
+const PROMPT := "[E] Head into the fog: choose a destination"   # Exp 007 (T): opens the region map to travel
 const WALL_LAYER := 1 << 5                ## physics layer 6
 const WALL_THICKNESS := 1.0
 const WALL_HEIGHT := 3.0

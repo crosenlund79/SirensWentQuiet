@@ -4,6 +4,7 @@ extends "res://tests/test_case.gd"
 
 var _plans: Array = []
 var _closed := 0
+var _travels: Array = []           # Exp 007 (T)
 
 
 func _screen(state: GameState) -> RegionMapScreen:
@@ -11,6 +12,7 @@ func _screen(state: GameState) -> RegionMapScreen:
 	add(s)
 	s.destination_selected.connect(func(id, purpose): _plans.append([id, purpose]))
 	s.closed.connect(func(): _closed += 1)
+	s.travel_requested.connect(func(id, car): _travels.append([id, car]))     # Exp 007 (T)
 	s.open(state)
 	return s
 
@@ -107,11 +109,17 @@ func test_map_keyboard() -> void:
 	check(first != MapInfo.HOME and state.region.is_discovered(first), "Tab selects the nearest known place (%s)" % first)
 	s._input(_key(KEY_TAB))
 	check(s.selected != first, "Tab moves on")
-	s._input(_key(KEY_3))
-	check_eq(s.approach, "careful", "3 picks careful exploration")
+	# Exp 007 (T): Enter travels (the map's purposes and "Plan" are gone); C picks the car when it runs
+	s._input(_key(KEY_C))
+	check(not s.by_car, "no car without a repaired car")
 	s._input(_key(KEY_ENTER))
-	check_eq(state.region.planned, s.selected, "Enter plans")
-	check_eq(_plans.size(), 1, "one signal")
+	check_eq(_travels.size(), 1, "Enter asks to travel once")
+	check_eq(_travels[0][0] if not _travels.is_empty() else "", s.selected, "to the selected place")
+	check(_plans.is_empty(), "no plan")
+	state.car_repaired = true
+	state.inventory.add("fuel", 1)
+	s._input(_key(KEY_C))
+	check(s.by_car, "C: by car")
 	var m := InputEventAction.new()
 	m.action = "open_map"
 	m.pressed = true

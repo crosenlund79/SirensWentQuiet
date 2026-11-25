@@ -513,6 +513,7 @@ func _build() -> void:
 	_build_research_section(box)     # Exp 006 (R)
 	_build_balance_section(box)     # Exp 006 (B)
 	_build_defense_section(box)     # Exp 006 (D)
+	_build_travel_section(box)     # Exp 007 (T)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -872,3 +873,50 @@ func _defense_call(method: String, arg: String) -> void:
 		_say("The game has no defences.%s()" % method, true)
 		return
 	_say(str(h.call(method, arg) if arg != "" else h.call(method)))
+
+
+# --- Exp 007 (T): travel (methods on src/travel/travel_flow.gd) ------------------------
+
+var _travel_place: OptionButton
+
+
+func _build_travel_section(box: VBoxContainer) -> void:
+	var t: Variant = game.get("travel") if game != null else null
+	if not (t is Object) or not t.has_method("dev_travel_to"):
+		return
+	box.add_child(UiTheme.make_section("Travel"))
+	var items := []
+	for id in ["forest", "convenience", "library"]:
+		items.append(["Go: " + RegionLocations.name_of(id), _travel_call.bind("dev_travel_to", [id], "Off to " + RegionLocations.name_of(id))])
+	items.append(["Return home", _travel_call.bind("dev_return_home", [], "Home")])
+	box.add_child(_grid(2, items))
+	_travel_place = OptionButton.new()
+	_travel_place.name = "TravelPlace"
+	_travel_place.focus_mode = Control.FOCUS_NONE
+	_travel_place.fit_to_longest_item = false
+	_travel_place.clip_text = true
+	_travel_place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_travel_place.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
+	for id in RegionLocations.ids():
+		_travel_place.add_item(RegionLocations.name_of(id))
+		_travel_place.set_item_metadata(_travel_place.item_count - 1, id)
+	box.add_child(_travel_place)
+	box.add_child(_grid(2, [["Go to this place", _travel_to_chosen], ["+3 fuel", _travel_call.bind("dev_give_fuel", [], "")],
+		["Repair car", _travel_call.bind("dev_repair_car", [], "")], ["Skip travel anim", _travel_call.bind("dev_toggle_skip", [], "")]]))
+
+
+func _travel_to_chosen() -> void:
+	if _travel_place == null or _travel_place.selected < 0:
+		return
+	var id := str(_travel_place.get_item_metadata(_travel_place.selected))
+	_travel_call("dev_travel_to", [id], "Off to " + RegionLocations.name_of(id))
+
+
+## Travel calls may wait for a scene change: the status says what was asked.
+func _travel_call(method: String, args: Array, said: String) -> void:
+	var t: Variant = game.get("travel") if game != null and is_instance_valid(game) else null
+	if not (t is Object and is_instance_valid(t) and t.has_method(method)):
+		_say("The game has no travel.%s()" % method, true)
+		return
+	var r: Variant = t.callv(method, args)
+	_say(said if said != "" or typeof(r) != TYPE_STRING else str(r))
