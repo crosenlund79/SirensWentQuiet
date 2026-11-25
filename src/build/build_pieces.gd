@@ -161,10 +161,10 @@ const LIST := [
 	{"id": "backfill", "name": "Backfill", "short": "Backfill", "tool": "backfill", "slot": 1, "cost": {}, "cat": "defense", "requires": "",
 		"hint": "Shovel · fills a trench cell back in (2 min) · free"},
 	{"id": "drawbridge_1", "name": "Drawbridge", "short": "Bridge 1", "tool": "place", "slot": 1, "cost": {"wood": 8, "nails": 8, "iron": 1},
-		"kind": "drawbridge_1", "mat": "wood", "cat": "defense", "requires": "",
+		"kind": "drawbridge_1", "mat": "wood", "cat": "defense", "requires": "woodworking",
 		"hint": "Across a 1 m trench, hinged on the house side · R picks the axis · E raises and lowers it · raised, it's bashed like a door"},
 	{"id": "drawbridge_2", "name": "Long drawbridge", "short": "Bridge 2", "tool": "place", "slot": 1, "cost": {"wood": 14, "nails": 12, "iron": 2},
-		"kind": "drawbridge_2", "mat": "wood", "cat": "defense", "requires": "",
+		"kind": "drawbridge_2", "mat": "wood", "cat": "defense", "requires": "woodworking",
 		"hint": "Across a 2 m trench · R picks the axis · E raises and lowers it · 32 HP"},
 ]
 

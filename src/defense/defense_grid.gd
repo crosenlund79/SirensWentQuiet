@@ -38,8 +38,8 @@ signal bridge_smashed(o: WorldObject)
 
 enum { DRY = 0, WET = 1 }
 
-const DEPTH := 0.8                   ## visual depth of a trench (m)
-const WATER_Y := -0.36               ## water surface height
+const DEPTH := 0.9                   ## visual depth of a trench (m)
+const WATER_Y := -0.5               ## water surface height
 const SINK_TRENCH := 0.38            ## bodies in a dry trench stand this much lower
 const SINK_WATER := 0.6              ## a wading brute
 const TRENCH_SPEED := 0.55           ## x speed in a dry trench (enemies)
@@ -781,10 +781,12 @@ func _build_meshes() -> void:
 func _water_material() -> StandardMaterial3D:
 	if _water_mat == null:
 		_water_mat = StandardMaterial3D.new()
-		_water_mat.albedo_color = Color(0.07, 0.1, 0.12)
-		_water_mat.roughness = 0.06
-		_water_mat.metallic = 0.25
-		_water_mat.metallic_specular = 0.9
+		_water_mat.albedo_color = Color(0.17, 0.24, 0.29)      # cold, slate-blue meltwater
+		_water_mat.roughness = 0.12
+		_water_mat.metallic = 0.15
+		_water_mat.metallic_specular = 0.8
+		_water_mat.rim_enabled = true
+		_water_mat.rim = 0.35
 		_water_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return _water_mat
 

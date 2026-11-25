@@ -22,6 +22,10 @@ func _world() -> HouseWorld:
 func _build_mode(w: HouseWorld) -> Array:
 	var s := GameState.new_run(11)
 	s.cheats["unlimited"] = true
+	# Exp 006 (R): drawbridges need Woodworking, metal spikes Metalworking
+	var research = load("res://src/research/research.gd") if ResourceLoader.exists("res://src/research/research.gd") else null
+	if research != null:
+		research.learn_all(s)
 	var b := BuildMode.new()
 	b.setup(w, s, null, null)
 	add(b)

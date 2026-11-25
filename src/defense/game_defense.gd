@@ -64,13 +64,17 @@ func info() -> String:
 
 func dev_defense_kit() -> String:
 	var st: GameState = game.state
+	# Exp 006 (R): the skills the defences need (drawbridges: Woodworking, metal spikes: Metalworking)
+	var research = load("res://src/research/research.gd") if ResourceLoader.exists("res://src/research/research.gd") else null
+	if research != null:
+		research.learn_all(st)
 	for k in ["shovel", "hammer"]:
 		if st.inventory.count(k) <= 0:
 			st.inventory.add(k, 1)
 	var got := {}
 	for k in {"water": 12, "wood": 40, "nails": 40, "iron": 10, "scrap": 10}:
 		got[k] = st.inventory.add(k, {"water": 12, "wood": 40, "nails": 40, "iron": 10, "scrap": 10}[k])
-	return "Shovel and hammer, %s." % BuildPieces.cost_text(got)
+	return "Shovel and hammer, %s%s." % [BuildPieces.cost_text(got), ", every skill" if research != null else ""]
 
 
 ## The dev moat's cells: the ring of RING, detouring outward around what
