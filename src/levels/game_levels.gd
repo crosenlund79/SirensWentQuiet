@@ -77,7 +77,9 @@ var _ends := {}                        ## stairs key -> [StairsEnd, StairsEnd]
 var _moving := false
 var _cooldown := 0.0
 var _blocked := ""                     ## stairs the player stands on that lead nowhere yet (one toast)
+var _enemy_cd := {}                    ## enemy instance id -> seconds before it takes stairs again
 var _roof_base := INF
+var _lid: MeshInstance3D               ## shadow-only lid over the house while looking at an underground storey
 ## Refinement 01: the roof toggle (V): the yard roof and the storeys above the
 ## player stay hidden, also while the player is outside the house.
 var roofs_hidden := false
@@ -96,6 +98,17 @@ func setup(g: Node) -> void:
 	indicator.name = "LevelIndicator"
 	indicator.levels = self
 	add_child(indicator)
+	# The storeys above an underground view are hidden, and hidden meshes cast
+	# no shadow: an invisible lid keeps the sun out of the basements.
+	_lid = MeshInstance3D.new()
+	_lid.name = "UndergroundLid"
+	var box := BoxMesh.new()
+	box.size = Vector3(60.0, 0.4, 60.0)
+	_lid.mesh = box
+	_lid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	_lid.position = Vector3(7.0, -0.3, 4.5)
+	_lid.visible = false
+	add_child(_lid)
 
 
 # --- storeys -----------------------------------------------------------------------------
@@ -113,6 +126,33 @@ func active_world() -> HouseWorld:
 
 func has_storey(storey: int) -> bool:
 	return world_of(storey) != null
+
+
+## True if storey `storey` has a walkable floor in 1 m cell c (for room
+## finding: the ground floor's holes, upper decks' holes and stairwells,
+## dug cells underground). False for a storey that doesn't exist.
+func floor_at(storey: int, c: Vector2i) -> bool:
+	var w := world_of(storey)
+	if w == null or not Levels.in_house(c):
+		return false
+	if w is LevelWorld:
+		var lw := w as LevelWorld
+		if storey < Levels.GROUND and not lw.is_dug(c):
+			return false
+		return lw.has_floor_at(Levels.cell_center(c))
+	return Levels.floor_coverage(w, c) >= 0.5
+
+
+## The cells with a floor on `storey` ({Vector2i: true}); stairs cells excluded.
+func floor_cells(storey: int) -> Dictionary:
+	var out := {}
+	var f := HousePlan.FOOTPRINT
+	for j in range(int(f.position.y), int(f.end.y)):
+		for i in range(int(f.position.x), int(f.end.x)):
+			var c := Vector2i(i, j)
+			if floor_at(storey, c) and stairs_at(Levels.cell_center(c), storey).is_empty():
+				out[c] = true
+	return out
 
 
 ## The storeys that exist, sorted (0 always).
@@ -537,6 +577,10 @@ func _physics_process(delta: float) -> void:
 	if game == null or game.state == null or game.player == null:
 		return
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	for k in _enemy_cd.keys():
+		_enemy_cd[k] -= delta
+		if _enemy_cd[k] <= 0.0:
+			_enemy_cd.erase(k)
 	_check_player()
 	_update_enemies()
 
@@ -625,7 +669,7 @@ func _update_enemies() -> void:
 			continue
 		var exit := Levels.exit_point(st, a.storey)
 		a.goal_override = exit
-		if p.distance_to(exit) < a.brain.attack_range + 0.45:
+		if p.distance_to(exit) < a.brain.attack_range + 0.45 and not _enemy_cd.has(a.get_instance_id()):
 			var to := Levels.other_storey(st, a.storey)
 			move_enemy(a, to, Levels.exit_point(st, to))
 
@@ -654,6 +698,7 @@ func move_enemy(e: AIEnemy, storey: int, p: Vector2) -> void:
 	e.goal_override = Vector2.INF
 	e.visible = storey_shown(storey)
 	enemy_moves += 1
+	_enemy_cd[e.get_instance_id()] = COOLDOWN       # a short walk off the stairs before the next ones
 
 
 ## True if heights a and b (body feet) are on the same storey: no blow or
@@ -706,6 +751,8 @@ func _update_visibility() -> void:
 			var pit := v.get_node_or_null("Pit") as Node3D
 			if pit != null:
 				pit.visible = not lo_shown        # stairs down seen from above: a dark pit
+	if _lid != null:
+		_lid.visible = view_storey < Levels.GROUND
 	# the player's body only where its storey shows (build mode looking at a level below)
 	var body_shown := storey_shown(player_storey)
 	if game.player.visible != body_shown:

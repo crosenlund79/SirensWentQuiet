@@ -25,6 +25,7 @@ const HELP := [
 	["Wheel", "Zoom"], ["E", "Interact"], ["I / Tab", "Inventory"], ["M", "Region map"],
 	["B", "Build"], ["Esc", "Pause"], ["F10", "Developer"],
 	["Shift", "Sprint"], ["Z / C", "Turn view"], ["V", "Roof on / off"],
+	["PgUp / PgDn", "Level (build)"],      # Exp 005 (V)
 ]
 const MATERIALS := [["wood", "Wood"], ["stone", "Stone"], ["iron", "Iron"]]
 
