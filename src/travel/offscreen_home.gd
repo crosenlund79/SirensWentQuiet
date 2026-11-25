@@ -237,8 +237,8 @@ static func _line(kind: String, at: float, size: int, r: Dictionary) -> String:
 	if not broke.is_empty():
 		var names := []
 		for nm in broke:
-			names.append(nm if broke[nm] == 1 else "%d %ss" % [broke[nm], nm])
-		parts.append("they broke " + ("a " if broke.size() == 1 and broke.values()[0] == 1 else "") + ", ".join(names))
+			names.append(("a " + nm) if broke[nm] == 1 else "%d %ss" % [broke[nm], nm])
+		parts.append("they broke " + " and ".join(names))
 	if int(r["voxels"]) > 0:
 		parts.append("the walls took %d blow%s" % [r["strikes"], "" if r["strikes"] == 1 else "s"])
 	elif int(r["strikes"]) > 0 and broke.is_empty():

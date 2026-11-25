@@ -14,7 +14,8 @@ extends Node
 ##    "travel"}.
 ## 3. At the POI (after the game's site_ready, arrive() -> arrive_at_site()): the road's
 ##    minutes pass on the clock, the region records the visit (visits, last
-##    day, discovery), Eli stands at the POI's entry, autosave "arrived".
+##    day, discovery; 30 % to spot a new place nearby, TravelRules), Eli
+##    stands at the POI's entry, autosave "arrived".
 ## 4. An exit's "[E] Leave for home" (P's, or the test site's) calls
 ##    game.leave_site() -> leave_for_home(): the return animation, the road's
 ##    minutes, the car's cargo box (P's poi.take_cargo()), then a scene change
@@ -123,8 +124,12 @@ func arrive_at_site() -> void:
 		game._advance_clock(mins)           # on the road; attacks at home are recorded offscreen
 	if s.dead:
 		return
-	s.region.apply_result({"id": "visit:%s:%d" % [id, int(s.total_minutes)], "location": id, "day": s.day()})
+	var found := TravelRules.roll_discovery(s, id, int(s.run.get("seed", 0)) * 7 + s.region.visits(id) * 131 + id.hash())
+	var disc := [found] if found != "" else []
+	s.region.apply_result({"id": "visit:%s:%d" % [id, int(s.total_minutes)], "location": id, "day": s.day(), "discovered": disc})
 	game.toast("%s. Look around, and leave through an exit when you're done." % RegionLocations.name_of(id), "info")
+	if found != "":
+		game.toast("On the way you spotted %s. It's on your map now." % RegionLocations.name_of(found), "good")
 	game._autosave("arrived")
 
 

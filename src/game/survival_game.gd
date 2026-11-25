@@ -238,11 +238,12 @@ func _launch_carry() -> String:
 	if st == null or st.dead:
 		return "the journey could not be continued."
 	state = st
+	var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
 	var to := GameLaunch.site
 	if to != "home" and TravelSites.is_site(to):
+		_loaded = {"game": home.get("game", {})}      # time scale, camera turns, the stragglers already done
 		return _make_site_world(to)
 	GameLaunch.site = "home"
-	var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
 	var p: Dictionary = RunSave.parse({"state": sd, "world": home.get("world", {}), "game": home.get("game", {})})
 	if not p["ok"]:
 		return p["error"]
@@ -479,7 +480,9 @@ func _begin_carry() -> void:
 		_update_cursor()
 		return
 	var from = _loaded.get("player_pos")
-	var back := boundary.return_point(from if from != null else Vector3(9.0, 0.0, 11.0))
+	if from == null or HousePlan.FOOTPRINT.grow(0.6).has_point(Vector2(from.x, from.z)):
+		from = Vector3(9.0, 0.0, 12.4)      # left from inside: back up the front path
+	var back := boundary.return_point(from)
 	var c := FogBoundary.LOT.get_center()
 	_place_player(back, atan2(-(c.x - back.x), -(c.y - back.z)))
 	levels.restore(_loaded.get("world", {}), 0, back)

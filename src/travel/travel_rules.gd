@@ -122,6 +122,39 @@ static func block_reason(state: GameState, id: String, car := false) -> String:
 	return ""
 
 
+## Discovery on the road (replaces the dialogue expeditions' "careful
+## exploration" finds): each arrival at a place has DISCOVER_CHANCE to spot
+## one unknown place, preferring places near it (the same weighting as
+## ExpeditionRun). Returns the id or "". Deterministic for a seed.
+const DISCOVER_CHANCE := 0.3
+
+
+static func roll_discovery(state: GameState, dest: String, seed: int) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	if rng.randf() >= DISCOVER_CHANCE:
+		return ""
+	var here: Vector2 = RegionLocations.get_def(dest).get("pos", RegionLocations.HOME)
+	var ids := []
+	var weights := []
+	var total := 0.0
+	for id in RegionLocations.ids():
+		if state.region.is_discovered(id) or id == dest:
+			continue
+		var w := 1.0 / pow(1.0 + (RegionLocations.get_def(id)["pos"] as Vector2).distance_to(here) / 20.0, 2.0)
+		ids.append(id)
+		weights.append(w)
+		total += w
+	if ids.is_empty():
+		return ""
+	var x := rng.randf() * total
+	for i in ids.size():
+		x -= weights[i]
+		if x < 0.0:
+			return ids[i]
+	return ids[-1]
+
+
 static func clock(total: float) -> String:
 	var m := int(round(fposmod(total, DAY_MIN)))
 	return "%02d:%02d" % [(m / 60) % 24, m % 60]
