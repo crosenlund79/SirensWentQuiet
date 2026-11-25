@@ -10,6 +10,7 @@ extends RefCounted
 ##   target = BASE
 ##          + home: (house comfort - HOME_PIVOT) x HOME_SCALE, capped
 ##          + warm by the lit fireplace (in its room or next door)
+##          + lamplight / - sitting in the dark (indoors at night)
 ##          + well fed and watered / - hungry, thirsty, tired, hurt
 ##          - cold (outdoors or in an exposed room at night)
 ##          - rooms open to the outside
@@ -50,6 +51,8 @@ const EXHAUSTED := -8.0              ## energy below 15
 const HURT := -3.0                   ## health below 70
 const BADLY_HURT := -8.0             ## health below 35
 const COLD := -6.0
+const LAMPLIGHT := 2.0               ## indoors at night in a lit room
+const IN_THE_DARK := -3.0            ## indoors at night in a dark room
 const OPEN_ROOM := -3.0              ## per exposed room in the house
 const OPEN_ROOM_CAP := -6.0
 const BLEAK_COMFORT := 6.0           ## house comfort below this counts as a bleak shelter
@@ -108,7 +111,8 @@ static func rest_scale(mood: float, room_level: int) -> float:
 
 
 ## The target and its causes ([[text, delta]], largest first). `inputs`:
-## {"house": float, "fire_near": bool, "cold": bool, "exposed_rooms": int},
+## {"house": float, "fire_near": bool, "cold": bool, "exposed_rooms": int,
+## "night_light": "lit" | "dark" | ""},
 ## the stats from `state`, the memories and bleak hours from state.mood_state.
 static func target(state: Object, inputs: Dictionary) -> Dictionary:
 	var causes := []
@@ -143,6 +147,11 @@ static func target(state: Object, inputs: Dictionary) -> Dictionary:
 		causes.append(["Hurt", HURT])
 	if bool(inputs.get("cold", false)):
 		causes.append(["Cold", COLD])
+	match str(inputs.get("night_light", "")):
+		"lit":
+			causes.append(["A warm light against the night", LAMPLIGHT])
+		"dark":
+			causes.append(["Sitting in the dark", IN_THE_DARK])
 	var open := int(inputs.get("exposed_rooms", 0))
 	if open > 0:
 		causes.append(["Rooms open to the outside" if open > 1 else "A room open to the outside", maxf(OPEN_ROOM * open, OPEN_ROOM_CAP)])

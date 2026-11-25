@@ -208,7 +208,7 @@ func _on_structure(w: HouseWorld) -> void:
 	_rooms_dirty = true
 
 
-func _on_furniture(_a = null) -> void:
+func _on_furniture(_a = null, _b = null) -> void:
 	_comfort_dirty = true
 
 
@@ -375,8 +375,14 @@ func _lit_lamps(w: HouseWorld, storey: int) -> Array:
 		for id in HomeElectrical.NEEDS_FURNITURE.values():
 			skip[id] = true            # those lamps are fixtures already
 	var mains := _mains()
+	var objs := []                     # lamp objects (agent F): counted once, not again as furniture
+	for o in w.objects:
+		if o.has_method("is_lit"):
+			objs.append(o.pos)
+			if o.call("is_lit"):
+				out.append(o.pos)
 	for it in _items_of(w):
-		if not it["type"] in LAMP_TYPES or skip.has(it["id"]):
+		if not it["type"] in LAMP_TYPES or skip.has(it["id"]) or objs.any(func(q): return q.distance_to(it["pos"]) < 0.3):
 			continue
 		var lit = it.get("lit")
 		if lit == null:
@@ -387,9 +393,6 @@ func _lit_lamps(w: HouseWorld, storey: int) -> Array:
 				lit = mains and it["state"] == "intact"
 		if lit:
 			out.append(it["pos"])
-	for o in w.objects:
-		if o.has_method("is_lit") and o.call("is_lit"):
-			out.append(o.pos)
 	return out
 
 
@@ -440,8 +443,11 @@ func _mood_inputs() -> Dictionary:
 			if r["exposed"] and r["label"] != "Hallway":
 				exposed += 1
 	var night := state.night_amount() > 0.5
+	var night_light := ""
+	if night and not here.is_empty():
+		night_light = "lit" if here.get("lit", false) else "dark"
 	return {"house": house, "fire_near": not here.is_empty() and here.get("fire", "") != "",
-		"cold": night and (here.is_empty() or here["exposed"]), "exposed_rooms": exposed}
+		"cold": night and (here.is_empty() or here["exposed"]), "exposed_rooms": exposed, "night_light": night_light}
 
 
 func _mood_tick() -> void:

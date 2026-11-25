@@ -61,10 +61,10 @@ static func evaluate(info: Dictionary) -> Dictionary:
 		var names := _names(list)
 		var text: String = names if list.size() == 1 else "%s: %s" % [cdef["name"], names]
 		if list.size() > 1:
-			text += " (each extra counts less)" if capped >= sum - 0.01 else " (full: more adds nothing)"
+			text += " (more count less)" if capped >= sum - 0.01 else " (full)"
 		factors.append([text, capped])
 	if furniture > C.FURNITURE_CAP:
-		factors.append(["Furniture beyond what one room needs", C.FURNITURE_CAP - furniture])
+		factors.append(["More furniture than a room needs", C.FURNITURE_CAP - furniture])
 		furniture = C.FURNITURE_CAP
 	var area := float(info.get("area", 0.0))
 	var label := label_for(items, bool(info.get("fireplace", false)), area, info.get("bbox", Rect2()))

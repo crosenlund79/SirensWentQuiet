@@ -119,7 +119,7 @@ const WRECKED_CAP := -4.5
 # --- levels -------------------------------------------------------------------------------
 
 ## Comfort thresholds: below LEVELS[0] Miserable, ..., at or above LEVELS[3] At home.
-const LEVELS := [-2.0, 8.0, 18.0, 27.0]
+const LEVELS := [-2.0, 7.0, 18.0, 27.0]
 const LEVEL_NAMES := ["Miserable", "Uncomfortable", "Content", "Comfortable", "At home"]
 
 # --- room labels --------------------------------------------------------------------------

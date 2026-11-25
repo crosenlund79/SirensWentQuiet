@@ -153,10 +153,7 @@ func test_comfort_in_the_game() -> void:
 		labels[r["label"]] = r
 	print("  rooms: ", c.dev_show())
 	print("  timing: ", c.stats)
-	for r in c.rooms.get(0, []):
-		print("  ", r["label"], " ", r["comfort"], " ", r["factors"], " hints ", r["hints"])
-	print("  windows: ", c.windows.get(0, []).map(func(w): return [w["centre"], w["state"]]))
-	print("  mood: ", c.mood_info)
+	check_eq(c.windows.get(0, []).size(), 8, "eight ground-floor windows, all intact")
 	for want in ["Bedroom", "Bathroom", "Kitchen & living room", "Workshop"]:
 		check(labels.has(want), "found the %s (%s)" % [want, labels.keys()])
 	check_eq(c.rooms.get(0, []).size(), 4, "four rooms on the ground floor")
@@ -204,6 +201,25 @@ func test_comfort_in_the_game() -> void:
 	var hit: Dictionary = c.room_at(0, Vector2(2.0, 2.5))
 	check(hit.get("exposed", false), "the blast exposed the bedroom (%s)" % [hit.get("factors", [])])
 	check(float(hit.get("comfort", 99.0)) < float(bed["comfort"]), "and it is less comfortable")
+	# a broken window exposes the bathroom; boards close it again (no daylight)
+	var wr := Rect2(6.0, -0.2, 1.0, 0.4)
+	var gr: VoxelGrid = g.world.grid
+	var xr := gr.centre_range(0, wr.position.x, wr.end.x)
+	var zr := gr.centre_range(2, wr.position.y, wr.end.y)
+	for y in range(VoxelHouse.BASE_ROW, VoxelHouse.TOP_ROW + 1):
+		for z in range(zr.x, zr.y):
+			for x in range(xr.x, xr.y):
+				var vi := gr.idx(x, y, z)
+				if gr.mat[vi] == VoxelMat.GLASS:
+					gr.clear_index(vi)
+	c.recompute()
+	var bath: Dictionary = c.room_at(0, Vector2(6.5, 2.0))
+	check(bath.get("exposed", false) and bath["factors"].any(func(f): return str(f[0]).begins_with("Broken window")), "a broken window exposes the bathroom (%s)" % [bath.get("factors")])
+	var seg := Vector3i(0, 0, 6)
+	g.world.place_object("boards", HouseWorld.seg_center(seg), g.world.seg_rot(seg), true)
+	c.recompute()
+	bath = c.room_at(0, Vector2(6.5, 2.0))
+	check(not bath.get("exposed", true), "boarded up: closed again (%s)" % [bath.get("factors")])
 	# other storeys: the upper floor and a basement are rooms too
 	g.levels.dev_build_upper()
 	g.levels.dev_dig_basement()
@@ -216,8 +232,11 @@ func test_comfort_in_the_game() -> void:
 	for r in c.rooms.get(-1, []):
 		check(not r["exposed"], "the basement is bounded by earth (%s)" % [r["factors"]])
 		check(int(r["level"]) <= 1, "a bare, dark basement is uncomfortable (%s)" % r["level_name"])
-	for r in c.rooms.get(1, []):
-		print("  upper: ", r["label"], " ", r["comfort"], " ", r["factors"])
+	# events reach the mood
+	g.invasion_started.emit()
+	check(g.state.mood_state["mem"].any(func(m): return m["id"] == "attack"), "an invasion is remembered")
+	g.autosaved.emit("expedition")
+	check(g.state.mood_state["mem"].any(func(m): return m["id"] in ["home_safe", "home_hurt"]), "coming home is remembered")
 	# F10
 	g.debug_open("dev")
 	await frames(1)
