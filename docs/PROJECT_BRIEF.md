@@ -195,6 +195,21 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Out of scope:** new survival meters, crafting trees, vehicles or enemy classes; a scripted seven-day campaign; an exe or installer; Windows CI; merges to `main`.
 - **Verification:** scenarios A–D (food, equipment, research and building, night defence), lightweight and headless, plus a few screenshots. The user playtests.
 
+## Current approved objective: "The World Never Stands Still" (Experiment 009)
+
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 009 — The World Never Stands Still", autonomous overnight, Rapid Delivery); in progress.** Branch `exp009/poi-generator` from Experiment 008 (`d29773f`). Contracts: `docs/experiment-009/SPEC.md`.
+
+- **Scope, in the user's priority order:**
+  1. a two-stage generator: cheap daily setups, detailed places generated only on demand, stable seeds and persistence;
+  2. believable buildings: archetypes (residential, commercial, light industry, public), rooms, contextual furniture, one main stash per POI, navigable layouts;
+  3. surroundings per archetype, leaving by the car or the arrival point, and the apartment's dark hallway exit;
+  4. dormant psychos with disturbing behaviours, awareness transitions and audio hooks;
+  5. a loading screen with real progress;
+  6. integration and polish.
+- **Also in scope:** 4–6 available sites a day, with the others "overrun"; F10 generator tools.
+- **Out of scope:** an exe or installer; Windows CI; merges to `main`; elaborate test frameworks.
+- **Verification:** scenarios A–H (daily opportunities, on-demand generation, residential, commercial, apartment, dormant psycho, persistence, loading), lightweight, plus a few screenshots. The user playtests.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
