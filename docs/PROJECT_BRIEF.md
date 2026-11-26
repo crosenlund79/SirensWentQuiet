@@ -212,7 +212,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "The Human Element" (Experiment 010)
 
-**Status: Approved by the user's message of 2026-11-26 ("Experiment 010 — The Human Element", Rapid Visual Experiment, minimal engineering); in progress.** Branch `exp010/the-human-element` from Experiment 009 (`01b6517`, also kept as `checkpoint/exp009-poi-generator`).
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 010 — The Human Element", Rapid Visual Experiment, minimal engineering). Delivered 2026-11-26 on the branch and as `playtest/exp010-human-element` with a Windows build artifact (report: `docs/experiment-010/REPORT.md`); awaiting the user's judgement.** Branch `exp010/the-human-element` from Experiment 009 (`01b6517`, also kept as `checkpoint/exp009-poi-generator`).
 
 - **Objective (one):** a high-quality, handcrafted voxel Elias "Eli" Walker, in this order of priority:
   1. the character itself;
