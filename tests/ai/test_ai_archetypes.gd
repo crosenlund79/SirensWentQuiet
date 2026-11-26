@@ -93,7 +93,7 @@ func test_ai_every_type_spawns_with_its_look_and_numbers() -> void:
 		check_eq(e.hp, st["hp"], "%s hp from the difficulty and invasion" % k)
 		check(is_equal_approx(e.speed(), float(EnemyDefs.get_def(k)["speed"]) * st["speed_scale"]), "%s speed" % k)
 		if e.rig is HumanoidRig:
-			check_eq(e.rig.scale, Vector3.ONE, "%s: a voxel person is never scaled (its body is its own, Exp 011)" % k)
+			check(e.rig.scale.x == e.rig.scale.y and e.rig.scale.y == e.rig.scale.z, "%s: a voxel person is scaled uniformly or not at all (its body is its own, Exp 011)" % k)
 		else:
 			check_eq(e.rig.scale, EnemyDefs.get_def(k)["scale"], "%s rig scale" % k)
 		check(e.get_meta("invader", true) == false, "%s: not an invader unless asked" % k)

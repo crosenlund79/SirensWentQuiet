@@ -95,6 +95,7 @@ var abd_r := Vector3.ONE
 var belly := 0.0
 var bust := 0.0
 var hump := 0.0
+var traps := 0.0                    ## Exp 011 (brute): trapezius slope, HumanoidBody "traps"
 var sh_r := 0.056
 var neck_r := 0.047
 var neck_len := 1.0
@@ -179,7 +180,7 @@ func _init(l: Dictionary) -> void:
 	neck_p = b["neck"]; shoulder = b["shoulder"]; hip = b["hip"]
 	thigh_len = b["thigh"]; shin_len = b["shin"]; upper_arm = b["upper_arm"]; forearm = b["forearm"]
 	chest_c = b["chest_c"]; chest_r = b["chest_r"]; abd_c = b["abd_c"]; abd_r = b["abd_r"]
-	belly = b["belly"]; bust = b["bust"]; hump = b["hump"]
+	belly = b["belly"]; bust = b["bust"]; hump = b["hump"]; traps = float(b.get("traps", 0.0))
 	sh_r = b["sh_r"]; neck_r = b["neck_r"]; neck_len = b["neck_len"]; hips_c = b["hips_c"]; hips_r = b["hips_r"]
 	arm_r0 = b["arm_r0"]; arm_r1 = b["arm_r1"]; farm_r0 = b["farm_r0"]; farm_r1 = b["farm_r1"]; wrist_r = b["wrist_r"]
 	thigh_r0 = b["thigh_r0"]; thigh_r1 = b["thigh_r1"]; knee_r = b["knee_r"]; calf_r = b["calf_r"]; ankle_r = b["ankle_r"]
@@ -721,6 +722,12 @@ func _torso_skin(p: Vector3) -> float:
 			var a := Vector3(0.018 * s * k, shoulder.y + 0.005 * T, -chest_r.z * 0.72)
 			var b := Vector3((shoulder.x - 0.03 * k) * s, shoulder.y + 0.03 * T, -0.012 * k)
 			d = E._smin(d, E._cone(p, a, b, 0.009 * k, 0.011 * k), 0.012 * k * (1.0 - 0.5 * gaunt))
+	if traps > 0.05:
+		# a slab of muscle from the side of the neck down to each shoulder
+		for s: float in [-1.0, 1.0]:
+			d = E._smin(d, E._cone(p, Vector3(0.025 * s * k, neck_p.y - 0.035 * k, neck_p.z + 0.015 * k),
+				Vector3((shoulder.x - 0.05 * k) * s, shoulder.y + 0.01 * T, shoulder.z + 0.01 * k),
+				neck_r * (0.75 + 0.35 * traps), sh_r * (0.6 + 0.25 * traps)), 0.07 * k)
 	return d
 
 
@@ -1056,6 +1063,9 @@ func _paint_layer(g: Dictionary, p: Vector3, x: int, y: int, z: int, part: Strin
 			var st := int(g.get("stripe", -1))
 			if st >= 0 and posmod(x, 4) == 0:
 				c = _mix(c, st, 0.5)
+			var pl := int(g.get("plaid", -1))
+			if pl >= 0:
+				c = _plaid(c, pl, x, y, z)
 		"sweater", "cardigan":
 			c = c if posmod(x, 2) == 0 else _sc(c, 0.88)           # knit columns
 			if at_hem:
@@ -1153,6 +1163,31 @@ func _paint_layer(g: Dictionary, p: Vector3, x: int, y: int, z: int, part: Strin
 				c = _sc(col, 0.8)                                   # pocket seam
 			if absf(p.y - 0.02 * k) < 0.012 * k and part == "chest":
 				c = int(g["col2"])
+			var sn := int(g.get("stain", -1))
+			if sn >= 0:
+				c = _stain(c, sn, x, y, z)
+	return c
+
+
+## Exp 011 (brute): a flannel check: dark bands every 8 voxels both ways,
+## darker where they cross, a thin light line between.
+func _plaid(c: int, band: int, x: int, y: int, z: int) -> int:
+	var u := posmod(x + z, 8)
+	var v := posmod(y, 8)
+	var a := float(u < 3) + float(v < 3)
+	if a > 0.0:
+		return _mix(c, band, 0.38 * a)
+	if u == 5 or v == 5:
+		return _mix(c, 0xd8d0b8, 0.25)
+	return c
+
+
+## Exp 011 (brute): old smears and wiped streaks on a work apron (rust brown,
+## dried; no gore).
+func _stain(c: int, sc: int, x: int, y: int, z: int) -> int:
+	var n := E._vn(x, y / 3, z, 4, 61) * 0.7 + E._vn(x, y, z, 2, 67) * 0.3
+	if n > 0.58:
+		return _mix(c, _mix(sc, 0x4a4238, E._vn(x, y, z, 3, 71) * 0.5), clampf((n - 0.58) * 3.0, 0.0, 0.55))
 	return c
 
 

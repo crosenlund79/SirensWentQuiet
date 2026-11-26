@@ -12,6 +12,10 @@ extends RefCounted
 ## starved below weight 0: wasted limbs, a shallow ribcage, a sunken belly,
 ## bony shoulders and a thin neck (and in the sculpt hollow cheeks, sunken
 ## eyes, ribs); 0 leaves every other look exactly as it was.
+## weight / sex / age unless given. Beyond the ordinary range (Exp 011,
+## the brute): "bulk" multiplies the girth of neck, deltoids, limbs and
+## the chest's depth (1 = ordinary), "traps" (0 .. 1) adds a slope of
+## trapezius from the neck to the shoulders.
 ##
 ## derive() turns them into the skeleton the rig uses (joint offsets, bone
 ## lengths) and the girths the sculpt uses (radii of ribcage, belly, hips,
@@ -28,6 +32,7 @@ const DEFAULTS := {
 	"jaw": 1.0, "chin": 0.5, "cheeks": 0.5, "nose": 1.0, "nose_w": 1.0, "brow": 1.0, "ears": 1.0, "eyes": 1.0,
 	"belly": -1.0, "bust": -1.0, "hump": -1.0,
 	"gaunt": 0.0,
+	"bulk": 1.0, "traps": 0.0,
 }
 
 
@@ -43,7 +48,8 @@ static func derive(body: Dictionary) -> Dictionary:
 	var M := clampf(param(body, "muscle"), 0.0, 1.0)
 	var A := clampf(param(body, "age"), 0.0, 1.0)
 	var k := h / 1.81
-	var o := {"k": k, "sex": S, "weight": W, "muscle": M, "age": A}
+	var B := maxf(param(body, "bulk"), 0.1)
+	var o := {"k": k, "sex": S, "weight": W, "muscle": M, "age": A, "traps": clampf(param(body, "traps"), 0.0, 1.5)}
 	# head: smaller people have relatively larger heads
 	var hh := param(body, "head_h")
 	var HS := 1.15 * param(body, "head") * pow(k, 0.45) * (1.0 - 0.03 * S)
@@ -82,7 +88,7 @@ static func derive(body: Dictionary) -> Dictionary:
 	# torso girths
 	var cw := k * param(body, "shoulders") * (1.0 + 0.12 * M + 0.16 * W - 0.13 * S)
 	o["chest_c"] = Vector3(0.0, 0.265 * T, 0.0)
-	o["chest_r"] = Vector3(0.158 * cw, 0.19 * T, 0.105 * k * (1.0 + 0.2 * W + 0.08 * M))
+	o["chest_r"] = Vector3(0.158 * cw, 0.19 * T, 0.105 * k * (1.0 + 0.2 * W + 0.08 * M) * sqrt(B))
 	o["abd_c"] = Vector3(0.0, 0.06 * T, 0.005 * k)
 	o["abd_r"] = Vector3(0.138 * k * (1.0 + 0.4 * W - 0.1 * S + 0.04 * A), 0.15 * T, 0.1 * k * (1.0 + 0.42 * W))
 	var belly := param(body, "belly")
@@ -98,13 +104,13 @@ static func derive(body: Dictionary) -> Dictionary:
 		hump = clampf((A - 0.6) * 2.5, 0.0, 1.0)
 	o["hump"] = hump
 	o["shoulder"] = Vector3(0.162 * cw * (1.0 + 0.03 * M), 0.385 * T - 0.012 * k * hump, 0.01 * k + 0.02 * k * hump)
-	o["sh_r"] = 0.056 * k * (1.0 + 0.22 * M + 0.22 * W - 0.14 * S)
+	o["sh_r"] = 0.056 * k * (1.0 + 0.22 * M + 0.22 * W - 0.14 * S) * B
 	o["neck_len"] = param(body, "neck")
-	o["neck_r"] = 0.047 * k * (1.0 + 0.25 * W + 0.2 * M - 0.16 * S)
+	o["neck_r"] = 0.047 * k * (1.0 + 0.25 * W + 0.2 * M - 0.16 * S) * B
 	o["hips_c"] = Vector3(0.0, -0.035 * k, 0.006 * k)
 	o["hips_r"] = Vector3(0.142 * k * hips * (1.0 + 0.2 * S + 0.3 * W), 0.1 * k, 0.104 * k * (1.0 + 0.14 * S + 0.3 * W))
 	# limbs
-	var a := 1.0 + 0.42 * W + 0.25 * M - 0.15 * S - 0.1 * A
+	var a := (1.0 + 0.42 * W + 0.25 * M - 0.15 * S - 0.1 * A) * B
 	var arms := param(body, "arms")
 	o["upper_arm"] = 0.28 * k * arms
 	o["forearm"] = 0.25 * k * arms
@@ -113,7 +119,7 @@ static func derive(body: Dictionary) -> Dictionary:
 	o["farm_r0"] = 0.044 * k * a
 	o["farm_r1"] = 0.034 * k * (0.75 + 0.25 * a)
 	o["wrist_r"] = 0.027 * k * (0.85 + 0.15 * a)
-	var l := 1.0 + 0.4 * W + 0.15 * M + 0.1 * S - 0.12 * A
+	var l := (1.0 + 0.4 * W + 0.15 * M + 0.1 * S - 0.12 * A) * pow(B, 0.75)
 	o["thigh_r0"] = 0.08 * k * l
 	o["thigh_r1"] = 0.056 * k * l
 	o["knee_r"] = 0.047 * k * (0.8 + 0.2 * l)

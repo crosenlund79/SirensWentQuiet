@@ -18,6 +18,7 @@ unchanged (`EliSculpt` / `EliRig`); people use the shared foundation below.
 | `src/character/architect_identity.gd` | `ArchitectIdentity`: his internal id and flags |
 | `src/character/architect_figure.gd` | `ArchitectFigure`: the F10 preview figure near Eli |
 | `src/character/eli_showroom.gd` | the character showroom (all humanoids, comparison mode) |
+| `src/character/archetypes/brute.gd`, `brute_rig.gd` | the brutes: 4 people × 2 variations, ~2.4 m; their club and their movement |
 
 ## A look
 
@@ -32,7 +33,9 @@ brow ears eyes`. `derive()` turns them into joint offsets / bone lengths
 (the rig) and girths (the sculpt): a heavy body gets a belly, a double chin
 and thicker limbs; a woman narrower shoulders, wider hips, a bust, a smaller
 jaw; age a hump, jowls, a forward head, bigger ears and nose. Real geometry,
-never a uniform scale.
+never a uniform scale. Beyond the ordinary range: `bulk` (girth of neck,
+deltoids, limbs and chest depth; 1 = ordinary) and `traps` (0..1, a
+trapezius slope from neck to shoulders), both used by the brute.
 
 **Clothing** (`outfit`, documented at the top of `humanoid_sculpt.gd`):
 layers `top < mid < outer < over` (tshirt, shirt, blouse, sport, sweater,
@@ -176,3 +179,26 @@ original figure), `--view=three|front|side|back|face|sheet|gameplay`,
 `--seed=N`, `--people=<kind> --count=N --cols=N`, `--yaw=deg --dist=m
 --ty=m`, `--moving`, `--hide-ui`. Example: `--compare=brute --view=three
 --hide-ui`.
+## The brute (phase 2)
+
+* **Size and voxels.** A brute is 2.39–2.56 m (1.31–1.40 × Eli) and about
+  twice his breadth. At 1.5 cm voxels that is ~200k vertices, so his look is
+  sculpted at 1 / `VOXEL_SCALE` (1.33: `height` divided, `head` compensated
+  for its k^0.45 curve) and `BruteRig` scales itself back up: 2 cm voxels,
+  115–150k vertices. The look carries `voxel_scale`; `collapse()` keeps the
+  scale in the rig's basis. Proportions still come from the body parameters.
+* **Doors** leave 2.1 m. He is always stooped (`hunch` ~0.4) and ducks lower
+  (`duck` 0..1: deeper lean, bent knees, crown ≤ ~2.0 m) when a lintel is
+  just behind, over or ahead of him: `_door_probe` samples the parent
+  enemy's `world.grid` every 0.1 s (solid at 2.0–2.35 m with air at 1.3 m),
+  so it works at home and in POIs. `duck_hold` forces it (captures, tests).
+* **Club**: `extras()` → `BruteRig.attach_club()`: a 1.5 cm voxel model (a
+  nailed 2×4 with a rag grip, or a taped steel pipe; look field `club`) in
+  the right hand, in `parts` (flash, fade, night). It swings in line with
+  the arm during attacks and drops beside him when he goes down (reparented
+  next to the rig; back in the hand if the showroom replays the collapse).
+* **Material**: his own copy of the people's material with a deeper x-ray
+  self-occlusion depth (1.15 m instead of 0.55 m).
+* `tools/people_stage.tscn` (capture stage: `--who=eli,brute:0,...`) puts
+  figures of any size side by side; `tools/site_shot.tscn` takes
+  `--kind=brute --enemy-at=x,y`.

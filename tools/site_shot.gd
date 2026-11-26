@@ -7,7 +7,8 @@ extends Node
 ## nearest container that holds something (after its search).
 ## Exp 011: --enemies=N[,first_seed] places N calm psychos (people, one
 ## appearance seed each) in an arc 3..6 m in front of Eli; --kinds=a,b,..
-## cycles their kinds (default psycho).
+## cycles their kinds (default psycho; --kind=brute is one kind),
+## --enemy-at=x,y places the first one there.
 
 const SCENE := "res://src/game/game.tscn"
 
@@ -26,6 +27,7 @@ func _ready() -> void:
 	var enemies := 0
 	var first_seed := 0
 	var kinds: PackedStringArray = ["psycho"]
+	var enemy_at := Vector2.INF
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--site="):
 			site = a.trim_prefix("--site=")
@@ -48,6 +50,11 @@ func _ready() -> void:
 			first_seed = int(e[1]) if e.size() > 1 else 0
 		elif a.begins_with("--kinds="):
 			kinds = a.trim_prefix("--kinds=").split(",")
+		elif a.begins_with("--kind="):
+			kinds = [a.trim_prefix("--kind=")]
+		elif a.begins_with("--enemy-at="):
+			var q := a.trim_prefix("--enemy-at=").split(",")
+			enemy_at = Vector2(float(q[0]), float(q[1]))
 		elif a.begins_with("--weapon="):     # Exp 010: the shotgun in hand, or empty hands
 			weapon = a.trim_prefix("--weapon=")
 	var s := GameState.new_run(8008)
@@ -92,6 +99,8 @@ func _ready() -> void:
 		for i in enemies:
 			var ang := (float(i) / maxf(enemies - 1, 1) - 0.5) * 2.2
 			var at := pp + fwd.rotated(ang) * (3.0 + 2.5 * float(i % 2))
+			if i == 0 and enemy_at != Vector2.INF:
+				at = enemy_at
 			var e: Node = game.roster.spawn_type(kinds[i % kinds.size()], at, {"mode": "hidden", "appearance": first_seed + i})
 			if e is AIEnemy:
 				(e as AIEnemy).set_facing(atan2(-(pp - at).x, -(pp - at).y))
