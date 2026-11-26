@@ -59,6 +59,8 @@ var foot_l: Node3D
 var foot_r: Node3D
 var dead := false
 var preview_dir := Vector2.ZERO     ## showroom: a move direction when the rig itself does not move
+var pending_look := {}              ## Exp 012 (§33): the rig's own look while it wears a stand-in
+var ready_look_only := false        ## Exp 012: true = always its own look at once (showroom, figures)
 
 var _phase := 0.0
 var _move := 0.0
@@ -97,8 +99,12 @@ var _ankle := 0.095
 var _stance := 0.105
 var _k := 1.0
 
+var _bind := {}                     ## Exp 012: bone -> its rest position in its parent (the skeleton)
+var _chest_mesh: MeshInstance3D     ## Exp 012: breathing scales the chest's mesh, not the bone
+
 static var _enemy_mat: ShaderMaterial
 static var _night_frame := -1
+static var swap_ms := 0.0           ## Exp 012: time of the last stand-in -> own look swap (ms)
 
 
 ## Character material for people (night uniform, the enemy x-ray pass) with
@@ -125,14 +131,37 @@ static func _sync_night() -> void:
 func _init(l: Dictionary = {}) -> void:
 	look = Look.ENEMY_A
 	walk_phase = PI * 0.5        # a footstep sound at each foot plant (_phase 0 and 0.5)
-	look_data = l
-	style = STYLE.duplicate()
-	style.merge(l.get("style", {}), true)
-	body = HumanoidBody.derive(l.get("body", {}))
+	_set_look(l)
 	_rng.seed = hash(str(l.get("key", ""))) + 17
 
 
 func _ready() -> void:
+	# Exp 012 (§33): in a running game a look that isn't built yet is never
+	# built on the spot: a stand-in of the same archetype until it is ready
+	var key := str(look_data.get("key", ""))
+	if key != "" and HumanoidLooks.defer_builds() and not HumanoidSculpt.is_ready(key) and not ready_look_only:
+		var si := HumanoidLooks.stand_in(look_data)
+		if not si.is_empty():
+			pending_look = look_data
+			HumanoidSculpt.request(look_data, material_for(look_data), true)
+			_set_look(si)
+			HumanoidLooks.stand_ins += 1
+	_make_bones()
+	_tic_next = _rng.randf_range(1.0, 4.0)
+	_last = Vector3.INF
+	animate(0.0)
+
+
+## The look's style and proportions (the rig's own look, or a stand-in).
+func _set_look(l: Dictionary) -> void:
+	look_data = l
+	style = STYLE.duplicate()
+	style.merge(l.get("style", {}), true)
+	body = HumanoidBody.derive(l.get("body", {}))
+
+
+## The skeleton and its meshes for look_data.
+func _make_bones() -> void:
 	_k = body["k"]
 	_pelvis_y = body["pelvis_y"]
 	_waist = body["waist"]
@@ -162,9 +191,65 @@ func _ready() -> void:
 	shin_r = _bone(leg_r, Vector3(0.0, -_th, 0.0), "shin_r", m["shin_r"])
 	foot_l = _bone(shin_l, Vector3(0.0, -_sh, 0.0), "foot_l", m["foot_l"])
 	foot_r = _bone(shin_r, Vector3(0.0, -_sh, 0.0), "foot_r", m["foot_r"])
-	_tic_next = _rng.randf_range(1.0, 4.0)
+
+
+## Exp 012 (§33): once the rig's own look is built (it wore a stand-in),
+## the skeleton is rebuilt for it in place: the same node, the same AI and
+## state, its props (a club, a pack) moved onto the new bones.
+func adopt_pending() -> bool:
+	if pending_look.is_empty() or not HumanoidSculpt.is_cached(str(pending_look.get("key", ""))):
+		return false
+	var t0 := Time.get_ticks_usec()
+	var props := []
+	var bones := {}
+	for b: Node3D in _bind:
+		bones[b] = true
+	for b: Node3D in _bind:
+		for c in b.get_children():
+			if not bones.has(c) and c.name != "Mesh":
+				props.append([c, str(b.name), c.transform])
+	var keep := []
+	for mi in parts:
+		if is_instance_valid(mi) and not ((mi as Node).get_parent() is Node3D and bones.has((mi as Node).get_parent()) and mi.name == "Mesh"):
+			keep.append(mi)                  # a prop's mesh (the club): it flashes and fades with the body
+	for pr in props:
+		(pr[0] as Node).get_parent().remove_child(pr[0])
+	var old_pelvis := pelvis
+	remove_child(old_pelvis)
+	old_pelvis.queue_free()
+	parts.clear()
+	_bind.clear()
+	_set_look(pending_look)
+	pending_look = {}
+	_make_bones()
+	for pr in props:
+		var nb := _find_bone(str(pr[1]))
+		if nb != null:
+			nb.add_child(pr[0])
+			(pr[0] as Node3D).transform = pr[2]
+		else:
+			(pr[0] as Node).queue_free()
+	for mi in keep:
+		if is_instance_valid(mi) and (mi as Node).is_inside_tree():
+			parts.append(mi)
+	_after_bones()
+	set_fade(_fade)
+	set_flash(_flash)
 	_last = Vector3.INF
-	animate(0.0)
+	swap_ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	return true
+
+
+func _find_bone(nm: String) -> Node3D:
+	for b: Node3D in _bind:
+		if str(b.name) == nm:
+			return b
+	return null
+
+
+## Hook after the skeleton is (re)built: archetype materials and the like.
+func _after_bones() -> void:
+	pass
 
 
 ## The material a look's meshes use (enemies: enemy_material()).
@@ -186,7 +271,53 @@ func _bone(parent: Node3D, pos: Vector3, nm: String, mesh: Mesh) -> Node3D:
 	mi.mesh = mesh
 	n.add_child(mi)
 	parts.append(mi)
+	_bind[n] = pos
+	if nm == "chest":
+		_chest_mesh = mi
 	return n
+
+
+## Exp 012: every bone and its rest position in its parent (RigIntegrity).
+func rest_positions() -> Dictionary:
+	return _bind
+
+
+## Exp 012 (§29): every bone back at its rest offset with unit scale before a
+## frame's pose. The overlays and archetype styles nudge positions additively
+## (a shrug, a shoulder hitch); without this they accumulated frame after
+## frame and arms drifted off the body (a runner's in seconds, a psycho's a
+## few centimetres per shoulder tic), and a corpse kept them.
+func _rest_pose() -> void:
+	for b: Node3D in _bind:
+		b.position = _bind[b]
+		if b.scale != Vector3.ONE:
+			b.scale = Vector3.ONE
+
+
+## The chest's breathing: scales its mesh only, so the head and arms (its
+## children) are never stretched or sheared with it.
+func breathe_chest(s: Vector3) -> void:
+	if _chest_mesh != null:
+		_chest_mesh.scale = s
+
+
+## Exp 012: a non-finite pose (a bad delta, a NaN velocity) never sticks:
+## the rig's motion state starts over and the bones go back to rest.
+func _guard() -> void:
+	if pelvis.transform.is_finite() and torso.transform.is_finite() and head.transform.is_finite() \
+			and arm_l.transform.is_finite() and arm_r.transform.is_finite() and leg_l.transform.is_finite() \
+			and leg_r.transform.is_finite() and shin_l.transform.is_finite() and shin_r.transform.is_finite():
+		return
+	_vel = Vector3.ZERO
+	_dir = Vector2(0.0, -1.0)
+	_last = Vector3.INF
+	_last_yaw = INF
+	_yaw_rate = 0.0
+	_phase = 0.0
+	_arm_lag = Vector2.ZERO
+	for b: Node3D in _bind:
+		b.transform = Transform3D(Basis.IDENTITY, _bind[b])
+	pelvis.position = Vector3(0.0, _pelvis_y, 0.0)
 
 
 func st(key: String) -> float:
@@ -222,6 +353,9 @@ func animate(delta: float) -> void:
 	if pelvis == null or dead:
 		return
 	_sync_night()
+	if not pending_look.is_empty():
+		adopt_pending()
+	_rest_pose()
 	var tempo := st("tempo")
 	_t += delta * tempo
 	# real ground velocity (local) and the turn rate
@@ -299,7 +433,7 @@ func animate(delta: float) -> void:
 		-twist * 1.4,
 		-pelvis.rotation.z * 0.6 + sin(_t * 0.37) * 0.04 * sway)
 	torso.position = _waist + Vector3(0.0, 0.004 * breathe, 0.0)
-	torso.scale = Vector3(1.0 + 0.01 * breathe, 1.0, 1.0 + 0.014 * breathe)
+	breathe_chest(Vector3(1.0 + 0.01 * breathe, 1.0, 1.0 + 0.014 * breathe))
 	# --- head: compensates the lean, tilts, drifts, glances ------------------------------
 	_glance_t -= delta * tempo
 	if _glance_t <= 0.0:
@@ -324,6 +458,11 @@ func animate(delta: float) -> void:
 		_hit_pose(stagger)
 	_hit_prev = stagger
 	_tics(delta)
+	# Exp 012: the overlays move the pelvis (lunges, blows, ducking, weight
+	# shifts): solve the legs again so the feet stay on the ground.
+	_leg(-1.0, _phase, duty, reach, run, shift)
+	_leg(1.0, fposmod(_phase + 0.5, 1.0), duty, reach, run, shift)
+	_guard()
 	recoil = maxf(recoil - delta * 9.0, 0.0)
 	stagger = maxf(stagger - delta * 3.5, 0.0)
 	if _flash > 0.0:
@@ -540,6 +679,8 @@ func collapse(delta: float, t: float, axis: Vector3, yaw: float) -> void:
 		_coll_bend = -1.0 if _rng.randf() < 0.5 else 1.0
 	_coll_t = t
 	_sync_night()
+	_rest_pose()
+	breathe_chest(Vector3.ONE)
 	var buckle := smoothstep(0.0, 0.35, t)
 	var fall := clampf((t - 0.18) / 0.5, 0.0, 1.0)
 	fall = fall * fall

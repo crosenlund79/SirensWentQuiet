@@ -372,6 +372,13 @@ static func _cloth(c: int, x: int, y: int, z: int, wear := 0.06) -> int:
 const HS := 1.15
 const HEAD_C := Vector3(0.0, 0.19, 0.012)
 const HEAD_R := Vector3(0.086, 0.106, 0.1)
+## Exp 012: how much thinner the neck is inside the collar (q space, m).
+const NECK_TUCK := 0.017
+## Exp 012: the opening the collar and scarf leave around the neck (chest
+## space): nothing of the chest is solid inside it above NECK_HOLE_Y, so the
+## head's neck turns freely in it. [y0, r0, y1, r1] along the collar's axis.
+const NECK_HOLE := [0.38, 0.06, 0.56, 0.054]
+const NECK_HOLE_Y := 0.405
 ## Face rows (voxel y index in head space) and columns (|x index|).
 const R_BROW := 13
 const R_EYE := 11
@@ -395,8 +402,13 @@ static func _skull(p: Vector3) -> float:
 	# nose: a straight bridge, a rounded tip with a little weight to it
 	d = _smin(d, _cone(p, Vector3(0.0, 0.165, -0.09), Vector3(0.0, 0.114, -0.109), 0.009, 0.012), 0.012)
 	d = _smin(d, _sph(p, Vector3(0.0, 0.11, -0.104), 0.016), 0.01)
-	# neck
-	d = _smin(d, _cone(p, Vector3(0.0, -0.05, 0.014), Vector3(0.0, 0.1, 0.004), 0.048, 0.045), 0.03)
+	# neck. Exp 012: below the top of the scarf and collar (q.y ~0.04) it
+	# narrows, so the part hidden in the collar stays clear of the scarf
+	# roll and the collar when the head turns or bows (it used to fill the
+	# opening and poke skin through them at every glance).
+	var neck := _cone(p, Vector3(0.0, -0.05, 0.014), Vector3(0.0, 0.1, 0.004), 0.048, 0.045)
+	neck += NECK_TUCK * (1.0 - smoothstep(0.012, 0.044, p.y))
+	d = _smin(d, neck, 0.03)
 	return d
 
 
@@ -570,6 +582,14 @@ static func _chest(p: Vector3, v: Dictionary, x: int, y: int, z: int) -> int:
 	var knit := body - 0.005
 	if p.y < 0.3 or p.y > 0.5:
 		knit = 1.0
+	# Exp 012: the neck opening is empty above the collar's base (it used to
+	# hold a clothed neck stump that the head's skin neck cut through).
+	if p.y > NECK_HOLE_Y:
+		var u := clampf((p.y - float(NECK_HOLE[0])) / (float(NECK_HOLE[2]) - float(NECK_HOLE[0])), 0.0, 1.0)
+		var hole_r := lerpf(float(NECK_HOLE[1]), float(NECK_HOLE[3]), u)
+		if Vector2(p.x, p.z - lerpf(0.012, 0.02, u)).length() < hole_r:
+			jacket = 1.0
+			knit = 1.0
 	# a carpenter's pencil standing in the right chest pocket (graphite end up)
 	if _rbox(p, Vector3(0.06, 0.328, -0.114), Vector3(0.008, 0.028, 0.012), 0.0) <= 0.0:
 		return 0x3a3a3a if p.y > 0.342 else PENCIL

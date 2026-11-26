@@ -57,6 +57,7 @@ const CAPTIONS := {
 }
 
 var overlay := false
+var aim_pitch_arg := 0.0          ## Exp 012: Eli's aim pitch in the showroom (--aim-pitch=)
 var anim := "idle"
 var view := "three"
 var variant := 0
@@ -158,6 +159,8 @@ func _ready() -> void:
 			_dormant = a.trim_prefix("--dormant=")
 		elif a.begins_with("--pose="):
 			_pose = float(a.trim_prefix("--pose="))
+		elif a.begins_with("--aim-pitch="):      # Exp 012: Eli's aim pitch (rad; the game aims at the floor: -0.3 .. -0.9)
+			aim_pitch_arg = float(a.trim_prefix("--aim-pitch="))
 		elif a.begins_with("--cols="):
 			people_cols = maxi(int(a.trim_prefix("--cols=")), 1)
 	if not light in ["day", "night", "flashlight"]:
@@ -423,6 +426,8 @@ func _rebuild_people() -> void:
 	for i in n:
 		var seed := people_seed + (i if view != "sheet" else 0)
 		var r := HumanoidLooks.make_rig(people, seed)
+		if r is HumanoidRig:
+			(r as HumanoidRig).ready_look_only = true      # Exp 012: the exact look, also over a running game
 		r.name = "Person%d" % i
 		var c := i % cols
 		var row := i / cols
@@ -466,6 +471,7 @@ func _apply_anim() -> void:
 			r.speed = SPEEDS.get(a, 0.0)
 			r.aiming = a == "handgun" or a == "shotgun"
 			r.carry = a == "flashlight"
+			r.aim_pitch = aim_pitch_arg
 			r.set_held("flashlight" if a == "flashlight" else ("hammer" if a == "tool" else ""))
 			if r is EliRig:
 				(r as EliRig).preview_dir = Vector2(0.0, -1.0)

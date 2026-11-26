@@ -158,6 +158,10 @@ class RunnerRig extends HumanoidRig:
 	func _ready() -> void:
 		_base_crouch = st("crouch")
 		super._ready()
+		_base_crouch = st("crouch")          # Exp 012: of the look it wears (a stand-in)
+
+	func _after_bones() -> void:
+		_base_crouch = st("crouch")          # Exp 012: its own look, once built
 
 	func animate(delta: float) -> void:
 		if pelvis == null or dead:
@@ -248,6 +252,8 @@ class RunnerRig extends HumanoidRig:
 			_coll_bend = -1.0 if _rng.randf() < 0.5 else 1.0
 		_coll_t = t
 		_sync_night()
+		_rest_pose()                # Exp 012: no leftover shoulder hitch on the body
+		breathe_chest(Vector3.ONE)
 		var drop := smoothstep(0.0, 0.17, t)
 		var fold := smoothstep(0.06, 0.3, t)
 		var fall := clampf((t - 0.24) / 0.36, 0.0, 1.0)

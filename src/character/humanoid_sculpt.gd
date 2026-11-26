@@ -71,6 +71,9 @@ static var _lru: Array[String] = []
 static var stats := {}              ## look key -> {"verts": int, "ms": float, "parts": {part: verts}}
 static var _bg := {}                ## look key -> {"task", "holder", "material"}: building in the background
 static var _cancel := false
+static var _dropped := []           ## Exp 012: background builds given up (waited for at cancel_background)
+static var sync_builds := 0         ## Exp 012: looks built on the spot (meshes() without a cached look)
+static var adopt_ms := 0.0          ## Exp 012: main-thread time of the last background look's adoption
 
 # --- the look, unpacked (one sculptor per look; read-only while building) ---------------
 var look: Dictionary
@@ -302,9 +305,19 @@ static func meshes(l: Dictionary, material: Material) -> Dictionary:
 		_lru.append(key)
 		return _cache[key]
 	if _bg.has(key):
-		WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
-		if _adopt(key):
-			return _cache[key]
+		if WorkerThreadPool.is_task_completed(int(_bg[key]["task"])):
+			WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
+			if _adopt(key):
+				return _cache[key]
+		else:
+			# Exp 012 (§33): never wait for a queued background build: it may sit
+			# behind every other queued look on the one background thread (a
+			# 5..15 s freeze was measured). Build it here on every core and
+			# drop the queued one.
+			(_bg[key]["holder"] as Dictionary)["cancel"] = true
+			_dropped.append(_bg[key])
+			_bg.erase(key)
+	sync_builds += 1
 	var t0 := Time.get_ticks_usec()
 	var s := HumanoidSculpt.new(l)
 	# 1. grids, 2. shape per y slab, 3. paint per slab, 4. shade + mesh per part
@@ -365,17 +378,28 @@ static func is_ready(key: String) -> bool:
 
 ## Starts building a look on a worker thread (one thread, low priority); the
 ## game keeps running. poll() (every frame, HumanoidRig) adopts finished ones.
-static func request(l: Dictionary, material: Material) -> void:
+## Exp 012: `urgent` (a rig is waiting for it, wearing a stand-in) runs it
+## on a high-priority worker instead of behind the queued warm-ups.
+static func request(l: Dictionary, material: Material, urgent := false) -> void:
 	var key := str(l.get("key", ""))
-	if key == "" or _cache.has(key) or _bg.has(key):
+	if key == "" or _cache.has(key):
 		return
+	if _bg.has(key):
+		if not urgent or bool(_bg[key].get("urgent", false)) or WorkerThreadPool.is_task_completed(int(_bg[key]["task"])):
+			return
+		(_bg[key]["holder"] as Dictionary)["cancel"] = true      # queued behind the warm-ups: start it again in front
+		_dropped.append(_bg[key])
+		_bg.erase(key)
 	var holder := {"look": l.duplicate(true), "parts": {}, "verts": 0, "ms": 0.0}
-	var id := WorkerThreadPool.add_task(_bg_build.bind(holder), false, "humanoid look")
-	_bg[key] = {"task": id, "holder": holder, "material": material}
+	var id := WorkerThreadPool.add_task(_bg_build.bind(holder), urgent, "humanoid look")
+	_bg[key] = {"task": id, "holder": holder, "material": material, "urgent": urgent}
 
 
 ## Adopts the looks finished in the background (main thread: makes the meshes).
 static func poll() -> void:
+	if not _dropped.is_empty() and WorkerThreadPool.is_task_completed(int(_dropped[0]["task"])):
+		WorkerThreadPool.wait_for_task_completion(int(_dropped[0]["task"]))
+		_dropped.pop_front()
 	if _bg.is_empty():
 		return
 	for key in _bg.keys():
@@ -399,7 +423,15 @@ static func cancel_background() -> void:
 	for key in _bg.keys():
 		WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
 		_adopt(key)
+	for b in _dropped:
+		WorkerThreadPool.wait_for_task_completion(int(b["task"]))
+	_dropped.clear()
 	_cancel = false
+
+
+## Exp 012: background builds not finished yet (F10, tests).
+static func pending() -> int:
+	return _bg.size()
 
 
 static func _adopt(key: String) -> bool:
@@ -408,10 +440,12 @@ static func _adopt(key: String) -> bool:
 	var h: Dictionary = b["holder"]
 	if not bool(h.get("done", false)):
 		return false                                               # cancelled half way
+	var t0 := Time.get_ticks_usec()
 	var out := {}
 	for p in PARTS:
 		out[p] = E.arrays_to_mesh(h["parts"].get(p), b["material"])
 	_store(key, out)
+	adopt_ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	stats[key] = {"verts": h["verts"], "ms": h["ms"], "parts": {}, "background": true}
 	return true
 
@@ -422,7 +456,7 @@ static func _bg_build(holder: Dictionary) -> void:
 	var parts := {}
 	var verts := 0
 	for p in PARTS:
-		if _cancel:
+		if _cancel or bool(holder.get("cancel", false)):
 			return
 		var g := s.build_grid(p)
 		E._shade(g)
@@ -1640,7 +1674,11 @@ func _skull(q: Vector3) -> float:
 	d = E._smin(d, E._cone(q, Vector3(0.0, 0.165 * hh, -0.09), tip + Vector3(0.0, 0.004, -0.005), 0.009 * nose_w, 0.012 * nose_w), 0.012)
 	d = E._smin(d, E._sph(q, tip, 0.016 * nose_w), 0.01)
 	var nr := neck_r * 1.02 / HS
-	d = E._smin(d, E._cone(q, Vector3(0.0, -0.06 - 0.03 * (neck_len - 1.0), 0.014), Vector3(0.0, 0.1 * hh, 0.004), nr, nr * 0.94), 0.03)
+	# Exp 012: the neck narrows below the pivot, inside the chest's neck and
+	# collars, so a turning or bowing head no longer pushes skin through them.
+	var neck := E._cone(q, Vector3(0.0, -0.06 - 0.03 * (neck_len - 1.0), 0.014), Vector3(0.0, 0.1 * hh, 0.004), nr, nr * 0.94)
+	neck += 0.32 * nr * (1.0 - smoothstep(-0.035, 0.004, q.y))
+	d = E._smin(d, neck, 0.03)
 	return d
 
 

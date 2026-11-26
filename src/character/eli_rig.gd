@@ -255,7 +255,9 @@ func animate(delta: float) -> void:
 	torso.rotation = Vector3(-lean - 0.012 * breathe * idle + 0.04 * run * _move,
 		-twist * (1.6 - 0.9 * _aim_blend) + 0.12 * _two_blend,
 		-pelvis.rotation.z * 0.7)
-	torso.scale = Vector3(1.0 + 0.008 * breathe, 1.0, 1.0 + 0.012 * breathe)
+	# Exp 012: breathing scales the chest's mesh, not the bone (its children,
+	# the head and arms, were stretched and sheared with it)
+	(torso.get_node("Mesh") as Node3D).scale = Vector3(1.0 + 0.008 * breathe, 1.0, 1.0 + 0.012 * breathe)
 	torso.position = WAIST + Vector3(0.0, 0.004 * breathe, 0.0)
 	# --- head: looks along the aim, glances around when idle ----------------------
 	_glance_t -= delta

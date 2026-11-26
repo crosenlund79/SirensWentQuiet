@@ -130,10 +130,19 @@ class BomberRig extends HumanoidRig:
 	func _ready() -> void:
 		super._ready()
 		pack_extras = EnemyLooks._pack(self)
-		var pack: Node3D = pack_extras["pack"]
-		# sit the frame on this body's back, over its clothes
+		_seat_pack()
+
+	## Sits the frame on this body's back, over its clothes (Exp 012: again
+	## once its own look replaces a stand-in).
+	func _seat_pack() -> void:
+		var pack: Node3D = pack_extras.get("pack")
+		if pack == null or not is_instance_valid(pack):
+			return
 		var depth := float((body["chest_r"] as Vector3).z) + HumanoidSculpt.new(look_data).max_t
 		pack.position = Vector3(0.0, 0.17 * float(body["T"]), depth + 0.072)
+
+	func _after_bones() -> void:
+		_seat_pack()
 
 	func _style_pose(delta: float) -> void:
 		_clock += delta

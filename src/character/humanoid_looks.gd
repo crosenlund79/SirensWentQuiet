@@ -12,6 +12,13 @@ extends RefCounted
 const ARCH_DIR := "res://src/character/archetypes/"
 
 static var _arch := {}              ## kind -> HumanoidArchetype (or null: none)
+## Exp 012 (§33): how many games (roster warmers) are running. While one is
+## and no loading screen is up, a person whose look isn't built yet never
+## builds it on the spot (a 0.5..1.5 s freeze): it wears a stand-in look of
+## its archetype that is ready and changes into its own look a moment later
+## (HumanoidRig.adopt_pending). 0 (tests, the showroom): built on the spot.
+static var _games := 0
+static var stand_ins := 0           ## people that started in a stand-in look (F10, tests)
 
 
 ## The archetype of `kind`, or null when it has none (old figure).
@@ -67,11 +74,33 @@ static func pick_seed(kind: String, rng: RandomNumberGenerator) -> int:
 	var first := rng.randi() % 1000000
 	if a == null:
 		return first
-	for i in 8:
-		var s := first + i * 7919
+	# Exp 012: every look of the archetype is a candidate (was 8 tries)
+	var v := maxi(a.variety(), 1)
+	for i in v:
+		var s := first + i
 		if HumanoidSculpt.is_ready(str(a.look(s)["key"])):
 			return s
 	return first
+
+
+## Exp 012 (§33): whether a rig made now must not build its look on the spot.
+static func defer_builds() -> bool:
+	return _games > 0 and LoadingScreen.current() == null
+
+
+## Exp 012 (§33): a built look of the same archetype to wear while `l` builds
+## (the nearest index first), or {} when none is ready.
+static func stand_in(l: Dictionary) -> Dictionary:
+	var a := archetype(str(l.get("kind", "")))
+	if a == null:
+		return {}
+	var v := maxi(a.variety(), 1)
+	var i0 := int(l.get("index", 0))
+	for d in v:
+		var cand := a.look(i0 + d)
+		if HumanoidSculpt.is_cached(str(cand["key"])):
+			return cand
+	return {}
 
 
 ## Starts building looks of `kind` in the background while `host` (a node in
@@ -81,24 +110,63 @@ static func warm(kind: String, host: Node, count := 16) -> void:
 	var a := archetype(kind)
 	if a == null or host == null or not host.is_inside_tree():
 		return
+	# Exp 012 (§33): behind a loading screen (a staged boot), the archetype's
+	# first look is built now on every core, so in the game there is always a
+	# ready stand-in and no person is ever built on the spot
+	if LoadingScreen.current() != null:
+		var l0 := a.look(0)
+		if not HumanoidSculpt.is_cached(str(l0["key"])):
+			HumanoidSculpt.meshes(l0, HumanoidRig.material_for(l0))
 	if host.get_node_or_null("HumanoidWarmer") == null:
 		var w := Warmer.new()
 		w.name = "HumanoidWarmer"
 		host.add_child(w)
-	for i in mini(a.variety(), count):
-		var l := a.look(i)
-		HumanoidSculpt.request(l, HumanoidRig.material_for(l))
+	# Exp 012: the first look of every archetype first (a kind with nothing
+	# ready would have to build on the spot), then the rest
+	var w: Node = host.get_node("HumanoidWarmer")
+	w.call("queue_kind", kind, mini(a.variety(), count))
 
 
 ## Adopts background builds every frame; cancels them on leaving the tree.
+## Exp 012: it also counts as a running game (defer_builds) and queues the
+## warm-ups round-robin over the archetypes, one look each in turn.
 class Warmer extends Node:
+	var _queue := []           ## [kind, next index, count]
+
 	func _ready() -> void:
 		process_mode = Node.PROCESS_MODE_ALWAYS
+
+	func _enter_tree() -> void:
+		HumanoidLooks._games += 1
+
+	var _fed := false
+
+	func queue_kind(kind: String, count: int) -> void:
+		_queue.append([kind, 0, count])
+		if not _fed:
+			_fed = true
+			_feed.call_deferred()             # after every warm() of this frame: round-robin
+
+	## Hands the background queue one look per archetype per round.
+	func _feed() -> void:
+		_fed = false
+		if not is_inside_tree():
+			return
+		var more := true
+		while more:
+			more = false
+			for q in _queue:
+				if int(q[1]) < int(q[2]):
+					var l := HumanoidLooks.archetype(str(q[0])).look(int(q[1]))
+					HumanoidSculpt.request(l, HumanoidRig.material_for(l))
+					q[1] = int(q[1]) + 1
+					more = true
 
 	func _process(_delta: float) -> void:
 		HumanoidSculpt.poll()
 
 	func _exit_tree() -> void:
+		HumanoidLooks._games = maxi(HumanoidLooks._games - 1, 0)
 		HumanoidSculpt.cancel_background()
 
 

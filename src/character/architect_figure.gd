@@ -65,6 +65,7 @@ static func _facing(t: Node3D) -> float:
 
 func _ready() -> void:
 	rig = HumanoidLooks.make_rig(ArchitectIdentity.ID, look_seed) as ArchitectRig
+	rig.ready_look_only = true             # Exp 012: his own look at once
 	rig.name = "Rig"
 	add_child(rig)
 	rig.observe = true

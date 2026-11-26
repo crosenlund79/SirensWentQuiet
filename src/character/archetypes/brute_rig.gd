@@ -47,8 +47,21 @@ func _ready() -> void:
 	vscale = float(look_data.get("voxel_scale", 1.0))
 	scale = Vector3.ONE * vscale
 	super()
+	_after_bones()
+
+
+## His material on every part; Exp 012: also once his own look replaces a
+## stand-in (the scale, and the club of his look).
+func _after_bones() -> void:
+	vscale = float(look_data.get("voxel_scale", 1.0))
+	if not dead:
+		scale = Vector3.ONE * vscale
 	for p in parts:
 		p.material_override = brute_material()
+	if club != null and is_instance_valid(club):
+		var mi := club.get_node_or_null("Mesh") as MeshInstance3D
+		if mi != null:
+			mi.mesh = club_mesh(str(look_data.get("club", "plank")), material_for(look_data))
 
 
 ## The people's material with a deeper x-ray self-occlusion depth: a brute is
@@ -222,7 +235,7 @@ func _style_pose(delta: float) -> void:
 	arm_r.position = _shoulder + Vector3(0.0, 0.016 * _k * b * bk, 0.0)
 	torso.rotation.x += 0.035 * b * idle
 	head.rotation.x -= 0.03 * b * idle
-	torso.scale = Vector3(1.0 + 0.018 * b * bk, 1.0, 1.0 + 0.03 * b * bk)
+	breathe_chest(Vector3(1.0 + 0.018 * b * bk, 1.0, 1.0 + 0.03 * b * bk))     # Exp 012: the mesh, not the bone
 	# under a lintel: stoop lower, knees bent
 	_door_probe(delta)
 	if duck_hold >= 0.0:
@@ -342,10 +355,11 @@ func collapse(delta: float, t: float, axis: Vector3, yaw: float) -> void:
 		dead = true
 		_coll_bend = -1.0 if _rng.randf() < 0.5 else 1.0
 		duck = 0.0
-		torso.scale = Vector3.ONE
 		_club_back()
 	_coll_t = t
 	_sync_night()
+	_rest_pose()                    # Exp 012: every bone at its rest offset first
+	breathe_chest(Vector3.ONE)
 	brute_material()
 	var drop := clampf(t / 0.38, 0.0, 1.0)
 	drop = drop * drop
