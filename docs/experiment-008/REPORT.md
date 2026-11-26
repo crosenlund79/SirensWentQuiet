@@ -31,6 +31,7 @@ A new end-to-end test (`tests/firstweek/test_first_week.gd`) plays the user's 13
 | Audio at POIs decided "inside" by the home's floor plan, not the place's rooms. | Wrong behaviour | Lead (see §6) |
 | A searched, empty container showed no prompt at all, so the player couldn't tell it had been searched. | Confusing | L (see §3) |
 | 45 % of first library visits had no manual Eli could read yet (e.g. only "Metalworking", which needs "Reinforced Construction" first). | Pacing | Lead (see §5) |
+| With a full quick bar, a flashlight or crowbar slipped into the second weapon slot, so a shotgun found later at Pike's never appeared on the bar (found by scenario B). | Bug (since Experiment 004) | Lead: a found gun takes that slot back; the tool stays in the inventory |
 
 ## 2. Three new places
 
