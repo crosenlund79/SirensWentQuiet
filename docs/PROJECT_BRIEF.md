@@ -210,6 +210,26 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Out of scope:** an exe or installer; Windows CI; merges to `main`; elaborate test frameworks.
 - **Verification:** scenarios A–H (daily opportunities, on-demand generation, residential, commercial, apartment, dormant psycho, persistence, loading), lightweight, plus a few screenshots. The user playtests.
 
+## Current approved objective: "The Human Element" (Experiment 010)
+
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 010 — The Human Element", Rapid Visual Experiment, minimal engineering); in progress.** Branch `exp010/the-human-element` from Experiment 009 (`01b6517`, also kept as `checkpoint/exp009-poi-generator`).
+
+- **Objective (one):** a high-quality, handcrafted voxel Elias "Eli" Walker, in this order of priority:
+  1. the character itself;
+  2. idle, walk, run, handgun and two-handed holds;
+  3. the character in regular gameplay, with a toggle back to the original;
+  4. a simple showroom;
+  5. two or three optional variations;
+  6. a portable Windows x64 ZIP.
+- **Windows build:** the build as a GitHub Actions artifact is **explicitly approved** for this experiment.
+- **Reference image:** the user's attached image wasn't available to this session, so the written art direction was followed.
+- **Out of scope:**
+  - a character creator or modular asset system;
+  - enemy redesign;
+  - rewriting movement, combat or other systems;
+  - large test suites;
+  - merges to `main`.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
