@@ -1876,7 +1876,10 @@ static func _stage_exterior(b: Dictionary) -> void:
 	_fallback_exterior(b)
 	var ext := script_class("PoiExterior")
 	if ext != null:
-		ext.call("decorate", L, b["setup"], rng)
+		var res: Variant = ext.call("decorate", L, b["setup"], rng)     # it fills L in place
+		if typeof(res) == TYPE_DICTIONARY and not is_same(res, L):
+			for k in res:
+				L[k] = res[k]
 
 
 ## The small default outside (X's PoiExterior replaces it): the arrival point
