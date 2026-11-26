@@ -4,8 +4,10 @@ extends RefCounted
 ## helpers, no nodes.
 ##
 ## Every map location (RegionLocations, with gameplay data in ExpeditionData)
-## is a POI. Three have hand-made layouts (PoiLayouts): Pine Woods ("forest"),
-## the Corner Store ("convenience") and the Public Library ("library"). Every
+## is a POI. Six have hand-made layouts (PoiLayouts): Pine Woods ("forest"),
+## the Corner Store ("convenience"), the Public Library ("library") and, since
+## Experiment 008, the Hardware Store ("hardware"), Pike's Guns ("gun_shop")
+## and the Medical Clinic ("clinic"). Every
 ## other location uses the reusable placeholder template: a generic small
 ## building whose containers and labels follow the location's category, filled
 ## from that location's own loot profile, with enemies by its danger. It says
@@ -15,7 +17,8 @@ extends RefCounted
 ## (danger, loot and locked tables, depletion and regen) and the layout:
 ##   id, name, desc, category, template, placeholder, variant, danger,
 ##   loot, locked, locked_name, regen, deplete, floor, dark (a flashlight is
-##   needed to search: ExpeditionData "requires"), layout (PoiLayouts dict).
+##   needed to search: ExpeditionData "requires"; the placeholder uses it, a
+##   hand-made layout marks its own dark rooms), layout (PoiLayouts dict).
 ## Danger for a visit at run time: ExpeditionData.trip_danger(state, id) (the
 ## place x lasting flags x difficulty), see danger_of.
 ##
@@ -24,7 +27,8 @@ extends RefCounted
 ## PoiLayouts.build. Nothing else changes: containers, loot, encounters,
 ## exits and persistence all come from the layout dictionary.
 
-const HAND_MADE := {"forest": "pine_woods", "convenience": "corner_store", "library": "library"}
+const HAND_MADE := {"forest": "pine_woods", "convenience": "corner_store", "library": "library",
+	"hardware": "hardware_store", "gun_shop": "gun_shop", "clinic": "clinic"}      # Exp 008 (H): + three places
 ## Placeholder variant by location category (PoiLayouts.placeholder).
 const VARIANTS := {"residential": "house", "food": "shop", "medical": "clinic", "construction": "depot",
 	"weapons": "armoury", "knowledge": "office"}
@@ -33,6 +37,9 @@ const ARRIVAL := {
 	"forest": "Pine Woods. Snow, deadfall and silence. Mostly silence.",
 	"convenience": "The Corner Store. The windows are dark.",
 	"library": "The Public Library. Quiet. Too quiet between the stacks.",
+	"hardware": "The Hardware Store. Half the racks are bare, and the yard gate hangs open.",
+	"gun_shop": "Pike's Guns. Empty racks, and a steel door nobody got through.",
+	"clinic": "The Medical Clinic. Daylight in the waiting room; down the corridor, nothing.",
 }
 
 static var _cache := {}

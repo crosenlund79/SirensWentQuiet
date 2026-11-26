@@ -271,8 +271,13 @@ const LOCATIONS := {
 		"extra": [["snacks", 1, 2, 0.4]],
 		"events": {"dark_pharmacy": 3, "storage_door": 2, "lone_psycho": 2, "tracks": 1, "fog_bank": 1},
 		"two_events": 0.6},
+	# Exp 008 (H): a real building now (PoiLayouts): the waiting room has
+	# windows, only the inner rooms are dark, so a flashlight is no longer
+	# required to go, it lowers the risk; the staff room holds food and water.
 	"clinic": {"profile": "medical", "place": "clinic", "danger": 1.3, "search": 250,
-		"requires": ["flashlight"], "requires_text": "The clinic has no windows.",
+		"prep": {"flashlight": 0.85},
+		"mods": {"ammo": 0.5},
+		"extra": [["canned_food", 1, 2, 0.45], ["snacks", 1, 2, 0.5], ["water", 1, 2, 0.35]],
 		"events": {"dark_pharmacy": 4, "waiting_room": 3, "dogs": 1, "tracks": 1, "fog_bank": 1},
 		"two_events": 1.0},
 	"vet_clinic": {"profile": "medical", "place": "vet's", "danger": 0.9, "search": 150,
@@ -291,6 +296,10 @@ const LOCATIONS := {
 		"extra": [["fuel", 1, 1, 0.3], ["car_battery", 1, 1, 0.2],
 			["book_woodworking", 1, 1, 0.12], ["book_reinforced", 1, 1, 0.05],      # Exp 006 (R): a DIY shelf
 			["electronics", 1, 3, 0.45], ["book_electronics", 1, 1, 0.1], ["drill", 1, 1, 0.25]],      # Exp 007 (S): the electrical aisle; (O): a hand drill
+		# Exp 008 (H): the jammed stockroom: the better building stock, a little iron, a manual
+		"locked": [["nails", 8, 16, 0.8], ["wood", 4, 8, 0.6], ["scrap", 2, 5, 0.6], ["iron", 1, 2, 0.3],
+			["electronics", 1, 3, 0.4], ["drill", 1, 1, 0.2], ["book_reinforced", 1, 1, 0.12]],
+		"locked_name": "the jammed stockroom", "locked_text": "The crowbar sprang the stockroom's jammed door.",
 		"events": {"timber_rack": 3, "storage_door": 2, "collapsed_floor": 1, "lone_psycho": 1, "locked_car": 1, "tracks": 1, "fog_bank": 1}},
 	# Experiment 004 (E): the pine woods near home, a low-risk wood source
 	"forest": {"profile": "construction_wood", "place": "woods", "danger": 0.7, "search": 150,
@@ -331,12 +340,15 @@ const LOCATIONS := {
 	# weapons and ammunition (dangerous)
 	# Exp 006 (R): tuned. Known from the start (RegionState.START_KNOWN), so its
 	# danger and quick depletion keep it scarce: the shotgun is uncommon (10 %
-	# on the shelves; with a crowbar also 24 % in the locked back room and the
+	# on the shelves; with a crowbar also 25 % in the locked back room and the
 	# gun counter event: about half the first visits), shells and 9 mm are
 	# likely, the vest and a flashlight sometimes, a few supplies.
 	"gun_shop": {"profile": "weapons", "place": "gun shop", "danger": 1.4, "search": 140,
 		"mods": {"ammo": 1.3, "shells": 1.5, "shotgun": 1.6, "vest": 1.5},
 		"extra": [["shells", 1, 2, 0.35], ["snacks", 1, 2, 0.3], ["water", 1, 1, 0.25], ["backpack", 1, 1, 0.06]],
+		# Exp 008 (H): the back room (the profile's table with the mods, plus a
+		# handgun now and then: it only matters once yours is gone)
+		"locked": [["ammo", 3, 8, 0.75], ["shells", 2, 5, 0.55], ["shotgun", 1, 1, 0.25], ["vest", 1, 1, 0.22], ["handgun", 1, 1, 0.15]],
 		"locked_name": "the back room", "locked_text": "The crowbar opened the back room's steel door.",
 		"events": {"gun_counter": 4, "armoury": 2, "lone_psycho": 2, "patrol": 2, "fog_bank": 1},
 		"prep": {"shots": 0.85}, "prep_shots": 3,

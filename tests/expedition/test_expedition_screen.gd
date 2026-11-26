@@ -106,9 +106,10 @@ func test_unavailable_destinations_explain_and_block() -> void:
 	sc.destination_buttons["homes"].pressed.emit()
 	check_eq(sc.step, "list", "pressing a blocked entry stays on the list")
 	var s2 := _state()
+	s2.region.discover("military")      # Exp 008 (H): the clinic no longer needs a flashlight; the outpost does
 	sc.open(s2)
-	sc.select_destination("clinic")
-	check(sc.primary_button.disabled, "clinic blocked without a flashlight")
+	sc.select_destination("military")
+	check(sc.primary_button.disabled, "the outpost blocked without a flashlight")
 	check(sc.primary_button.tooltip_text.to_lower().contains("flashlight"), "with the reason (%s)" % sc.primary_button.tooltip_text)
 	sc.select_destination("homes")
 	check(not sc.primary_button.disabled, "homes open at 08:00")

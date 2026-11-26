@@ -192,15 +192,18 @@ func test_events_do_not_depend_on_gear() -> void:
 		check(a.event_ids.size() >= 1 and a.event_ids.size() <= 2, "one or two events")
 
 
-func test_clinic_requires_a_flashlight() -> void:
+## Exp 008 (H): the clinic has windows now (a hand-made POI); the outpost
+## still needs a flashlight.
+func test_outpost_requires_a_flashlight() -> void:
 	var s := _state()
-	var av := D.availability(s, "clinic")
-	check(not av["ok"], "no flashlight, no clinic")
+	check(D.availability(s, "clinic")["ok"], "the clinic no longer needs one")
+	var av := D.availability(s, "military")
+	check(not av["ok"], "no flashlight, no outpost")
 	check(av["reason"].to_lower().contains("flashlight"), "the reason names the flashlight (%s)" % av["reason"])
-	check(ExpeditionRun.create(s, "clinic") == null, "a run can't be created")
+	check(ExpeditionRun.create(s, "military") == null, "a run can't be created")
 	s.inventory.add("flashlight", 1)
-	check(D.availability(s, "clinic")["ok"], "with a flashlight the clinic opens")
-	var r := ExpeditionRun.create(s, "clinic", {"flashlight": 0})
+	check(D.availability(s, "military")["ok"], "with a flashlight the outpost opens")
+	var r := ExpeditionRun.create(s, "military", {"flashlight": 0})
 	check(r.has_tool("flashlight"), "the required flashlight is always brought")
 
 

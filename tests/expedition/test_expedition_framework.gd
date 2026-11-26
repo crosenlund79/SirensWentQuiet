@@ -375,7 +375,7 @@ func test_equipment_effects_when_owned() -> void:
 				taken_bare += float(rep.get("damage_taken", 0.0))
 		check_eq(dmg[0], dmg[1], "the resolver doesn't apply the vest a second time")
 	check(taken_vest < taken_bare * 0.75 and taken_vest > 0.0, "the vest takes the edge off the health lost (%.0f vs %.0f)" % [taken_vest, taken_bare])
-	# flashlight: fewer falls in dark places; required at the clinic and the outpost
+	# flashlight: fewer falls in dark places; required at the outpost
 	var dark := [0, 0]
 	for seed in range(1, STATS_SEEDS):
 		for k in 2:
@@ -398,14 +398,14 @@ func test_gear_counts_when_equipped() -> void:
 	s.inventory.add("flashlight", 1)
 	s.inventory.add("crowbar", 1)
 	check(s.has_equipped("vest") and s.has_equipped("flashlight"), "found gear auto-equips (K)")
-	check(D.can_bring(s, "vest") and D.availability(s, "clinic")["ok"], "an equipped flashlight opens the clinic")
+	check(D.can_bring(s, "vest") and D.availability(s, "military")["ok"], "an equipped flashlight opens the outpost")
 	check_eq(D.sanitize_gear(s, "homes", {}).get("vest", 0), 1, "worn gear always comes along")
 	check_eq(D.sanitize_gear(s, "homes", {}).get("crowbar", 0), 0, "a tool can be left at home")
 	check_eq(D.sanitize_gear(s, "homes", {"crowbar": 1}).get("crowbar", 0), 1, "or brought")
 	s.unequip(s.slot_of("flashlight"))
 	check(D.owns(s, "flashlight") and not D.can_bring(s, "flashlight"), "owned but not equipped")
-	var av := D.availability(s, "clinic")
-	check(not av["ok"] and av["reason"].contains("Equip"), "the clinic asks to equip it (%s)" % av["reason"])
+	var av := D.availability(s, "military")      # Exp 008 (H): the clinic no longer needs a flashlight
+	check(not av["ok"] and av["reason"].contains("Equip"), "the outpost asks to equip it (%s)" % av["reason"])
 	check_eq(D.sanitize_gear(s, "homes", {"flashlight": 1}).get("flashlight", 0), 0, "unequipped gear stays home")
 	var r := ExpeditionRun.create(s, "homes", {})
 	r.event_ids.assign(["fog_bank"])
