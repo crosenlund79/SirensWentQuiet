@@ -445,3 +445,28 @@ func _wait_until(cond: Callable, max_frames: int) -> bool:
 			return true
 		await frames(1)
 	return cond.call()
+
+
+## Exp 008 (lead): a first visit that turns up manuals turns up one Eli can
+## read now (no "Metalworking" without "Reinforced Construction" first).
+func test_first_visit_books_include_a_readable_one() -> void:
+	var with_books := 0
+	for seed in 60:
+		var s := GameState.new_run(seed + 100)
+		var r := PoiState.record(s, "library")
+		PoiState.generate(s, "library", r)
+		var books := []
+		for cid in r["c"]:
+			for id in r["c"][cid]["items"]:
+				if Research.is_book(str(id)):
+					books.append(str(id))
+		if books.is_empty():
+			continue
+		with_books += 1
+		check(books.any(func(b): return PoiState.readable_now(s, b)), "seed %d: a readable manual among %s" % [seed + 100, books])
+	check(with_books > 45, "most first library visits turn up manuals (%d / 60)" % with_books)
+	# once woodworking is known, the next in line can turn up
+	var s2 := GameState.new_run(7)
+	Research.learn(s2, "woodworking")
+	check(not PoiState.readable_now(s2, "book_woodworking"), "a known skill's manual isn't 'readable now'")
+	check(PoiState.readable_now(s2, "book_reinforced"), "the next in line is")

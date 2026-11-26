@@ -278,7 +278,7 @@ func test_scenario_c_a_book_comes_home_and_unlocks_building() -> void:
 			await frames(2)
 			break
 	if book == "":
-		skip("no manual Eli can read yet at the library in this run (the starter-book pacing fix is pending)")
+		skip("no manual at all at the library in this run (about 1 first visit in 11)")
 		return
 	if not check(s.inventory.count(book) == 1, "a manual found at the library (%s)" % book):
 		return

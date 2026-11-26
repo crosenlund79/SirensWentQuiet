@@ -306,6 +306,7 @@ static func generate(state: GameState, id: String, r: Dictionary) -> void:
 	_share(c, roll(state, r, def["loot"], mult, rng), open_ones, rng)
 	# rolled after the main share, so a one-of-a-kind item is never in both
 	_share(c, roll(state, r, def["locked"], mult, rng), locked_ones if not locked_ones.is_empty() else open_ones, rng)
+	_starter_book(state, r, def, rng)
 	var maybe := []
 	for p in L["pickups"]:
 		var gone := rng.randf() > 0.35 + 0.65 * stock
@@ -317,6 +318,51 @@ static func generate(state: GameState, id: String, r: Dictionary) -> void:
 		if may_find(state, r, str(p["item"])):
 			r["taken"].erase(p["id"])
 	r["last_day"] = today
+
+
+## Exp 008 (lead): a first visit that turned up manuals turns up one Eli can
+## read now. When the place's containers hold books but none whose
+## prerequisites Eli knows, one of them becomes the most likely readable book
+## the place's tables list (never one he owns, knows or that exists
+## elsewhere). Places without manuals, or a first visit with none, are left
+## alone. Returns the book swapped in, or "".
+static func _starter_book(state: GameState, r: Dictionary, def: Dictionary, rng: RandomNumberGenerator) -> String:
+	var c: Dictionary = r["c"]
+	var held := []                         # [container id, book]
+	for cid in c:
+		for id in c[cid]["items"]:
+			if Research.is_book(str(id)):
+				held.append([cid, str(id)])
+	if held.is_empty():
+		return ""
+	for h in held:
+		if readable_now(state, str(h[1])):
+			return ""
+	var best := ""
+	var best_p := -1.0
+	for e in (def.get("loot", []) as Array) + (def.get("locked", []) as Array):
+		var id := str(e[0])
+		if Research.is_book(id) and readable_now(state, id) and may_find(state, r, id) and float(e[3]) > best_p:
+			best = id
+			best_p = float(e[3])
+	if best == "":
+		return ""
+	var h: Array = held[rng.randi() % held.size()]
+	var items: Dictionary = c[h[0]]["items"]
+	items.erase(h[1])
+	items[best] = 1
+	return best
+
+
+## A manual whose prerequisites Eli knows and whose skill he doesn't yet.
+static func readable_now(state: GameState, book: String) -> bool:
+	var skill := Research.book_skill(book)
+	if skill == "" or Research.knows(state, skill):
+		return false
+	for p in Research.prerequisites(skill):
+		if not Research.knows(state, str(p)):
+			return false
+	return true
 
 
 ## Shares `pool` out over `boxes` (container entries): each stack in one to
