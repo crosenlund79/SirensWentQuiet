@@ -121,4 +121,13 @@ All humanoids share one gait: the feet are planted at the real ground speed, it 
 
 ## Verification
 
-VERIFICATION_PLACEHOLDER
+- **Full suite:** 627 passed and 2 failed on the integrated branch. Both failures were in `test_audio_game` and had one cause: Eli and the new people walked silently.
+  - **Cause:** the new rigs kept their own gait phase, so the footstep sounds never triggered. This had been true for Eli since Experiment 010.
+  - **Fixed:** Eli's and the people's rigs now drive the shared walk phase.
+  - **After the fix:** the audio, character, humanoid and AI tests all pass. The full suite was not run again.
+- **New tests:**
+  - `tests/character/test_humanoids.gd` (9): every look builds within budget; the runner is thinner than a psycho; the brute is ≥ 1.3 × Eli's height and ≥ 1.6 × his width, carries his club and ducks in doorways; the bomber has its pack and light; the animations run.
+  - `tests/character/test_architect.gd` (6): his flags, secrecy and F10.
+- **Screenshots:** taken headlessly with the showroom and `tools/site_shot`, and looked at.
+- **Not checked:** the Windows build wasn't started on Windows by Claude (there is no Windows machine here).
+- **Windows build:** BUILD_PLACEHOLDER

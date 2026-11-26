@@ -232,7 +232,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "Faces of Madness" (Experiment 011)
 
-**Status: Approved by the user's message of 2026-11-26 ("Experiment 011 — Faces of Madness", autonomous, visual quality first); in progress.** Branch `exp011/faces-of-madness` from Experiment 010 (`6d5fc0f`).
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 011 — Faces of Madness", autonomous, visual quality first). Delivered 2026-11-26 on the branch and as `playtest/exp011-faces-of-madness` with a Windows build artifact (report: `docs/experiment-011/REPORT.md`); awaiting the user's playtest.** Branch `exp011/faces-of-madness` from Experiment 010 (`6d5fc0f`).
 
 - **Decision recorded:** the Experiment 010 handcrafted voxel style (the new Eli) is now the visual foundation for all humanoids. The old cuboid style no longer defines them.
 - **Scope:**
@@ -255,6 +255,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - SirenVoxelLibrary;
   - merges to `main`.
 - **Noted for later (user's message of 2026-11-26, not yet approved as a task):** The Architect's scripted first encounter (a night in a blacked-out, locked bedroom, knocking, "wakey wakey sunshine…", green gas, waking rattled), escalating encounters, and him directing the horde to trap and barricade Eli in a room.
+  - The user's recordings for it ("The Architect – …" voice lines and "Architect followers – …" sounds in `assets/audio/_inbox/`) are held back by the audio inbox until that work is approved.
 
 ## Earlier Experiment 004 directive (approved, not started)
 
