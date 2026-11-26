@@ -247,8 +247,9 @@ const LOCATIONS := {
 		"two_events": 0.45, "deplete": 0.25, "regen": 0.025},
 	# food and water
 	"convenience": {"profile": "food", "place": "corner shop", "danger": 0.8, "search": 90,
-		"mods": {"canned_food": 0.6, "snacks": 0.9, "water": 0.7},
-		"extra": [["bandage", 1, 1, 0.15], ["flashlight", 1, 1, 0.08]],
+		"mods": {"canned_food": 0.6, "snacks": 1.2, "water": 0.9},      # Exp 008 (E): snacks 0.9 -> 1.2, water 0.7 -> 0.9 (PACING.md: 18 containers, too many empty)
+		"extra": [["bandage", 1, 2, 0.35], ["flashlight", 1, 1, 0.08],
+			["nails", 2, 6, 0.4], ["scrap", 1, 2, 0.35], ["ammo", 1, 3, 0.2]],      # Exp 008 (E): the back room and the counter
 		"events": {"storage_door": 2, "lone_psycho": 2, "locked_car": 1, "tracks": 1, "fog_bank": 1},
 		"two_events": 0.35, "deplete": 0.35},
 	"grocery": {"profile": "food", "place": "supermarket", "danger": 1.0, "search": 170},
@@ -358,7 +359,8 @@ const LOCATIONS := {
 			["electronics", 2, 4, 0.5], ["book_automation", 1, 1, 0.12], ["book_electronics", 1, 1, 0.08]]},      # Exp 007 (S)
 	# Exp 006 (R): books and technical manuals
 	"library": {"profile": "library", "place": "library", "danger": 1.05, "search": 180,
-		"prep": {"flashlight": 0.85}},
+		"prep": {"flashlight": 0.85},
+		"extra": [["water", 1, 2, 0.35], ["snacks", 1, 2, 0.35], ["bandage", 1, 1, 0.25]]},      # Exp 008 (E): the desks and the returns (PACING.md)
 }
 
 # --- mission approaches ----------------------------------------------------------------------

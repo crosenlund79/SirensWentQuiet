@@ -18,12 +18,12 @@ The figures show the open containers and pickups first, then the total including
 | Place (known at start?) | On foot (car), min | Danger | Quiet visit | Food | Canned / snacks / water | Wood | Nails | Scrap |
 |---|---|---|---|---|---|---|---|---|
 | Pine Woods (yes) | 10 (5) | 0.70 | 47 % | 24 | 0 / 2 / 1 | 15.5 / 22, plus about 33 from 11 chops (20 min each) | 0 / 2.3 | 0.7 / 1.4 |
-| Corner Store (yes) | 10 (5) | 0.80 | 43 % | 104 / 150 | 2.4 / 2.6 / 2.0 (3.6 / 3.4 / 3.3) | — | — | — |
+| Corner Store (yes) | 10 (5) | 0.80 | 43 % | **110 / 151** (was 104 / 150) | 2.4 / 3.1 / 3.0 (3.5 / 3.8 / 5.2) | — | **1.7** (new) | **0.5** (new); plus 2.4 ammo and 0.7 bandages |
 | Nearby Homes, placeholder (yes) | 10 (5) | 0.80 | 43 % | 64 / 88 | 1.2 / 2.3 / 1.7 | 2.1 / 5.3 | **4.4 / 11.3** (was 3.3 / 10.2) | 0 / 1.0 |
 | Diner, placeholder (yes) | 10 (5) | 0.85 | 41 % | 104 / 143 | 2.4 / 2.7 / 2.5 | 0.7 | 1.0 | — |
 | Supermarket, placeholder (yes) | 20 (10) | 1.00 | 35 % | 125 / 179 | 2.8 / 3.5 / 2.9 | — | — | — |
 | Hardware Store (yes) | 15 (10) | 1.00 | 35 % | — | — | 8.9 / 14.4 | 9.4 / 19.9 | 1.4 / 4.2 |
-| Public Library (yes) | 30 (20) | 1.05 | 33 % | 20 / 29 | 0 / 1.7 / 1.6 | — | — | — |
+| Public Library (yes) | 30 (20) | 1.05 | 33 % | **27 / 34** (was 20 / 29) | 0 / 2.2 / 2.2 | — | — | — |
 | Sawmill (no) | 30 (20) | 0.95 | 37 % | — | — | 10.3 / 17.4 | 11.9 / 18.6 | 1.4 / 3.4 |
 | Scrapyard (no) | 25 (15) | 1.05 | 33 % | — | — | 0.6 | 9.6 / 13.5 | 6.9 / 11.7 (iron 1.4 / 3.8) |
 
@@ -37,6 +37,29 @@ Notes on the table:
   - Corner Store: 1.6 or 3.1 food items.
   - Nearby Homes: one or two items.
 - **Pack and car:** the pack holds 30 weight units. Food, water and wood weigh 1 each, snacks 0.5 and nails 0.05; a backpack raises the limit. A food trip's open loot weighs about 6, and a wood trip fills the pack. The car boot holds 60.
+
+## Empty containers on a first visit
+
+Agent L found that about 70 % of the Corner Store's containers and 81 % of the library's were empty on a first visit. The cause is structural: a site holds one expedition's worth of loot (`PoiState.generate`), shared out in 1–3 parts per stack, and stacks of two never split. The hand-made layouts have 18 containers each, against the placeholder's 6. Some empty containers are wanted.
+
+Measured over 300 seeds. "Not picked" leaves out the shelves marked as already picked clean. The share of empty containers, before → after:
+
+| Place | All containers | Not picked | Open (no crowbar) | Locked |
+|---|---|---|---|---|
+| Corner Store | 70 % → 63 % | 65 % → 56 % | 69 % → 60 % | 47 % → 39 % |
+| Public Library | 81 % → 78 % | 80 % → 77 % | 84 % → 80 % | 60 % → 61 % |
+| Placeholders (Nearby Homes, Diner, Supermarket) | 32–37 % | 22–32 % | | |
+
+How full each container is:
+
+- **Corner Store:** each unpicked shelf, box or desk now holds something 35–49 % of the time; the fridges 25–35 %; the locked stockroom 57–67 %. About 5–6 of the 12 open, unpicked containers give something on a first visit.
+- **Public Library:** the desks, reception, returns and the supply cupboard hold something 30–50 % of the time. The bookshelves only 7–13 %: they hold books only, and books are one-of-a-kind and deliberately rare. The lead's starter-book rule adds to them. The stacks being mostly empty fits the place.
+
+What changed: the Corner Store gets more snacks and water and new back-room and counter extras; the library gets small water, snack and bandage extras (details under **Tuning**).
+
+**Judgement:** the store is now "about half the shelves give something", which feels fair for a picked-over shop. Going further with amounts alone would make food too plentiful, since one store trip is already 4–6 days of food.
+
+**One option not applied:** a one-line change to `PoiState._share` (agent L's): split stacks of 2 as well (`n <= 1`) and allow up to 4 parts. That would lower the store's not-picked empty share by about 5 more points, to about 50 %. The library would stay at about 75 %, because its bookshelves hold books only. The change would alter every POI's seeded loot, so I left the rule alone.
 
 ## Findings
 
@@ -57,6 +80,11 @@ Notes on the table:
 - **`SurvivalTuning.START_ITEMS` nails: 12 → 18.** That is three window boards before the first trip, and Day 1 is no longer gated on a nails run.
 - **Residential profile nails chance: 0.5 → 0.65.** That raises Nearby Homes from about 3.3 to 4.4 open nails, and also covers the cul-de-sac, trailer park and farmhouse. Only the chance changed, so the loot rolls for everything else stay the same.
 
+- **Corner Store** (`ExpeditionData.LOCATIONS["convenience"]`):
+  - snacks ×0.9 → ×1.2 and water ×0.7 → ×0.9; canned food stays ×0.6;
+  - extras for the back room and the counter: nails 2–6 at 40 %, scrap 1–2 at 35 %, ammo 1–3 at 20 %, and bandages 1–2 at 35 % (was 1 at 15 %).
+- **Public Library location:** extras of water 1–2 at 35 %, snacks 1–2 at 35 % and a bandage at 25 %. They are appended after the profile's book rolls, so the book chances are untouched.
+
 Not changed:
 
 - food and water, which are already comfortable;
@@ -69,7 +97,7 @@ This is on foot at Normal difficulty. None of it is scripted.
 
 | Day | What happens |
 |---|---|
-| 1 | Start: about 7 days of food, 6 wood, 18 nails. Morning at the Corner Store: about 2–3 cans, 2–3 snacks, 2 water. Afternoon at Pine Woods: about 15 wood from its boxes, plus 2–3 chops (6–9 planks). Evening: board three windows (9 wood, 18 nails). |
+| 1 | Start: about 7 days of food, 6 wood, 18 nails. Morning at the Corner Store: about 2–3 cans, 3 snacks, 3 water, and sometimes a few nails or a bit of scrap. Afternoon at Pine Woods: about 15 wood from its boxes, plus 2–3 chops (6–9 planks). Evening: board three windows (9 wood, 18 nails). |
 | 2 | The Hardware Store: about 9 nails, 9 wood, 1–2 scrap, and a crowbar half the time. Nearby Homes: about 4 nails, 2 wood and some food. Board two more windows or put up a barricade. |
 | 3 | With a crowbar, the stockrooms: about 10 more nails and 3 scrap, enough for a rain collector. Or the library for a woodworking book. At 22:00 comes invasion 1: 3 psychos. Away from home, it costs 2–5 blows on the doors and walls instead. |
 | 4 | Repairs (2–6 wood, 2–8 nails). Pine Woods again (regrown). Now and then a newly spotted place. |
