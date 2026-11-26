@@ -13,6 +13,11 @@ unchanged (`EliSculpt` / `EliRig`); people use the shared foundation below.
 | `src/character/humanoid_archetype.gd` | `HumanoidArchetype`: base of an archetype (seed → look → rig) |
 | `src/character/humanoid_looks.gd` | `HumanoidLooks`: the factory `make_rig(kind, seed)`, `pick_seed`, `warm` |
 | `src/character/archetypes/psycho.gd` | the ordinary psychos: 10 people × 3 variations |
+| `src/character/archetypes/architect.gd` | the Architect (internal name): 2 looks |
+| `src/character/architect_rig.gd` | `ArchitectRig`: stillness, controlled turn, observe |
+| `src/character/architect_identity.gd` | `ArchitectIdentity`: his internal id and flags |
+| `src/character/architect_figure.gd` | `ArchitectFigure`: the F10 preview figure near Eli |
+| `src/character/eli_showroom.gd` | the character showroom (all humanoids, comparison mode) |
 
 ## A look
 
@@ -72,9 +77,8 @@ walk → run, turning shuffles); the style shapes it per person.
    `bomber_behaviour.gd` reads `extras["pack_mat"]` / `["light"]`.
 4. Materials: `HumanoidRig.material_for(look)` (the enemy material with
    x-ray); a tint needs its own material there.
-5. Showroom: `eli_showroom.tscn` (Visual Experiments, F10) with
-   `--people=<kind> --seed=N --count=N --cols=N --anim=idle|walk|jog|run|attack|hit|die
-   --pose=x --dormant=bang|tap|sway|stare` (and the "People" buttons).
+5. Showroom: `eli_showroom.tscn` (Visual Experiments, F10 > Character
+   showroom) picks the kind up by itself (see "The showroom" below).
 6. Test: add the kind to `tests/character/test_humanoids.gd`.
 
 ## Seeds, persistence, performance
@@ -89,3 +93,65 @@ walk → run, turning shuffles); the style shapes it per person.
   keeps at most `CACHE_MAX` (32) looks. `HumanoidLooks.warm(kind, host)`
   builds looks on a worker thread while `host` (the roster) lives and
   cancels them when it leaves the tree.
+
+## The Architect (internal name only)
+
+"The Architect" is a development name: it never appears in player-facing
+text, and he is not an `EnemyDefs` kind, so no roster, invasion director,
+POI encounter, straggler or menu siege can choose him (asking the roster for
+the kind gives an ordinary psycho). Only the showroom and F10 > Character
+make his figure. `ArchitectIdentity` holds his id (`"architect"`) and flags
+(`hidden`, `spawnable = false`, `silent`, `hostile = false`) and the states
+his rig supports. He is silent: no sounds are wired (the recordings in the
+audio inbox stay untouched). `tests/character/test_architect.gd` guards
+this: no source file outside his own files, the showroom, the sculpt and
+the dev menu may contain the word.
+
+* **Look** (`archetypes/architect.gd`): 1.9 m, lean, upright; a dark,
+  well-kept overcoat buttoned below the chest over a pressed shirt and black
+  tie (look 1: a black jumper), dark trousers, polished black shoes, black
+  leather gloves, neat dark hair with a side part, a pale composed face,
+  pale grey-blue eyes, flat brows, a closed level mouth. No dirt, no tears.
+* **Animation** (`ArchitectRig`): no tics, no glances, very little sway,
+  slow breathing; a measured upright walk with a short arm swing; a
+  controlled turn (`face_yaw`): the head leads, the chest follows a little,
+  then the body eases round; `observe`: hands clasped behind the back, the
+  head tilted slightly, watching (also while walking). Attack, hit and
+  collapse are the shared overlays.
+* **F10 > Character**: "Show Architect (internal)" places `ArchitectFigure`
+  3 m in front of Eli, side-on; he turns to face Eli and observes, and
+  follows a few measured steps (at most 3 m) if Eli walks away. Not an
+  enemy, no collision, not saved. "Remove Architect" takes him away.
+
+Sculpt components added for him (defaults leave every other look unchanged):
+outfit `glove_col` (gloves as smooth leather of that colour); any layer
+`hem` (an explicit hem height); coat `shut` (an open front buttoned shut
+below that chest height); hair `neat` (no strands on the forehead for
+`combed`); face `mouth: "set"` (closed and level); `eyes: "calm"` uses the
+default eye.
+
+## The showroom
+
+Visual Experiments > Character Showroom, or F10 > Character showroom (over
+the game). Panel: **Character** (Eli, Psycho, Runner, Brute, Bomber,
+Architect; kinds without an archetype file show the old figure), **Previous
+/ Next look** (Eli's variations, an archetype's looks), **Compare beside
+Eli** (the character beside Eli at the same scale with a metre ruler, a
+50 cm floor grid and both measured heights; "Original": Eli beside the old
+figure), **Animation** (idle, walk, jog / hunt, run, turn, attack, hit,
+collapse; enemies also the dormant poses bang, tap, sway, stare, listen;
+the Architect: still and observe; Eli: handgun, two-handed, flashlight,
+hammer), **View** (3/4, front, side, back, face, turnaround, game camera),
+**Light** (day, night with a lamp, a flashlight held by the viewer). Drag
+or A/D turns, wheel or W/S zooms, Esc goes back / closes.
+
+Capture args (`tools/capture.sh res://src/character/eli_showroom.tscn out.png 8 …`):
+`--char=eli|psycho|runner|brute|bomber|architect`,
+`--compare=psycho|runner|brute|bomber|architect` (`--compare` alone: the
+original figure), `--view=three|front|side|back|face|sheet|gameplay`,
+`--anim=idle|walk|jog|run|turn|attack|hit|die|observe` (Eli also
+`handgun|shotgun|flashlight|tool`), `--dormant=bang|tap|sway|stare|listen`,
+`--pose=x`, `--light=day|night|flashlight` (`--night`), `--variant=N`,
+`--seed=N`, `--people=<kind> --count=N --cols=N`, `--yaw=deg --dist=m
+--ty=m`, `--moving`, `--hide-ui`. Example: `--compare=brute --view=three
+--hide-ui`.

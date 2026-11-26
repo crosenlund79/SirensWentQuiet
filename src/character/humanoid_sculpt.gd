@@ -18,15 +18,18 @@ extends RefCounted
 ##
 ## OUTFIT (every field optional; colours are 0xRRGGBB ints):
 ##   top    {"type": tshirt|shirt|blouse|sport, "col", "col2", "sleeve" 0..1
-##           (share of the arm covered), "rolled" bool, "tie" colour, "tucked" bool, "print" colour}
+##           (share of the arm covered), "rolled" bool, "tie" colour, "tucked" bool, "print" colour,
+##           "hem" (Exp 011, any layer): an explicit hem height in chest space (m at k = 1)}
 ##   mid    {"type": sweater|hoodie|fleece|cardigan|coverall, "col", "col2", "sleeve", "rolled", "hood": "down"|"up"}
-##   outer  {"type": coat|parka|work_jacket, "col", "col2", "sleeve", "open" bool, "fur" colour}
+##   outer  {"type": coat|parka|work_jacket, "col", "col2", "sleeve", "open" bool, "fur" colour,
+##           "shut" (Exp 011): an open front is buttoned shut below this chest height (x torso scale)}
 ##   over   {"type": hivis|apron, "col", "col2"}
 ##   legs   {"type": jeans|trousers|cargo|sweatpants|skirt|leggings|coverall, "col", "col2" (tights / stripe), "belt" colour}
 ##   feet   [left, right]: {"type": sneakers|shoes|boots|slippers|sock, "col", "col2", "sole"}
 ##   hat    {"type": cap|beanie|headband|hood, "col", "col2", "back" bool}
 ##   acc    Array of: glasses, glasses_cracked, lanyard, watch_l, watch_r, glove_l, glove_r,
 ##          bandage_l, bandage_r, bandage_head, rag, name_tag
+##   glove_col  colour of the gloves (glove_l / glove_r) as smooth leather (default: worn work gloves)
 ##   dirt   0..1 grime and mud; tears 0..1 holes and frayed hems
 ## Layers stack in the order top < mid < outer < over: each is a shell over
 ## the body (its thickness adds to the ones under it), with its own sleeve
@@ -131,6 +134,7 @@ var l_sleeve := PackedFloat32Array()
 var l_open := PackedByteArray()
 var l_rolled := PackedByteArray()
 var l_top := PackedByteArray()
+var l_shut := PackedFloat32Array()  ## Exp 011: the front is buttoned shut below this chest height (x T)
 var legs: Dictionary = {}
 var leg_t := 0.01
 var feet: Array = [{}, {}]
@@ -138,6 +142,7 @@ var hat: Dictionary = {}
 var acc: Dictionary = {}            ## accessory -> true
 var dirt := 0.2
 var tears := 0.1
+var glove_col := -1               ## Exp 011 (Architect): outfit "glove_col" (-1: the worn work gloves)
 var face: Dictionary = {}
 var hair: Dictionary = {}
 var skin := 0xc89a80
@@ -194,6 +199,8 @@ func _init(l: Dictionary) -> void:
 		var hem: float = float(HEM[ty]) * k
 		if ty == "shirt" and bool(g.get("tucked", false)):
 			hem = -0.06 * k
+		if g.has("hem"):
+			hem = float(g["hem"]) * k                       # Exp 011: an explicit hem (chest space, m at k = 1)
 		g["hem"] = hem
 		g["sleeve"] = float(g.get("sleeve", 0.0 if ty in ["hivis", "apron"] else 1.0))
 		g["col"] = int(g.get("col", 0x808080))
@@ -208,6 +215,7 @@ func _init(l: Dictionary) -> void:
 		l_open.append(1 if bool(g.get("open", op_default)) else 0)
 		l_rolled.append(1 if bool(g.get("rolled", false)) else 0)
 		l_top.append(1 if slot == "top" else 0)
+		l_shut.append(float(g.get("shut", -9.0)))
 		if ty in ["hoodie", "parka"] and str(g.get("hood", "")) == "up":
 			hood_up = true
 	max_t = t
@@ -253,6 +261,7 @@ func _init(l: Dictionary) -> void:
 	bandage_any = acc.has("bandage_l") or acc.has("bandage_r")
 	dirt = float(o.get("dirt", 0.2))
 	tears = float(o.get("tears", 0.1))
+	glove_col = int(o.get("glove_col", -1))
 	face = l.get("face", {})
 	skin = int(face.get("skin", 0xc89a80))
 	var pallor := float(face.get("pallor", 0.2))
@@ -695,7 +704,7 @@ func _torso_skin(p: Vector3) -> float:
 
 ## Front opening half width of layer i at chest height y (0 = closed).
 func _open_i(i: int, y: float) -> float:
-	if l_open[i] == 0:
+	if l_open[i] == 0 or y < l_shut[i] * T:
 		return 0.0
 	match l_ty[i]:
 		COAT:
@@ -1366,6 +1375,8 @@ func _hand(p: Vector3, side: float, x: int, y: int, z: int, paint: bool) -> floa
 	if not paint:
 		return d
 	if glove:
+		if glove_col >= 0:
+			return float(_j(_sc(glove_col, 1.18 if q.y > -0.02 else 1.0), x, y, z, 0.02))     # smooth leather
 		return float(_cloth(0x4a4440 if q.y > -0.02 else 0x5a5048, x, y, z, 0.06))
 	var c := skin
 	if absf(q.y + 0.088) < VS * 0.7 and q.x > 0.0:
@@ -1588,7 +1599,7 @@ func _hair_d(q: Vector3, x: int, y: int, z: int) -> float:
 		"combed":
 			d = E._smin(d, E._ell(q, Vector3(0.015, 0.272 * hh, -0.03), Vector3(0.07, 0.022, 0.07)), 0.02)
 			d = E._smin(d, E._ell(q, Vector3(0.03, 0.235 * hh, -0.085), Vector3(0.055, 0.018, 0.03)), 0.015)   # swept fringe
-			if q.z < -0.07 and q.y < 0.25 * hh and q.y > 0.18 * hh and _h(x, 0, 0, 57) > 0.6:
+			if q.z < -0.07 and q.y < 0.25 * hh and q.y > 0.18 * hh and _h(x, 0, 0, 57) > 0.6 and not bool(hair.get("neat", false)):
 				d -= 0.01                                            # strands falling on the forehead
 			if q.y > 0.24 * hh and q.z < 0.04 and absf(q.x + 0.035) < 0.004:
 				d = maxf(d, 0.002)                                   # the part
@@ -1927,6 +1938,9 @@ func _features(q: Vector3, x: int, y: int, z: int, ax: int, c: int) -> int:
 				return _mix(skin_dk, dark, 0.55)
 			if y == r_mouth - 1 and ax <= 2:
 				return lip
+		"set":  # Exp 011 (Architect): closed and level, composed
+			if y == r_mouth and ax <= 2:
+				return _mix(skin_dk, 0x4a2520, 0.34 if ax <= 1 else 0.1)
 		_:      # thin: pressed lips, the corners pulled down
 			if y == r_mouth and ax <= 2:
 				return _mix(skin_dk, 0x4a2520, 0.55)

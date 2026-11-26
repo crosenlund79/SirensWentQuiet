@@ -1063,7 +1063,21 @@ func _build_character_section(box: VBoxContainer) -> void:
 			_say("Eli: " + EliSculpt.variant_name(int(GameSettings.get_value("eli_variant"))))],
 		["Character showroom", func():
 			set_open(false)
-			EliShowroom.open_overlay(get_tree())]]))
+			EliShowroom.open_overlay(get_tree())],
+		# Exp 011: the Architect's figure (an internal name; developer tools only)
+		["Show Architect (internal)", func(): _show_architect()],
+		["Remove Architect", func():
+			_say("Architect figure removed" if ArchitectFigure.remove(game) else "No Architect figure here")]]))
+
+
+## Exp 011: a non-hostile preview figure near Eli (not an enemy, not saved).
+func _show_architect() -> void:
+	var p: Variant = game.get("player") if game != null and is_instance_valid(game) else null
+	if not (p is Node3D):
+		_say("No player here", true)
+		return
+	var f := ArchitectFigure.show_near(game, p as Node3D)
+	_say("Architect (internal) beside Eli: he turns, then observes" if f != null else "Could not place the figure", f == null)
 
 
 func _set_character(which: String) -> void:
