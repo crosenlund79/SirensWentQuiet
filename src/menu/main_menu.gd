@@ -162,6 +162,7 @@ func _ready() -> void:
 	Engine.time_scale = 1.0
 	Input.set_custom_mouse_cursor(null)
 	GameSettings.apply()
+	StoryAudioGuard.stop_all(get_tree())   # Exp 012 (A): no story audio in the menu (pause, death, notices)
 	Sfx.attach(self)
 	_build()
 	refresh_save_info()

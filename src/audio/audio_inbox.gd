@@ -38,7 +38,18 @@ const ALIASES := {
 
 ## Files whose names contain this word are recordings for a scripted encounter
 ## that isn't built yet (Exp 011): they map to nothing until it is.
+## Exp 012 (A): story-only recordings. A file is reserved when this word
+## appears anywhere in its name or in one of its folders under the scanned
+## root (case ignored, also inside compounds like "TheArchitect"), or when it
+## lies in a folder named like one of RESERVED_FOLDERS. Reserved files never
+## join a generic pool (psycho voices, the menu siege, ambience beds, random
+## pools); the story reads them through reserved_files() and plays them under
+## its own `story/*` logical names (src/story/story_audio.gd).
 const RESERVED_WORD := "architect"
+const RESERVED_FOLDERS := ["story"]
+## Logical names in this namespace are the story's own: no generic pool,
+## alias or rule may ever produce one (pool_name(), clip() refuse them).
+const STORY_PREFIX := "story/"
 
 ## The mapping table. A file maps to the rule it matches best:
 ##   all   every entry must match a word of the file name (a string, or a list
@@ -174,6 +185,8 @@ static var _last := {}         ## logical name -> index of the last clip played
 static var _analysis := {}     ## path -> AudioAnalysis result
 static var _rng := RandomNumberGenerator.new()
 static var roots_override: Array = []   ## tests: scan these folders instead of ROOTS
+static var _reserved: Array = []        ## Exp 012 (A): reserved (story-only) file paths
+static var refused := 0                 ## Exp 012 (A): reserved clips refused at play time (should stay 0)
 
 
 # ---------------------------------------------------------------- queries
@@ -185,15 +198,24 @@ static func scan(force := false) -> void:
 	_scanned = true
 	_files.clear()
 	_unknown.clear()
+	_reserved.clear()
 	_clips.clear()
 	_last.clear()
 	var claimed := {}           # logical name -> the root that provides it
 	for root in roots():
 		var found := {}         # logical name -> files in this root
 		for path in list_audio_files(root):
+			if is_reserved_path(path, root):        # Exp 012 (A): story-only, never pooled
+				_reserved.append(path)
+				_unknown.append({"path": path, "reason": "reserved for the story (never in a generic pool)"})
+				continue
 			var m := match_path(path, root)
 			if m["name"] == "":
 				_unknown.append({"path": path, "reason": m["reason"]})
+				continue
+			if is_story_name(m["name"]):
+				_reserved.append(path)
+				_unknown.append({"path": path, "reason": "a story/* name is never a generic pool"})
 				continue
 			if not found.has(m["name"]):
 				found[m["name"]] = []
@@ -228,12 +250,15 @@ static func has(name: String) -> bool:
 
 
 ## The pool `name` plays from: its own, else its alias's ("" if none).
+## Never a story/* name (Exp 012: those are the story's, see STORY_PREFIX).
 static func pool_name(name: String) -> String:
 	scan()
+	if is_story_name(name):
+		return ""
 	if _files.has(name):
 		return name
 	var alias: String = ALIASES.get(name, "")
-	return alias if alias != "" and _files.has(alias) else ""
+	return alias if alias != "" and not is_story_name(alias) and _files.has(alias) else ""
 
 
 ## The files mapped to `name` (paths).
@@ -275,6 +300,10 @@ static func clip(name: String) -> Dictionary:
 	if clips.size() > 1 and i == int(_last.get(pool, -1)):
 		i = (i + 1 + _rng.randi_range(0, clips.size() - 2)) % clips.size()
 	_last[pool] = i
+	if is_reserved_path(str(clips[i].get("path", ""))):     # Exp 012 (A): belt and braces
+		refused += 1
+		push_error("AudioInbox: refused story-only file '%s' for '%s'" % [clips[i].get("path", ""), name])
+		return {}
 	return clips[i]
 
 
@@ -310,7 +339,9 @@ static func prepare_all() -> float:
 	return (Time.get_ticks_usec() - t0) / 1000.0
 
 
-## Mapped and unknown files: {"mapped": {name: [file, ...]}, "unknown": [{"path", "reason"}]}.
+## Mapped and unknown files: {"mapped": {name: [file, ...]}, "unknown":
+## [{"path", "reason"}], "reserved": [path, ...]} (reserved files are also
+## listed as unknown, with their reason).
 static func report() -> Dictionary:
 	scan()
 	var mapped := {}
@@ -319,7 +350,62 @@ static func report() -> Dictionary:
 		for f in _files[n]:
 			list.append(f["path"])
 		mapped[n] = list
-	return {"mapped": mapped, "unknown": _unknown.duplicate(true)}
+	return {"mapped": mapped, "unknown": _unknown.duplicate(true), "reserved": _reserved.duplicate()}
+
+
+# ---------------------------------------------------------------- Exp 012 (A): story-only files
+
+## True for a logical name in the story's namespace ("story/...").
+static func is_story_name(name: String) -> bool:
+	return name.begins_with(STORY_PREFIX)
+
+
+## True when `path` is a story-only recording (see RESERVED_WORD): the word
+## anywhere in the file name or in a folder below `root` (the whole path when
+## no root is given), or a folder named like RESERVED_FOLDERS. Works on
+## exported listings too (".import" / ".remap" names).
+static func is_reserved_path(path: String, root := "") -> bool:
+	if path == "":
+		return false
+	var rel := path.trim_prefix(root) if root != "" and path.begins_with(root) else path
+	rel = rel.to_lower()
+	if RESERVED_WORD in rel:
+		return true
+	for part in rel.get_base_dir().split("/", false):
+		if part in RESERVED_FOLDERS:
+			return true
+	return false
+
+
+## Every story-only recording found by the scan (loadable paths, sorted).
+## The story maps these to its `story/*` names and plays them itself
+## (AudioInbox.load_stream(path); AudioInbox.analysis(path) for trimming).
+static func reserved_files() -> PackedStringArray:
+	scan()
+	var out := PackedStringArray(_reserved)
+	out.sort()
+	return out
+
+
+## The inbox file a stream was loaded from ("" if it isn't an inbox clip):
+## the developer menu's "now playing" list.
+static func path_of_stream(stream: AudioStream) -> String:
+	if stream == null:
+		return ""
+	for n in _clips:
+		for c in _clips[n]:
+			if c["stream"] == stream:
+				return str(c["path"])
+	return ""
+
+
+## Counts for the developer menu: {"files", "names", "unknown", "reserved"}.
+static func counts() -> Dictionary:
+	scan()
+	var files := 0
+	for n in _files:
+		files += (_files[n] as Array).size()
+	return {"files": files, "names": _files.size(), "unknown": _unknown.size() - _reserved.size(), "reserved": _reserved.size()}
 
 
 ## Short text for the developer menu.
@@ -344,6 +430,8 @@ static func reset() -> void:
 	_scanned = false
 	_files.clear()
 	_unknown.clear()
+	_reserved.clear()
+	refused = 0
 	_clips.clear()
 	_last.clear()
 	_analysis.clear()
@@ -404,15 +492,19 @@ static func split_variant(base: String) -> Array:
 
 ## Maps one file to a logical name: {"name", "variant", "rule", "reason"}.
 ## `root` is the scanned folder (its subfolders' names may help).
-static func match_path(path: String, root := "") -> Dictionary:
+## `guard` false skips the story reservation (tests and the audit only: what
+## a file would map to without it).
+static func match_path(path: String, root := "", guard := true) -> Dictionary:
 	var split := split_variant(path.get_file().get_basename())
 	var stem: String = split[0]
-	var r := match_words(words(stem))
+	if guard and is_reserved_path(path, root):
+		return {"name": "", "rule": -1, "reason": "reserved for the story (never in a generic pool)", "variant": split[1]}
+	var r := match_words(words(stem), guard)
 	if r["name"] == "" and r["reason"] == "no rule matches":
 		var rel := path.get_base_dir().trim_prefix(root) if root != "" else path.get_base_dir()
 		var w := words(stem)
 		w.append_array(words(rel))
-		var r2 := match_words(w)
+		var r2 := match_words(w, guard)
 		if r2["name"] != "" or r2["reason"] != "no rule matches":
 			r = r2
 	r["variant"] = split[1]
@@ -420,10 +512,10 @@ static func match_path(path: String, root := "") -> Dictionary:
 
 
 ## The best rule for a set of words: {"name", "rule", "reason"}.
-static func match_words(w: PackedStringArray) -> Dictionary:
+static func match_words(w: PackedStringArray, guard := true) -> Dictionary:
 	for x in w:
-		if x.to_lower().begins_with(RESERVED_WORD):
-			return {"name": "", "rule": -1, "reason": "reserved for a later milestone (not wired yet)"}
+		if guard and RESERVED_WORD in x.to_lower():
+			return {"name": "", "rule": -1, "reason": "reserved for the story (never in a generic pool)"}
 	var best := -1
 	var winners := {}
 	var best_rule := -1

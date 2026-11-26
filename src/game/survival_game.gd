@@ -146,6 +146,7 @@ var boot_ms := 0.0                     ## Exp 009 (R): how long the boot took (m
 
 func _ready() -> void:
 	_read_user_args()
+	StoryAudioGuard.stop_all(get_tree())   # Exp 012 (A): a load or scene change ends story audio
 	Sfx.attach(self)
 	Sfx.music("")
 	lighting = VoxelLighting.new()
