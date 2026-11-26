@@ -35,6 +35,14 @@ extends Node
 ## interest when you get well away out of their sight. Nothing has to be
 ## cleared: every exit works at any time. Saving works while none hunts you;
 ## the encounters' progress is saved with the visit (Exp 008 (E)).
+##
+## Exp 009 (P): dormant psychos (plan mode "dormant", DormantMind) are busy
+## at the layout's "dormant" spots: banging their head on a wall, circling a
+## table, swaying, staring, tapping. Absorbed, they see little and hear less;
+## noise makes them listen and look, and enough of it, or seeing Eli, turns
+## them into ordinary hunters. They are saved with their spot and behaviour
+## in "enc" and come back dormant on Continue. F10: dev_spawn_dormant(),
+## dev_force_behaviour().
 
 signal leave_requested(poi_id: String)
 signal searched(spot_id: String, items: Dictionary)

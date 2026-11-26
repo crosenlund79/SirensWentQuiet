@@ -87,6 +87,43 @@ No further lines are needed by the current game (Eli speaks only these two, by d
 
 (Turret shots use the mounted gun's own shot sound.)
 
+## G. Dormant psychos (Experiment 009)
+
+Some psychos inside a place are busy with something when Eli arrives: banging their head against a wall, circling a table, swaying, staring, tapping or scratching. These sounds tell the player someone is there before he sees them.
+
+**How they play:**
+- **Voices** (mumble, hum, whisper, the startle):
+  - from the psycho himself, spatialised, quieter with distance and a little muffled through a wall;
+  - one line at a time per psycho, then a pause of 7–18 s;
+  - at most **two psycho voices at once** in the whole place;
+  - nothing starts farther than 20 m from Eli.
+- **Object sounds** (bang, scratch, tap):
+  - from the wall or cabinet they're working at;
+  - one bang per head-butt (every 1.1–1.5 s, in bursts of 4–9);
+  - one tapping or scratching file per burst (bursts of 3–6 gestures, then a pause of 2–5 s).
+- **The game logic doesn't depend on these files:** the gameplay noise of the banging is a separate event.
+
+**Your suggested file names map as they are.** The word "Psycho" keeps them apart from your `Enemy - Vocal 1–4` and `Enemy - Heavy impact wood 1–4`, which still map to the enemy moans and the door bashing. Numbered variants (`01`, `02`, …) become random pools.
+
+| File name | Logical name | Where it plays | Description (prompt) | Dur. (s) | Loop | Priority |
+|---|---|---|---|---|---|---|
+| `Psycho - Incoherent Mumbling 01–04` | `psycho/mumble` | A dormant psycho's voice, now and then | Deranged man mumbling to himself, incoherent half-words, low and close, dry indoor room, no music | 3–6 | OFF (variants, not a loop) | **High** |
+| `Psycho - Nervous Humming 01–02` | `psycho/hum` | The same, sometimes | Man humming a broken, tuneless melody under his breath, nervous, stopping and starting | 3–6 | OFF | Medium |
+| `Psycho - Disturbed Whispering 01–02` | `psycho/whisper` | The same, rarely | Harsh rapid whispering, a man arguing with himself, very close, unintelligible | 2–4 | OFF | Medium |
+| `Psycho - Sudden Silence Reaction 01–02` | `psycho/startle` | When a psycho hears something and stops to listen | A mumble cut off mid-word, a sharp intake of breath, then silence | 1–1.5 | OFF | **High** |
+| `Psycho - Rhythmic Head Banging 01–04` | `psycho/bang` | Each time a psycho knocks his head against a wall | **One** dull thud of a forehead against a plaster or wooden wall, a small grunt, no echo tail | 0.4–0.7 | OFF (one hit per file) | **High** |
+| `Psycho - Scratching 01–02` | `psycho/scratch` | A burst of scratching at a door | Fingernails scratching slowly at a painted wooden door, uneven strokes | 2–3 | OFF | Medium |
+| `Psycho - Repetitive Tapping 01–02` | `psycho/tap` | A burst of tapping on a cabinet (also a drawer worked open and shut) | Fingertips tapping a metal or wooden cabinet in an obsessive rhythm, 5–8 taps | 2–3 | OFF | Medium |
+
+**Until they arrive:**
+- bang: your `Enemy - Heavy impact wood`, quieter;
+- tap: `Impact - Wood` (the template), very quiet;
+- drawer: the door open and close sounds, quiet;
+- mumble: rarely, one of your `Enemy - Vocal` files, quietly;
+- hum, whisper, scratch and the startle: silent.
+
+None of these are generated.
+
 ## F. Music
 
 | File name | Where it plays | Description (prompt) | Dur. (s) | Loop | Priority | Status |
@@ -98,9 +135,10 @@ No further lines are needed by the current game (Eli speaks only these two, by d
 
 ## Suggested order
 
-1. **E:** `Alarm`
-2. **B:** `Search`, `Pickup`, `Chop`, `Enemy - Footsteps Wood`
-3. **A:** `Weapon - Shotgun Shot`, `Weapon - Dry fire`, `Enemy - Attack`, `Enemy - Hit`, `Enemy - Death`, `Player - Hurt`, `Impact - Wood`, `Impact - Plaster`
-4. **C:** `Room tone - House interior`
-5. **F:** `Stinger - Invasion`
-6. **The rest** by priority
+1. **G:** `Psycho - Rhythmic Head Banging`, `Psycho - Incoherent Mumbling`, `Psycho - Sudden Silence Reaction` (Experiment 009)
+2. **E:** `Alarm`
+3. **B:** `Search`, `Pickup`, `Chop`, `Enemy - Footsteps Wood`
+4. **A:** `Weapon - Shotgun Shot`, `Weapon - Dry fire`, `Enemy - Attack`, `Enemy - Hit`, `Enemy - Death`, `Player - Hurt`, `Impact - Wood`, `Impact - Plaster`
+5. **C:** `Room tone - House interior`
+6. **F:** `Stinger - Invasion`
+7. **The rest** by priority
