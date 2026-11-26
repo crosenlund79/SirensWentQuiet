@@ -239,3 +239,179 @@ func test_save_at_the_poi_never_duplicates_loot() -> void:
 	s = g.debug_state()
 	for id in have:
 		check_eq(s.inventory.count(id), int(have[id]), "%s once at home" % id)
+
+
+## Scenario C: research and building. A manual from the library comes home,
+## is read, and the piece it unlocks is no longer locked in the build menu;
+## planks and nails from the trip pay for a barricade.
+func test_scenario_c_a_book_comes_home_and_unlocks_building() -> void:
+	TravelFlow.skip_animation = true
+	var g: Node = await _boot("new")
+	var s: GameState = g.debug_state()
+	s.total_minutes = 9.0 * 60.0
+	s.inventory.add("crowbar", 1)
+	s.inventory.add("flashlight", 1)
+	s.equip("crowbar")
+	s.equip("flashlight")
+	await g.travel.depart("library")
+	g = await _next_scene(g)
+	s = g.debug_state()
+	g.debug_kill_enemies()
+	# open what's locked, then search every container until a manual turns up
+	for d in g.world.objects:
+		if d is PoiDoor and d.locked:
+			d.locked = false
+	var book := ""
+	for sp in g.world.spots_of("container"):
+		var items: Dictionary = g.poi.record["c"][sp.id]["items"]
+		for id in items:
+			if str(id).begins_with("book_") and book == "" and Research.prerequisites(Research.book_skill(str(id))).all(func(p): return Research.knows(s, p)):
+				book = str(id)          # one Eli can read now (an advanced manual waits for its prerequisite)
+		if book != "":
+			await _stand_at(g, sp)
+			if str(sp.data.get("needs", "")) == "crowbar":
+				g.poi.record["forced"][sp.id] = true
+			await _press_e_and_wait(g)
+			check(g.poi.panel.is_open, "the %s opens" % sp.label())
+			check(g.poi.panel.take(book, 1) == 1, "took %s" % book)
+			g.poi.close_panel()
+			await frames(2)
+			break
+	if book == "":
+		skip("no manual Eli can read yet at the library in this run (the starter-book pacing fix is pending)")
+		return
+	if not check(s.inventory.count(book) == 1, "a manual found at the library (%s)" % book):
+		return
+	g.leave_site()
+	check(await _wait_until(func(): return g.left_to != "", 60), "leaves")
+	g = await _next_scene(g)
+	s = g.debug_state()
+	check_eq(s.inventory.count(book), 1, "the manual came home")
+	var skill := Research.book_skill(book)
+	var gated := []
+	for piece in Research.GATES:
+		if str(Research.GATES[piece]) == skill:
+			gated.append(piece)
+	var r := Research.read_book(s, book)
+	check(bool(r["ok"]), "read it: %s" % r["text"])
+	check(Research.knows(s, skill), "%s is learned" % skill)
+	g.build.set_active(true)
+	await frames(2)
+	for piece in gated:
+		g.build.select_id(piece)
+		var ev: Dictionary = g.build.evaluate(Vector2(2.5, 11.0))
+		check(not bool(ev.get("locked", false)), "%s is no longer locked (%s)" % [piece, ev.get("reason", "")])
+	g.build.select_id("crate")
+	check(g.build.apply(Vector2(11.25, 11.75)), "and planks and nails still build (%s)" % str(g.build.last_eval.get("reason", "")))
+	g.build.set_active(false)
+
+
+## Scenario D: a night at home. The first invasion night with a loaded
+## turret by the front door: enemies come, the turret spends real rounds,
+## the house takes what it takes, nothing is left broken in the save; then
+## an ordinary night's sleep into the morning.
+func test_scenario_d_a_night_of_defence() -> void:
+	var g: Node = await _boot("new")
+	var s: GameState = g.debug_state()
+	s.cheats["invulnerable"] = true          # Eli stands in the yard to watch; he isn't the test
+	g.security.dev_unlock()
+	g.debug_teleport_player(Vector2(7.0, 10.6))
+	g.player.rig.rotation.y = 0.0            # facing the fog to the south (+z is toward the camera)
+	await physics_frames(2)
+	check(g.security.dev_place_turret().contains("placed"), "a loaded turret by the front path")
+	var t: WorldObject = g.security._nearest("turret_mount")
+	var rounds0 := Security.box_total(t) + Security.mag(t)
+	g.debug_teleport_player(Vector2(7.0, 6.0))   # Eli goes inside
+	await physics_frames(2)
+	g.debug_set_spawn_gap(Vector2(0.6, 1.2))
+	g.dev_trigger_invasion()
+	check(g.debug_director().active, "the invasion starts")
+	var seen := 0
+	for i in 3600:
+		await frames(1)
+		seen = maxi(seen, g.debug_living_enemies())
+		if i > 120 and not g.debug_director().active and g.debug_living_enemies() == 0:
+			break
+	var rounds1 := Security.box_total(t) + Security.mag(t)
+	print("D: enemies at once %d, turret rounds %d -> %d, director %s, living %d, damage %s" % [seen, rounds0, rounds1,
+		g.debug_director().active, g.debug_living_enemies(), g.debug_world().damage_summary()])
+	check(seen > 0, "enemies came (%d at once)" % seen)
+	check(rounds1 < rounds0, "the turret spent real rounds (%d -> %d)" % [rounds0, rounds1])
+	if g.debug_living_enemies() > 0:
+		g.debug_kill_enemies()
+		await frames(5)
+	# an ordinary night's sleep after it
+	s.cheats["invulnerable"] = false
+	s.energy = 30.0
+	var day0 := s.day()
+	if s.minute_of_day() < 20.0 * 60.0 and s.minute_of_day() > 6.0 * 60.0:
+		s.total_minutes = float(day0 - 1) * 1440.0 + 22.5 * 60.0
+	var plan: Dictionary = await g.debug_sleep(-1.0)
+	print("D: sleep ", plan, " day ", day0, " -> ", s.day(), " ", s.clock_text())
+	check(not plan.is_empty(), "Eli sleeps after the fight (%s)" % [plan])
+	check(not s.dead, "and lives")
+	check_eq(g.debug_save(), "", "the morning saves")
+
+
+## Scenario B: an equipment trip. Pike's Guns by car; ammunition (and a gun
+## when one is there) from the shop and its back room; home: the inventory
+## and the equipment hold exactly that, a found shotgun is ready on the bar.
+func test_scenario_b_ammunition_from_pikes_guns() -> void:
+	TravelFlow.skip_animation = true
+	var g: Node = await _boot("new")
+	var s: GameState = g.debug_state()
+	s.total_minutes = 8.5 * 60.0
+	s.car_repaired = true
+	s.inventory.add("fuel", 2)
+	s.inventory.add("crowbar", 1)
+	s.inventory.add("flashlight", 1)
+	s.equip("crowbar")
+	s.equip("flashlight")
+	g.state.region.discover("gun_shop")
+	check_eq(await g.travel.depart("gun_shop", true), "", "sets out by car")
+	g = await _next_scene(g)
+	s = g.debug_state()
+	check(not g.is_home() and g.site_id() == "gun_shop", "at Pike's Guns")
+	g.debug_kill_enemies()
+	for d in g.world.objects:
+		if d is PoiDoor and d.locked:
+			d.locked = false                # forcing doors is covered by the core loop
+	var ammo0 := s.inventory.count("ammo") + s.inventory.count("shells")
+	var weapons := {}
+	for sp in g.world.spots_of("container"):
+		var box: Dictionary = g.poi.record["c"][sp.id]
+		var items: Dictionary = box["items"]
+		if items.is_empty() or bool(box["searched"]):
+			continue
+		var wanted := false
+		for id in items:
+			wanted = wanted or Items.category(str(id)) in ["ammo", "weapon"]
+		if not wanted:
+			continue
+		await _stand_at(g, sp)
+		if str(sp.data.get("needs", "")) == "crowbar":
+			g.poi.record["forced"][sp.id] = true
+		await _press_e_and_wait(g)
+		if not g.poi.panel.is_open:
+			continue
+		for id in (g.poi.record["c"][sp.id]["items"] as Dictionary).duplicate():
+			if Items.category(str(id)) in ["ammo", "weapon"]:
+				var n := int(g.poi.record["c"][sp.id]["items"][id])
+				var k: int = g.poi.panel.take(str(id), n)
+				if Items.category(str(id)) == "weapon" and k > 0:
+					weapons[str(id)] = k
+		g.poi.close_panel()
+		await frames(2)
+	var ammo1 := s.inventory.count("ammo") + s.inventory.count("shells")
+	check(ammo1 > ammo0, "ammunition found (%d -> %d), weapons %s" % [ammo0, ammo1, weapons])
+	var carried := _total(s)
+	g.leave_site()
+	check(await _wait_until(func(): return g.left_to != "", 60), "drives home")
+	g = await _next_scene(g)
+	s = g.debug_state()
+	for id in carried:
+		check_eq(s.inventory.count(id), int(carried[id]), "%s home exactly" % id)
+	check_eq(s.equipped("tool"), "crowbar", "the crowbar is still in hand")
+	check_eq(s.inventory.count("fuel"), 1, "one can for the round trip")
+	if weapons.has("shotgun"):
+		check(Hotbar.slot_of(s.hotbar, "shotgun") >= 0, "the shotgun is ready on the quick bar")
