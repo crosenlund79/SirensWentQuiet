@@ -87,7 +87,8 @@ func test_the_user_upload_maps_completely() -> void:
 	for n in r["mapped"]:
 		total += (r["mapped"][n] as Array).size()
 	check_eq(total, 64, "every uploaded file is used")
-	check_eq((r["unknown"] as Array).size(), 0, "nothing unknown (%s)" % str(r["unknown"]))
+	var unknown := (r["unknown"] as Array).filter(func(u): return not str(u["reason"]).begins_with("reserved"))
+	check_eq(unknown.size(), 0, "nothing unknown apart from recordings reserved for later (%s)" % str(unknown))
 	var pools := {"door/open": 4, "door/close": 4, "weapon/handgun_fire": 3, "weapon/reload": 4, "enemy/moan": 4,
 		"door/bash": 4, "ambient/owl": 4, "ambient/wolf": 4, "ambient/fireplace": 3, "ambient/forest": 3,
 		"player/step_snow": 1, "player/step_wood": 1, "player/step_cement": 1, "music/menu": 1}

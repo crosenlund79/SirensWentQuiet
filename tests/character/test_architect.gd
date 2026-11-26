@@ -12,7 +12,8 @@ const Roster := preload("res://src/game/enemy_roster.gd")
 ## sculpt (comments on his components) and the F10 developer menu.
 const ALLOWED := ["res://src/character/archetypes/architect.gd", "res://src/character/architect_identity.gd",
 	"res://src/character/architect_rig.gd", "res://src/character/architect_figure.gd",
-	"res://src/character/eli_showroom.gd", "res://src/character/humanoid_sculpt.gd", "res://src/ui/dev_menu.gd"]
+	"res://src/character/eli_showroom.gd", "res://src/character/humanoid_sculpt.gd", "res://src/ui/dev_menu.gd",
+	"res://src/audio/audio_inbox.gd"]   # holds the recordings for him back (not player-facing)
 
 
 func test_identity_and_look() -> void:

@@ -36,6 +36,10 @@ const ALIASES := {
 	"music/dawn": "music/menu",              # the theme, softly at dawn
 }
 
+## Files whose names contain this word are recordings for a scripted encounter
+## that isn't built yet (Exp 011): they map to nothing until it is.
+const RESERVED_WORD := "architect"
+
 ## The mapping table. A file maps to the rule it matches best:
 ##   all   every entry must match a word of the file name (a string, or a list
 ##         of alternatives); an entry matches a word that starts with it, case
@@ -417,6 +421,9 @@ static func match_path(path: String, root := "") -> Dictionary:
 
 ## The best rule for a set of words: {"name", "rule", "reason"}.
 static func match_words(w: PackedStringArray) -> Dictionary:
+	for x in w:
+		if x.to_lower().begins_with(RESERVED_WORD):
+			return {"name": "", "rule": -1, "reason": "reserved for a later milestone (not wired yet)"}
 	var best := -1
 	var winners := {}
 	var best_rule := -1
