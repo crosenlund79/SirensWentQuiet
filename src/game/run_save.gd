@@ -19,6 +19,12 @@ extends RefCounted
 ## parse() returns it as "site" ({} without one: older saves load at home).
 ## The travel animation is never saved: the checkpoints are the departure
 ## (an ordinary home save) and the POI.
+## Exp 008 (T): a trip can go on from POI to POI. "travel" then also holds
+## "from" and "stops" (the places before this one, in order; leg "on"); the
+## boot and the pack brought along are in the place's visit record
+## (state.region.poi[id]["visit"]), and "world"/"game" are still the home as
+## Eli left it at the start of the trip. Continue resumes at that POI, and
+## the chain goes on from there.
 
 const VERSION := 1
 

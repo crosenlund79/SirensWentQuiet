@@ -34,20 +34,47 @@ extends Node
 ## saved: quitting during it resumes at the last checkpoint ("departed" at
 ## home on the way out, the POI on the way back).
 ##
-## F10 "Travel" (dev_*): instant travel to any place, instant return home,
-## fuel, car repair, skip the animation.
+## Exp 008 (T): chains. At a POI, M opens the map from THERE (times, routes
+## and the daylight check from where Eli is; "Your house" is always on the
+## list) and Travel goes straight on: travel_on(id) (E at an exit still goes
+## home: "[E] Leave for home · M: travel on"). Each leg:
+## - the visit here ends once (game.poi.finish() -> PoiState.finish_visit),
+##   so stock, visit counts and encounter seeds stay per place;
+## - the rules of TravelRules (header): the road time of the leg
+##   (minutes_between), the mode he came with (the car stays with him), fuel
+##   (leaving home by car 1 can for the whole trip, each further stop by car
+##   1 more, home is paid, walking free), the gear a place needs;
+## - GameLaunch.carry = {"state", "home": the SAME home snapshot, "travel":
+##   {"to", "from", "car", "minutes", "depart_at", "leg": "on", "stops":
+##   [the places before this one]}, "cargo": the car's boot, "pack": what he
+##   took on the earlier stops and still carries}. On arrival the boot and
+##   the pack go into the new visit's record (the boot stays the boot, the
+##   pack keeps counting toward the pack limit); nothing goes into the
+##   household until home. The offscreen ledger (state.run["away"]) stays
+##   open over every leg and is resolved once at home;
+## - discovery on the way (TravelRules.roll_discovery) on every arrival.
+## A save at the second POI stores that place, the chain ("travel") and the
+## carried home; Continue resumes there and the chain goes on.
+## Departures and arrivals show a short title card (travel_card.gd:
+## "Hardware Store" / "Day 3, 10:42"); Space skips. Not with skip_animation.
+##
+## F10 "Travel" (dev_*): instant travel to any place (from a POI, straight
+## on), instant return home, fuel, car repair, skip the animation.
 
 const RunSave := preload("res://src/game/run_save.gd")
+const TravelCard := preload("res://src/travel/travel_card.gd")
 
 static var skip_animation := false      ## F10 toggle and tests: no map animation (the time still passes)
 
 var game: Node                          ## SurvivalGame
-var info := {}                          ## this trip: {"to"/"from", "car", "minutes", "depart_at", "leg"}
+var info := {}                          ## this leg: {"to"/"from", "car", "minutes", "depart_at", "leg", "stops"}
 var home_snapshot := {}                 ## at a POI: the home's save dictionary carried along
 var busy := false                       ## a departure or return is under way
 var last_report := {}                   ## OffscreenHome.resolve() on the last return (tests)
 var last_cargo := {}                    ## cargo moved into the household on the last return (tests)
 var last_depart := ""                   ## the last place set out for (tests)
+var brought := {}                       ## Exp 008 (T): {"cargo", "pack"} brought along from the earlier stops (tests)
+var card: Node                          ## Exp 008 (T): the last title card shown (tests)
 
 
 func setup(g: Node) -> void:
@@ -61,6 +88,17 @@ func setup(g: Node) -> void:
 
 func by_car() -> bool:
 	return bool(info.get("car", false))
+
+
+## Exp 008 (T): the places this trip went to before this one (a chain), in order.
+func stops() -> Array:
+	var out := []
+	var v: Variant = info.get("stops", [])
+	if typeof(v) == TYPE_ARRAY:
+		for x in v:
+			if typeof(x) == TYPE_STRING and RegionLocations.has(x):
+				out.append(x)
+	return out
 
 
 # --- leaving home -------------------------------------------------------------------------
@@ -87,14 +125,15 @@ func depart(id: String, car := false, instant := false) -> String:
 	game._set_modal("travel", true)
 	Sfx.play_first(["travel/car_start", "car/start"] if car else ["travel/depart", "ui/open"])
 	if not instant and not skip_animation:
-		await game.map.play_travel(id, car, true, TravelRules.anim_seconds(minutes, car), t0, minutes)
+		_departure_card(TravelRules.HOME, id, car, t0)
+		await game.map.play_leg(TravelRules.HOME, id, car, TravelRules.anim_seconds(minutes, car), t0, minutes)
 	if car and not s.cheats.get("unlimited", false):
-		s.inventory.remove("fuel", TravelRules.fuel_needed(true))
+		s.inventory.remove("fuel", TravelRules.leg_fuel(TravelRules.HOME, id, true))
 	OffscreenHome.begin(s)
 	GameLaunch.site = id
 	GameLaunch.mode = "carry"
 	GameLaunch.carry = {"state": s.to_dict(), "home": snap,
-		"travel": {"to": id, "car": car, "minutes": minutes, "depart_at": t0, "leg": "out"}}
+		"travel": {"to": id, "car": car, "minutes": minutes, "depart_at": t0, "leg": "out", "stops": []}}
 	busy = false
 	game.change_scene_to_site()
 	return ""
@@ -105,6 +144,125 @@ func _refuse(why: String) -> String:
 	return why
 
 
+# --- on from a POI (Exp 008) -------------------------------------------------------------
+
+## From a POI straight on to another known place (the map at a POI), or home
+## ("home": leave_for_home). See the header for the chain's rules. Returns ""
+## or why not. `instant` (F10): no animation and no time on the road.
+func travel_on(id: String, car := false, instant := false) -> String:
+	if id == TravelRules.HOME:
+		return await leave_for_home(instant)
+	if game.is_home():
+		return await depart(id, car, instant)
+	if busy:
+		return "busy"
+	var s: GameState = game.state
+	var from: String = game.site_id()
+	var why := TravelRules.leg_block_reason(s, from, id, car, by_car())
+	if why == "":
+		why = game.travel_block_reason(true)    # every exit works at any time: enemies here don't hold Eli
+	if why != "":
+		return _refuse(why)
+	busy = true
+	last_depart = id
+	var minutes := 0 if instant else TravelRules.minutes_between(from, id, car)
+	game._autosave("departed")              # quitting on the road resumes here (skipped with enemies about)
+	var fin := _end_visit()                 # once, before the next leg: this place's stock and visit count
+	var cargo: Dictionary = (fin.get("cargo", {}) as Dictionary).duplicate() if typeof(fin.get("cargo")) == TYPE_DICTIONARY else {}
+	var pack := _still_carried(fin.get("pack", {}) if typeof(fin.get("pack")) == TYPE_DICTIONARY else {})
+	var t0 := s.total_minutes
+	game._set_modal("travel", true)
+	Sfx.play_first(["travel/car_start", "car/start"] if car else ["travel/depart", "ui/open"])
+	if not instant and not skip_animation:
+		_departure_card(from, id, car, t0)
+		await game.map.play_leg(from, id, car, TravelRules.anim_seconds(minutes, car), t0, minutes)
+	var fuel := TravelRules.leg_fuel(from, id, car)
+	if fuel > 0 and not s.cheats.get("unlimited", false):
+		s.inventory.remove("fuel", fuel)
+	OffscreenHome.begin(s)                  # open since home; resolved once, at home
+	GameLaunch.site = id
+	GameLaunch.mode = "carry"
+	GameLaunch.carry = {"state": s.to_dict(), "home": home_with_director(),
+		"travel": {"to": id, "from": from, "car": car, "minutes": minutes, "depart_at": t0, "leg": "on", "stops": stops() + [from]},
+		"cargo": cargo, "pack": pack}
+	busy = false
+	game.change_scene_to_site()
+	return ""
+
+
+## Ends the visit at this POI once (the POI helper's finish(), idempotent)
+## and returns its result ({"cargo", "pack", ...}; {} without a helper).
+func _end_visit() -> Dictionary:
+	var poi: Variant = game.get("poi")
+	if not (poi is Object and is_instance_valid(poi)):
+		return {}
+	if poi.has_method("cancel_action"):
+		poi.cancel_action("")
+	if not poi.has_method("finish"):
+		return {}
+	var f: Variant = poi.finish()          # the cargo left the inventory; the pack is still in it
+	return f if typeof(f) == TYPE_DICTIONARY else {}
+
+
+## What of a visit's pack Eli still carries (eaten or stowed, it's gone).
+func _still_carried(pack: Dictionary) -> Dictionary:
+	var out := {}
+	for id in pack:
+		var n := mini(Inventory.to_count(pack[id]), game.state.inventory.count(str(id)))
+		if n > 0:
+			out[str(id)] = n
+	return out
+
+
+## A later stop of a chain: the boot and what Eli took on the earlier stops
+## go into this visit's record (the POI helper's live `cargo` and `pack`).
+## Nothing goes into the household here.
+func _bring_along(carry: Dictionary) -> void:
+	brought = {}
+	var poi: Variant = game.get("poi")
+	if not (poi is Object and is_instance_valid(poi)):
+		return
+	var cargo: Variant = carry.get("cargo", {})
+	var boot: Variant = poi.get("cargo")
+	if typeof(cargo) == TYPE_DICTIONARY and typeof(boot) == TYPE_DICTIONARY and not (cargo as Dictionary).is_empty():
+		for id in cargo:
+			var n := Inventory.to_count(cargo[id])
+			if n > 0 and Items.has(str(id)):
+				boot[str(id)] = int(boot.get(str(id), 0)) + n
+		brought["cargo"] = (cargo as Dictionary).duplicate()
+	var pack: Variant = carry.get("pack", {})
+	if typeof(pack) == TYPE_DICTIONARY and not (pack as Dictionary).is_empty() and poi.has_method("pack_add"):
+		for id in pack:
+			poi.pack_add(str(id), Inventory.to_count(pack[id]))
+		brought["pack"] = (pack as Dictionary).duplicate()
+
+
+# --- title cards (Exp 008) ----------------------------------------------------------------
+
+## The departure's card over the map: "Setting out" / "Leaving Pine Woods".
+func _departure_card(from: String, to: String, car: bool, total: float) -> void:
+	var title := "Setting out" if from == TravelRules.HOME else "Leaving %s" % RegionLocations.name_of(from)
+	var where := "home" if to == TravelRules.HOME else RegionLocations.name_of(to)
+	_show_card(title, "%s  ·  %s to %s" % [TravelRules.day_clock(total), "by car" if car else "on foot", where], 0.8, 0.6, 0.5, false)
+
+
+## The arrival's card, from black: "Hardware Store" / "Day 3, 10:42".
+func _arrival_card(title: String, sub: String) -> void:
+	if skip_animation or GameLaunch.mode != "carry":
+		return
+	_show_card(title, sub, 1.0, 0.75, 0.6, true)
+
+
+func _show_card(title: String, sub: String, dim: float, hold: float, fade: float, skippable: bool) -> void:
+	if card != null and is_instance_valid(card):
+		card.queue_free()
+	card = TravelCard.new()
+	card.name = "TravelCard"
+	card.skippable = skippable
+	game.add_child(card)
+	card.play(title, sub, dim, hold, fade)
+
+
 # --- at the POI ---------------------------------------------------------------------------
 
 ## The game calls this after site_ready when the scene came by travel.
@@ -113,11 +271,12 @@ func arrive(carry: Dictionary) -> void:
 		var cargo: Variant = carry.get("cargo", {})
 		arrive_home(cargo if typeof(cargo) == TYPE_DICTIONARY else {})
 	else:
-		arrive_at_site()
+		arrive_at_site(carry)
 
 
 ## At the POI (mode "carry"): the road's time, the visit, autosave "arrived".
-func arrive_at_site() -> void:
+## Exp 008 (T): on a later stop of a chain, the boot and the pack come along.
+func arrive_at_site(carry := {}) -> void:
 	var s: GameState = game.state
 	var id: String = game.site_id()
 	OffscreenHome.begin(s)
@@ -126,6 +285,8 @@ func arrive_at_site() -> void:
 		game._advance_clock(mins)           # on the road; attacks at home are recorded offscreen
 	if s.dead:
 		return
+	_bring_along(carry)
+	_arrival_card(RegionLocations.name_of(id), TravelRules.day_clock(s.total_minutes))
 	var found := TravelRules.roll_discovery(s, id, int(s.run.get("seed", 0)) * 7 + s.region.visits(id) * 131 + id.hash())
 	var poi: Variant = game.get("poi")
 	if poi is Object and is_instance_valid(poi) and poi.has_method("finish"):
@@ -161,18 +322,14 @@ func leave_for_home(instant := false) -> String:
 	var id: String = game.site_id()
 	var car := by_car()
 	var minutes := 0 if instant else TravelRules.minutes(id, car)
-	var cargo := {}
-	var fin := {}
-	var poi: Variant = game.get("poi")
-	if poi is Object and is_instance_valid(poi) and poi.has_method("finish"):
-		var f: Variant = poi.finish()          # P: ends the visit once (idempotent); the cargo left the inventory
-		fin = f if typeof(f) == TYPE_DICTIONARY else {}
-		cargo = fin.get("cargo", {}) if typeof(fin.get("cargo")) == TYPE_DICTIONARY else {}
+	var fin := _end_visit()                 # P: ends the visit once (idempotent); the cargo left the inventory
+	var cargo: Dictionary = fin.get("cargo", {}) if typeof(fin.get("cargo")) == TYPE_DICTIONARY else {}
 	var t0 := s.total_minutes
 	game._set_modal("travel", true)
 	Sfx.play_first(["travel/car_start", "car/start"] if car else ["travel/depart", "ui/open"])
 	if not instant and not skip_animation:
-		await game.map.play_travel(id, car, false, TravelRules.anim_seconds(minutes, car), t0, minutes)
+		_departure_card(id, TravelRules.HOME, car, t0)
+		await game.map.play_leg(id, TravelRules.HOME, car, TravelRules.anim_seconds(minutes, car), t0, minutes)
 	if minutes > 0:
 		game._advance_clock(float(minutes))
 	if s.dead:
@@ -181,7 +338,8 @@ func leave_for_home(instant := false) -> String:
 	GameLaunch.site = "home"
 	GameLaunch.mode = "carry"
 	GameLaunch.carry = {"state": s.to_dict(), "home": home_with_director(),
-		"travel": {"from": id, "car": car, "minutes": minutes, "depart_at": t0, "leg": "back"}, "cargo": (cargo as Dictionary).duplicate(), "poi": fin}
+		"travel": {"from": id, "car": car, "minutes": minutes, "depart_at": t0, "leg": "back", "stops": stops() + [id]},
+		"cargo": cargo.duplicate(), "poi": fin}
 	busy = false
 	game.change_scene_to_site()
 	return ""
@@ -235,8 +393,11 @@ func arrive_home(cargo: Dictionary) -> void:
 	last_report = OffscreenHome.resolve(game.world, s, int(s.run.get("seed", 0)) * 13 + int(s.total_minutes), _home_worlds())
 	OffscreenHome.finish(s)
 	last_cargo = _unload(cargo)
-	var where := RegionLocations.name_of(str(info.get("from", "")))
+	var where := _places_text(stops())
+	if where == "" and RegionLocations.has(str(info.get("from", ""))):
+		where = RegionLocations.name_of(str(info.get("from", "")))
 	game.toast("Back home from %s, %s." % [where, s.clock_text()] if where != "" else "Back home.", "good")
+	_arrival_card("Home", "%s%s" % [TravelRules.day_clock(s.total_minutes), "  ·  back from " + where if where != "" else ""])
 	if not last_cargo.is_empty():
 		game.toast("Unloaded the car: %s." % ExpeditionData.items_text(last_cargo), "good")
 	var lines: Array = last_report.get("lines", [])
@@ -248,6 +409,16 @@ func arrive_home(cargo: Dictionary) -> void:
 		s._log("While away: " + str(l))
 	GameLaunch.carry = {}
 	game._autosave("returned")
+
+
+## "Corner Store", "Corner Store and Public Library", "A, B and C".
+static func _places_text(ids: Array) -> String:
+	var names := []
+	for id in ids:
+		names.append(RegionLocations.name_of(str(id)))
+	if names.size() <= 1:
+		return "" if names.is_empty() else str(names[0])
+	return ", ".join(names.slice(0, names.size() - 1)) + " and " + str(names[-1])
 
 
 ## Every storey of the house (the ground floor first), for the security
@@ -292,14 +463,20 @@ func _unload(cargo: Dictionary) -> Dictionary:
 
 # --- developer tools (F10 "Travel") -----------------------------------------------------
 
-## Instantly to a place (no animation, no time on the road). From a POI, via home.
+## Instantly to a place (no animation, no time on the road). Exp 008: from a
+## POI straight on (in the mode Eli came with).
 func dev_travel_to(id: String) -> String:
 	if not RegionLocations.has(id):
 		return "Unknown place."
-	if not game.is_home():
-		return "Return home first (F10: Return home)."
+	if not game.is_home() and id == game.site_id():
+		return "Already here."
 	game.state.region.discover(id)
-	var why := await depart(id, false, true)
+	var why := ""
+	if game.is_home():
+		why = await depart(id, false, true)
+	else:
+		game.debug_kill_enemies()
+		why = await travel_on(id, by_car(), true)
 	return "Travelling to %s" % RegionLocations.name_of(id) if why == "" else why
 
 
@@ -331,6 +508,8 @@ func info_text() -> String:
 	var t := "Site: %s" % ("home" if game.is_home() else RegionLocations.name_of(game.site_id()))
 	if not game.is_home():
 		t += " (%s)" % ("by car" if by_car() else "on foot")
+		if not stops().is_empty():
+			t += " · after %s" % _places_text(stops())
 	var n := OffscreenHome.events(game.state).size()
 	if n > 0:
 		t += " · %d thing%s happened at home" % [n, "" if n == 1 else "s"]

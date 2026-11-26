@@ -175,7 +175,7 @@ func prompt_for(s: PoiSpot) -> String:
 			var left := chops_left(s)
 			return "[E] Chop wood (fallen tree · %d left)" % left if left > 0 else ""
 		"exit":
-			return "[E] Leave for home"
+			return "[E] Leave for home" + (" · M: travel on" if can_travel_on() else "")     # Exp 008 (T)
 		"cargo":
 			return "[E] Car (cargo) · boot %s / %s" % [PoiState._num(PoiState.load_of(cargo)), PoiState._num(PoiState.CARGO_CAP)]
 	return ""
@@ -562,8 +562,16 @@ func marker_for(s: PoiSpot) -> Array:
 
 # --- leaving -------------------------------------------------------------------------------
 
+## Exp 008 (T): the game's travel flow can go on from here to another place
+## (the map at a POI, travel_flow.travel_on); the exits mention M then.
+func can_travel_on() -> bool:
+	var t: Variant = game.get("travel") if game != null else null
+	return t is Object and is_instance_valid(t) and t.has_method("travel_on")
+
+
 ## "[E] Leave for home": ends the visit and asks the travel flow (agent T's
 ## game.travel.leave_poi()) to take Eli home; without it, leave_requested.
+## (Exp 008: M opens the map to travel on to another place instead.)
 func leave() -> void:
 	cancel_action("")
 	var out := finish()
@@ -579,7 +587,8 @@ func leave() -> void:
 ## Ends the visit once (PoiState.finish_visit: the map's stock, the visit
 ## count) and hands what comes home to the travel flow: GameLaunch.carry
 ## ["poi"] = {"site", "by_car", "cargo", "pack", "left"} when the carry exists.
-## Returns that dictionary.
+## Returns that dictionary. Exp 008 (T): also before travelling on to another
+## place; the boot ("cargo") and the pack then go along to the next visit.
 func finish() -> Dictionary:
 	if not finished.is_empty() or state == null:
 		return finished

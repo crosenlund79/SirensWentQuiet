@@ -26,6 +26,19 @@ extends CanvasLayer
 ## the panel (plan_selected() stays as an API). `play_travel()` animates a tiny
 ## voxel Eli (or the car) along the road route (MapTraveller), with the clock
 ## running in a card, in a few real seconds; Space or Enter skips it.
+##
+## Exp 008 (T): travel from where Eli is. `origin` is home or the POI he is
+## at (the game sets it with `car_here`, `boot` and `pack_line` before
+## open()): the list's times, the route, the panel and Travel are from there,
+## and at a POI "Your house" is a destination too (Travel then goes home).
+## The panel, top down: what the place is good for (MapInfo.good_for), the
+## danger, whether he has been there and how picked-over it is; then the
+## travel section: on foot and by car side by side with their times, the
+## arrival, the stay and the way home from there, fuel (TravelRules.leg_fuel),
+## "Back home by 18:40" or "You'd get home after dark", the pack and the car's
+## boot; then what might be found and the gear. At a POI the mode is the one
+## he came with (the car stays with him). play_leg() animates any leg; its
+## card shows the clock, a progress bar and the arrival time.
 
 signal closed
 signal destination_selected(id: String, purpose: String)
@@ -78,6 +91,12 @@ var _travel_bar: ProgressBar
 var _travel_button: Button
 var _travel_status: Label
 
+# Exp 008 (T): travel from where Eli is
+var origin := MapInfo.HOME       ## home, or the POI Eli is at (times, routes and Travel start here)
+var car_here := false            ## at a POI: the car came along (he drives on; else he walks on)
+var boot := {}                   ## at a POI by car: the boot's contents (the POI helper's live record; read only)
+var pack_line := ""              ## at a POI: the pack readout ("Pack: 18 / 30")
+
 
 func _init() -> void:
 	layer = 65
@@ -103,7 +122,7 @@ func open(game_state: GameState) -> void:
 	if _root == null:
 		_build_ui()
 	state = game_state if game_state != null else GameState.new()
-	by_car = TravelRules.can_drive(state)      # Exp 007 (T): the running car comes along by default
+	by_car = TravelRules.can_drive(state) if origin == MapInfo.HOME else car_here    # Exp 007 (T); Exp 008: at a POI, as he came
 	view.build()
 	layout_ok = state.region.layout == RegionTerrain.LAYOUT_ID
 	view.set_night(state.night_amount())
@@ -289,8 +308,22 @@ func _sorted_ids() -> Array:
 	for id in RegionLocations.ids():
 		if _known(id):
 			ids.append(id)
-	ids.sort_custom(func(a, b): return RegionLocations.travel_minutes(a) < RegionLocations.travel_minutes(b) or (RegionLocations.travel_minutes(a) == RegionLocations.travel_minutes(b) and a < b))
+	ids.sort_custom(func(a, b): return _mins(a) < _mins(b) or (_mins(a) == _mins(b) and a < b))
 	return ids
+
+
+## Exp 008 (T): on-foot minutes from where Eli is (`origin`) to `id`.
+func _mins(id: String) -> int:
+	return TravelRules.minutes_between(origin, id) if origin != MapInfo.HOME else RegionLocations.travel_minutes(id)
+
+
+## The list's caption for a place: its time from here, "here", or "planned".
+func _caption(id: String) -> String:
+	if id == origin and origin != MapInfo.HOME:
+		return "here"
+	if id == MapInfo.HOME:
+		return "" if origin == MapInfo.HOME else UiTheme.duration_text(_mins(id))
+	return UiTheme.duration_text(_mins(id))
 
 
 func _refresh_entries() -> void:
@@ -303,17 +336,27 @@ func _refresh_entries() -> void:
 		var top_y := maxf(float(t.loc_top.get(id, ground.y)), ground.y) + 0.25
 		var cat := MapInfo.HOME if id == MapInfo.HOME else str(RegionLocations.get_def(id)["category"])
 		var name := "Your house" if id == MapInfo.HOME else RegionLocations.name_of(id)
-		var sub := "Home" if id == MapInfo.HOME else "%s · about %s" % [RegionLocations.CATEGORIES.get(cat, cat), UiTheme.duration_text(RegionLocations.travel_minutes(id))]
+		var sub := "Home" if id == MapInfo.HOME else "%s · about %s" % [RegionLocations.CATEGORIES.get(cat, cat), UiTheme.duration_text(_mins(id))]
+		if id == origin and origin != MapInfo.HOME:
+			sub = "You are here"
+		elif id == MapInfo.HOME and origin != MapInfo.HOME:
+			sub = "Home · about %s from here" % UiTheme.duration_text(_mins(id))
 		list.append({"id": id, "name": name, "cat": cat, "ground": ground, "top": Vector3(ground.x, top_y, ground.z), "sub": sub})
 	markers.entries = list
 	markers.planned = state.region.planned if _known(state.region.planned) else ""
 
 
+## The road from where Eli is to `id` (Exp 008: from `origin`).
 func _route(id: String) -> PackedVector3Array:
+	return _route_between(origin, id)
+
+
+## Exp 008 (T): the road between two places (either may be home), on the map.
+func _route_between(a: String, b: String) -> PackedVector3Array:
 	var out := PackedVector3Array()
-	if id == MapInfo.HOME:
+	if a == b:
 		return out
-	for p in view.terrain.route_from_home(id):
+	for p in view.terrain.route_between(a, b):
 		out.append(view.terrain.world_of(p) + Vector3(0, 0.12, 0))
 	return out
 
@@ -434,8 +477,8 @@ func _rebuild_list() -> void:
 	for id in ids:
 		var is_home: bool = id == MapInfo.HOME
 		var name := "Your house" if is_home else RegionLocations.name_of(id)
-		var cap := "" if is_home else UiTheme.duration_text(RegionLocations.travel_minutes(id))
-		if id == state.region.planned:
+		var cap := _caption(id)                       # Exp 008 (T): from where Eli is
+		if id == state.region.planned and origin == MapInfo.HOME:
 			cap = "planned"
 		var b := UiTheme.make_button("    " + name, cap)
 		b.custom_minimum_size.y = 32
@@ -545,28 +588,41 @@ func _show_info() -> void:
 	_info_panel.visible = selected != ""
 	if selected == "":
 		return
-	var s := _summary if selected != MapInfo.HOME else MapInfo.home_summary()
-	if selected == MapInfo.HOME:
+	var home_sel := selected == MapInfo.HOME
+	var s := _summary if not home_sel else MapInfo.home_summary()
+	if home_sel:
 		_summary = s
 	_info.add_child(UiTheme.make_title(s["name"], UiTheme.FONT_LARGE))
 	var sub := UiTheme.make_caption("%s  ·  %s" % [s["category_name"], s["district_name"]], 0, MapInfo.category_color(s["category"]))
 	_info.add_child(sub)
-	_info.add_child(UiTheme.make_caption(s["desc"], INFO_W - 40, UiTheme.TEXT))
-	if selected == MapInfo.HOME:
+	if selected == origin and not home_sel:   # Exp 008 (T): the POI Eli is at
+		_add_here_section()
 		_fit_info.call_deferred()
 		return
+	var away := origin != MapInfo.HOME
+	var desc: String = s["desc"]
+	if home_sel and away:
+		desc = "Home. What you carry and the car's boot go into the house when you get there, not before."
+	_info.add_child(UiTheme.make_caption(desc, INFO_W - 40, UiTheme.TEXT))
+	if home_sel:
+		if away:
+			_add_travel_section()          # Exp 008 (T): home from here
+		_fit_info.call_deferred()
+		return
+	# Exp 008 (T): what it is good for, how dangerous, been there, how picked-over
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 14)
 	grid.add_theme_constant_override("v_separation", 4)
-	var travel := "about %s each way  ·  %.1f km" % [UiTheme.duration_text(s["travel_minutes"]), s["km"]]
-	if TravelRules.can_drive(state):       # Exp 007 (T)
-		travel = "%s on foot, %s by car  ·  %.1f km" % [UiTheme.duration_text(TravelRules.minutes(selected)), UiTheme.duration_text(TravelRules.minutes(selected, true)), s["km"]]
-	_row(grid, "Travel", travel, UiTheme.TEXT)
+	var good := MapInfo.good_for(selected)
+	_row(grid, "Good for", ", ".join(good) if not good.is_empty() else str(s["category_name"]), UiTheme.TEXT)
 	var risk_text: String = s["risk_name"] if s["risk_name"] != "" else "Unknown"
-	_row(grid, "Risk", risk_text, MapInfo.risk_color(s["risk_tier"]))
+	_row(grid, "Danger", risk_text, MapInfo.risk_color(s["risk_tier"]))
+	var visits := state.region.visits(selected)
+	_row(grid, "Been there", MapInfo.visit_text(state, selected), UiTheme.TEXT if visits > 0 else UiTheme.TEXT_DIM)
 	_row(grid, "Stock", "%s  ·  %d %% left" % [s["stock_text"], int(round(s["stock"] * 100.0))], UiTheme.TEXT if s["stock"] >= 0.5 else UiTheme.WARN)
 	_info.add_child(grid)
+	_add_travel_section()              # Exp 007 (T): replaces the mission purpose; Exp 008: right under the facts
 	if s["resources_text"] != "":
 		_info.add_child(UiTheme.make_section("Might find"))
 		_info.add_child(UiTheme.make_caption(s["resources_text"], INFO_W - 40, UiTheme.TEXT))
@@ -587,7 +643,6 @@ func _show_info() -> void:
 			_info.add_child(l)
 	for n in s.get("notes", []):
 		_info.add_child(UiTheme.make_caption(str(n), INFO_W - 40, UiTheme.WARN))
-	_add_travel_section()              # Exp 007 (T): replaces the mission purpose and "Plan expedition"
 	_set_approach(approach, target)
 	_fit_info.call_deferred()
 
@@ -672,28 +727,37 @@ func _on_place_clicked(id: String) -> void:
 
 # --- Exp 007 (T): travel ------------------------------------------------------------------
 
-## The travel part of the info panel: mode (on foot / by car), fuel, carrying
-## capacity, the daylight check and the Travel button (or why not).
+## The travel part of the info panel (Exp 008: from `origin`): on foot and
+## by car side by side with their times, distance, arrival, the stay and the
+## way home from there, fuel, the daylight check, the pack and the boot, and
+## the Travel button (or why not).
 func _add_travel_section() -> void:
 	_travel_button = null
 	_travel_status = null
-	_info.add_child(UiTheme.make_section("Travel"))
-	var drive_why := TravelRules.car_reason(state)
-	if drive_why != "":
+	var to_home := selected == MapInfo.HOME
+	var away := origin != MapInfo.HOME
+	_info.add_child(UiTheme.make_section("Travel" if not away else "Travel from here"))
+	var foot_why := TravelRules.mode_reason(state, origin, false, car_here)
+	var car_why := TravelRules.mode_reason(state, origin, true, car_here)
+	if by_car and car_why != "":
 		by_car = false
+	elif not by_car and foot_why != "" and car_why == "":
+		by_car = true
 	var modes := HBoxContainer.new()
+	modes.name = "Modes"
 	modes.add_theme_constant_override("separation", 6)
 	var group := ButtonGroup.new()
 	for m in [[false, "On foot"], [true, "By car"]]:
-		var b := UiTheme.make_button(m[1], "C" if m[0] else "")
+		var b := UiTheme.make_button(m[1], UiTheme.duration_text(TravelRules.minutes_between(origin, selected, m[0])))
 		b.name = "ByCar" if m[0] else "OnFoot"
 		b.toggle_mode = true
 		b.button_group = group
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2((INFO_W - 42) * 0.5, 32)
 		b.set_pressed_no_signal(by_car == m[0])
-		b.disabled = m[0] and drive_why != ""
-		b.tooltip_text = drive_why if b.disabled else ""
+		var why: String = car_why if m[0] else foot_why
+		b.disabled = why != ""
+		b.tooltip_text = why
 		b.pressed.connect(set_by_car.bind(m[0]))
 		modes.add_child(b)
 	_info.add_child(modes)
@@ -701,30 +765,65 @@ func _add_travel_section() -> void:
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 14)
 	grid.add_theme_constant_override("v_separation", 4)
-	var tm := TravelRules.timing(state, selected, by_car)
-	_row(grid, "There", "about %s %s" % [UiTheme.duration_text(tm["minutes"]), "by car" if by_car else "on foot"], UiTheme.TEXT)
+	var tm := TravelRules.leg_timing(state, origin, selected, by_car)
+	var km := TravelRules.km_between(origin, selected) * RegionLocations.ROAD_FACTOR
+	_row(grid, "Distance", "about %.1f km by road" % km, UiTheme.TEXT_DIM)
+	_row(grid, "Arrive", "around %s  (%s %s)" % [TravelRules.clock(tm["arrive_at"]), UiTheme.duration_text(tm["minutes"]), "by car" if by_car else "on foot"], UiTheme.TEXT)
+	if not to_home:
+		_row(grid, "Stay", "about %s to look around" % UiTheme.duration_text(tm["stay"]), UiTheme.TEXT_DIM)
+		_row(grid, "Then home", "about %s from there" % UiTheme.duration_text(tm["home_minutes"]), UiTheme.TEXT_DIM)
 	if by_car:
 		var have := state.inventory.count("fuel")
-		var need := TravelRules.fuel_needed(true)
-		_row(grid, "Fuel", "%d can for the round trip (you have %d)" % [need, have], UiTheme.TEXT if have >= need or state.cheats.get("unlimited", false) else UiTheme.BAD)
+		var need := TravelRules.leg_fuel(origin, selected, true)
+		var free := bool(state.cheats.get("unlimited", false))
+		var ft := ""
+		if not away:
+			ft = "%d can, there and back (you have %d)" % [need, have]
+		elif need > 0:
+			ft = "%d more can for this stop (you have %d)" % [need, have]
+		else:
+			ft = "None: the way home is paid"
+		_row(grid, "Fuel", ft, UiTheme.TEXT if have >= need or free else UiTheme.BAD)
 	else:
-		_row(grid, "Car", drive_why if drive_why != "" else "Left at home", UiTheme.TEXT_DIM)
-	_row(grid, "Stay", "about %s to look around" % UiTheme.duration_text(tm["stay"]), UiTheme.TEXT_DIM)
+		var ct := "At home" if away else (car_why if car_why != "" else "Left at home")
+		_row(grid, "Car", ct, UiTheme.TEXT_DIM)
 	_info.add_child(grid)
 	_info.add_child(UiTheme.make_caption(tm["text"], INFO_W - 40, UiTheme.GOOD if tm["before_dark"] else UiTheme.WARN))
-	_info.add_child(UiTheme.make_caption("Carry: " + TravelRules.capacity_text(state, by_car), INFO_W - 40, UiTheme.TEXT_DIM))
+	if away and pack_line != "":
+		_info.add_child(UiTheme.make_caption(pack_line + "  ·  nothing is unloaded until you're home", INFO_W - 40, UiTheme.TEXT_DIM))
+	elif not away:
+		_info.add_child(UiTheme.make_caption("Carry: " + TravelRules.capacity_text(state, by_car), INFO_W - 40, UiTheme.TEXT_DIM))
+	if by_car:
+		_info.add_child(UiTheme.make_caption(boot_text(), INFO_W - 40, UiTheme.TEXT_DIM))
 	if not travel_enabled:
 		_info.add_child(UiTheme.make_caption(travel_note if travel_note != "" else "You can't set out from here.", INFO_W - 40, UiTheme.TEXT_DIM))
 		return
-	var why := TravelRules.block_reason(state, selected, by_car)
-	_travel_button = UiTheme.make_button("Travel", "Enter")
+	var block := TravelRules.leg_block_reason(state, origin, selected, by_car, car_here)
+	_travel_button = UiTheme.make_button("Go home" if to_home else "Travel", "Enter")
 	_travel_button.name = "Travel"
 	_travel_button.focus_mode = Control.FOCUS_NONE
-	_travel_button.disabled = why != ""
+	_travel_button.disabled = block != ""
 	_travel_button.pressed.connect(request_travel)
 	_info.add_child(_travel_button)
-	_travel_status = UiTheme.make_caption(why, INFO_W - 40, UiTheme.WARN)
+	_travel_status = UiTheme.make_caption(block, INFO_W - 40, UiTheme.WARN)
 	_info.add_child(_travel_status)
+
+
+## Exp 008 (T): the car's boot as a line: "Boot: 12 / 60 · 4 planks, 2 stones"
+## (empty at home: the trip starts with an empty boot).
+func boot_text() -> String:
+	var t := "Boot: %s / %s" % [PoiState._num(PoiState.load_of(boot)), PoiState._num(PoiState.CARGO_CAP)]
+	return t + ("  ·  empty" if boot.is_empty() else "  ·  " + ExpeditionData.items_text(boot))
+
+
+## Exp 008 (T): the panel for the POI Eli is at: the pack, the car and its
+## boot, and how to go on.
+func _add_here_section() -> void:
+	_info.add_child(UiTheme.make_caption("You are here.", INFO_W - 40, UiTheme.ACCENT))
+	if pack_line != "":
+		_info.add_child(UiTheme.make_caption(pack_line, INFO_W - 40, UiTheme.TEXT))
+	_info.add_child(UiTheme.make_caption(boot_text() if car_here else "The car is at home.", INFO_W - 40, UiTheme.TEXT_DIM))
+	_info.add_child(UiTheme.make_caption("Pick another place to travel on from here, or your house to go home. Nothing is unloaded until you're home; E at an exit goes straight home.", INFO_W - 40, UiTheme.TEXT_DIM))
 
 
 ## A line under the Travel button (the game's refusals).
@@ -733,23 +832,27 @@ func show_travel_status(text: String) -> void:
 		_travel_status.text = text
 
 
-## On foot or by car (C). The car needs to run and have fuel.
+## On foot or by car (C). The car needs to run and have fuel; at a POI the
+## mode is the one Eli came with (Exp 008).
 func set_by_car(on: bool) -> void:
-	if on and not TravelRules.can_drive(state):
-		on = false
+	if TravelRules.mode_reason(state, origin, on, car_here) != "":
+		return
 	if on == by_car:
 		return
 	by_car = on
-	if selected != "" and selected != MapInfo.HOME:
+	if selected != "" and (selected != MapInfo.HOME or origin != MapInfo.HOME):
 		_show_info()
 
 
-## The Travel button / Enter: asks the game to set out for the selected place.
-## Returns false when nothing travellable is selected or the rules say no.
+## The Travel button / Enter: asks the game to set out for the selected place
+## (Exp 008: from `origin`; at a POI the house too). Returns false when
+## nothing travellable is selected or the rules say no.
 func request_travel() -> bool:
-	if travelling or not travel_enabled or selected == "" or selected == MapInfo.HOME or not RegionLocations.has(selected):
+	if travelling or not travel_enabled or selected == "" or selected == origin:
 		return false
-	var why := TravelRules.block_reason(state, selected, by_car)
+	if selected != MapInfo.HOME and not RegionLocations.has(selected):
+		return false
+	var why := TravelRules.leg_block_reason(state, origin, selected, by_car, car_here)
 	if why != "":
 		if _travel_status != null:
 			_travel_status.text = why
@@ -763,16 +866,23 @@ func request_travel() -> bool:
 ## clock runs from `from_total` over `minutes` game minutes. The map must be
 ## open. Emits travel_finished (also when `seconds` <= 0, at once).
 func play_travel(id: String, car: bool, outbound: bool, seconds: float, from_total: float, minutes: float) -> void:
+	if outbound:
+		play_leg(MapInfo.HOME, id, car, seconds, from_total, minutes)
+	else:
+		play_leg(id, MapInfo.HOME, car, seconds, from_total, minutes)
+
+
+## Exp 008 (T): any leg `from` -> `to` (either may be home), as play_travel.
+func play_leg(from: String, to: String, car: bool, seconds: float, from_total: float, minutes: float) -> void:
 	if not is_open:
 		open(state)
-	select(id, false)
+	select(to, false)
 	_info_panel.visible = false
-	var pts := _route(id)
+	var pts := _route_between(from, to)
 	if pts.size() < 2:
-		pts = PackedVector3Array([view.terrain.anchor_of(MapInfo.HOME) + Vector3(0, 0.12, 0), view.terrain.anchor_of(id) + Vector3(0, 0.12, 0)])
-	if not outbound:
-		pts.reverse()
-	var verb := ("Driving" if car else "Walking") + (" to " + RegionLocations.name_of(id) if outbound else " home from " + RegionLocations.name_of(id))
+		pts = PackedVector3Array([view.terrain.anchor_of(from) + Vector3(0, 0.12, 0), view.terrain.anchor_of(to) + Vector3(0, 0.12, 0)])
+	markers.route_world = pts
+	var verb := ("Driving" if car else "Walking") + (" home from " + RegionLocations.name_of(from) if to == MapInfo.HOME else " to " + RegionLocations.name_of(to))
 	_travel = {"pts": pts, "t": 0.0, "seconds": maxf(seconds, 0.0), "from": from_total, "minutes": minutes, "label": verb}
 	travelling = true
 	if _traveller != null and is_instance_valid(_traveller):
@@ -858,5 +968,7 @@ func _update_travel_card(f: float) -> void:
 		return
 	var t := float(_travel["from"]) + float(_travel["minutes"]) * f
 	_travel_title.text = str(_travel["label"])
-	_travel_clock.text = "%s  ·  %s of %s" % [TravelRules.day_clock(t), UiTheme.duration_text(float(_travel["minutes"]) * f), UiTheme.duration_text(float(_travel["minutes"]))]
+	var left := float(_travel["minutes"]) * (1.0 - f)
+	_travel_clock.text = "%s  ·  %s  ·  arriving %s" % [TravelRules.day_clock(t), UiTheme.duration_text(left) + " to go" if f < 1.0 else "there",
+		TravelRules.clock(float(_travel["from"]) + float(_travel["minutes"]))]      # Exp 008 (T): the arrival time
 	_travel_bar.value = f

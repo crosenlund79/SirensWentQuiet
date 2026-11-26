@@ -16,6 +16,7 @@ extends RefCounted
 ##   t.height_at(Vector2i(58, 92))          # ground level in steps
 ##   t.district_at(Vector2i(94, 54))        # "centre"
 ##   t.route_from_home("quarry")            # road path (region cells)
+##   t.route_between("hardware", "clinic")  # Exp 008 (T): between two places
 
 const LAYOUT_ID := "region-v1"
 const W := 160
@@ -227,6 +228,29 @@ func route_from_home(id: String) -> PackedVector2Array:
 		out.append(Vector2(p) + Vector2(0.5, 0.5))
 	if id != "home":
 		out.append(RegionLocations.get_def(id)["pos"])
+	return out
+
+
+## Exp 008 (T): road path between two places (either may be "home"), from
+## `a` to `b` (region cell centres), or [] if none.
+func route_between(a: String, b: String) -> PackedVector2Array:
+	if a == "home":
+		return route_from_home(b)
+	if b == "home":
+		var back := route_from_home(a)
+		back.reverse()
+		return back
+	if _road_astar == null:
+		_build_road_astar()
+	var from := _road_access(a)
+	var to := _road_access(b)
+	if from.x < 0 or to.x < 0:
+		return PackedVector2Array()
+	var out := PackedVector2Array()
+	out.append(RegionLocations.get_def(a)["pos"])
+	for p in _road_astar.get_id_path(from, to):
+		out.append(Vector2(p) + Vector2(0.5, 0.5))
+	out.append(RegionLocations.get_def(b)["pos"])
 	return out
 
 

@@ -16,5 +16,10 @@ static var difficulty := "normal"   ## chosen in the main menu for a new game (D
 ## dictionary written when Eli left), "travel": {"to", "from", "car",
 ## "minutes", "depart_at"}, "poi": the POI helper's state, "cargo": {item: n}}.
 ## mode "carry" launches the scene from it (src/travel/travel_flow.gd).
+## Exp 008 (T): a leg from one POI to the next ("travel" leg "on", with
+## "from" and "stops": the places before this one) also carries "cargo" (the
+## car's boot, which stays the boot) and "pack" ({item: n} taken on the
+## earlier stops and still carried, which keeps counting toward the pack
+## limit); "home" is the same snapshot all along the chain.
 static var site := "home"
 static var carry := {}

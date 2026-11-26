@@ -176,7 +176,7 @@ func test_travel_to_the_store_search_a_shelf_and_bring_it_home() -> void:
 	# leave by an exit
 	TravelFlow.skip_animation = true
 	var exit: Node3D = g.world.spots_of("exit")[0]
-	check_eq(exit.interact_prompt(), "[E] Leave for home", "the exit")
+	check_eq(exit.interact_prompt(), "[E] Leave for home · M: travel on", "the exit (Exp 008: M travels on)")
 	g.poi.interact_spot(exit)
 	check(await _wait_until(func(): return g.left_to != "", 30), "leaves for home")
 	check_eq(GameLaunch.site, "home", "home")

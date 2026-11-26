@@ -176,6 +176,50 @@ static func normalize(x: Dictionary, base: Dictionary) -> Dictionary:
 	return out
 
 
+# --- Exp 008 (T): the travel panel's facts ------------------------------------------------
+
+## What a kind of item makes a place good for (Items categories).
+const GOOD_FOR := {"food": "Food and water", "water": "Food and water", "material": "Building materials",
+	"medical": "Medical", "ammo": "Weapons and ammo", "weapon": "Weapons and ammo", "protective": "Weapons and ammo",
+	"book": "Books", "tool": "Tools", "utility": "Tools"}
+const GOOD_FOR_SHARE := 0.4        ## a label counts from this share of the best one
+
+
+## What a place is good for, from its loot profile (main and locked tables:
+## chance x amount per item category), best first, at most three; [] when it
+## has no profile.
+static func good_for(id: String) -> Array:
+	var d := ExpeditionData.destination(id) if ExpeditionData.has_destination(id) else {}
+	var score := {}
+	for table in [d.get("loot", []), d.get("locked", [])]:
+		for e in table:
+			var label := str(GOOD_FOR.get(Items.category(str(e[0])), ""))
+			if label == "":
+				continue
+			var amount := (float(e[1]) + float(e[2])) * 0.5
+			score[label] = float(score.get(label, 0.0)) + float(e[3]) * sqrt(maxf(amount, 1.0))
+	var labels := score.keys()
+	labels.sort_custom(func(a, b): return float(score[a]) > float(score[b]) or (float(score[a]) == float(score[b]) and str(a) < str(b)))
+	var out := []
+	for l in labels:
+		if out.size() < 3 and float(score[l]) >= float(score[labels[0]]) * GOOD_FOR_SHARE:
+			out.append(l)
+	return out
+
+
+## "Not yet", "Once, on day 2", "3 times, last on day 5".
+static func visit_text(state: GameState, id: String) -> String:
+	if state == null or state.region == null:
+		return "Not yet"
+	var n := state.region.visits(id)
+	if n <= 0:
+		return "Not yet"
+	var last := state.region.last_day(id)
+	if n == 1:
+		return "Once, on day %d" % last
+	return "%s, last on day %d" % ["Twice" if n == 2 else "%d times" % n, last]
+
+
 ## Today's stock (RegionState.stock_on with recovery when the region has it).
 static func today_stock(state: GameState, id: String) -> float:
 	if state == null or state.region == null:
