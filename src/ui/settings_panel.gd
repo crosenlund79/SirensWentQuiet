@@ -62,6 +62,7 @@ func open() -> void:
 	_fullscreen.name = "Fullscreen"
 	_fullscreen.toggled.connect(func(on: bool): GameSettings.set_value("fullscreen", on))
 	left.add_child(_fullscreen)
+	_build_character(left)          # Exp 010
 	left.add_child(UiTheme.make_caption("Settings are saved when you leave this screen.", 400, UiTheme.TEXT_FAINT))
 
 	var right := VBoxContainer.new()
@@ -78,6 +79,29 @@ func open() -> void:
 	back.pressed.connect(_back)
 	box.add_child(_footer("Esc", "Back", [back]))
 	_show(_sliders["master"])
+
+
+## Exp 010: the experimental character (Eli) or the original figure, and
+## Eli's look. Applies live (the player swaps its rig); not in the save game.
+func _build_character(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_spacer(8))
+	box.add_child(UiTheme.make_section("Character"))
+	var eli := UiTheme.make_toggle("Experimental Eli", str(GameSettings.get_value("character")) != "original")
+	eli.name = "ExperimentalEli"
+	box.add_child(eli)
+	var look := UiTheme.make_button("")
+	look.name = "EliLook"
+	var show := func():
+		look.text = "Look: " + EliSculpt.variant_name(int(GameSettings.get_value("eli_variant")))
+		look.disabled = str(GameSettings.get_value("character")) == "original"
+	show.call()
+	eli.toggled.connect(func(on: bool):
+		GameSettings.set_value("character", "eli" if on else "original")
+		show.call())
+	look.pressed.connect(func():
+		GameSettings.set_value("eli_variant", (int(GameSettings.get_value("eli_variant")) + 1) % EliSculpt.variant_count())
+		show.call())
+	box.add_child(look)
 
 
 func _volume_row(key: String, text: String) -> HBoxContainer:

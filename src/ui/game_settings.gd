@@ -10,7 +10,11 @@ extends RefCounted
 
 const PATH := "user://settings.cfg"
 const BUSES := {"master": "Master", "sfx": "SFX", "ambient": "Ambient", "music": "Music"}
-const DEFAULTS := {"master": 0.8, "sfx": 0.8, "ambient": 0.7, "music": 0.6, "fullscreen": false}
+const DEFAULTS := {"master": 0.8, "sfx": 0.8, "ambient": 0.7, "music": 0.6, "fullscreen": false,
+	"character": "eli", "eli_variant": 0}
+## Exp 010: the player character ("eli" = the experimental Eli, "original" = the
+## first voxel figure) and Eli's variation; read live by VoxelPlayer.
+const CHARACTERS := ["eli", "original"]
 
 static var values := DEFAULTS.duplicate()
 static var path_override := ""
@@ -92,6 +96,10 @@ static func reset() -> void:
 
 
 static func _sanitize(key: String, v: Variant) -> Variant:
+	if key == "character":
+		return str(v) if CHARACTERS.has(str(v)) else DEFAULTS[key]
+	if key == "eli_variant":
+		return clampi(int(v), 0, 9) if typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT else 0
 	if key == "fullscreen":
 		if typeof(v) == TYPE_BOOL:
 			return v

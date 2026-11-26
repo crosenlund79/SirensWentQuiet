@@ -9,6 +9,8 @@ const VERSIONS := [
 	{"key": "C", "title": "Illustrated 2D", "blurb": "Hand-inked top-down rooms that crack, splinter and give way.", "scene": "res://src/illustrated/illustrated_demo.tscn"},
 ]
 
+const SHOWROOM := "res://src/character/eli_showroom.tscn"
+
 const BG_SHADER := """
 shader_type canvas_item;
 uniform float t_offset = 0.0;
@@ -113,6 +115,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				launch(1)
 			KEY_3, KEY_C:
 				launch(2)
+			KEY_4, KEY_D:
+				open_showroom()
 			KEY_ESCAPE:
 				get_viewport().set_input_as_handled()
 				back_to_menu()
@@ -120,6 +124,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func back_to_menu() -> void:
 	get_tree().change_scene_to_file(GameLaunch.MENU_SCENE)
+
+
+## Exp 010: the character showroom (Eli), below the three versions.
+func open_showroom() -> void:
+	if ResourceLoader.exists(SHOWROOM):
+		get_tree().change_scene_to_file(SHOWROOM)
 
 
 func launch(index: int) -> void:
@@ -175,6 +185,11 @@ func _build() -> void:
 
 	for i in VERSIONS.size():
 		col.add_child(_version_button(i))
+	var show := UiTheme.make_button("D   Character Showroom: Elias \"Eli\" Walker")
+	show.name = "Showroom"
+	show.custom_minimum_size = Vector2(720, 52)
+	show.pressed.connect(open_showroom)
+	col.add_child(show)
 
 	var gap2 := Control.new()
 	gap2.custom_minimum_size = Vector2(0, 10)

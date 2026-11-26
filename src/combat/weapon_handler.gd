@@ -52,6 +52,7 @@ var _dry_cd := 0.0
 var _reload_id := ""
 var _reload_t := 0.0
 var _shown := "-"                 ## weapon whose look is on the rig ("-" = none applied yet)
+var _shown_gun: Node3D            ## Exp 010: the gun node it was applied to
 var _range_arg := -1              ## does world.shoot take a 5th (range) argument? -1 = not checked
 
 
@@ -79,8 +80,8 @@ func tick(delta: float) -> void:
 	_dry_cd = maxf(_dry_cd - delta, 0.0)
 	if _reload_id != "":
 		_advance_reload(delta)
-	if state != null and current_id() != _shown:
-		_apply_visual()
+	if state != null and (current_id() != _shown or _gun() != _shown_gun):
+		_apply_visual()           # Exp 010: also after the player's rig was swapped
 
 
 # --- queries ---------------------------------------------------------------------------
@@ -409,6 +410,7 @@ func _apply_visual() -> void:
 	if model != null:
 		model.visible = id == "shotgun"
 	_shown = id
+	_shown_gun = gun
 
 
 ## The shotgun placeholder in gun-node space (barrel along -Y to the muzzle at

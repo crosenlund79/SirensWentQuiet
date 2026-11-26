@@ -26,6 +26,9 @@ var sprinting := false
 var _last_pos := Vector3.INF          ## Refinement 01: last frame's position, for the gait
 ## Refinement 01: the camera's yaw (rad); WASD moves relative to the screen.
 var move_yaw := 0.0
+## Exp 010: which figure carries the player ("eli" / "original", GameSettings
+## "character" + "eli_variant"); a settings change swaps it live (swap_rig).
+var character_key := ""
 
 
 func _ready() -> void:
@@ -40,7 +43,7 @@ func _ready() -> void:
 	cs.shape = cyl
 	cs.position.y = (BODY_TOP + BODY_BOTTOM) * 0.5
 	add_child(cs)
-	rig = VoxelRig.new(VoxelRig.Look.PLAYER)
+	rig = make_rig()
 	add_child(rig)
 	rig.aiming = true
 
@@ -69,6 +72,40 @@ func _ready() -> void:
 	add_child(muzzle_light)
 
 
+## Exp 010: the rig the settings ask for: Eli (EliRig, a variation) or the
+## original voxel figure.
+func make_rig() -> VoxelRig:
+	character_key = _wanted_character()
+	if character_key.begins_with("eli"):
+		return EliRig.new(int(character_key.trim_prefix("eli")))
+	return VoxelRig.new(VoxelRig.Look.PLAYER)
+
+
+static func _wanted_character() -> String:
+	if str(GameSettings.get_value("character")) == "original":
+		return "original"
+	return "eli%d" % int(GameSettings.get_value("eli_variant"))
+
+
+## Exp 010: replaces the rig in place, keeping its facing, aim, weapon pose,
+## held item and light (the weapon handler re-dresses the new gun node).
+func swap_rig() -> void:
+	var old := rig
+	var r := make_rig()
+	r.rotation = old.rotation
+	add_child(r)
+	r.aiming = old.aiming
+	r.aim_pitch = old.aim_pitch
+	r.carry = old.carry
+	r.use_t = old.use_t
+	r.set_held(old.held)
+	r.visible = old.visible
+	rig = r
+	remove_child(old)
+	old.queue_free()
+	_last_pos = Vector3.INF
+
+
 func plan_pos() -> Vector2:
 	return Vector2(global_position.x, global_position.z)
 
@@ -81,6 +118,8 @@ func set_night(t: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _wanted_character() != character_key:
+		swap_rig()
 	var dir := Vector2.ZERO
 	if input_enabled:
 		dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")

@@ -519,6 +519,7 @@ func _build() -> void:
 	_build_overview_section(box)     # Exp 007 (O)
 	_build_travel_section(box)     # Exp 007 (T)
 	_build_poigen_section(box)     # Exp 009 (D)
+	_build_character_section(box)     # Exp 010 (C)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -1046,3 +1047,26 @@ func _build_poigen_section(box: VBoxContainer) -> void:
 		["Reveal stash", func(): _say(DevPoigen.reveal_stash(game))],
 		["Diagnostics", func(): _say(DevPoigen.diagnostics(game))],
 		["Return home (POI gen)", func(): _say(DevPoigen.return_home(game))]]))
+
+
+# --- Exp 010 (C): the character -------------------------------------------------------------
+
+## Original figure / experimental Eli (live, saved in the settings), Eli's
+## next look, and the character showroom over the game (Esc closes it).
+func _build_character_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Character"))
+	box.add_child(_grid(2, [["Experimental Eli", func(): _set_character("eli")],
+		["Original character", func(): _set_character("original")],
+		["Next Eli look", func():
+			GameSettings.set_value("eli_variant", (int(GameSettings.get_value("eli_variant")) + 1) % EliSculpt.variant_count())
+			GameSettings.save_settings()
+			_say("Eli: " + EliSculpt.variant_name(int(GameSettings.get_value("eli_variant"))))],
+		["Character showroom", func():
+			set_open(false)
+			EliShowroom.open_overlay(get_tree())]]))
+
+
+func _set_character(which: String) -> void:
+	GameSettings.set_value("character", which)
+	GameSettings.save_settings()
+	_say("Character: " + ("experimental Eli (%s)" % EliSculpt.variant_name(int(GameSettings.get_value("eli_variant"))) if which == "eli" else "original"))
