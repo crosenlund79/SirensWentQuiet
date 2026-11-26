@@ -1,0 +1,10 @@
+{
+	"about": "Exp 012 (S): bat impacts on the bedroom door, per recording (the four 'bat hammers door' files of story/follower_bat, 1-4). Each onset is [seconds into the file, strength]; strength 1 = a full blow (the door jolts), about 0.5 = the bounce right after it (a smaller rattle). Found by StoryAudio.impact_onsets (5 ms RMS windows, a rise of more than 14 dB within 60 ms to within 22 dB of the loudest). 'offset' shifts one file's onsets (seconds, + = later); 'latency' shifts all of them (output latency). F10 > Audio > Test door impacts plays one with the door.",
+	"latency": 0.0,
+	"files": {
+		"1": {"offset": 0.0, "onsets": [[0.015, 1.0], [0.335, 0.5], [2.22, 1.0], [2.55, 0.5], [3.945, 1.0], [4.295, 0.5], [5.96, 1.0], [6.235, 0.5]]},
+		"2": {"offset": 0.0, "onsets": [[0.02, 1.0], [1.405, 1.0], [2.935, 1.0], [3.225, 0.5], [4.995, 1.0], [5.33, 0.5], [6.495, 1.0]]},
+		"3": {"offset": 0.0, "onsets": [[0.02, 1.0], [0.36, 0.5], [1.465, 1.0], [3.56, 1.0], [5.92, 1.0], [6.275, 0.5]]},
+		"4": {"offset": 0.0, "onsets": [[0.0, 1.0], [1.98, 1.0], [4.31, 1.0], [4.58, 0.5]]}
+	}
+}

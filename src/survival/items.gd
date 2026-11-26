@@ -55,6 +55,9 @@ const DEFS := {
 		"desc": "A hobbyist's handbook: circuits, sensors and relays. Teaches basic electronics."},
 	"book_automation": {"name": "Automated Defense Systems", "category": "book", "cap": 1, "skill": "automation",
 		"desc": "A security contractor's manual: servo mounts, triggers and feeds. Teaches automated defences."},
+	# --- Exp 012 (S): what Eli was tied to his bed with (src/story/). Kept or burned.
+	"rope": {"name": "Rope", "category": "material", "cap": 20, "cap_per_crate": 10,
+		"desc": "Coarse rope, cut in lengths. Someone tied you to your bed with it."},
 }
 
 ## Items the quick-access bar fills itself with when the player owns them, in

@@ -405,6 +405,8 @@ func _build() -> void:
 	var box := _unrouted
 	box.set_meta("unrouted", true)
 	_build_e12_e_section(_tab("Enemies"))   # Exp 012 (E)
+	_build_e12_s_section(_tab("Story"))   # Exp 012 (S)
+	_build_e12_s_audio_section(_tab("Audio"))   # Exp 012 (S)
 
 
 # --- Exp 012 (A): the tabbed shell --------------------------------------------
@@ -1520,3 +1522,12 @@ func _e12_e_call(method: String, args: Array) -> void:
 		_say("The game has no corpse helper.", true)
 		return
 	_say(str(h.callv(method, args)))
+
+# --- Exp 012 (S): the story (Chapter One) and its sounds (src/story/story_dev.gd) ---------
+
+func _build_e12_s_section(box: VBoxContainer) -> void:
+	StoryDev.build_story(self, box)
+
+
+func _build_e12_s_audio_section(box: VBoxContainer) -> void:
+	StoryDev.build_audio(self, box)

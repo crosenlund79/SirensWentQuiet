@@ -74,6 +74,7 @@ var mood_state := Mood.clean({})                ## Mood memories and bleak hours
 ## save). Research (src/research/research.gd) owns the rules; a new run knows none.
 var skills := {}
 var rest_scale := 1.0                           ## sleep energy x this (mood and bedroom comfort; set by the game, not saved)
+var story := {}                                 ## Exp 012 (S): story progression (StoryState), saved as "story"
 
 var _quiet := false                             ## restoring: no equipment sync
 var _gear_seen := {}                            ## equippable ids owned at the last sync
@@ -1022,6 +1023,7 @@ func to_dict() -> Dictionary:
 		"home": home.duplicate(true),
 		"mood": mood, "mood_state": mood_state.duplicate(true),     # Exp 005 (C)
 		"skills": skills.duplicate(),     # Exp 006 (R)
+		"story": story.duplicate(true),     # Exp 012 (S)
 	}
 
 
@@ -1079,6 +1081,7 @@ static func from_dict(d) -> GameState:
 	s.mood = Mood.clean_value(d.get("mood"))           # Exp 005 (C); older saves: Mood.START
 	s.mood_state = Mood.clean(d.get("mood_state"))
 	s.skills = Research.clean(d.get("skills"))         # Exp 006 (R); older saves: RunSave.parse infers them from the house
+	s.story = StoryState.clean(d.get("story"))         # Exp 012 (S); older saves: a fresh chapter
 	return s
 
 

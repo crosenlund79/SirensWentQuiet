@@ -98,6 +98,7 @@ var holes: Node                        ## src/holes/game_holes.gd (Exp 007 (O): 
 var travel: Node                       ## src/travel/travel_flow.gd (Exp 007 (T): travel, the home <-> POI flow)
 var poi: Node                          ## Exp 007 (P): the POI helper at a POI (looting, exits, encounters); null at home
 var corpses: GameCorpses               ## Exp 012 (E): names, the downed toast, persistent searchable bodies (src/ai/game_corpses.gd)
+var story: Node                        ## Exp 012 (S): src/story/story_director.gd (Chapter One; takes encounter nights in _sleep)
 var site := "home"                     ## Exp 007 (T): "home" or the POI id this scene is
 var time_scale := 1.0
 
@@ -674,6 +675,9 @@ func _assemble() -> void:
 	world.object_destroyed.connect(_on_object_destroyed)
 	state.died.connect(_on_died)
 	_on_structure_changed()
+	story = StoryDirector.new()        # Exp 012 (S): the story (encounters, the watcher, the ropes)
+	story.setup(self)
+	add_child(story)
 
 
 func _begin_new() -> void:
@@ -1262,6 +1266,8 @@ func _sleep(minutes: float) -> Dictionary:
 		toast(why, "warn")
 		_set_modal("", false)
 		return {}
+	if story != null and story.takes_sleep(minutes):   # Exp 012 (S): an encounter takes this night
+		return await story.run_sleep(minutes)
 	_set_modal("sleeping", true)
 	var plan: Dictionary = state.plan_sleep(minutes).duplicate()
 	var t0 := state.total_minutes      # plan_sleep stops at invasions, stragglers and empty needs
