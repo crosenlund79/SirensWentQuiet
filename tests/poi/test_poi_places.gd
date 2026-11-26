@@ -87,7 +87,7 @@ func test_layouts_are_sound_data() -> void:
 			for p in pieces:
 				if p != c:
 					check(not (p["rect"] as Rect2).grow(-0.02).intersects(r), "%s: %s clear of %s" % [id, c["id"], p.get("id", p["type"])])
-			check(c["table"] in ["loot", "locked"] and c["needs"] in ["", "crowbar", "flashlight"], "%s: %s uses the generic rules" % [id, c["id"]])
+			check(c["table"] in ["loot", "locked", "stash"] and c["needs"] in ["", "crowbar", "flashlight"], "%s: %s uses the generic rules" % [id, c["id"]])
 		check((L["containers"] as Array).any(func(c): return c["picked"]), "%s: some containers were picked clean" % id)
 		# the better loot behind a lock: a locked door into its room, or a crowbar on the container
 		var locked_rooms := {}
@@ -96,7 +96,7 @@ func test_layouts_are_sound_data() -> void:
 				for rm in L["rooms"]:
 					if (rm["rect"] as Rect2).grow(0.3).has_point(Vector2(dr["x"], dr["y"])):
 						locked_rooms[rm["id"]] = true
-		var behind := (L["containers"] as Array).filter(func(c): return c["table"] == "locked" and (c["needs"] == "crowbar" or locked_rooms.has(c["room"])))
+		var behind := (L["containers"] as Array).filter(func(c): return c["table"] in ["locked", "stash"] and (c["needs"] == "crowbar" or locked_rooms.has(c["room"])))
 		check(behind.size() >= 2, "%s: the locked table sits behind a lock (%d containers)" % [id, behind.size()])
 		check(not (d["locked"] as Array).is_empty(), "%s: a locked table" % id)
 		# enemies have places: hidden in rooms, wandering, peeking, coming in
@@ -206,7 +206,7 @@ func test_clinic_lit_rooms_need_no_flashlight() -> void:
 	var door: PoiDoor = w.door("storage")
 	check(door != null and door.locked, "the medical store is locked")
 	var cage := w.spot("container", "drug_cage")
-	check(cage.data["table"] == "locked" and cage.data["needs"] == "flashlight", "the drug cage: the locked table, in the dark")
+	check(cage.data["table"] == "stash" and cage.data["needs"] == "flashlight", "the drug cage: the main stash, in the dark")      # Exp 009 (G)
 
 
 func test_gun_shop_floor_rarely_gives_a_firearm() -> void:
@@ -223,7 +223,7 @@ func test_gun_shop_floor_rarely_gives_a_firearm() -> void:
 		for c in L["containers"]:
 			for item in r["c"][c["id"]]["items"]:
 				if Items.category(item) == "weapon":
-					if c["table"] == "locked":
+					if c["table"] in ["locked", "stash"]:        # Exp 009 (G): the gun locker is the stash
 						in_back = true
 					else:
 						on_floor = true

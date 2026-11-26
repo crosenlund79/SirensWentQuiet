@@ -65,14 +65,15 @@ func layout_id() -> String:
 
 ## The POI as first built (cached; copied per build).
 static func poi_pristine(id: String) -> VoxelGrid:
-	if not _pristine_poi.has(id):
+	var key := PoiDefs.layout_key(id)          # Exp 009 (G): a generated site's building, by its seed
+	if not _pristine_poi.has(key):
 		var g := VoxelHouse.create_grid(true)
 		var L: Dictionary = PoiDefs.get_def(id).get("layout", {})
 		_stamp_floors(g, L.get("floors", []))
 		for w in L.get("walls", []):
 			_stamp_poi_wall(g, w)
-		_pristine_poi[id] = g
-	return _pristine_poi[id]
+		_pristine_poi[key] = g
+	return _pristine_poi[key]
 
 
 func build_new() -> void:
@@ -750,8 +751,9 @@ func _paint_exterior(img: Image) -> void:
 
 ## The snowy ground (with an asphalt lot and a sidewalk around buildings).
 func _build_ground() -> void:
-	if not _ground_tex.has(poi_id):
-		_ground_tex[poi_id] = ImageTexture.create_from_image(_ground_image())
+	var gkey := PoiDefs.layout_key(poi_id)    # Exp 009 (G)
+	if not _ground_tex.has(gkey):
+		_ground_tex[gkey] = ImageTexture.create_from_image(_ground_image())
 	ground = MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(120, 100)
@@ -759,7 +761,7 @@ func _build_ground() -> void:
 	ground.position = Vector3(7, VoxelYard.GROUND_Y, 4.5)
 	var m := ShaderMaterial.new()
 	m.shader = load("res://src/voxel/shaders/voxel_ground.gdshader")
-	m.set_shader_parameter("ground_tex", _ground_tex[poi_id])
+	m.set_shader_parameter("ground_tex", _ground_tex[gkey])
 	m.set_shader_parameter("snow", 1.0)
 	m.set_shader_parameter("snow_color", VoxelArt.to_color(SNOW))
 	m.set_shader_parameter("lawn_tex", AssetResolver.get_texture("voxel/ground", true))

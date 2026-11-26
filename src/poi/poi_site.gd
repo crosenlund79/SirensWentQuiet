@@ -34,6 +34,9 @@ static func prepare_world(poi_id: String, game: Node, by_car := -1) -> PoiWorld:
 		push_warning("PoiSite: unknown place '%s'" % poi_id)
 		return null
 	var w := PoiWorld.new()
+	var st0: Variant = game.get("state") if game != null else null
+	if st0 is GameState:
+		PoiDefs.get_def(poi_id, st0)          # Exp 009 (G): a generated site resolves its setup with the run first
 	var light: Variant = game.get("lighting") if game != null else null
 	var car := HelperScript.arrived_by_car() if by_car < 0 else by_car > 0
 	w.configure(poi_id, light if light is VoxelLighting else null, car)

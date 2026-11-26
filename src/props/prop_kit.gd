@@ -33,6 +33,7 @@ const Home := preload("res://src/props/prop_home.gd")
 const StorageProps := preload("res://src/props/prop_storage.gd")   # Exp 005 (F)
 const Places := preload("res://src/props/prop_places.gd")   # Exp 008 (H)
 const GenExterior := preload("res://src/props/prop_gen_exterior.gd")   # Exp 009 (X)
+const GenInterior := preload("res://src/props/prop_gen_interior.gd")   # Exp 009 (G)
 
 const FURNITURE_TYPES := [
 	"tv_stand", "sofa", "coffee_table", "rug", "armchair", "floor_lamp", "bookshelf", "dining_table",
@@ -54,6 +55,9 @@ const STORAGE_TYPES := ["cupboard", "storage_chest", "tool_cabinet", "painting",
 const PLACE_TYPES := ["gun_rack", "exam_bed", "lumber_rack"]
 ## Exp 009 (X): outdoor pieces around the generated places (prop_gen_exterior.gd).
 const EXTERIOR_TYPES := GenExterior.TYPES
+## Exp 009 (G): interior pieces for the generated buildings (prop_gen_interior.gd).
+const GEN_INTERIOR_TYPES := ["water_dispenser", "filing_cabinet", "tool_rack", "pallet", "machine", "locker",
+	"hospital_bed", "desk", "safe", "pallet_rack"]
 
 ## Span pieces: the longer horizontal side of `size` is the span.
 const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
@@ -99,12 +103,22 @@ const DEFAULT_SIZE := {
 	"cupboard": Vector3(1.0, 0.92, 0.6), "storage_chest": Vector3(1.0, 0.6, 0.55), "tool_cabinet": Vector3(0.9, 1.8, 0.45),
 	"painting": Vector3(0.8, 0.6, 0.05), "loot_pile": Vector3(0.8, 0.3, 0.8),
 	"gun_rack": Vector3(1.6, 1.9, 0.35), "exam_bed": Vector3(1.9, 0.75, 0.7), "lumber_rack": Vector3(2.0, 1.8, 0.7),   # Exp 008 (H)
+	"water_dispenser": Vector3(0.35, 1.25, 0.35), "filing_cabinet": Vector3(0.5, 1.3, 0.62), "tool_rack": Vector3(1.4, 1.8, 0.35),   # Exp 009 (G)
+	"pallet": Vector3(1.2, 0.9, 1.0), "machine": Vector3(1.8, 1.5, 1.0), "locker": Vector3(1.2, 1.9, 0.5),
+	"hospital_bed": Vector3(1.0, 0.85, 2.1), "desk": Vector3(1.4, 0.76, 0.7), "safe": Vector3(0.7, 0.95, 0.6),
+	"pallet_rack": Vector3(2.4, 2.4, 1.0),
 }
 
 ## Documented reach beyond the requested size, in the canonical frame:
 ## [each side across the front, above the height, toward the front, toward the back].
 ## Everything else stays inside the size (plus clutter up to ~0.1 m on tops).
 const OVERHANG := {
+	"water_dispenser": [0.0, 0.0, 0.07, 0.0],       # Exp 009 (G): the taps
+	"filing_cabinet": [0.0, 0.0, 0.27, 0.0],        # a drawer pulled out
+	"locker": [0.03, 0.0, 0.26, 0.0],               # a door ajar
+	"safe": [0.0, 0.0, 0.07, 0.0],                  # the dial and the handle
+	"hospital_bed": [0.0, 0.31, 0.0, 0.0],          # the raised head end
+	"desk": [0.0, 0.43, 0.0, 0.0],                  # the monitor
 	"bed": [0.03, 0.42, 0.0, 0.03],                 # headboard
 	"sink_counter": [0.0, 0.36, 0.12, 0.0],         # faucet, a cabinet door ajar
 	"vanity": [0.0, 1.1, 0.12, 0.06],               # mirror on the wall behind, a door ajar
@@ -148,12 +162,12 @@ static var _builds := 0
 
 
 static func types() -> PackedStringArray:
-	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES + PLACE_TYPES + EXTERIOR_TYPES)
+	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES + PLACE_TYPES + EXTERIOR_TYPES + GEN_INTERIOR_TYPES)
 
 
 static func has(type: String) -> bool:
 	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES or type in STORAGE_TYPES \
-		or type in PLACE_TYPES or type in EXTERIOR_TYPES
+		or type in PLACE_TYPES or type in EXTERIOR_TYPES or type in GEN_INTERIOR_TYPES
 
 
 ## Canonical default size (w across the front, h, d front to back).
@@ -412,6 +426,8 @@ static func _parts(type: String, dims: Vector3, damage: float, seed: int, style:
 			done = Places.build(mm, type, dims.x, dims.y, dims.z, rng, style)
 		if not done:
 			done = GenExterior.build(mm, type, dims.x, dims.y, dims.z, rng, style)
+		if not done:
+			done = GenInterior.build(mm, type, dims.x, dims.y, dims.z, rng, style)
 		if not done or mm.is_empty():
 			mm = _new_mesh("crate", damage)
 			Survival.build(mm, "crate", dims.x, dims.y, dims.z, rng, damage, "")

@@ -16,10 +16,12 @@ extends RefCounted
 ##   doors      [{id, x, y, rot, locked, open}]: door objects (rot 0..3 = N E S W)
 ##   props      [{type, rect, facing, h, block}]: decoration with collision
 ##   containers [{id, type, rect, facing, h, label, holds, weight, table,
-##              picked, needs, noise, secs, minutes, room}]: searchable
+##              picked, needs, noise, secs, minutes, room, stash}]: searchable
 ##              (holds: item categories it may hold, [] = anything; table:
-##              "loot" | "locked" (the location's locked table); picked:
-##              already emptied; needs: "crowbar" | "flashlight" | "")
+##              "loot" | "locked" (the location's locked table) | "stash";
+##              picked: already emptied; needs: "crowbar" | "flashlight" | "";
+##              stash: Exp 009 (G) the one main stash, PoiState's own roll)
+##   stash      Exp 009 (G): the main stash container's id
 ##   pickups    [{id, item, n, at}]: loose items
 ##   wood       [{id, at, yaw, len, chops}]: fallen trees to chop (planks)
 ##   trees      [Vector2]: standing pines (collision)
@@ -193,7 +195,8 @@ static func _pine_woods(_def: Dictionary) -> Dictionary:
 	L["floors"].append({"rect": Rect2(10, 2, 3, 3), "art": "floor_wood"})
 	_room(L, "shelter", Rect2(10, 2, 3, 3))
 	_box(L, "tool_cabinet", "tool_cabinet", Vector2(11.0, 2.33), "S", "woodcutter's tool cabinet", MATERIALS,
-		{"table": "locked", "needs": "crowbar", "room": "shelter"})
+		{"table": "stash", "stash": true, "needs": "crowbar", "room": "shelter"})      # Exp 009 (G): the main stash
+	L["stash"] = "tool_cabinet"
 	_box(L, "old_chest", "storage_chest", Vector2(12.3, 2.38), "S", "old chest", ANY, {"room": "shelter"})
 	_prop(L, "workbench", Vector2(10.43, 4.0), "E")
 	_box(L, "crate", "crate", Vector2(8.4, 4.4), "S", "woodcutter's crate", ["material", "food", "water"])
@@ -266,7 +269,8 @@ static func _corner_store(_def: Dictionary) -> Dictionary:
 	_box(L, "desk", "dining_table", Vector2(2.0, 1.25), "S", "desk", DESK, {"room": "office"})
 	_box(L, "filing", "dresser", Vector2(3.2, 0.37), "S", "filing cabinet", DESK, {"room": "office"})
 	# the stockroom (locked: a crowbar) holds the better loot (the location's locked table)
-	_box(L, "stock_shelf_1", "shelves", Vector2(10.2, 0.35), "S", "stockroom shelf", ANY, {"room": "stockroom", "table": "locked"})
+	_box(L, "stock_shelf_1", "shelves", Vector2(10.2, 0.35), "S", "stockroom shelf", ANY, {"room": "stockroom", "table": "stash", "stash": true})
+	L["stash"] = "stock_shelf_1"            # Exp 009 (G): the main stash
 	_box(L, "stock_shelf_2", "shelves", Vector2(12.0, 0.35), "S", "stockroom shelf", ANY, {"room": "stockroom", "table": "locked"})
 	_box(L, "stock_boxes", "boxes", Vector2(13.45, 1.9), "W", "stock boxes", ANY, {"room": "stockroom", "table": "locked"})
 	_pickup(L, "can", "canned_food", 1, Vector2(8.0, 5.4))
@@ -327,7 +331,8 @@ static func _library(_def: Dictionary) -> Dictionary:
 	# the archive (locked: a crowbar; pitch dark: a flashlight): the locked table
 	var arch := {"room": "archive", "table": "locked", "needs": "flashlight"}
 	_box(L, "archive_box_1", "boxes", Vector2(6.2, 0.5), "S", "archive boxes", ANY, arch)
-	_box(L, "archive_shelf", "shelves", Vector2(8.4, 0.33), "S", "archive shelf", ANY, arch)
+	_box(L, "archive_shelf", "shelves", Vector2(8.4, 0.33), "S", "archive shelf", ANY, {"room": "archive", "table": "stash", "needs": "flashlight", "stash": true})
+	L["stash"] = "archive_shelf"            # Exp 009 (G): the main stash
 	_box(L, "archive_box_2", "boxes", Vector2(10.3, 2.2), "W", "archive boxes", ANY, arch)
 	# the stacks: rows of shelves, little light, not every shelf gives something
 	_box(L, "stack_a1", "bookshelf", Vector2(12.6, 1.6), "W", "bookshelf", BOOKS, {"room": "stacks"})
@@ -406,7 +411,9 @@ static func _hardware_store(_def: Dictionary) -> Dictionary:
 	# the jammed stockroom: the location's locked table
 	var stock := {"room": "stockroom", "table": "locked"}
 	_box(L, "stock_shelf", "shelves", Vector2(11.325, 8.6), "E", "stockroom shelf", ANY, stock)
-	_box(L, "stock_cage", "tool_cabinet", Vector2(14.675, 8.2), "W", "tool cage", ["tool", "material", "book", "utility"], stock)
+	_box(L, "stock_cage", "tool_cabinet", Vector2(14.675, 8.2), "W", "tool cage", ["tool", "material", "book", "utility"],
+		{"room": "stockroom", "table": "stash", "stash": true})
+	L["stash"] = "stock_cage"               # Exp 009 (G): the main stash
 	_box(L, "stock_crate", "crate", Vector2(13.4, 9.55), "N", "crate of fittings", MATERIALS, stock)
 	# the yard: the last delivery, half unloaded
 	_box(L, "yard_crate_1", "crate", Vector2(4.6, -2.6), "S", "delivery crate", MATERIALS)
@@ -489,7 +496,8 @@ static func _gun_shop(_def: Dictionary) -> Dictionary:
 	# needs the crowbar again
 	var back := {"room": "back_room", "table": "locked"}
 	_box(L, "gun_locker", "tool_cabinet", Vector2(9.2, 1.325), "S", "gun locker", ["weapon", "ammo", "protective"],
-		{"room": "back_room", "table": "locked", "needs": "crowbar", "noise": 2})
+		{"room": "back_room", "table": "stash", "stash": true, "needs": "crowbar", "noise": 2})
+	L["stash"] = "gun_locker"               # Exp 009 (G): the main stash
 	_box(L, "ammo_crate", "storage_chest", Vector2(10.625, 2.6), "W", "ammo crate", ["ammo"], back)
 	_box(L, "back_shelf", "shelves", Vector2(8.325, 3.6), "E", "back-room shelf", ANY, back)
 	_prop(L, "trash_bin_tipped", Vector2(2.2, 3.4), "E")
@@ -595,7 +603,9 @@ static func _clinic(_def: Dictionary) -> Dictionary:
 	_box(L, "exam3_drawers", "dresser", Vector2(10.2, 6.65), "N", "drawers", ["medical", "utility"], ex3)
 	# the medical store: locked (a crowbar), pitch dark (a flashlight): the locked table
 	var cage := {"room": "storage", "table": "locked", "needs": "flashlight"}
-	_box(L, "drug_cage", "tool_cabinet", Vector2(11.675, -1.5), "W", "drug cage", ["medical"], cage)
+	_box(L, "drug_cage", "tool_cabinet", Vector2(11.675, -1.5), "W", "drug cage", ["medical"],
+		{"room": "storage", "table": "stash", "needs": "flashlight", "stash": true})
+	L["stash"] = "drug_cage"                # Exp 009 (G): the main stash
 	_box(L, "store_shelf_1", "shelves", Vector2(9.6, -2.675), "S", "medical supply shelf", ANY, cage)
 	_box(L, "store_shelf_2", "shelves", Vector2(11.675, 1.6), "W", "store shelf", ANY, cage)
 	_box(L, "store_boxes", "boxes", Vector2(8.45, -1.2), "E", "boxes of supplies", ANY, cage)

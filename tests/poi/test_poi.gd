@@ -40,9 +40,10 @@ func test_every_location_has_a_poi() -> void:
 	check_eq(PoiDefs.get_def("forest")["template"], "pine_woods", "Pine Woods is hand-made")
 	check_eq(PoiDefs.get_def("convenience")["template"], "corner_store", "the Corner Store is hand-made")
 	check_eq(PoiDefs.get_def("library")["template"], "library", "the Library is hand-made")
-	check(PoiDefs.get_def("warehouse")["placeholder"], "the warehouse uses the placeholder")
-	check(PoiDefs.arrival_text("warehouse").begins_with("Placeholder layout"), "a placeholder says so on arrival")
-	check(PoiDefs.get_def("military")["layout"]["containers"][0]["needs"] in ["flashlight", "crowbar"], "the dark outpost needs a flashlight")
+	# Exp 009 (G): every other site is generated now (the placeholder is only the last fallback)
+	check(PoiDefs.get_def("warehouse").get("generated", false) and not PoiDefs.get_def("warehouse")["placeholder"], "the warehouse is generated")
+	check(not PoiDefs.arrival_text("warehouse").begins_with("Placeholder layout"), "a generated place has its own arrival line")
+	check((PoiDefs.get_def("military")["layout"]["containers"] as Array).any(func(c): return c["needs"] == "flashlight"), "the dark outpost has a dark room")
 
 
 func test_generation_is_deterministic_and_follows_the_rules() -> void:
@@ -272,7 +273,7 @@ func test_f10_poi_section() -> void:
 	for t in ["Restore this POI's loot", "Spawn a straggler here", "Reveal containers", "POI state"]:
 		check(m.button(t) != null, "F10 has '%s'" % t)
 	m.button("POI state").pressed.emit()
-	check(m.last_status.contains("Riverside Warehouse") and m.last_status.contains("placeholder"), "state: %s" % m.last_status)
+	check(m.last_status.contains("Riverside Warehouse") and m.last_status.contains("generated"), "state: %s" % m.last_status)
 	m.button("Reveal containers").pressed.emit()
 	check((h.world as PoiWorld).is_revealed(), "labels over the containers")
 	m.button("Spawn a straggler here").pressed.emit()

@@ -38,6 +38,21 @@ extends RefCounted
 ## taken one at a POI (`found`), or one is lying in any POI's container,
 ## lying as an untaken pickup, or riding in a car's boot.
 ##
+## Exp 009 (G): the main stash. Every POI has one container with "stash":
+## true (table "stash"). The first visit rolls the location's locked table
+## x STASH_MULT into it alone, plus one roll of the profile's best (rarest)
+## one-of-a-kind item at its normal chance: useful, not guaranteed. The other
+## locked containers share the locked table as before (a place whose only
+## locked container is the stash: the stash's roll stands in for it).
+## replenish never refills the stash: looted stays looted.
+## Generated sites (PoiDefs.is_generated): the record keeps "gen": {seed, v,
+## size, surroundings} from the first visit, so revisits rebuild the same
+## building. A record from before (the placeholder era, or an older
+## PoiGenerator.VERSION) whose layout no longer matches is started afresh on
+## the next visit: its containers, taken pickups, chopped wood and forced
+## doors are dropped and the site is generated again (visits, `found` and a
+## visit in progress are kept). See sync_gen.
+##
 ## Carrying while away: what Eli takes at a POI goes into the household pool
 ## (the inventory and its caps) AND counts toward a pack limit (PACK_BASE
 ## weight units, x the backpack's carry multiplier when it is equipped). The
@@ -49,6 +64,7 @@ const REFILL_MAX := 0.7
 const REFILL_MULT := 0.35
 const WEIGHTS := {"ammo": 0.1, "shells": 0.2, "nails": 0.05, "snacks": 0.5, "bandage": 0.3, "medkit": 1.0,
 	"stone": 2.0, "iron": 1.5, "scrap": 1.0, "wood": 1.0, "fuel": 3.0, "car_battery": 5.0}
+const STASH_MULT := 1.5           ## Exp 009 (G): the stash's roll of the locked table
 const GEAR_WEIGHT := 2.0          ## weapons, tools, gear
 const BOOK_WEIGHT := 1.0
 
@@ -151,7 +167,10 @@ static func container(r: Dictionary, cid: String) -> Dictionary:
 ## gradual replenishment. Returns the record.
 static func begin_visit(state: GameState, id: String, by_car := false) -> Dictionary:
 	var r := record(state, id)
-	if r.is_empty() or in_visit(r):
+	if r.is_empty():
+		return r
+	sync_gen(state, id, r)
+	if in_visit(r):
 		return r
 	var today := state.day()
 	if not generated(r):
@@ -166,6 +185,33 @@ static func begin_visit(state: GameState, id: String, by_car := false) -> Dictio
 	return r
 
 
+## Exp 009 (G): records a generated site's seed and version; a record whose
+## layout no longer matches (the placeholder era, an older generator) is
+## started afresh (see the header). True if it was reset.
+static func sync_gen(state: GameState, id: String, r: Dictionary) -> bool:
+	if not PoiDefs.is_generated(id):
+		return false
+	var def := PoiDefs.get_def(id, state)
+	if def.is_empty():
+		return false
+	var s: Dictionary = def["setup"]
+	var g := {"seed": int(def["seed"]), "v": PoiGenerator.VERSION, "size": str(s.get("size", "m")), "surroundings": str(s.get("surroundings", ""))}
+	var old: Variant = r.get("gen")
+	var same: bool = typeof(old) == TYPE_DICTIONARY and int(old.get("seed", -1)) == g["seed"] and int(old.get("v", -1)) == g["v"] \
+		and str(old.get("size", "")) == g["size"] and str(old.get("surroundings", "")) == g["surroundings"]
+	r["gen"] = g
+	if same or not generated(r):
+		return false
+	r["c"] = {}
+	r["taken"] = {}
+	r["chop"] = {}
+	r["forced"] = {}
+	if in_visit(r):
+		generate(state, id, r)
+		r["total"] = site_load(r)
+	return true
+
+
 ## Ends the visit: the place's stock on the map follows what is left (never
 ## below the location's floor), the visit is counted, the in-progress record
 ## goes. Returns {"pack", "cargo", "left": 0..1}.
@@ -177,7 +223,7 @@ static func finish_visit(state: GameState, id: String) -> Dictionary:
 	var v: Dictionary = r["visit"]
 	var total := float(r.get("total", 0.0))
 	var left := clampf(site_load(r) / total, 0.0, 1.0) if total > 0.0 else 1.0
-	var def := PoiDefs.get_def(id)
+	var def := PoiDefs.get_def(id, state)
 	state.region.set_stock(id, maxf(float(r.get("stock0", 1.0)) * left, float(def.get("floor", 0.1))), today)
 	var note: Dictionary = state.region.call("_note", id)      # visits and last day, as an expedition result would
 	note["visits"] = int(note.get("visits", 0)) + 1
@@ -242,7 +288,7 @@ static func placed_elsewhere(state: GameState, id: String) -> bool:
 			return true
 		if typeof(c) == TYPE_DICTIONARY and not (c as Dictionary).is_empty() and PoiDefs.has(str(pid)):
 			var taken: Variant = r.get("taken", {})
-			for p in PoiDefs.get_def(str(pid))["layout"].get("pickups", []):
+			for p in PoiDefs.get_def(str(pid), state).get("layout", {}).get("pickups", []):
 				if str(p["item"]) == id and typeof(taken) == TYPE_DICTIONARY and not (taken as Dictionary).has(p["id"]):
 					return true
 	return false
@@ -291,7 +337,7 @@ static func accepts(holds: Array, id: String) -> bool:
 ## shared out over the containers (see the header). Pickups are there in
 ## proportion to the stock.
 static func generate(state: GameState, id: String, r: Dictionary) -> void:
-	var def := PoiDefs.get_def(id)
+	var def := PoiDefs.get_def(id, state)
 	var L: Dictionary = def["layout"]
 	var today := state.day()
 	var rng := RandomNumberGenerator.new()
@@ -301,11 +347,15 @@ static func generate(state: GameState, id: String, r: Dictionary) -> void:
 	var c: Dictionary = r["c"]
 	for e in L["containers"]:
 		c[e["id"]] = {"items": {}, "searched": false, "day": today}
-	var open_ones := (L["containers"] as Array).filter(func(e): return not e["picked"] and e["table"] != "locked")
-	var locked_ones := (L["containers"] as Array).filter(func(e): return not e["picked"] and e["table"] == "locked")
+	var stash := stash_of(L)
+	var open_ones := (L["containers"] as Array).filter(func(e): return not e["picked"] and e["table"] != "locked" and not is_stash(e))
+	var locked_ones := (L["containers"] as Array).filter(func(e): return not e["picked"] and e["table"] == "locked" and not is_stash(e))
 	_share(c, roll(state, r, def["loot"], mult, rng), open_ones, rng)
 	# rolled after the main share, so a one-of-a-kind item is never in both
-	_share(c, roll(state, r, def["locked"], mult, rng), locked_ones if not locked_ones.is_empty() else open_ones, rng)
+	if not locked_ones.is_empty() or stash.is_empty():
+		_share(c, roll(state, r, def["locked"], mult, rng), locked_ones if not locked_ones.is_empty() else open_ones, rng)
+	if not stash.is_empty():
+		_stash_roll(state, r, def, stash, mult, rng)
 	_starter_book(state, r, def, rng)
 	var maybe := []
 	for p in L["pickups"]:
@@ -318,6 +368,42 @@ static func generate(state: GameState, id: String, r: Dictionary) -> void:
 		if may_find(state, r, str(p["item"])):
 			r["taken"].erase(p["id"])
 	r["last_day"] = today
+
+
+## Exp 009 (G): the layout's main stash container ({} when it has none).
+static func stash_of(L: Dictionary) -> Dictionary:
+	for e in L.get("containers", []):
+		if is_stash(e):
+			return e
+	return {}
+
+
+static func is_stash(e: Dictionary) -> bool:
+	return e.get("stash", false) == true
+
+
+## Exp 009 (G): the stash's own roll (see the header): the locked table x
+## STASH_MULT, then the best one-of-a-kind item at its normal chance.
+static func _stash_roll(state: GameState, r: Dictionary, def: Dictionary, stash: Dictionary, mult: float, rng: RandomNumberGenerator) -> void:
+	var items: Dictionary = r["c"][stash["id"]]["items"]
+	var table: Array = def.get("locked", [])
+	if table.is_empty():
+		table = def.get("loot", [])
+	FurnitureStorage.merge(items, roll(state, r, table, mult * STASH_MULT, rng))
+	var best := best_unique(def)
+	var hit := rng.randf()
+	if not best.is_empty() and int(items.get(best[0], 0)) == 0 and may_find(state, r, str(best[0])) and hit < float(best[3]):
+		items[str(best[0])] = 1
+
+
+## Exp 009 (G): the profile's best one-of-a-kind item: the rarest one its
+## tables list ([id, min, max, chance], or [] when there is none).
+static func best_unique(def: Dictionary) -> Array:
+	var best: Array = []
+	for e in (def.get("loot", []) as Array) + (def.get("locked", []) as Array):
+		if Items.has(str(e[0])) and Items.is_unique(str(e[0])) and (best.is_empty() or float(e[3]) < float(best[3])):
+			best = e
+	return best
 
 
 ## Exp 008 (lead): a first visit that turned up manuals turns up one Eli can
@@ -408,13 +494,13 @@ static func replenish(state: GameState, id: String, r: Dictionary, today: int) -
 	var days := today - int(r.get("last_day", today))
 	if days <= 0:
 		return
-	var def := PoiDefs.get_def(id)
+	var def := PoiDefs.get_def(id, state)
 	var L: Dictionary = def["layout"]
 	var regen := float(def.get("regen", 0.02))
 	var p := minf(regen * float(days) * 2.0, REFILL_MAX)
 	var mult := REFILL_MULT * ExpeditionData.loot_scale(state)
 	for e in L["containers"]:
-		if e["picked"]:
+		if e["picked"] or is_stash(e):           # Exp 009 (G): the stash is never refilled
 			continue
 		var box := container(r, e["id"])
 		if not box["searched"]:

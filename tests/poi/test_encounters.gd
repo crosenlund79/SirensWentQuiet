@@ -13,7 +13,7 @@ const PREVIEW := "res://src/poi/poi_preview.tscn"
 const SCENE := "res://src/game/game.tscn"
 const SAVE := "user://test_encounters.dat"
 const TravelFlow := preload("res://src/travel/travel_flow.gd")
-const PLACES := ["forest", "convenience", "library", "homes"]      # the three hand-made layouts and a placeholder
+const PLACES := ["forest", "convenience", "library", "homes"]      # the three hand-made layouts and a generated house (Exp 009)
 const GamePoi := preload("res://src/poi/game_poi.gd")
 
 
@@ -150,8 +150,9 @@ func test_someone_entering_opens_the_door() -> void:
 	var h: Node = await _harness("homes", Vector2(-3.5, -2.5))
 	var w: PoiWorld = h.world
 	var front: PoiDoor = w.door("front")
-	check(front != null and not front.open, "the placeholder's front door is shut")
-	var e: AIEnemy = h.poi._spawn({"kind": "psycho", "at": Vector2(6.5, 10.4), "mode": "enter", "door": Vector2(6.5, 8.7)})
+	check(front != null and not front.open, "the house's front door is shut")
+	var dw: Vector2 = w.layout["doorways"][0]          # Exp 009 (G): the generated house's front doorway
+	var e: AIEnemy = h.poi._spawn({"kind": "psycho", "at": dw + Vector2(0, 1.7), "mode": "enter", "door": dw})
 	var ok := false
 	for i in 50:
 		await physics_frames(12)
