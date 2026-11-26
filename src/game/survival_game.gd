@@ -540,6 +540,7 @@ func _assemble() -> void:
 	roster.name = "Enemies"
 	roster.setup(world, player, seed)
 	add_child(roster)
+	HumanoidLooks.warm("psycho", roster)      # Exp 011: the people build in the background
 	build = BuildMode.new()
 	build.name = "Build"
 	build.setup(world, state, camera, player)

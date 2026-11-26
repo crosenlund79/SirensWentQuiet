@@ -752,8 +752,10 @@ func _start_encounters() -> void:
 	var seed := PoiState._seed(state, [poi_id, "encounter", int(record.get("visits", 0))])
 	plan = world.encounter_plan(PoiDefs.danger_of(state, poi_id), seed)
 	pending = []
-	for i in plan.size():                # Exp 011: each encounter's person (a stable appearance seed)
-		plan[i]["app"] = posmod(hash([seed, i, "app"]), 1000000)
+	var app_rng := RandomNumberGenerator.new()
+	app_rng.seed = hash([seed, "app"])
+	for i in plan.size():                # Exp 011: each encounter's person (an appearance seed, saved)
+		plan[i]["app"] = HumanoidLooks.pick_seed(str(plan[i]["kind"]), app_rng)
 	for p in plan:
 		if float(p["when"]) <= 0.0:
 			_spawn(p)

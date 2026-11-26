@@ -36,7 +36,7 @@ const E := preload("res://src/character/eli_sculpt.gd")
 const VS := 0.015
 const PARTS := ["head", "chest", "pelvis", "uarm_l", "uarm_r", "farm_l", "farm_r", "hand_l", "hand_r",
 	"thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r"]
-const CACHE_MAX := 24
+const CACHE_MAX := 32
 const UNPAINTED := 0x1000000
 const BLOCK := 4
 const SLAB := 8                  ## rows per parallel job (a multiple of BLOCK)
@@ -61,6 +61,8 @@ const LEG_T := {"jeans": 0.008, "trousers": 0.011, "cargo": 0.012, "sweatpants":
 static var _cache := {}             ## look key -> {part: ArrayMesh}
 static var _lru: Array[String] = []
 static var stats := {}              ## look key -> {"verts": int, "ms": float, "parts": {part: verts}}
+static var _bg := {}                ## look key -> {"task", "holder", "material"}: building in the background
+static var _cancel := false
 
 # --- the look, unpacked (one sculptor per look; read-only while building) ---------------
 var look: Dictionary
@@ -274,6 +276,10 @@ static func meshes(l: Dictionary, material: Material) -> Dictionary:
 		_lru.erase(key)
 		_lru.append(key)
 		return _cache[key]
+	if _bg.has(key):
+		WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
+		if _adopt(key):
+			return _cache[key]
 	var t0 := Time.get_ticks_usec()
 	var s := HumanoidSculpt.new(l)
 	# 1. grids, 2. shape per y slab, 3. paint per slab, 4. shade + mesh per part
@@ -311,12 +317,96 @@ static func meshes(l: Dictionary, material: Material) -> Dictionary:
 		verts += int(g["verts"])
 		pv[PARTS[gi]] = g["verts"]
 	if key != "":
-		_cache[key] = out
-		_lru.append(key)
-		while _lru.size() > CACHE_MAX:
-			_cache.erase(_lru.pop_front())
+		_store(key, out)
 		stats[key] = {"verts": verts, "ms": float(Time.get_ticks_usec() - t0) / 1000.0, "parts": pv}
 	return out
+
+
+static func _store(key: String, out: Dictionary) -> void:
+	_cache[key] = out
+	_lru.erase(key)
+	_lru.append(key)
+	while _lru.size() > CACHE_MAX:
+		_cache.erase(_lru.pop_front())
+
+
+## Whether the look's meshes are ready (built, or built in the background
+## and waiting to be adopted).
+static func is_ready(key: String) -> bool:
+	if _cache.has(key):
+		return true
+	return _bg.has(key) and WorkerThreadPool.is_task_completed(int(_bg[key]["task"]))
+
+
+## Starts building a look on a worker thread (one thread, low priority); the
+## game keeps running. poll() (every frame, HumanoidRig) adopts finished ones.
+static func request(l: Dictionary, material: Material) -> void:
+	var key := str(l.get("key", ""))
+	if key == "" or _cache.has(key) or _bg.has(key):
+		return
+	var holder := {"look": l.duplicate(true), "parts": {}, "verts": 0, "ms": 0.0}
+	var id := WorkerThreadPool.add_task(_bg_build.bind(holder), false, "humanoid look")
+	_bg[key] = {"task": id, "holder": holder, "material": material}
+
+
+## Adopts the looks finished in the background (main thread: makes the meshes).
+static func poll() -> void:
+	if _bg.is_empty():
+		return
+	for key in _bg.keys():
+		if WorkerThreadPool.is_task_completed(int(_bg[key]["task"])):
+			WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
+			_adopt(key)
+			return                                                 # one per frame
+
+
+## Waits for every background build (tests).
+static func finish_background() -> void:
+	for key in _bg.keys():
+		WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
+		_adopt(key)
+
+
+## Stops the background builds (the ones started finish their current part)
+## and waits for them; the finished ones are kept.
+static func cancel_background() -> void:
+	_cancel = true
+	for key in _bg.keys():
+		WorkerThreadPool.wait_for_task_completion(int(_bg[key]["task"]))
+		_adopt(key)
+	_cancel = false
+
+
+static func _adopt(key: String) -> bool:
+	var b: Dictionary = _bg[key]
+	_bg.erase(key)
+	var h: Dictionary = b["holder"]
+	if not bool(h.get("done", false)):
+		return false                                               # cancelled half way
+	var out := {}
+	for p in PARTS:
+		out[p] = E.arrays_to_mesh(h["parts"].get(p), b["material"])
+	_store(key, out)
+	stats[key] = {"verts": h["verts"], "ms": h["ms"], "parts": {}, "background": true}
+	return true
+
+
+static func _bg_build(holder: Dictionary) -> void:
+	var t0 := Time.get_ticks_usec()
+	var s := HumanoidSculpt.new(holder["look"])
+	var parts := {}
+	var verts := 0
+	for p in PARTS:
+		if _cancel:
+			return
+		var g := s.build_grid(p)
+		E._shade(g)
+		parts[p] = E.grid_arrays(g)
+		verts += int(g["verts"])
+	holder["done"] = true
+	holder["parts"] = parts
+	holder["verts"] = verts
+	holder["ms"] = float(Time.get_ticks_usec() - t0) / 1000.0
 
 
 static func _run(c: Callable, n: int) -> void:

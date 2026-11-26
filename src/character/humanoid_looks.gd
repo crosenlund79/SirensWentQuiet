@@ -59,6 +59,49 @@ static func make_rig(kind: String, seed: int, legacy_look := -1) -> VoxelRig:
 	return VoxelRig.new(legacy_look)
 
 
+## An appearance seed for a new `kind` enemy from `rng`, preferring looks
+## whose meshes are ready (no build on the spot); starts building the rest
+## of the archetype's looks in the background, so variety grows as play goes on.
+static func pick_seed(kind: String, rng: RandomNumberGenerator) -> int:
+	var a := archetype(kind)
+	var first := rng.randi() % 1000000
+	if a == null:
+		return first
+	for i in 8:
+		var s := first + i * 7919
+		if HumanoidSculpt.is_ready(str(a.look(s)["key"])):
+			return s
+	return first
+
+
+## Starts building looks of `kind` in the background while `host` (a node in
+## the tree: the game's roster) lives; when it leaves the tree, unfinished
+## builds are cancelled and waited for (nothing runs on at quit).
+static func warm(kind: String, host: Node, count := 16) -> void:
+	var a := archetype(kind)
+	if a == null or host == null or not host.is_inside_tree():
+		return
+	if host.get_node_or_null("HumanoidWarmer") == null:
+		var w := Warmer.new()
+		w.name = "HumanoidWarmer"
+		host.add_child(w)
+	for i in mini(a.variety(), count):
+		var l := a.look(i)
+		HumanoidSculpt.request(l, HumanoidRig.material_for(l))
+
+
+## Adopts background builds every frame; cancels them on leaving the tree.
+class Warmer extends Node:
+	func _ready() -> void:
+		process_mode = Node.PROCESS_MODE_ALWAYS
+
+	func _process(_delta: float) -> void:
+		HumanoidSculpt.poll()
+
+	func _exit_tree() -> void:
+		HumanoidSculpt.cancel_background()
+
+
 ## Builds the meshes of these looks ahead of time (loading screens, tests).
 static func prewarm(kind: String, seeds: Array) -> void:
 	for s in seeds:

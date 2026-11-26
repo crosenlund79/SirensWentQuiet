@@ -76,7 +76,7 @@ func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 	if k == "psycho" and not o.has("look"):
 		o["look"] = 1 + (_count + rng.randi() % 4) % 4
 	if not o.has("appearance"):
-		o["appearance"] = _app_rng.randi() % 1000000
+		o["appearance"] = HumanoidLooks.pick_seed(k, _app_rng)     # prefers looks already built
 	var e := AIEnemy.new()
 	e.configure(k, world, player, o)
 	e.name = "%s_%d" % [k.capitalize(), _count]

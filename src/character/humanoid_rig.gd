@@ -116,6 +116,7 @@ static func _sync_night() -> void:
 	if f == _night_frame:
 		return
 	_night_frame = f
+	HumanoidSculpt.poll()                    # adopt a look finished in the background
 	var n: Variant = VoxelRig.look_material(false).get_shader_parameter("night")
 	enemy_material().set_shader_parameter("night", float(n) if n != null else 0.0)
 
