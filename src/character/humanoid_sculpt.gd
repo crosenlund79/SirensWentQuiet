@@ -28,12 +28,17 @@ extends RefCounted
 ##   feet   [left, right]: {"type": sneakers|shoes|boots|slippers|sock, "col", "col2", "sole"}
 ##   hat    {"type": cap|beanie|headband|hood, "col", "col2", "back" bool}
 ##   acc    Array of: glasses, glasses_cracked, lanyard, watch_l, watch_r, glove_l, glove_r,
-##          bandage_l, bandage_r, bandage_head, rag, name_tag
+##          bandage_l, bandage_r, bandage_head, rag, name_tag, straps (Exp 011: a back pack's)
 ##   glove_col  colour of the gloves (glove_l / glove_r) as smooth leather (default: worn work gloves)
 ##   dirt   0..1 grime and mud; tears 0..1 holes and frayed hems
 ## Layers stack in the order top < mid < outer < over: each is a shell over
 ## the body (its thickness adds to the ones under it), with its own sleeve
 ## length, hem, front opening, collar and painted details.
+## Exp 011 (runner): a layer or `legs` may have "loose" (m at k = 1): too big
+## for the body, it hangs from the shoulders (straight down over a sunken
+## belly, vertical folds, sleeves and trouser legs widening to the cuffs).
+## With body "gaunt" > 0 the head gets hollow cheeks and temples, sunken
+## eyes and cheekbones, and bare skin shows ribs and collarbones.
 
 const E := preload("res://src/character/eli_sculpt.gd")
 const VS := 0.015
@@ -153,6 +158,10 @@ var hair_col := 0x3a2a20
 var hair_col2 := 0x5a4030
 var beard := ""
 var max_t := 0.0
+var l_loose := PackedFloat32Array()  ## Exp 011: cumulative "loose" per layer (0: fitted)
+var max_loose := 0.0
+var leg_loose := 0.0
+var gaunt := 0.0
 var hood_up := false
 var hat_low := 1.0                  ## hair above this (q space) is pressed under the hat
 var claw := 0.5
@@ -175,6 +184,7 @@ func _init(l: Dictionary) -> void:
 	arm_r0 = b["arm_r0"]; arm_r1 = b["arm_r1"]; farm_r0 = b["farm_r0"]; farm_r1 = b["farm_r1"]; wrist_r = b["wrist_r"]
 	thigh_r0 = b["thigh_r0"]; thigh_r1 = b["thigh_r1"]; knee_r = b["knee_r"]; calf_r = b["calf_r"]; ankle_r = b["ankle_r"]
 	hand_s = b["hand"]; foot_s = b["foot"]
+	gaunt = float(b.get("gaunt", 0.0))
 	hw = b["head_w"]; hh = b["head_h"]; hd = b["head_d"]; jaw = b["jaw"]; chin = b["chin"]; cheeks = b["cheeks"]
 	nose = b["nose"]; nose_w = b["nose_w"]; brow = b["brow"]; ears = b["ears"]
 	eye_x = 0.04 * hw * float(b["eyes"])
@@ -185,6 +195,7 @@ func _init(l: Dictionary) -> void:
 	c_iris = maxi(roundi(eye_x * HS / VS), 2)
 	var o: Dictionary = l.get("outfit", {})
 	var t := 0.0
+	var lz := 0.0
 	for slot in ["top", "mid", "outer", "over"]:
 		if typeof(o.get(slot)) != TYPE_DICTIONARY:
 			continue
@@ -216,9 +227,12 @@ func _init(l: Dictionary) -> void:
 		l_rolled.append(1 if bool(g.get("rolled", false)) else 0)
 		l_top.append(1 if slot == "top" else 0)
 		l_shut.append(float(g.get("shut", -9.0)))
+		lz += float(g.get("loose", 0.0)) * k
+		l_loose.append(lz)
 		if ty in ["hoodie", "parka"] and str(g.get("hood", "")) == "up":
 			hood_up = true
 	max_t = t
+	max_loose = lz
 	legs = (o.get("legs", {"type": "trousers", "col": 0x3a3c40}) as Dictionary).duplicate()
 	legs["type"] = str(legs.get("type", "trousers"))
 	if not LEG_T.has(legs["type"]):
@@ -227,6 +241,7 @@ func _init(l: Dictionary) -> void:
 		if g["type"] == "coverall":
 			legs = {"type": "coverall", "col": g["col"], "col2": g["col2"]}
 	leg_t = float(LEG_T[legs["type"]]) * k
+	leg_loose = float(legs.get("loose", 0.0)) * k
 	legs["col"] = int(legs.get("col", 0x3a3c40))
 	var fs: Variant = o.get("feet", [])
 	for i in 2:
@@ -473,6 +488,8 @@ static func clear_cache() -> void:
 ## Part space bounds [lo, hi] (generous: empty space is skipped cheaply).
 func bounds(base: String) -> Array:
 	var m := max_t + 0.03
+	if max_loose > 0.0:
+		m += max_loose * 1.6
 	match base:
 		"head":
 			var top := 0.3 * hh * HS + 0.06
@@ -500,10 +517,10 @@ func bounds(base: String) -> Array:
 		"hand":
 			return [Vector3(-0.06, -0.2, -0.1) * hand_s, Vector3(0.06, 0.035, 0.06) * hand_s]
 		"thigh":
-			var r := thigh_r0 + leg_t + 0.03
+			var r := thigh_r0 + leg_t + 0.03 + leg_loose
 			return [Vector3(-r, -thigh_len - 0.04, -r), Vector3(r, 0.08 * k, r)]
 		"shin":
-			var r := knee_r + 0.05
+			var r := knee_r + 0.05 + leg_loose
 			return [Vector3(-r, -shin_len - 0.02, -r - 0.01), Vector3(r, 0.07 * k, r)]
 		"foot":
 			return [Vector3(-0.08, -0.115, -0.25) * foot_s, Vector3(0.08, 0.07, 0.11) * foot_s]
@@ -699,6 +716,11 @@ func _torso_skin(p: Vector3) -> float:
 			d = E._smin(d, E._sph(p, Vector3(0.058 * s * k, 0.27 * T, -0.07 * k - 0.012 * k * weight), 0.05 * k * minf(bust, 1.3)), 0.045 * k)
 	if hump > 0.05:
 		d = E._smin(d, E._sph(p, Vector3(0.0, 0.36 * T, 0.05 * k), 0.085 * k * hump), 0.06 * k)
+	if gaunt > 0.0:
+		for s: float in [-1.0, 1.0]:          # collarbones
+			var a := Vector3(0.018 * s * k, shoulder.y + 0.005 * T, -chest_r.z * 0.72)
+			var b := Vector3((shoulder.x - 0.03 * k) * s, shoulder.y + 0.03 * T, -0.012 * k)
+			d = E._smin(d, E._cone(p, a, b, 0.009 * k, 0.011 * k), 0.012 * k * (1.0 - 0.5 * gaunt))
 	return d
 
 
@@ -813,6 +835,8 @@ func _chest(p: Vector3, x: int, y: int, z: int, paint: bool) -> float:
 		if not _cover_i(i, p, x, z):
 			continue
 		var gd := skin_d - l_t[i] - _puff_i(i, p.y) - _raised_i(i, p)
+		if max_loose > 0.0:
+			gd = _hang_i(i, p, skin_d) - _raised_i(i, p)
 		if not paint and d <= 0.0:
 			d = minf(d, gd)                                    # filled anyway: holes can't matter
 			continue
@@ -831,6 +855,8 @@ func _chest(p: Vector3, x: int, y: int, z: int, paint: bool) -> float:
 	for i in range(nl - 1, -1, -1):
 		if gds[i] <= 0.0:
 			return float(_paint_layer(layers[i], p, x, y, z, "chest"))
+	if gaunt > 0.0:
+		return float(_gaunt_chest_paint(p, x, y, z))
 	return float(_skin_paint(x, y, z))
 
 
@@ -867,6 +893,22 @@ func _extras_chest(p: Vector3, skin_d: float) -> Array:
 	var ax := absf(p.x)
 	var near_neck := p.y > neck_p.y - 0.1 * k and ax < neck_r * 2.2 + max_t + 0.03 and absf(p.z - neck_p.z) < 0.17 * k
 	var front_mid := p.z < 0.0 and ax < 0.05 * k
+	if acc.has("straps") and p.y > 0.08 * T:
+		# Exp 011 (bomber): shoulder straps of a back pack over the outermost
+		# layer, a chest strap and its buckle between them
+		var band := absf(skin_d - max_t - 0.009 * k) - 0.0075 * k
+		var sd := maxf(band, absf(ax - 0.082 * k) - 0.019 * k)
+		var cs := maxf(band, maxf(absf(p.y - 0.27 * T) - 0.013 * k, ax - 0.082 * k))
+		if p.z > 0.0:
+			cs = 1.0
+		var bk := E._rbox(p, Vector3(0.0, 0.27 * T, -(chest_r.z + max_t + 0.02 * k)), Vector3(0.022, 0.02, 0.01) * k, 0.003)
+		bk = maxf(bk, -(skin_d - max_t - 0.004 * k))
+		if minf(sd, cs) < best:
+			best = minf(sd, cs)
+			c = -60
+		if bk < best:
+			best = bk
+			c = -61
 	if not near_neck and not front_mid:
 		return [best, c]
 	for gi in layers.size():
@@ -957,6 +999,13 @@ func _paint_extra_chest(id: int, p: Vector3, x: int, y: int, z: int) -> int:
 		if p.y > neck_p.y - 0.035 * k:
 			c = _sc(tie, 0.85)                                     # the knot
 		return _j(c, x, y, z, 0.03)
+	if id == 60:
+		var w := _cloth(0x26282a, x, y, z, 0.05)
+		if absf(absf(p.x) - 0.082 * k) > 0.012 * k and absf(p.y - 0.27 * T) > 0.006 * k:
+			w = _sc(w, 1.25)                                       # stitched edges
+		return w
+	if id == 61:
+		return _j(0x5a5c58 if absf(p.x) > 0.008 * k else 0x2a2a2a, x, y, z, 0.04)
 	if id == 50:
 		# ID badge: white card, a photo square, a coloured strip
 		if p.y > 0.235 * T:
@@ -1155,6 +1204,8 @@ func _pelvis(p: Vector3, x: int, y: int, z: int, paint: bool) -> float:
 	var skin_d := _hips_skin(p)
 	var lt := leg_t
 	var lower := skin_d - lt
+	if leg_loose > 0.0:
+		lower -= leg_loose * smoothstep(0.0, -0.08 * k, p.y)        # baggy below the belt
 	var ty: String = legs["type"]
 	if ty == "skirt":
 		lower = minf(lower, _skirt(p, float(SKIRT["skirt"]) * k, 0.006 * k, 0.32))
@@ -1191,6 +1242,8 @@ func _pelvis(p: Vector3, x: int, y: int, z: int, paint: bool) -> float:
 			gd = 1.0                                              # inside the coverall: the legs garment does it
 		elif yc > float(g["hem"]) + _fray(x, z, g):
 			gd = skin_d - t
+			if max_loose > 0.0:
+				gd = maxf(gd - l_loose[i] * 0.6, p.y - 0.07 * k)          # the chest part's shell hangs over it
 			var op := _opening(g, yc)
 			if op > 0.0 and p.z < 0.0 and absf(p.x) < op:
 				gd = 1.0
@@ -1307,6 +1360,8 @@ func _arm(p: Vector3, side: float, lower: bool, x: int, y: int, z: int, paint: b
 		elif sl >= 0.99 and along > 0.94:
 			t += 0.003 * k                                        # cuff
 		var gd := skin_d - t - _puff_i(i, p.y)
+		if max_loose > 0.0:
+			gd -= l_loose[i] * (0.3 + 0.6 * along)               # a sleeve too wide: it widens to the cuff
 		if not paint and d <= 0.0:
 			d = minf(d, gd)
 			continue
@@ -1397,6 +1452,8 @@ func _thigh(p: Vector3, side: float, x: int, y: int, z: int, paint: bool) -> flo
 	var lt := leg_t if ty != "skirt" else 0.002 * k
 	var pocket := ty == "cargo" and side > 0.0 and q.x > 0.02 * k and q.y < -0.12 * k and q.y > -0.27 * k and absf(q.z) < 0.048 * k
 	var d := skin_d - lt - (VS * 0.9 if pocket else 0.0)
+	if leg_loose > 0.0 and ty != "skirt":
+		d -= leg_loose * (0.7 + 0.3 * clampf(-q.y / thigh_len, 0.0, 1.0))
 	if not paint:
 		return d
 	return float(_paint_legs(q, x, y, z, "thigh"))
@@ -1418,7 +1475,9 @@ func _shin(p: Vector3, side: float, x: int, y: int, z: int, paint: bool) -> floa
 		hem_y = -shin_len - 0.1
 	else:
 		# trousers hang straight from the knee (a looser tube), sweatpants gather at the cuff
-		var r0 := knee_r + lt + 0.006 * k
+		var r0 := knee_r + lt + 0.006 * k + leg_loose * 1.1
+		if gaunt > 0.0:
+			r0 -= knee_r * 0.22 * gaunt                            # a starved leg: the trousers hang slack, not wide
 		var r1 := r0 - (0.012 * k if ty == "jeans" else 0.004 * k)
 		if ty == "sweatpants":
 			r1 = ankle_r + lt
@@ -1538,8 +1597,10 @@ func _skull(q: Vector3) -> float:
 	if weight > 0.4:
 		d = E._smin(d, E._sph(q, Vector3(0.0, 0.042 * hh, -0.035), 0.05 * (weight - 0.3)), 0.03)
 	d = E._smin(d, E._cone(q, Vector3(-0.05 * hw, 0.176 * hh, -0.08), Vector3(0.05 * hw, 0.176 * hh, -0.08), 0.015 * brow, 0.015 * brow), 0.02)
+	if gaunt > 0.0:
+		d = _gaunt_skull(q, d)
 	for s: float in [-1.0, 1.0]:
-		d = E._smax(d, -E._sph(q, Vector3(eye_x * s, 0.15 * hh, -0.11), 0.016 + 0.004 * float(face.get("circles", 0.3))), 0.01)
+		d = E._smax(d, -E._sph(q, Vector3(eye_x * s, 0.15 * hh, -0.11 + 0.006 * gaunt), 0.016 + 0.004 * float(face.get("circles", 0.3)) + 0.005 * gaunt), 0.01)
 	var tip := Vector3(0.0, 0.11 * hh - 0.012 * (nose - 1.0), -0.104 - 0.012 * (nose - 1.0))
 	d = E._smin(d, E._cone(q, Vector3(0.0, 0.165 * hh, -0.09), tip + Vector3(0.0, 0.004, -0.005), 0.009 * nose_w, 0.012 * nose_w), 0.012)
 	d = E._smin(d, E._sph(q, tip, 0.016 * nose_w), 0.01)
@@ -1803,6 +1864,8 @@ func _face(q: Vector3, x: int, y: int, z: int) -> int:
 		var g := E._vn(x, y, z, 3, 47)
 		if g > 0.66 - grime * 0.2:
 			c = _mix(c, 0x5a4a3c, (g - 0.6) * 1.2 * grime)
+	if gaunt > 0.0:
+		c = _gaunt_face(q, x, y, ax, c)
 	if front:
 		# circles and raw lids under the eyes
 		var circ := float(face.get("circles", 0.4))
@@ -1950,3 +2013,72 @@ func _features(q: Vector3, x: int, y: int, z: int, ax: int, c: int) -> int:
 
 
 const LASH_C := 0x2a1c15
+
+
+# --- Exp 011: loose clothes and starved bodies (the runner) ---------------------------------
+
+## The shell distance of layer i (chest space) when clothes are loose: the
+## cloth rests on the shoulders and hangs straight down from the ribcage's
+## girth (over a sunken belly), wider and in vertical folds further down.
+func _hang_i(i: int, p: Vector3, skin_d: float) -> float:
+	var lz := l_loose[i]
+	var base := skin_d
+	if lz > 0.0:
+		var top := chest_c.y
+		if p.y < top:
+			var q := Vector2(p.x / (chest_r.x * 0.92), p.z / (chest_r.z * 0.92))
+			base = minf(skin_d, (q.length() - 1.0) * minf(chest_r.x, chest_r.z))
+	var u := clampf((shoulder.y + 0.04 * T - p.y) / (0.3 * T), 0.0, 1.0)
+	var folds := 0.0
+	if lz > 0.0:
+		folds = 0.3 * u * sin(atan2(p.x, p.z) * 9.0 + 0.4 * sin(p.y * 40.0))
+	return base - l_t[i] - _puff_i(i, p.y) - lz * (0.2 + 0.8 * u) * (1.0 + folds)
+
+
+## A starved face (q space): hollow cheeks and temples under prominent
+## cheekbones, a sharper jaw corner.
+func _gaunt_skull(q: Vector3, d: float) -> float:
+	var g := gaunt
+	for s: float in [-1.0, 1.0]:
+		d = E._smin(d, E._sph(q, Vector3(0.056 * s * hw, 0.14 * hh, -0.058), 0.017 * g), 0.012)            # cheekbone
+		d = E._smax(d, -E._sph(q, Vector3(0.07 * s * hw, 0.097 * hh, -0.066), 0.026 * g), 0.014)          # hollow cheek
+		d = E._smax(d, -E._sph(q, Vector3(0.095 * s * hw, 0.178 * hh, -0.045), 0.018 * g), 0.01)          # temple
+		d = E._smin(d, E._sph(q, Vector3(0.06 * s * hw * jaw, 0.062 * hh, -0.02), 0.014 * g), 0.012)      # jaw corner
+	return d
+
+
+## Shadows of a starved face: dark sockets, cheek hollows, temples.
+func _gaunt_face(q: Vector3, x: int, y: int, ax: int, c: int) -> int:
+	var g := gaunt
+	var ci := c_iris
+	if y >= r_eye - 2 and y <= r_brow and ax >= ci - 2 and ax <= ci + 2 and q.z < -0.04:
+		var e := 1.0 - 0.25 * float(absi(ax - ci) == 2) - 0.25 * float(y == r_brow or y == r_eye - 2)
+		c = _mix(c, 0x4a2c30, 0.32 * g * e)                              # sunken sockets
+	if y < r_nose and y > r_mouth - 2 and ax >= ci and ax <= ci + 3 and q.z < -0.02:
+		c = _mix(c, skin_dk, 0.5 * g)                                    # hollow cheeks
+		if ax == ci + 1 and y == r_nose - 1:
+			c = _mix(c, 0x5a3a36, 0.2 * g)
+	if y == r_nose + 1 and ax >= ci and ax <= ci + 2 and q.z < -0.03:
+		c = _mix(c, VoxelArt.scale(skin, 1.08), 0.5 * g)                # the cheekbone catches light
+	if absf(q.x) > 0.08 * hw and q.y > 0.15 * hh and q.y < 0.2 * hh and q.z < 0.0:
+		c = _mix(c, skin_dk, 0.35 * g)                                   # temples
+	return c
+
+
+## Bare skin on a starved chest: ribs, the sternum, the collarbones, the sunken belly.
+func _gaunt_chest_paint(p: Vector3, x: int, y: int, z: int) -> int:
+	var c := skin
+	var ax := absf(p.x)
+	var g := gaunt
+	if p.z < 0.04 * k and p.y > 0.08 * T and p.y < 0.38 * T and ax > 0.014 * k:
+		var v := (p.y + 0.3 * ax) / (0.042 * k)
+		var f := fposmod(v, 1.0)
+		if f < 0.34:
+			c = _mix(c, skin_dk, 0.55 * g)
+		elif f > 0.75:
+			c = _mix(c, VoxelArt.scale(skin, 1.07), 0.5 * g)
+	if p.y < 0.1 * T and p.y > -0.12 * k and p.z < 0.0:
+		c = _mix(c, skin_dk, 0.3 * g * smoothstep(0.1 * T, 0.0, p.y))   # the hollow under the ribs
+	if p.y > shoulder.y - 0.02 * T and p.y < shoulder.y + 0.05 * T and p.z < -0.02 * k:
+		c = _mix(c, VoxelArt.scale(skin, 1.08), 0.4 * g)                # collarbones
+	return _j(c, x, y, z, 0.03)

@@ -8,7 +8,10 @@ extends RefCounted
 ## for shoulders, hips, legs, arms, neck, hands, feet, the head (size,
 ## width, height, depth) and the face (jaw, chin, cheeks, nose, nose_w,
 ## brow, ears, eyes = eye spacing). belly, bust and hump are derived from
-## weight / sex / age unless given.
+## weight / sex / age unless given. gaunt 0 .. 1 (Exp 011, the runner):
+## starved below weight 0: wasted limbs, a shallow ribcage, a sunken belly,
+## bony shoulders and a thin neck (and in the sculpt hollow cheeks, sunken
+## eyes, ribs); 0 leaves every other look exactly as it was.
 ##
 ## derive() turns them into the skeleton the rig uses (joint offsets, bone
 ## lengths) and the girths the sculpt uses (radii of ribcage, belly, hips,
@@ -24,6 +27,7 @@ const DEFAULTS := {
 	"head": 1.0, "head_w": 1.0, "head_h": 1.0, "head_d": 1.0,
 	"jaw": 1.0, "chin": 0.5, "cheeks": 0.5, "nose": 1.0, "nose_w": 1.0, "brow": 1.0, "ears": 1.0, "eyes": 1.0,
 	"belly": -1.0, "bust": -1.0, "hump": -1.0,
+	"gaunt": 0.0,
 }
 
 
@@ -117,4 +121,29 @@ static func derive(body: Dictionary) -> Dictionary:
 	o["ankle_r"] = 0.03 * k * (0.9 + 0.1 * l)
 	o["hand"] = k * param(body, "hands") * (1.0 - 0.12 * S + 0.08 * M)
 	o["foot"] = k * feet
+	var G := clampf(param(body, "gaunt"), 0.0, 1.0)
+	o["gaunt"] = G
+	if G > 0.0:
+		_waste(o, G)
 	return o
+
+
+## Starvation (gaunt G > 0): girths shrink, the joints stay (knobbly knees,
+## bony wrists and shoulders); the skeleton (bone lengths) is unchanged.
+static func _waste(o: Dictionary, G: float) -> void:
+	for kk in ["arm_r0", "arm_r1", "farm_r0", "thigh_r0", "thigh_r1", "calf_r"]:
+		o[kk] = float(o[kk]) * (1.0 - 0.4 * G)
+	o["farm_r1"] = float(o["farm_r1"]) * (1.0 - 0.3 * G)
+	o["wrist_r"] = float(o["wrist_r"]) * (1.0 - 0.12 * G)
+	o["knee_r"] = float(o["knee_r"]) * (1.0 - 0.14 * G)
+	o["ankle_r"] = float(o["ankle_r"]) * (1.0 - 0.12 * G)
+	o["sh_r"] = float(o["sh_r"]) * (1.0 - 0.3 * G)
+	o["neck_r"] = float(o["neck_r"]) * (1.0 - 0.3 * G)
+	var c: Vector3 = o["chest_r"]
+	o["chest_r"] = Vector3(c.x * (1.0 - 0.15 * G), c.y, c.z * (1.0 - 0.2 * G))
+	var a: Vector3 = o["abd_r"]
+	o["abd_r"] = Vector3(a.x * (1.0 - 0.26 * G), a.y, a.z * (1.0 - 0.36 * G))
+	o["abd_c"] = (o["abd_c"] as Vector3) + Vector3(0.0, 0.0, 0.016 * float(o["k"]) * G)    # the belly sinks in
+	var h: Vector3 = o["hips_r"]
+	o["hips_r"] = Vector3(h.x * (1.0 - 0.18 * G), h.y, h.z * (1.0 - 0.22 * G))
+	o["belly"] = 0.0

@@ -121,3 +121,61 @@ func test_background_builds_are_adopted_or_cancelled() -> void:
 	HumanoidLooks.warm("psycho", host, 12)
 	host.free()                         # leaving the tree cancels and waits
 	check(HumanoidSculpt._bg.is_empty(), "nothing left building")
+
+
+## Exp 011 (R): the runners and the bombers: every look builds, distinct,
+## within the psychos' budget; the bomber carries its pack and light; every
+## state animates and collapses without errors (a dormant pose too).
+func test_runners_and_bombers() -> void:
+	for kind in ["runner", "bomber"]:
+		var a := HumanoidLooks.archetype(kind)
+		check(a != null and a.variety() >= 4, "%s: an archetype with its looks" % kind)
+		var shapes := {}
+		for i in a.variety():
+			var l := HumanoidLooks.look(kind, i)
+			var m := HumanoidSculpt.meshes(l, HumanoidRig.enemy_material())
+			check(m.size() == HumanoidSculpt.PARTS.size(), "%s: every part" % l["name"])
+			var st: Dictionary = HumanoidSculpt.stats[l["key"]]
+			check(int(st["verts"]) > 20000 and int(st["verts"]) < 130000, "%s: %d vertices" % [l["name"], st["verts"]])
+			print("    %s / %s: %d vertices, %.0f ms" % [kind, l["name"], st["verts"], st["ms"]])
+			var aabb := (m["chest"] as ArrayMesh).get_aabb().size + (m["head"] as ArrayMesh).get_aabb().size * 10.0
+			shapes[str(aabb.snapped(Vector3.ONE * 0.01))] = true
+		check(shapes.size() == a.variety(), "%s: every look has its own build" % kind)
+	# the runner is thin: its upper arms and thighs are narrower than any psycho's
+	var thin := HumanoidBody.derive(HumanoidLooks.look("runner", 1)["body"])
+	var lean := HumanoidBody.derive(HumanoidLooks.look("psycho", 8)["body"])
+	check(float(thin["arm_r0"]) < float(lean["arm_r0"]) * 0.75 and float(thin["thigh_r0"]) < float(lean["thigh_r0"]) * 0.75,
+		"a runner is starved thin")
+	for kind in ["runner", "bomber"]:
+		for i in [0, 1]:
+			var r: HumanoidRig = add(HumanoidLooks.make_rig(kind, i))
+			await frames(1)
+			var ex: Dictionary = HumanoidLooks.archetype(kind).extras(r)
+			if kind == "bomber":
+				check(ex.get("pack") is Node3D and ex.get("pack_mat") is StandardMaterial3D and ex.get("light") is OmniLight3D,
+					"the bomber carries the pack, its glow and its light")
+				check((ex["pack"] as Node3D).get_parent() == r.torso, "the pack sits on the torso")
+				(ex["light"] as OmniLight3D).light_energy = 3.0         # the fuse: hunched and shaking
+			for sp in [0.0, 1.2, 3.3]:
+				r.speed = sp
+				for f in 20:
+					r.animate(1.0 / 30.0)
+			r.speed = 0.0
+			r.swing = 1.0
+			for f in 16:
+				r.swing = maxf(r.swing - 1.0 / 15.0, 0.0)
+				r.animate(1.0 / 30.0)
+			r.stagger = 1.0
+			for f in 12:
+				r.animate(1.0 / 30.0)
+			var e := AIEnemy.new()
+			e.rig = r
+			var dm := DormantMind.new()
+			dm.state = "bang"
+			for f in 10:
+				r.animate(1.0 / 30.0)
+				dm.pose(e, 1.0 / 30.0)
+			e.free()
+			for f in 40:
+				r.collapse(1.0 / 30.0, f / 30.0, Vector3.RIGHT, 0.3)
+			check(r.dead and r.head.global_position.y < 0.6, "%s %d collapses to the ground (head at %.2f m)" % [kind, i, r.head.global_position.y])

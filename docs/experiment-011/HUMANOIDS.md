@@ -81,6 +81,27 @@ walk → run, turning shuffles); the style shapes it per person.
    showroom) picks the kind up by itself (see "The showroom" below).
 6. Test: add the kind to `tests/character/test_humanoids.gd`.
 
+## Runner and bomber (phase 2)
+
+* `archetypes/runner.gd`: six starved people (one look each). New, additive
+  parameters (0 / absent = every other look unchanged, verified byte for
+  byte): body `gaunt` 0..1 (`HumanoidBody._waste`: wasted limbs, shallow
+  ribcage, sunken belly, bony shoulders, thin neck; in the sculpt hollow
+  cheeks and temples, sunken eyes, cheekbones, collarbones, painted ribs on
+  bare skin, slack trouser legs) and a layer's or `legs`' `"loose"` (m: the
+  garment hangs from the shoulders, straight over the belly, in vertical
+  folds, sleeves and legs widening to the cuffs). `RunnerRig`: restless
+  knee-bounce and snapping glances, the head leading turns, a loping run
+  with flung, flapping arms, a deeper lunge, a jolting hit, a strings-cut
+  collapse.
+* `archetypes/bomber.gd`: four ordinary people. Outfit acc `"straps"`
+  sculpts a back pack's shoulder and chest straps over the outermost layer.
+  `BomberRig` builds the Exp 003 pack (`EnemyLooks._pack`) on its torso in
+  `_ready` (so the showroom shows it too) and `extras()` returns it for
+  `bomber_behaviour.gd`. Stiff hurried walk, head bowed in muttered bursts,
+  a hand on a strap and a fist on the chest; when the pack's light runs hot
+  (the fuse) it hunches over and shakes.
+
 ## Seeds, persistence, performance
 
 * `appearance` (AIEnemy) is the seed; look = `seed % variety()`. The roster
