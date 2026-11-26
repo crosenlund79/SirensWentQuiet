@@ -11,7 +11,8 @@ extends RefCounted
 ##                programme (required rooms, optional ones by chance)
 ##   rooms        the partition: rows of rooms front to back ("bands"), or a
 ##                front row and a corridor with rooms either side
-##                ("corridor"), or a fenced yard with a site hut ("yard");
+##                ("corridor"), or a site hut on open ground ("yard"; PoiExterior
+##                fences the lot);
 ##                whole-metre walls; floors by room
 ##   doors        a door tree from the entrance room (rooms open off hubs:
 ##                corridors, hallways, halls; private rooms are dead ends;
@@ -434,7 +435,9 @@ static func _stage_rooms(b: Dictionary) -> void:
 	var L: Dictionary = b["L"]
 	var base := str(a.get("floor", "floor_wood"))
 	if str(a["plan"]) == "yard":
-		L["floors"].append({"rect": (b["bounds"] as Rect2).grow(-0.1), "art": "asphalt"})
+		# the yard: the open site round the hut (PoiExterior fences the lot); the building is the hut
+		b["yard_area"] = b["bounds"]
+		b["bounds"] = b["hut"]
 		L["floors"].append({"rect": (b["hut"] as Rect2).grow(0.1), "art": base})
 	else:
 		L["floors"].append({"rect": (b["bounds"] as Rect2).grow(0.1), "art": base})
@@ -663,8 +666,6 @@ static func _stage_doors(b: Dictionary) -> void:
 	_windows(b, segs)
 	_dark_rooms(b)
 	_walls(b, segs)
-	if str(a["plan"]) == "yard":
-		_fence(b)
 
 
 static func _exterior_units(b: Dictionary, segs: Dictionary, r: Dictionary, side: String) -> Array:
@@ -710,8 +711,23 @@ static func _entrance(b: Dictionary, segs: Dictionary) -> void:
 	var rng: RandomNumberGenerator = b["rng"]
 	var kind := str(a.get("entrance", "door"))
 	var r := _room(b, b["entry_room"])
-	if kind == "none" or r.is_empty():
+	if r.is_empty():
+		return
+	if kind == "none":
+		# the block's street door, at the near (lit) end of the shared hallway
 		_apartment_hall(b)
+		var ae: Vector2 = b.get("apt_entry", (r["rect"] as Rect2).get_center())
+		var units := _exterior_units(b, segs, r, "S")
+		if units.is_empty():
+			return
+		var near_u: int = units[0]
+		for u in units:
+			if absf(u + 0.5 - ae.x) < absf(near_u + 0.5 - ae.x):
+				near_u = u
+		var line0 := _side_line(r["rect"], "S")
+		var d0 := _add_door(b, "street", 0, line0, near_u, 2, false, false)
+		_add_gap(b, 0, line0, near_u, near_u + 1, "door", [r["id"], "out"], {"door": d0["id"], "front": true})
+		b["front"] = [near_u, near_u + 1]
 		return
 	var runs := _runs_of(_exterior_units(b, segs, r, "S"))
 	var run: Array = []
@@ -982,21 +998,10 @@ static func _walls(b: Dictionary, segs: Dictionary) -> void:
 				PoiLayouts._wall(L, pa, pb, "drywall", gaps, paint)
 
 
-## The yard: the gate (an open gap in the fence's south side, away from the
-## hut) and the hut's door to the yard.
+## The yard: the hut's door to the open site (its entrance room's south
+## side, else a side wall).
 static func _yard_doors(b: Dictionary, segs: Dictionary) -> void:
 	var rng: RandomNumberGenerator = b["rng"]
-	var bo: Rect2 = b["bounds"]
-	var hut: Rect2 = b["hut"]
-	var x0 := int(bo.position.x)
-	var x1 := int(bo.end.x)
-	var gw := 3 if bo.size.x >= 14 else 2
-	var mid := bo.get_center().x
-	var gx := int(round(mid + (2.0 if hut.get_center().x < mid else -2.0) - gw * 0.5))
-	gx = clampi(gx, x0 + 1, x1 - gw - 1)
-	b["gate"] = [gx, gx + gw]
-	b["front"] = [gx, gx + gw]
-	_add_gap(b, 0, SOUTH, gx, gx + gw, "open", ["yard", "out"], {"front": true, "gate": true})
 	var r := _room(b, b["entry_room"])
 	if r.is_empty():
 		return
@@ -1007,22 +1012,10 @@ static func _yard_doors(b: Dictionary, segs: Dictionary) -> void:
 			var s := _pick_start(int(rr[0]), int(rr[1]), 1, rng)
 			var rot: int = {"S": 2, "E": 1, "W": 3}[side]
 			var d := _add_door(b, "hut", axis, line, s, rot, false, rng.randf() < 0.5)
-			_add_gap(b, axis, line, s, s + 1, "door", [r["id"], "yard"], {"door": d["id"], "hut_door": true})
+			_add_gap(b, axis, line, s, s + 1, "door", [r["id"], "out"], {"door": d["id"], "hut_door": true, "front": true})
+			if axis == 0:
+				b["front"] = [s, s + 1]
 			return
-
-
-## The yard's plank fence round the lot, the gate left open.
-static func _fence(b: Dictionary) -> void:
-	var L: Dictionary = b["L"]
-	var bo: Rect2 = b["bounds"]
-	var x0 := int(bo.position.x)
-	var x1 := int(bo.end.x)
-	var z0 := int(bo.position.y)
-	var gate: Array = b["gate"]
-	PoiLayouts._wall(L, Vector2(x0, SOUTH), Vector2(x1, SOUTH), "plank", [PoiLayouts._open(gate[0], gate[1])])
-	PoiLayouts._wall(L, Vector2(x0, z0), Vector2(x1, z0), "plank")
-	PoiLayouts._wall(L, Vector2(x0, z0), Vector2(x0, SOUTH), "plank")
-	PoiLayouts._wall(L, Vector2(x1, z0), Vector2(x1, SOUTH), "plank")
 
 
 # --- 4. furniture ------------------------------------------------------------------------
@@ -1418,20 +1411,19 @@ static func _place_stash(b: Dictionary) -> void:
 ## The yard's open ground: pieces along the fence and in the open.
 static func _furnish_yard(b: Dictionary) -> void:
 	var rng: RandomNumberGenerator = b["rng"]
-	var bo: Rect2 = b["bounds"]
+	var bo: Rect2 = b["yard_area"]
 	var hut: Rect2 = b["hut"]
 	var yard := {"id": "yard", "type": "yard", "rect": bo, "private": false, "hub": 3, "shared": false, "band": 0, "dark": false, "spec": {}}
 	var rc := {"room": yard, "inner": bo.grow(-0.15), "blocks": [hut.grow(0.3)], "clears": [], "reserved": [], "wins": {"N": [], "E": [], "S": [], "W": []},
 		"points": [], "count": {}}
-	var gate: Array = b["gate"]
-	rc["reserved"].append(Rect2(float(gate[0]) - 0.3, SOUTH - 2.2, float(gate[1]) - float(gate[0]) + 0.6, 2.2))
+	rc["reserved"].append(Rect2(bo.position.x, SOUTH - 2.0, bo.size.x, 2.0))       # the way in from the street
 	for g in b["gaps"]:
 		if g.get("hut_door", false):
 			var side := _gap_side(hut, g)
 			var c := Vector2((float(g["from"]) + float(g["to"])) * 0.5, float(g["line"])) if int(g["axis"]) == 0 else Vector2(float(g["line"]), (float(g["from"]) + float(g["to"])) * 0.5)
 			var out: Vector2 = c + NORMAL.get(side, Vector2(0, 1)) * 1.0
 			rc["reserved"].append(Rect2(out - Vector2(0.8, 0.8), Vector2(1.6, 1.6)))
-			_reserve_path(rc, out, Vector2((float(gate[0]) + float(gate[1])) * 0.5, SOUTH - 1.0))
+			_reserve_path(rc, out, Vector2(out.x, SOUTH - 1.0))
 	b["rc"]["yard"] = rc
 	for e in PoiFurniture.YARD_SET:
 		if rng.randf() >= float(e.get("p", 1.0)):
@@ -1560,7 +1552,7 @@ static func _stage_inhabitants(b: Dictionary) -> void:
 		if (int(r["hub"]) >= 3 or r["type"] == "corridor") and rc.size.x >= 2.0 and rc.size.y >= 2.0:
 			L["wander"].append(rc.grow(-0.6))
 	if b.has("hut"):
-		L["wander"].append((b["bounds"] as Rect2).grow(-1.0))
+		L["wander"].append((b["yard_area"] as Rect2).grow(-1.0))
 	if (L["wander"] as Array).is_empty():
 		L["wander"].append(_room(b, b["entry_room"]).get("rect", b["bounds"]).grow(-0.6))
 	_dormant(b, g, entry)
@@ -1575,7 +1567,7 @@ static func _hide_rank(r: Dictionary, entry: Vector2) -> float:
 
 
 ## Where Eli will arrive (before the exterior stage knows): outside the front
-## door, the apartment's stair end, or the yard gate.
+## door, the apartment's stair end, or the hut's door.
 static func _entry_guess(b: Dictionary) -> Vector2:
 	if b.has("apt_entry"):
 		return b["apt_entry"]
@@ -1880,6 +1872,9 @@ static func _stage_exterior(b: Dictionary) -> void:
 		if typeof(res) == TYPE_DICTIONARY and not is_same(res, L):
 			for k in res:
 				L[k] = res[k]
+	if b.has("apt_entry"):
+		L["entry"] = b["apt_entry"]          # Eli comes up the stairs into the hallway
+		L["exit_kind"] = "dark"
 
 
 ## The small default outside (X's PoiExterior replaces it): the arrival point
@@ -1888,11 +1883,6 @@ static func _fallback_exterior(b: Dictionary) -> void:
 	var L: Dictionary = b["L"]
 	var bo: Rect2 = b["bounds"]
 	L["edges"] = PoiLayouts.EDGES.duplicate()
-	if b.has("dark_exit"):
-		L["entry"] = b["apt_entry"]
-		L["exits"] = [(b["dark_exit"] as Rect2).get_center()]
-		L["car"] = {}
-		return
 	var fx := bo.get_center().x
 	if not (b["front"] as Array).is_empty():
 		fx = (float(b["front"][0]) + float(b["front"][1])) * 0.5

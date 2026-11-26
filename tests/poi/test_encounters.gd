@@ -99,6 +99,7 @@ func test_kinds_follow_the_layout() -> void:
 	bare.layout = bare.layout.duplicate()
 	bare.layout.erase("peek")
 	bare.layout.erase("doorways")
+	bare.layout.erase("dormant")          # Exp 009: the generated house's dormant spots are a newer optional key too
 	for k in 200:
 		for e in bare.encounter_plan(1.4, k):
 			check(e["mode"] in ["hidden", "arrive", "wander"], "without peek/doorways: %s" % e["mode"])

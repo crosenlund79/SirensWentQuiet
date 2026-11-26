@@ -98,10 +98,10 @@ static func variant_of(id: String) -> String:
 ## The merged definition (cached; the layout is shared, never modify it). {} for unknown ids.
 ## Exp 009 (G): `state` picks a generated site's setup (see the header).
 static func get_def(id: String, state: GameState = null) -> Dictionary:
+	if _cache.has(id):
+		return _cache[id]                  # hand-made, the placeholder, or a definition a test put in its place
 	if is_generated(id):
 		return _generated_def(id, state)
-	if _cache.has(id):
-		return _cache[id]
 	if not has(id):
 		return {}
 	var dest := ExpeditionData.destination(id)
@@ -157,6 +157,8 @@ static func _gen_key(id: String, s: Dictionary) -> String:
 ## Exp 009 (G): the cache key of the layout `id` stands for now (PoiWorld
 ## keys its built voxel grid and ground by it).
 static func layout_key(id: String) -> String:
+	if _cache.has(id):
+		return id
 	return str(_current.get(id, id))
 
 

@@ -11,7 +11,8 @@ extends RefCounted
 ##   plan       "bands": rows of rooms from the front (south) to the back,
 ##              each row split across the width; "corridor": a front row,
 ##              then a corridor running north with rooms either side;
-##              "yard": a fenced lot with a site hut (bands inside the hut)
+##              "yard": a site hut on open ground (bands inside the hut;
+##              the hut is the bounds, PoiExterior fences the lot)
 ##   w, d       the footprint's width (x) and depth (z) ranges in metres, by
 ##              setup size s / m / l (the lower, middle or upper part)
 ##   bands      plan bands: [{"d": [lo, hi], "rooms": [room]}], front first;

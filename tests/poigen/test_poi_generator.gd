@@ -74,9 +74,11 @@ func test_every_archetype_generates_valid_buildings() -> void:
 					check(float(d["radius"]) > 0.5, "%s: circling has room" % tag)
 			check(not (L["hide"] as Array).is_empty() and not (L["wander"] as Array).is_empty(), "%s: hiding and wander places" % tag)
 			check(L["bounds"] is Rect2 and L["archetype"] == arch, "%s: bounds and archetype" % tag)
-			check(L["exit_kind"] == ("dark" if arch == "apartment" else "car"), "%s: exit kind %s" % [tag, L["exit_kind"]])
+			check(L["exit_kind"] == "dark" if arch == "apartment" else L["exit_kind"] in ["car", "edge"], "%s: exit kind %s" % [tag, L["exit_kind"]])
 			if arch == "apartment":
 				check(L.get("dark_exit") is Rect2 and (L["dark_exit"] as Rect2).get_area() > 1.0, "%s: the hallway's dark end" % tag)
+				var hall: Rect2 = (L["rooms"] as Array).filter(func(r): return r["type"] == "hallway")[0]["rect"]
+				check(hall.has_point(L["entry"]), "%s: Eli arrives in the hallway" % tag)
 			check(not (L["exits"] as Array).is_empty() and HousePlan.YARD.has_point(L["entry"]), "%s: an entry and a way out" % tag)
 		ms[arch] = total / SEEDS
 	print("  generation ms per archetype: ", ms)
