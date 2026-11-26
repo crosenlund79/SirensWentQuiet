@@ -28,6 +28,7 @@ const POI_MORTAR := 0xa49c8c
 const SIDING_TONE := 0x8d8a80
 const PLANK_TONES := [0x6e5640, 0x7a5c40, 0x5e4a36, 0x85694c]
 const LINTEL_TONE := 0x6a645a
+const CONCRETE_TONE := 0x8f8e88          ## Exp 012 (L, §22): the secured rooms' concrete
 const SNOW := 0xe3e8ee
 const SNOW_SHADE := 0xc2cdda
 const PICKUP_COLORS := {"food": Color(0.72, 0.22, 0.16), "water": Color(0.45, 0.65, 0.85), "ammo": Color(0.72, 0.6, 0.25),
@@ -169,6 +170,52 @@ static func _stamp_poi_wall(g: VoxelGrid, w: Dictionary) -> void:
 							g.set_voxel(x, y, z, VoxelMat.GLASS, gc, gc)
 						continue
 				_wall_voxel(g, x, y, z, r, ai, style, paint)
+	_stamp_lining(g, w)
+
+
+## Exp 012 (L, §22): a secured room's second layer: 0.2 m of concrete on
+## the room's side of the wall (PoiGenerator.lining_rects), full height, with
+## a footing and the door gaps left open under a concrete lintel.
+static func _stamp_lining(g: VoxelGrid, w: Dictionary) -> void:
+	var rects := PoiGenerator.lining_rects(w)
+	if rects.is_empty():
+		return
+	var a: Vector2 = w["a"]
+	var b: Vector2 = w["b"]
+	var horiz := is_equal_approx(a.y, b.y)
+	var found := VoxelArt.pal(VoxelArt.Slot.FOUNDATION)
+	var lintel := []
+	for gp in w.get("gaps", []):
+		if gp["kind"] != "window":
+			lintel.append([float(gp["from"]), float(gp["to"])])
+	var all := Rect2(rects[0].position, Vector2.ZERO)
+	for rr in rects:
+		all = all.merge(rr)
+	# the lintel spans the door gaps too: the lining's full extent along the wall
+	var span: Array = w.get("lining_span", [])
+	if not span.is_empty():
+		all = Rect2(float(span[0]), all.position.y, float(span[1]) - float(span[0]), all.size.y) if horiz \
+			else Rect2(all.position.x, float(span[0]), all.size.x, float(span[1]) - float(span[0]))
+	var xr := g.centre_range(0, all.position.x, all.end.x)
+	var zr := g.centre_range(2, all.position.y, all.end.y)
+	for z in range(zr.x, zr.y):
+		for x in range(xr.x, xr.y):
+			var p := VoxelHouse.column_plan(g, x, z)
+			var along := p.x if horiz else p.y
+			var in_gap := false
+			for iv in lintel:
+				if along > float(iv[0]) and along < float(iv[1]):
+					in_gap = true
+					break
+			for y in range(VoxelHouse.FOUNDATION_ROW, VoxelHouse.BASE_ROW):
+				if g.get_mat(x, y, z) == VoxelMat.AIR or g.get_mat(x, y, z) == VoxelMat.FLOOR:
+					g.set_voxel(x, y, z, VoxelMat.FOUNDATION, VoxelArt.jitter(found, x, y, z, 0.04))
+			var ai := int(floor(along * 10.0 + 0.001))
+			for r in VoxelHouse.WALL_ROWS:
+				var y := VoxelHouse.BASE_ROW + r
+				if in_gap and (float(r) + 0.5) * 0.1 < HousePlan.DOOR_HEIGHT:
+					continue
+				_wall_voxel(g, x, y, z, r, ai, "concrete", 0)
 
 
 static func _wall_voxel(g: VoxelGrid, x: int, y: int, z: int, r: int, ai: int, style: String, paint: int) -> void:
@@ -184,6 +231,12 @@ static func _wall_voxel(g: VoxelGrid, x: int, y: int, z: int, r: int, ai: int, s
 		"siding":
 			var board := VoxelArt.scale(VoxelArt.jitter(SIDING_TONE, x, r / 2, z, 0.05), 0.88 if r % 2 == 0 else 1.0)
 			g.set_voxel(x, y, z, VoxelMat.SIDING, board, board)
+		"concrete":           # Exp 012 (L, §22): poured concrete / block, the secured rooms
+			var seam := r % 4 == 3 or (ai + (r / 4 % 2) * 3) % 6 == 5
+			var cc := VoxelArt.jitter(CONCRETE_TONE, x, y, z, 0.035)
+			if seam:
+				cc = VoxelArt.scale(cc, 0.86)
+			g.set_voxel(x, y, z, VoxelMat.MORTAR if seam else VoxelMat.MASONRY, cc, cc)
 		"plank":
 			var pc := VoxelArt.scale(VoxelArt.jitter(PLANK_TONES[(r / 3) % PLANK_TONES.size()], x, r / 3, z, 0.06), 0.85 if r % 3 == 0 else 1.0)
 			g.set_voxel(x, y, z, VoxelMat.SIDING, pc, pc)

@@ -124,7 +124,7 @@ static func strike_sound(impact: int) -> String:
 ## Night lights (no grid power): candles and battery lanterns on furniture.
 ## Three cast shadows; the others are cheap fill.
 const NIGHT_LIGHTS := [
-	{"type": "lantern", "pos": Vector3(11.15, 0.92, 2.5), "shadow": true},     # kitchen island
+	{"type": "lantern", "pos": Vector3(11.15, 0.92, 2.35), "shadow": true},     # kitchen island (Exp 012: moved with it)
 	{"type": "candle", "pos": Vector3(4.55, 0.45, 5.6), "shadow": true},       # coffee table
 	{"type": "lantern", "pos": Vector3(12.2, 0.9, 4.42), "shadow": true},      # utility workbench
 	{"type": "candle", "pos": Vector3(7.75, 0.75, 5.62), "shadow": false},     # dining table

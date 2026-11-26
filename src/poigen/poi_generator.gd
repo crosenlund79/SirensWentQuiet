@@ -175,7 +175,8 @@ static func _new_build(setup: Dictionary, attempt: int) -> Dictionary:
 	L["stash"] = ""
 	return {"setup": setup, "arch_id": arch_id, "arch": a, "family": str(a.get("family", "")), "seed": seed, "rng": rng, "L": L,
 		"rooms": [], "gaps": [], "windows": [], "rc": {}, "centres": [], "front": [], "back": {}, "hall_ends": [], "entry_room": "",
-		"stash_room": "", "locked_room": "", "dark_hint": bool(setup.get("dark_hint", false))}
+		"stash_room": "", "locked_room": "", "dark_hint": bool(setup.get("dark_hint", false)),
+		"secure": bool(setup.get("secure", true))}       # Exp 012 (L, §22): secured rooms (see _secure_room)
 
 
 static func _run(b: Dictionary, i: int) -> void:
@@ -664,6 +665,7 @@ static func _stage_doors(b: Dictionary) -> void:
 		_back_door(b, segs)
 	_stash_room(b)
 	_windows(b, segs)
+	_secure_room(b)          # Exp 012 (L, §22)
 	_dark_rooms(b)
 	_walls(b, segs)
 
@@ -849,13 +851,40 @@ static func _stash_room(b: Dictionary) -> void:
 	var doors := (b["gaps"] as Array).filter(func(g): return g.has("door") and room in g["rooms"])
 	if doors.size() != 1 or doors[0].get("front", false) or doors[0].get("back", false):
 		return
+	if b["secure"] and (b["gaps"] as Array).any(func(g): return g["kind"] == "open" and room in g["rooms"]):
+		return                  # Exp 012 (L, §22): a secured room has one way in, its locked door
 	for d in b["L"]["doors"]:
 		if d["id"] == doors[0]["door"]:
 			d["locked"] = true
 			d["open"] = false
 			if b["arch_id"] in METAL_DOORS and rng.randf() < 0.5:
 				d["mat"] = "metal"
+			if b["secure"]:
+				d["mat"] = "metal"      # Exp 012 (L, §22): a steel door (70 HP) to go with the walls
 	b["locked_room"] = room
+
+
+## Exp 012 (L, §22): a room behind a crowbar door is a secured room: no
+## windows (a pane would undermine it), and _walls gives every wall round it
+## two layers (the wall itself, concrete where it is a partition, and a
+## concrete lining on the room's side: 0.4 m of masonry, not indestructible,
+## but far costlier to shoot or blast through than forcing the door). Only
+## for setups with "secure" (all new sites; a site first generated before
+## keeps its building, see PoiDefs.setup_for).
+static func _secure_room(b: Dictionary) -> void:
+	var room := str(b["locked_room"])
+	if not b["secure"] or room == "":
+		return
+	b["gaps"] = (b["gaps"] as Array).filter(func(g): return not (g["kind"] == "window" and room in g["rooms"]))
+	b["windows"] = (b["windows"] as Array).filter(func(w): return w["room"] != room)
+	var r := _room(b, room)
+	if not r.is_empty():
+		r["windows"] = false
+		r["secure"] = true
+
+
+static func _is_secure(b: Dictionary, r: Dictionary) -> bool:
+	return bool(b.get("secure", false)) and str(r.get("id", "")) == str(b.get("locked_room", "")) and str(r.get("id", "")) != ""
 
 
 static func _windows(b: Dictionary, segs: Dictionary) -> void:
@@ -967,7 +996,7 @@ static func _walls(b: Dictionary, segs: Dictionary) -> void:
 		var lk := "%s|%s" % [p[0], p[1]]
 		if not lines.has(lk):
 			lines[lk] = []
-		lines[lk].append([int(p[2]), (segs[k] as Array).size() == 1])
+		lines[lk].append([int(p[2]), (segs[k] as Array).size() == 1, b["locked_room"] in (segs[k] as Array) and b["secure"]])
 	for lk in lines:
 		var p: PackedStringArray = str(lk).split("|")
 		var axis := int(p[0])
@@ -976,10 +1005,10 @@ static func _walls(b: Dictionary, segs: Dictionary) -> void:
 		us.sort_custom(func(u, v): return u[0] < v[0])
 		var runs := []
 		for u in us:
-			if not runs.is_empty() and int(runs.back()[1]) == int(u[0]) and runs.back()[2] == u[1]:
+			if not runs.is_empty() and int(runs.back()[1]) == int(u[0]) and runs.back()[2] == u[1] and runs.back()[3] == u[2]:
 				runs.back()[1] = int(u[0]) + 1
 			else:
-				runs.append([int(u[0]), int(u[0]) + 1, u[1]])
+				runs.append([int(u[0]), int(u[0]) + 1, u[1], u[2]])
 		for run in runs:
 			var gaps := []
 			for g in b["gaps"]:
@@ -992,7 +1021,18 @@ static func _walls(b: Dictionary, segs: Dictionary) -> void:
 			gaps.sort_custom(func(u, v): return u["from"] < v["from"])
 			var pa := Vector2(run[0], line) if axis == 0 else Vector2(line, run[0])
 			var pb := Vector2(run[1], line) if axis == 0 else Vector2(line, run[1])
-			if run[2]:
+			if run[3]:
+				# Exp 012 (L, §22): a secured room's wall: the outer skin (its own
+				# style outside, concrete inside) plus a concrete lining on the room's side
+				PoiLayouts._wall(L, pa, pb, style if run[2] else "concrete", gaps)
+				var rc: Rect2 = _room(b, b["locked_room"])["rect"]
+				var inside := (rc.get_center().y if axis == 0 else rc.get_center().x) > float(line)
+				var r0 := rc.position.x if axis == 0 else rc.position.y
+				var r1 := rc.end.x if axis == 0 else rc.end.y
+				L["walls"].back()["lining"] = 1 if inside else -1
+				L["walls"].back()["lining_span"] = [maxf(float(run[0]) - 0.1, r0 + 0.1), minf(float(run[1]) + 0.1, r1 - 0.1)]
+				L["walls"].back()["secure"] = true
+			elif run[2]:
 				PoiLayouts._wall(L, pa, pb, style, gaps)
 			else:
 				PoiLayouts._wall(L, pa, pb, "drywall", gaps, paint)
@@ -1025,7 +1065,7 @@ static func _rc(b: Dictionary, r: Dictionary) -> Dictionary:
 	if b["rc"].has(r["id"]):
 		return b["rc"][r["id"]]
 	var rect: Rect2 = r["rect"]
-	var rc := {"room": r, "inner": rect.grow(-0.1), "blocks": [], "clears": [], "reserved": [], "wins": {"N": [], "E": [], "S": [], "W": []},
+	var rc := {"room": r, "inner": rect.grow(-0.3 if _is_secure(b, r) else -0.1), "blocks": [], "clears": [], "reserved": [], "wins": {"N": [], "E": [], "S": [], "W": []},
 		"points": [], "count": {}}
 	for g in b["gaps"]:
 		if g["kind"] == "window":
@@ -1919,6 +1959,8 @@ static func _grid(L: Dictionary) -> Dictionary:
 		for iv in ivs:
 			var r := Rect2(iv[0], line - 0.1, iv[1] - iv[0], 0.2) if horiz else Rect2(line - 0.1, iv[0], 0.2, iv[1] - iv[0])
 			_mark(g, r.grow(BODY))
+		for lr in lining_rects(wall):          # Exp 012 (L, §22)
+			_mark(g, (lr as Rect2).grow(BODY))
 	for p in L.get("props", []):
 		if p.get("block", true):
 			_mark(g, (p["rect"] as Rect2).grow(BODY))
@@ -1933,6 +1975,31 @@ static func _grid(L: Dictionary) -> Dictionary:
 		if s.get("type", "") == "empty_rack":
 			_mark(g, (s["rect"] as Rect2).grow(BODY))
 	return g
+
+
+## Exp 012 (L, §22): the plan rects of a secured wall's lining (0.2 m on the
+## room's side, from the room's inner corner to corner, door gaps left open);
+## [] for any other wall. PoiWorld stamps the same rects.
+static func lining_rects(wall: Dictionary) -> Array:
+	var side := int(wall.get("lining", 0))
+	if side == 0:
+		return []
+	var a: Vector2 = wall["a"]
+	var c: Vector2 = wall["b"]
+	var horiz := is_equal_approx(a.y, c.y)
+	var line := a.y if horiz else a.x
+	var span: Array = wall.get("lining_span", [(minf(a.x, c.x) if horiz else minf(a.y, c.y)) + 0.1, (maxf(a.x, c.x) if horiz else maxf(a.y, c.y)) - 0.1])
+	var ivs := [[float(span[0]), float(span[1])]]
+	for gp in wall.get("gaps", []):
+		if gp["kind"] != "window":
+			ivs = _cut(ivs, float(gp["from"]), float(gp["to"]))
+	var d0 := line + 0.1 if side > 0 else line - 0.3
+	var out := []
+	for iv in ivs:
+		if float(iv[1]) - float(iv[0]) < 0.05:
+			continue
+		out.append(Rect2(iv[0], d0, iv[1] - iv[0], 0.2) if horiz else Rect2(d0, iv[0], 0.2, iv[1] - iv[0]))
+	return out
 
 
 static func _mark(g: Dictionary, r: Rect2) -> void:

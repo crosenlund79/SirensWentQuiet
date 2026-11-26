@@ -83,10 +83,11 @@ const FURNITURE := [
 	{"id": "floor_lamp", "type": "floor_lamp", "room": "living", "rect": Rect2(1.55, 6.55, 0.4, 0.4), "facing": "N", "height": 1.6, "blocks": true},
 	{"id": "bookshelf", "type": "bookshelf", "room": "living", "rect": Rect2(0.15, 4.4, 0.4, 1.4), "facing": "E", "height": 1.9, "blocks": true},
 	{"id": "dining_table", "type": "dining_table", "room": "living", "rect": Rect2(7.0, 5.2, 1.6, 0.9), "facing": "N", "height": 0.75, "blocks": true},
-	{"id": "dining_chair_1", "type": "chair", "room": "living", "rect": Rect2(7.15, 4.75, 0.45, 0.42), "facing": "S", "height": 0.9, "blocks": true},
-	{"id": "dining_chair_2", "type": "chair", "room": "living", "rect": Rect2(8.0, 4.75, 0.45, 0.42), "facing": "S", "height": 0.9, "blocks": true},
-	{"id": "dining_chair_3", "type": "chair", "room": "living", "rect": Rect2(7.15, 6.13, 0.45, 0.42), "facing": "N", "height": 0.9, "blocks": true},
-	{"id": "dining_chair_4", "type": "chair", "room": "living", "rect": Rect2(8.0, 6.13, 0.45, 0.42), "facing": "N", "height": 0.9, "blocks": true},
+	# Exp 012 (L, §23): the chairs tucked in to the table's edges (a 0.68 m way behind the north pair)
+	{"id": "dining_chair_1", "type": "chair", "room": "living", "rect": Rect2(7.15, 4.78, 0.45, 0.42), "facing": "S", "height": 0.9, "blocks": true},
+	{"id": "dining_chair_2", "type": "chair", "room": "living", "rect": Rect2(8.0, 4.78, 0.45, 0.42), "facing": "S", "height": 0.9, "blocks": true},
+	{"id": "dining_chair_3", "type": "chair", "room": "living", "rect": Rect2(7.15, 6.1, 0.45, 0.42), "facing": "N", "height": 0.9, "blocks": true},
+	{"id": "dining_chair_4", "type": "chair", "room": "living", "rect": Rect2(8.0, 6.1, 0.45, 0.42), "facing": "N", "height": 0.9, "blocks": true},
 	{"id": "plant_living", "type": "plant", "room": "living", "rect": Rect2(9.3, 8.25, 0.5, 0.5), "facing": "N", "height": 1.1, "blocks": true},
 	# Kitchen
 	{"id": "fridge", "type": "fridge", "room": "kitchen", "rect": Rect2(8.15, 0.2, 0.75, 0.7), "facing": "S", "height": 1.85, "blocks": true},
@@ -96,9 +97,12 @@ const FURNITURE := [
 	{"id": "stove", "type": "stove", "room": "kitchen", "rect": Rect2(12.5, 0.17, 0.75, 0.62), "facing": "S", "height": 0.92, "blocks": true},
 	{"id": "counter_c", "type": "counter", "room": "kitchen", "rect": Rect2(13.25, 0.17, 0.6, 0.62), "facing": "S", "height": 0.92, "blocks": true},
 	{"id": "counter_east", "type": "counter", "room": "kitchen", "rect": Rect2(13.23, 0.79, 0.62, 1.5), "facing": "W", "height": 0.92, "blocks": true},
-	{"id": "island", "type": "island", "room": "kitchen", "rect": Rect2(10.2, 2.1, 1.9, 0.85), "facing": "S", "height": 0.92, "blocks": true},
-	{"id": "stool_1", "type": "stool", "room": "kitchen", "rect": Rect2(10.5, 3.05, 0.4, 0.4), "facing": "N", "height": 0.7, "blocks": true},
-	{"id": "stool_2", "type": "stool", "room": "kitchen", "rect": Rect2(11.4, 3.05, 0.4, 0.4), "facing": "N", "height": 0.7, "blocks": true},
+	# Exp 012 (L, §23): the island sits 0.15 m further north and the stools are
+	# a little smaller and tucked against it, so a walkway of about 0.7 m stays
+	# free between them and the kitchen's south wall (it was 0.45 m: Eli got stuck)
+	{"id": "island", "type": "island", "room": "kitchen", "rect": Rect2(10.2, 1.95, 1.9, 0.85), "facing": "S", "height": 0.92, "blocks": true},
+	{"id": "stool_1", "type": "stool", "room": "kitchen", "rect": Rect2(10.55, 2.84, 0.36, 0.36), "facing": "N", "height": 0.7, "blocks": true},
+	{"id": "stool_2", "type": "stool", "room": "kitchen", "rect": Rect2(11.45, 2.84, 0.36, 0.36), "facing": "N", "height": 0.7, "blocks": true},
 	# Bedroom
 	{"id": "bed", "type": "bed", "room": "bedroom", "rect": Rect2(1.2, 0.17, 1.6, 2.1), "facing": "S", "height": 0.6, "blocks": true},
 	{"id": "nightstand_l", "type": "nightstand", "room": "bedroom", "rect": Rect2(0.7, 0.2, 0.45, 0.42), "facing": "S", "height": 0.55, "blocks": true},

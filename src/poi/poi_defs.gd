@@ -139,8 +139,13 @@ static func setup_for(id: String, state: GameState = null) -> Dictionary:
 				s["seed"] = int(g["seed"])
 				s["size"] = str(g.get("size", s.get("size", "m")))
 				s["surroundings"] = str(g.get("surroundings", s.get("surroundings", "")))
+				# Exp 012 (L, §22): a site first built before secured rooms keeps its building
+				if not g.has("sec") and PoiState.generated(rec):
+					s["secure"] = false
 	else:
 		s = PoiArchetypes.default_setup(id, 0)
+	if not s.has("secure"):
+		s["secure"] = true          # Exp 012 (L, §22): secured rooms behind crowbar doors
 	s["id"] = id
 	s["archetype"] = arch
 	s["family"] = PoiArchetypes.family_of(arch)
@@ -151,7 +156,8 @@ static func setup_for(id: String, state: GameState = null) -> Dictionary:
 
 
 static func _gen_key(id: String, s: Dictionary) -> String:
-	return "%s|%d|%s|%s|%d" % [id, int(s.get("seed", 0)), str(s.get("size", "m")), str(s.get("surroundings", "")), PoiGenerator.VERSION]
+	return "%s|%d|%s|%s|%d%s" % [id, int(s.get("seed", 0)), str(s.get("size", "m")), str(s.get("surroundings", "")), PoiGenerator.VERSION,
+		"" if bool(s.get("secure", true)) else "|old"]
 
 
 ## Exp 009 (G): the cache key of the layout `id` stands for now (PoiWorld
