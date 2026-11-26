@@ -20,10 +20,10 @@ const VARIANTS := [
 	{"name": "Canvas jacket", "jacket": 0x87694a, "jacket_dk": 0x67503a, "jacket_lt": 0x9f8462, "collar": 0x4b3526,
 		"scarf": 0x8a3a31, "scarf_dk": 0x672c26, "hair": 0x4a3222, "hair_lt": 0x6c4a31, "beard": 1, "grey": 0.18,
 		"knit": 0x5b636b, "legs": 0x4a4842, "lining": 0x6e3d33},
-	{"name": "Forest overshirt", "jacket": 0x5a6442, "jacket_dk": 0x454d33, "jacket_lt": 0x76805a, "collar": 0x3b3226,
-		"scarf": 0xa8833a, "scarf_dk": 0x80612a, "hair": 0x2c211b, "hair_lt": 0x463428, "beard": 1, "grey": 0.08,
-		"knit": 0x6a5a4c, "legs": 0x36383c, "lining": 0x8a6a3a},
-	{"name": "Grey morning", "jacket": 0x3d4858, "jacket_dk": 0x2f3846, "jacket_lt": 0x56627a, "collar": 0x2a2622,
+	{"name": "Forest overshirt", "jacket": 0x515a40, "jacket_dk": 0x3f4632, "jacket_lt": 0x687254, "collar": 0x3b3226,
+		"scarf": 0x9c7d3c, "scarf_dk": 0x775e2c, "hair": 0x2c211b, "hair_lt": 0x463428, "beard": 1, "grey": 0.08,
+		"knit": 0x6a5a4c, "legs": 0x3d3b38, "lining": 0x8a6a3a},
+	{"name": "Grey morning", "jacket": 0x414852, "jacket_dk": 0x323840, "jacket_lt": 0x58606b, "collar": 0x2a2622,
 		"scarf": 0xa4582e, "scarf_dk": 0x7e4223, "hair": 0x6a6259, "hair_lt": 0x8c857c, "beard": 2, "grey": 0.45,
 		"knit": 0x7b766d, "legs": 0x4a4236, "lining": 0x5b6b7a},
 ]
@@ -45,7 +45,7 @@ const SOLE := 0x29241f
 const LACE := 0xc9ab7b
 const PENCIL := 0xd9a128
 const TAPE := 0xcf9f24
-const GLOVE := 0xae8a5c
+const GLOVE := 0x8e6e4a
 const PATCH := 0x5a4431
 const BRASS := 0x9a7d48
 const METAL_DK := 0x2a2c30
@@ -392,7 +392,7 @@ static func _hairline(p: Vector3) -> float:
 	var y := lerpf(0.214, 0.172, smoothstep(0.4, 1.4, a))          # forehead -> temples
 	if a > 1.2 and a < 1.85:
 		y = maxf(y, 0.172 + 0.012 * sin((a - 1.2) / 0.65 * PI))      # over the ears
-	y = lerpf(y, 0.075, smoothstep(1.7, 2.6, a))                     # nape
+	y = lerpf(y, 0.1, smoothstep(1.7, 2.6, a))                       # nape
 	return y
 
 
@@ -484,9 +484,9 @@ static func _face(q: Vector3, v: Dictionary, x: int, y: int, z: int) -> int:
 			return _mix(SKIN_DK, LIP, 0.3)                            # lower lip
 	# beard: jaw, chin and upper lip, sideburns up to the hair
 	var beard := int(v["beard"])
-	var jaw := y <= R_MOUTH + 2 and y >= 2 and q.z < 0.0 and (ax >= 3 or y <= R_MOUTH - 2 or not front)
+	var jaw := y <= R_MOUTH + 1 and y >= 2 and q.z < -0.005 and (ax >= 3 or y <= R_MOUTH - 2 or not front)
 	var lip := front and y == R_MOUTH + 1 and ax <= 1
-	var burn := ax >= 5 and y >= R_MOUTH + 2 and y <= R_EYE + 1 and q.z > -0.045 and q.z < 0.03
+	var burn := ax >= 5 and y >= R_MOUTH + 1 and y <= R_EYE and q.z > -0.03 and q.z < 0.0
 	if jaw or lip or burn:
 		# an even shade (not speckles): stubble, a short beard, or a faint shadow
 		var amt: float = [0.48, 0.8, 0.16][beard]
@@ -645,8 +645,8 @@ static func _pelvis(p: Vector3, v: Dictionary, x: int, y: int, z: int) -> int:
 	var pouch := _rbox(p, Vector3(0.15, -0.045, -0.01), Vector3(0.022, 0.06, 0.05), 0.012)
 	var tool := _cone(p, Vector3(0.15, 0.02, -0.04), Vector3(0.15, 0.1, -0.05), 0.011, 0.011)
 	var tape := _rbox(p, Vector3(-0.15, -0.01, 0.0), Vector3(0.018, 0.035, 0.035), 0.012)
-	var glove := _rbox(p, Vector3(0.07, -0.08, 0.122), Vector3(0.035, 0.06, 0.012), 0.008)
-	if p.y < -0.1 and glove <= 0.0 and posmod(x, 2) == 1 and p.y < -0.12:
+	var glove := _rbox(p, Vector3(0.088, -0.075, 0.118), Vector3(0.022, 0.05, 0.01), 0.006)
+	if glove <= 0.0 and p.y < -0.1 and posmod(x, 2) == 1:
 		glove = 1.0                                                   # fingers
 	if tool <= 0.0:
 		return _j(0x8a6438 if p.y > 0.07 else 0x5a5d62, x, y, z, 0.04)   # hammer handle / head
@@ -702,7 +702,7 @@ static func _farm(p: Vector3, side: float, v: Dictionary, x: int, y: int, z: int
 	var d := _sph(p, Vector3(0.0, 0.0, 0.004), 0.045)
 	d = _smin(d, _cone(p, Vector3(0.0, 0.0, 0.0), Vector3(0.0, -0.2, -0.002), 0.045, 0.042), 0.02)
 	var rolled := side > 0.0
-	var cuff_top := -0.13 if rolled else -0.19
+	var cuff_top := -0.15 if rolled else -0.19
 	var cuff := _cone(p, Vector3(0.0, cuff_top, 0.0), Vector3(0.0, cuff_top - (0.03 if rolled else 0.04), 0.0), 0.05 if rolled else 0.047, 0.048 if rolled else 0.046)
 	var under := _cone(p, Vector3(0.0, cuff_top - 0.02, 0.0), Vector3(0.0, -0.245, 0.0), 0.038, 0.034)
 	var wrist := _cone(p, Vector3(0.0, -0.22, 0.0), Vector3(0.0, -0.27, 0.0), 0.029, 0.027)
@@ -720,7 +720,7 @@ static func _farm(p: Vector3, side: float, v: Dictionary, x: int, y: int, z: int
 	if cuff <= 0.0:
 		if rolled:
 			var l: int = v["lining"]
-			return _j(l if posmod(y + int(round(atan2(p.x, p.z) * 2.0)), 2) == 0 else _sc(l, 0.82), x, y, z, 0.03)
+			return _j(l if posmod(y + int(round(atan2(p.x, p.z) * 2.0)), 2) == 0 else _sc(l, 0.88), x, y, z, 0.03)
 		return _cloth(v["jacket_dk"], x, y, z, 0.05)
 	if under <= 0.0:
 		var k: int = v["knit"]
@@ -773,7 +773,7 @@ static func _hand(p: Vector3, side: float, fist: bool, x: int, y: int, z: int) -
 static func _thigh(p: Vector3, side: float, v: Dictionary, x: int, y: int, z: int) -> int:
 	var q := Vector3(p.x * side, p.y, p.z)        # +qx = outside of the leg
 	var d := _sph(q, Vector3(0.004, 0.0, 0.004), 0.08)
-	d = _smin(d, _cone(q, Vector3(0.0, 0.0, 0.0), Vector3(0.0, -0.4, -0.004), 0.08, 0.057), 0.03)
+	d = _smin(d, _cone(q, Vector3(0.0, 0.0, 0.0), Vector3(0.0, -0.405, -0.004), 0.08, 0.058), 0.03)
 	d = _smin(d, _ell(q, Vector3(0.006, -0.15, -0.012), Vector3(0.072, 0.15, 0.074)), 0.03)
 	# cargo pocket on the right thigh
 	var cargo := side > 0.0 and q.x > 0.02 and q.y < -0.12 and q.y > -0.27 and absf(q.z + 0.005) < 0.048
@@ -806,8 +806,8 @@ static func _thigh(p: Vector3, side: float, v: Dictionary, x: int, y: int, z: in
 
 static func _shin(p: Vector3, side: float, v: Dictionary, x: int, y: int, z: int) -> int:
 	var q := Vector3(p.x * side, p.y, p.z)
-	var d := _sph(q, Vector3(0.0, 0.0, -0.004), 0.058)
-	d = _smin(d, _cone(q, Vector3(0.0, 0.0, 0.0), Vector3(0.0, -0.28, 0.004), 0.056, 0.053), 0.02)
+	var d := _sph(q, Vector3(0.0, -0.004, -0.004), 0.05)
+	d = _smin(d, _cone(q, Vector3(0.0, -0.01, 0.0), Vector3(0.0, -0.28, 0.004), 0.052, 0.053), 0.02)
 	# trouser hem bunched over the boot
 	d = _smin(d, _cone(q, Vector3(0.0, -0.27, 0.004), Vector3(0.0, -0.3, 0.008), 0.056, 0.059), 0.01)
 	if q.y < -0.305:

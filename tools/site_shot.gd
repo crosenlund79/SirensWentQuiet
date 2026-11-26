@@ -1,7 +1,7 @@
 extends Node
 ## Experiment 008 (lead): screenshots of the real game scene at a POI (or at
 ## home), with the HUD, for visual review. Used with tools/capture.sh:
-##   tools/capture.sh res://tools/site_shot.tscn /abs/out.png 30 --site=hardware [--clock=11] [--pos=x,y] [--car] [--yaw=rad] [--panel=search|map|inventory] [--reveal]
+##   tools/capture.sh res://tools/site_shot.tscn /abs/out.png 30 --site=hardware [--clock=11] [--pos=x,y] [--car] [--yaw=rad] [--panel=search|map|inventory] [--reveal] [--weapon=shotgun|none]
 ## --site: a POI id (RegionLocations) or "home". --pos: where Eli stands (plan
 ## metres; default the entry). --panel=search opens the take panel of the
 ## nearest container that holds something (after its search).
@@ -19,6 +19,7 @@ func _ready() -> void:
 	var yaw := INF
 	var panel := ""
 	var reveal := false
+	var weapon := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--site="):
 			site = a.trim_prefix("--site=")
@@ -35,6 +36,8 @@ func _ready() -> void:
 			panel = a.trim_prefix("--panel=")
 		elif a == "--reveal":
 			reveal = true
+		elif a.begins_with("--weapon="):     # Exp 010: the shotgun in hand, or empty hands
+			weapon = a.trim_prefix("--weapon=")
 	var s := GameState.new_run(8008)
 	s.total_minutes = hour * 60.0
 	s.region.discover(site) if site != "home" else null
@@ -63,6 +66,12 @@ func _ready() -> void:
 		game.debug_teleport_player(pos)
 	if yaw != INF:
 		game.player.rig.rotation.y = yaw
+	if weapon == "shotgun":
+		game.debug_state().inventory.add("shotgun", 1)
+		game.debug_state().equip("shotgun")
+		game.combat.weapons.switch_to("shotgun")
+	elif weapon == "none":
+		game.combat.weapons.holstered = true
 	if reveal and game.get("poi") != null:
 		game.poi.dev_reveal()
 	for i in 4:

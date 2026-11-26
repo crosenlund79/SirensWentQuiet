@@ -9,13 +9,14 @@ extends Control
 ## Visual Experiments; as an overlay (open_overlay, from F10) Esc closes it.
 ##
 ## Capture args (tools/capture.sh): --view=front|three|side|back|face|gameplay|sheet
-## --anim=idle|walk|jog|run|handgun|shotgun --variant=N --yaw=deg --night --compare --hide-ui
+## --anim=idle|walk|jog|run|handgun|shotgun|flashlight|tool --variant=N --yaw=deg --dist=m --ty=m --night --compare
+## --moving --hide-ui
 
 const SCENE := "res://src/character/eli_showroom.tscn"
 const LAUNCHER := "res://src/launcher/launcher.tscn"
 const ANIMS := [["idle", "Idle"], ["walk", "Walk"], ["jog", "Jog (game pace)"], ["run", "Run (sprint)"],
-	["handgun", "Handgun"], ["shotgun", "Two-handed"]]
-const SPEEDS := {"idle": 0.0, "walk": 1.4, "jog": 4.0, "run": 6.4, "handgun": 0.0, "shotgun": 0.0}
+	["handgun", "Handgun"], ["shotgun", "Two-handed"], ["flashlight", "Flashlight"], ["tool", "Hammer"]]
+const SPEEDS := {"idle": 0.0, "walk": 1.4, "jog": 4.0, "run": 6.4, "handgun": 0.0, "shotgun": 0.0, "flashlight": 0.0, "tool": 1.4}
 const VIEWS := [["three", "3/4"], ["front", "Front"], ["side", "Side"], ["back", "Back"], ["face", "Face"],
 	["sheet", "Turnaround"], ["gameplay", "Gameplay distance"]]
 
@@ -45,6 +46,8 @@ var _env: Environment
 var _was_paused := false
 var _hide_ui := false
 var _yaw_arg := INF
+var _dist_arg := 0.0
+var _ty_arg := INF
 
 
 ## Opens the showroom over the running game (F10); Esc closes it again.
@@ -73,6 +76,10 @@ func _ready() -> void:
 			variant = clampi(int(a.trim_prefix("--variant=")), 0, EliSculpt.variant_count() - 1)
 		elif a.begins_with("--yaw="):
 			_yaw_arg = deg_to_rad(float(a.trim_prefix("--yaw=")))
+		elif a.begins_with("--dist="):
+			_dist_arg = float(a.trim_prefix("--dist="))
+		elif a.begins_with("--ty="):
+			_ty_arg = float(a.trim_prefix("--ty="))
 		elif a == "--night":
 			night = true
 		elif a == "--compare":
@@ -91,6 +98,10 @@ func _ready() -> void:
 	_apply_view(view)
 	if _yaw_arg != INF:
 		_yaw = _yaw_arg
+	if _dist_arg > 0.0:
+		_dist = _dist_arg
+	if _ty_arg != INF:
+		_target.y = _ty_arg
 	_apply_light()
 
 
@@ -223,6 +234,8 @@ func _apply_anim() -> void:
 	for r in _rigs + ([_orig] if _orig != null else []):
 		r.speed = SPEEDS.get(anim, 0.0)
 		r.aiming = anim == "handgun" or anim == "shotgun"
+		r.carry = anim == "flashlight"
+		r.set_held("flashlight" if anim == "flashlight" else ("hammer" if anim == "tool" else ""))
 		if r is EliRig:
 			(r as EliRig).preview_dir = Vector2(0.0, -1.0)
 		var g: Node3D = r.gun
