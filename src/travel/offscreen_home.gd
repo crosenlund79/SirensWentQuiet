@@ -12,12 +12,17 @@ extends RefCounted
 ## - Back home, after the house is restored from its snapshot, each recorded
 ##   attack is resolved in order:
 ##     threat   invasion: its size (GameState.invasion_size at that time);
-##              straggler: 1
+##              straggler: 1. Exp 008 (E): as at home, a straggler turns on the
+##              house only PROWL_ATTACK of the time; else it prowls round and
+##              leaves (driven off sooner by turrets with ammo, which spend a
+##              couple of rounds): no blows, one short line
 ##     defence  `defence(world)["score"]`: closed doors and window boards and
 ##              barricades standing (by HP and material), spikes, raised
 ##              drawbridges (more with water in the moat), the outer walls'
 ##              integrity x material, open doors count against it, plus agent
-##              S's Security.offscreen_strength(world)["score"] when present
+##              S's Security.offscreen_strength(world)["score"] when present.
+##              Exp 008 (E): the trenches themselves, water most (MOAT_*),
+##              much less while a drawbridge over the water is lowered
 ##     strikes  round(threat x STRIKES_PER_THREAT x (1 - held)), held =
 ##              D / (D + threat x 1.5); an invasion always lands at least one.
 ##   The strikes go through the world's own API: `enemy_strike` at the
@@ -25,7 +30,9 @@ extends RefCounted
 ##   debris, navigation and the save are the real ones. Turrets spend ammo
 ##   through S's Security.consume_offscreen(world, rounds) when present.
 ## - The report is a few short lines ("While you were away: Day 3, 22:00:
-##   they came, 5 of them. They broke a door. The walls took 4 blows.").
+##   they came, 5 of them. They broke a door. The walls took 4 blows."). A
+##   trip on which nothing fell due reports nothing alarming: no attacks, at
+##   most the rain collectors and someone who prowled round and left.
 
 const STRIKES_PER_THREAT := 2.0
 const MAX_STRIKES := 16
@@ -33,6 +40,15 @@ const STRIKE_STRENGTH := 2.0
 const DAY_MIN := 1440.0
 const DOOR_MAT := {"wood": 1.0, "iron": 1.6, "metal": 2.0}
 const WALL_MAT := {"wood": 1.0, "frame": 1.0, "stone": 1.5}
+## Exp 008 (E): a straggler turns on the empty house this often (StragglerMind.RESTLESS at home).
+const PROWL_ATTACK := 0.3
+const PROWL_ROUNDS := 2           ## rounds turrets spend driving a prowler off
+## Exp 008 (E): trench cells around the house: per cell and at most, water and dry.
+const MOAT_PER_CELL := 0.05
+const MOAT_MAX := 2.5
+const TRENCH_PER_CELL := 0.01
+const TRENCH_MAX := 0.5
+const MOAT_LOWERED := 0.4         ## x the moat's share while a drawbridge over water is lowered
 
 
 # --- the ledger (recorded while away) ----------------------------------------------------
@@ -95,9 +111,11 @@ static func finish(state: GameState) -> void:
 # --- resolving it (back home) --------------------------------------------------------------
 
 ## The house's passive defence: {"score", "doors", "boards", "spikes",
-## "bridges", "walls" (0..1 integrity), "open_doors", "security"}.
+## "bridges" (raised), "lowered" (drawbridges down), "moat" (wet cells),
+## "trench" (dry cells), "walls" (0..1 integrity), "open_doors", "security"}.
 static func defence(world: HouseWorld, worlds: Array = []) -> Dictionary:
-	var out := {"score": 0.0, "doors": 0, "boards": 0, "spikes": 0, "bridges": 0, "walls": 0.0, "open_doors": 0, "security": 0.0}
+	var out := {"score": 0.0, "doors": 0, "boards": 0, "spikes": 0, "bridges": 0, "lowered": 0, "moat": 0, "trench": 0,
+		"walls": 0.0, "open_doors": 0, "security": 0.0}
 	if world == null:
 		return out
 	var score := 0.0
@@ -122,6 +140,14 @@ static func defence(world: HouseWorld, worlds: Array = []) -> Dictionary:
 				if not o.open:
 					out["bridges"] += 1
 					score += (1.5 if wet else 0.5) * hp
+				else:
+					out["lowered"] += 1
+	if world.defense != null:          # Exp 008 (E): the trenches and the moat themselves
+		var wet_n: int = world.defense.wet_count()
+		out["moat"] = wet_n
+		out["trench"] = world.defense.cells.size() - wet_n
+		var moat := minf(wet_n * MOAT_PER_CELL, MOAT_MAX) * (MOAT_LOWERED if wet_n > 0 and int(out["lowered"]) > 0 else 1.0)
+		score += moat + minf(int(out["trench"]) * TRENCH_PER_CELL, TRENCH_MAX)
 	var n := 0
 	var sum := 0.0
 	var mat_sum := 0.0
@@ -159,10 +185,12 @@ static func strikes_for(threat: float, defence_score: float, invasion: bool) -> 
 
 
 ## Resolves the ledger on the restored home world. Returns {"lines": [String],
-## "strikes": n, "destroyed": [kinds], "water": n, "attacks": n}.
+## "strikes": n, "destroyed": [kinds], "water": n, "attacks": n, "prowlers": n
+## (stragglers that only prowled round), "rounds": n (turret rounds spent)}.
 ## `seed` keeps it deterministic.
 static func resolve(world: HouseWorld, state: GameState, seed := 0, worlds: Array = []) -> Dictionary:
-	var out := {"lines": [], "strikes": 0, "destroyed": [], "water": 0, "attacks": 0}
+	var out := {"lines": [], "strikes": 0, "destroyed": [], "water": 0, "attacks": 0, "prowlers": 0, "rounds": 0}
+	var driven := 0
 	var evs := events(state).duplicate()
 	evs.sort_custom(func(a, b): return float(a.get("at", 0.0)) < float(b.get("at", 0.0)))
 	var rng := RandomNumberGenerator.new()
@@ -179,14 +207,36 @@ static func resolve(world: HouseWorld, state: GameState, seed := 0, worlds: Arra
 			continue
 		if kind != "invasion" and kind != "straggler" or world == null:
 			continue
+		if kind == "straggler" and rng.randf() >= PROWL_ATTACK:     # Exp 008 (E): it only prowled round
+			out["prowlers"] += 1
+			var spent := _turret_rounds(world, worlds, PROWL_ROUNDS)
+			out["rounds"] += spent
+			if spent > 0:
+				driven += 1
+			continue
 		out["attacks"] += 1
 		var r := _attack(world, state, kind == "invasion", maxf(float(e.get("size", 1)), 1.0), rng, worlds)
 		out["strikes"] += int(r["strikes"])
+		out["rounds"] += int(r.get("rounds", 0))
 		out["destroyed"].append_array(r["destroyed"])
 		out["lines"].append(_line(kind, at, int(e.get("size", 1)), r))
+	if int(out["prowlers"]) > 0:
+		var n := int(out["prowlers"])
+		var who := "Someone prowled round the house" if n == 1 else "Twice someone prowled round the house" if n == 2 else "Someone prowled round the house %d times" % n
+		out["lines"].append(who + ("; the turrets drove them off." if driven > 0 else " and left."))
 	if out["water"] > 0:
 		out["lines"].append("The rain collectors gave %d water." % out["water"])
 	return out
+
+
+## Exp 008 (E): turrets with ammo spend up to `rounds` (0 without any).
+static func _turret_rounds(world: HouseWorld, worlds: Array, rounds: int) -> int:
+	var all: Variant = worlds if not worlds.is_empty() else world
+	var strength := security_strength(all)
+	if int(strength.get("turrets", 0)) <= 0:
+		return 0
+	var n := mini(int(strength.get("ammo", 0)), rounds)
+	return Security.consume_offscreen(all, n) if n > 0 else 0
 
 
 static func _attack(world: HouseWorld, state: GameState, invasion: bool, threat: float, rng: RandomNumberGenerator, worlds: Array = []) -> Dictionary:
@@ -205,13 +255,7 @@ static func _attack(world: HouseWorld, state: GameState, invasion: bool, threat:
 		var stand: Vector2 = wp["pos"]
 		world.enemy_strike(Vector3(stand.x, 0.0, stand.y), wp["target"], STRIKE_STRENGTH if invasion else 1.0)
 	world.object_destroyed.disconnect(listener)
-	var rounds := 0
-	var all: Variant = worlds if not worlds.is_empty() else world
-	var strength := security_strength(all)
-	if int(strength.get("turrets", 0)) > 0:
-		rounds = mini(int(strength.get("ammo", 0)), int(ceil(threat * 2.0)))
-		if rounds > 0:
-			rounds = Security.consume_offscreen(all, rounds)
+	var rounds := _turret_rounds(world, worlds, int(ceil(threat * 2.0)))
 	var after := int(world.damage_summary().get("missing_voxels", 0))
 	return {"strikes": n, "destroyed": destroyed, "voxels": maxi(after - before, 0), "rounds": rounds, "defence": d["score"]}
 
