@@ -200,6 +200,11 @@ static func left_text(items: Dictionary) -> String:
 	return t
 
 
+## Exp 008 (L): is the timed action on this spot or door (the finder keeps its progress prompt)?
+func busy_with(o: Object) -> bool:
+	return not _action.is_empty() and o != null and (_action.get("spot") == o or _action.get("door") == o)
+
+
 func _action_label() -> String:
 	match str(_action.get("what", "")):
 		"force":

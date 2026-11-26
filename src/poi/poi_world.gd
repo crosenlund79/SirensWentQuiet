@@ -569,7 +569,8 @@ func apply_record() -> void:
 ## Exp 008 (L): true while the cutaway hides container `cid`'s piece (its
 ## marker hides with it; the prompt still works).
 func container_cut(cid: String) -> bool:
-	if _box_props.is_empty():
+	if not _box_props.has("~"):
+		_box_props["~"] = true
 		for p in props:
 			var n: Variant = p.get("node")
 			if n is Node and is_instance_valid(n) and str((n as Node).name).begins_with("Box_"):

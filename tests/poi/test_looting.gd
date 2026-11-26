@@ -163,6 +163,12 @@ func test_one_clear_choice_when_two_spots_overlap() -> void:
 	var near_a: Vector2 = mid + (a.plan_pos() - mid).normalized() * 0.2
 	check(Finder.best(cands, near_a, Vector2.ZERO) == b, "the searchable one before the empty note")
 	check(Finder.best(cands, a.plan_pos(), Vector2.ZERO) == a, "standing right at the empty one, its note shows")
+	# a search in progress keeps its progress prompt (it is no note)
+	h.player.global_position = Vector3(near_a.x, 0, near_a.y)
+	h.poi.interact_spot(b)
+	check(b.interact_prompt().begins_with("Searching the "), "searching: %s" % b.interact_prompt())
+	check(Finder.best(cands, near_a, Vector2.ZERO, b) == b, "the progress stays in view")
+	h.poi.cancel_action("")
 	# the harness's own prompt follows the same rule (one prompt, never two)
 	h.player.global_position = Vector3(near_a.x, 0, near_a.y)
 	await frames(2)

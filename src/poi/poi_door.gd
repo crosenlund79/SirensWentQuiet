@@ -18,6 +18,12 @@ func interact_prompt() -> String:
 	return super()
 
 
+## Exp 008 (L): true while the POI helper forces this door (the interaction finder).
+func interact_busy() -> bool:
+	var h: Variant = world.get("helper") if world != null else null
+	return h is Object and is_instance_valid(h) and h.has_method("busy_with") and bool(h.busy_with(self))
+
+
 func interact(game: Node) -> void:
 	if kind == "door" and locked:
 		var h: Variant = world.get("helper") if world != null else null

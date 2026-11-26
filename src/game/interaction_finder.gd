@@ -30,14 +30,16 @@ static func nearest(candidates: Array, p: Vector2, radius := RADIUS) -> Node3D:
 
 ## Exp 008 (L): one clear choice when several things are in reach (a shelf,
 ## a loose item, a door and an exit side by side). Each candidate (the same
-## filters as nearest) scores its distance, plus up to FACING_COST m when Eli
-## faces away from it (`facing`: his plan direction, ZERO to ignore; the game
-## passes it at a POI; the thing's optional interact_point() is where it is,
-## for this), plus INFO_COST m when its
-## prompt is only information (no "[key]"), so something he can use wins
-## over a note beside it. The current choice `keep` stays unless another
-## beats it by KEEP_MARGIN m, so the prompt doesn't flicker between two
-## things at about the same distance.
+## filters as nearest) scores its distance,
+##   + up to FACING_COST m when Eli faces away from it (`facing`: his plan
+##     direction, ZERO to ignore; the thing's
+##     optional interact_point() is where it is, for this),
+##   + INFO_COST m when its prompt is only a note (no "[key]"), so something
+##     he can use wins over a note beside it (a thing whose optional
+##     interact_busy() is true, e.g. a shelf being searched, is no note).
+## The current choice `keep` stays unless another beats it by KEEP_MARGIN m,
+## so the prompt doesn't flicker between two things at about the same distance.
+## The game uses it at a POI (home keeps nearest).
 const FACING_COST := 0.4
 const INFO_COST := 0.6
 const KEEP_MARGIN := 0.25
@@ -67,8 +69,8 @@ static func best(candidates: Array, p: Vector2, facing := Vector2.ZERO, keep: No
 			var to := at - p
 			if to.length() > 0.3:
 				s += FACING_COST * 0.5 * (1.0 - clampf(to.normalized().dot(facing.normalized()), -1.0, 1.0))
-		if not prompt.begins_with("["):
-			s += INFO_COST
+		if not prompt.begins_with("[") and not (n.has_method("interact_busy") and n.interact_busy()):
+			s += INFO_COST              # a note, not a timed action in progress ("Searching... 40 %")
 		if n == keep:
 			keep_s = s
 		if s < top_s:

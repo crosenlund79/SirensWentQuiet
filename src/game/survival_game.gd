@@ -807,8 +807,10 @@ func _update_prompt() -> void:
 	var was: Node3D = _focus if is_instance_valid(_focus) else null
 	_focus = null
 	if _modal == "" and not state.dead:
-		var facing := Finder.facing_of(player) if not is_home() else Vector2.ZERO     # Exp 008 (L): one clear choice (facing at a POI)
-		_focus = Finder.best(_interactables(), player.plan_pos(), facing, was)
+		if is_home():
+			_focus = Finder.nearest(_interactables(), player.plan_pos())
+		else:          # Exp 008 (L): one clear choice at a POI (facing, things to use before notes, no flicker)
+			_focus = Finder.best(_interactables(), player.plan_pos(), Finder.facing_of(player), was)
 		p = str(_focus.interact_prompt()) if _focus != null else (boundary.prompt_text() if boundary != null else "")
 	if p != _prompt:
 		_prompt = p

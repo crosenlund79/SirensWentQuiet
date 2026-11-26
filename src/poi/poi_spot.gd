@@ -146,6 +146,12 @@ func interact_prompt() -> String:
 	return "[E] Search the %s" % label()
 
 
+## Exp 008 (L): true while the helper's timed action (search, force, chop) is on this.
+func interact_busy() -> bool:
+	var h := _helper()
+	return h != null and h.has_method("busy_with") and bool(h.busy_with(self))
+
+
 func interact(game: Node) -> void:
 	var h := _helper()
 	if h == null and game != null:
