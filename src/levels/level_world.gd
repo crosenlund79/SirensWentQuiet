@@ -187,7 +187,8 @@ func _build_level(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list
 	chunks.name = "VoxelWorld"
 	chunks.setup(grid, surface_mat, glass_mat)
 	add_child(chunks)
-	chunks.build_all()
+	if not defer_chunks:              # Exp 009 (R): see HouseWorld.defer_chunks
+		chunks.build_all()
 	nav = GridNav.new()
 	_static_solid.resize(nav.size.x * nav.size.y)
 	_static_solid.fill(0)

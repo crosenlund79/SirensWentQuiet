@@ -132,6 +132,14 @@ var _death_handled := false
 var _start_hour := -1.0
 var _backup_notice := ""
 var _carry := {}                       ## Exp 007 (T): what this scene was launched with (GameLaunch.carry, or a POI save's parts)
+var _boot := {}                        ## Exp 009 (R): what _launch_state() decided ({"kind": "new"|"home"|"site_save"|"site"|"carry_home", ...})
+var _site_job: GameBoot.SiteJob        ## Exp 009 (R): the POI's place being made (_make_site_world)
+var _staging := false                  ## Exp 009 (R): booting behind the loading screen
+var _turned_back := ""                 ## Exp 009 (R): why the POI couldn't be reached (back home instead; toasted on arrival)
+var _hold_saves := false               ## Exp 009 (R): no autosave while turning back (the save stays as it was)
+var loading: LoadingScreen             ## Exp 009 (R): the loading screen of a staged boot (tests)
+var boot_frames := 0                   ## Exp 009 (R): frames the staged boot spanned (tests, timings)
+var boot_ms := 0.0                     ## Exp 009 (R): how long the boot took (ms)
 
 
 # --- launch ----------------------------------------------------------------------------
@@ -143,22 +151,45 @@ func _ready() -> void:
 	lighting = VoxelLighting.new()
 	lighting.name = "Lighting"
 	add_child(lighting)
+	if GameLaunch.staged:                  # Exp 009 (R): the real travel flow and Continue
+		GameLaunch.staged = false
+		_boot_staged()
+		return
+	HouseWorld.defer_chunks = false
+	var t0 := Time.get_ticks_usec()
 	var err := _launch()                   # Exp 007 (T): creates the world (the house, or a POI's)
+	if err != "" and _turn_back(err):      # Exp 009 (R): a POI that can't be made: back home
+		err = _launch_world()
 	if err != "":
 		_fail(err)
 		return
 	_assemble()
 	_ok = true
-	if GameLaunch.mode == "carry":
+	_begin()
+	boot_ms = (Time.get_ticks_usec() - t0) / 1000.0
+	_started()
+
+
+## How the scene starts once assembled (the mode, or turned back home).
+func _begin() -> void:
+	if _turned_back != "":
+		_begin_carry()                     # Exp 009 (R): home again, at the fog edge
+	elif GameLaunch.mode == "carry":
 		_begin_carry()                     # Exp 007 (T): arrived by travel
 	elif GameLaunch.mode == "continue":
 		_begin_continue()
 	else:
 		_begin_new()
+
+
+## The scene is ready: site_ready, then travel's arrival.
+func _started() -> void:
 	if _start_hour >= 0.0:
 		dev_skip_to(_start_hour)
 	site_ready.emit()
-	if GameLaunch.mode == "carry":
+	if _turned_back != "":
+		_arrive_turned_back()
+	elif GameLaunch.mode == "carry":
 		travel.arrive(_carry)              # Exp 007 (T): the road's time, the region visit / what happened at home; autosave
 
 
@@ -177,15 +208,34 @@ func _read_user_args() -> void:
 ## Creates or loads the state and the house. Returns "" or a readable error.
 ## Exp 007 (T): mode "carry" (a scene change home <-> POI) and a save made at
 ## a POI build the POI's world instead.
+## Exp 009 (R): in two halves, so the staged boot can show progress between
+## them: _launch_state() (the run) and _launch_world() (the place).
 func _launch() -> String:
+	var err := _launch_state()
+	if err != "":
+		return err
+	return _launch_world()
+
+
+## The run's state: a new run, the save, or what travel carried. Decides in
+## `_boot` which world _launch_world() makes. Returns "" or an error.
+func _launch_state() -> String:
 	if GameLaunch.mode == "carry":
-		return _launch_carry()
+		_carry = GameLaunch.carry
+		var sd = _carry.get("state")
+		var st: GameState = GameState.from_dict(sd) if typeof(sd) == TYPE_DICTIONARY else null
+		if st == null or st.dead:
+			return "the journey could not be continued."
+		state = st
+		var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
+		var to := GameLaunch.site
+		_boot = {"kind": "site" if to != "home" else "carry_home", "id": to, "sd": sd, "home": home}
+		return ""
 	if GameLaunch.mode != "continue":
 		GameLaunch.site = "home"
 		GameLaunch.carry = {}
 		state = GameState.new_run(GameLaunch.seed, Difficulty.valid(GameLaunch.difficulty))
-		_make_home_world()
-		world.build_new()
+		_boot = {"kind": "new"}
 		return ""
 	var r: Dictionary = SaveGame.read()
 	if not r.get("ok", false):
@@ -200,19 +250,45 @@ func _launch() -> String:
 	state = p["state"]
 	var at: Dictionary = p.get("site", {})
 	if not at.is_empty():                  # Exp 007 (T): saved at a POI
-		return _launch_site_save(p, at)
+		_boot = {"kind": "site_save", "p": p, "at": at}
+		return ""
 	GameLaunch.site = "home"
 	GameLaunch.carry = {}
-	_make_home_world()
-	var wd: Dictionary = p["world"]
-	if wd.is_empty():
-		# Only a save written before HouseWorld had persistence has no house data.
-		push_warning("SurvivalGame: the save has no house data; using the pristine house")
-		world.build_new()
-	elif not world.load_data(wd):
-		return "the house could not be restored."
-	_loaded = p
+	_boot = {"kind": "home", "p": p}
 	return ""
+
+
+## The world `_boot` asks for. Returns "" or an error. While staging, a POI's
+## place is only started (_site_job) and a house's chunks wait
+## (HouseWorld.defer_chunks): _boot_staged() finishes them.
+func _launch_world() -> String:
+	match str(_boot.get("kind", "")):
+		"new":
+			_make_home_world()
+			world.build_new()
+			return ""
+		"site_save":
+			return _launch_site_save(_boot["p"], _boot["at"])
+		"site":
+			var home: Dictionary = _boot["home"]
+			_loaded = {"game": home.get("game", {})}      # time scale, camera turns, the stragglers already done
+			return _make_site_world(str(_boot["id"]))
+		"carry_home":
+			GameLaunch.site = "home"
+			return _launch_home_snapshot(_boot["sd"], _boot["home"])
+		"home":
+			var p: Dictionary = _boot["p"]
+			_make_home_world()
+			var wd: Dictionary = p["world"]
+			if wd.is_empty():
+				# Only a save written before HouseWorld had persistence has no house data.
+				push_warning("SurvivalGame: the save has no house data; using the pristine house")
+				world.build_new()
+			elif not world.load_data(wd):
+				return "the house could not be restored."
+			_loaded = p
+			return ""
+	return "nothing to launch."
 
 
 func _make_home_world() -> void:
@@ -226,11 +302,25 @@ func _make_home_world() -> void:
 ## Exp 007 (T): the world of the POI `id` (agent P's PoiWorld: built, lit and
 ## added as "World" by PoiSite; it reads the trip from GameLaunch.carry).
 ## Returns "" or an error.
+## Exp 009 (R): through a GameBoot.SiteJob (the layout, its checks, the
+## build): run to the end here, or step by step by the staged boot.
 func _make_site_world(id: String) -> String:
 	site = id
-	world = PoiSite.build_world(id, self)
-	if world == null:
-		return "the place %s could not be built." % RegionLocations.name_of(id)
+	_site_job = GameBoot.SiteJob.new(self, id)
+	if _staging:
+		return ""
+	while not _site_job.step():
+		pass
+	return _finish_site_world()
+
+
+## Exp 009 (R): takes the finished SiteJob's world. Returns "" or its error.
+func _finish_site_world() -> String:
+	var job := _site_job
+	_site_job = null
+	if job == null or job.error != "":
+		return job.error if job != null else "the place could not be built."
+	world = job.world
 	if world.get_parent() == null:
 		if world.lighting == null:
 			world.setup(lighting)
@@ -239,21 +329,9 @@ func _make_site_world(id: String) -> String:
 	return ""
 
 
-## Exp 007 (T): launched by a scene change (GameLaunch.carry): the travelling
-## state, and either the POI or the home restored from its snapshot.
-func _launch_carry() -> String:
-	_carry = GameLaunch.carry
-	var sd = _carry.get("state")
-	var st: GameState = GameState.from_dict(sd) if typeof(sd) == TYPE_DICTIONARY else null
-	if st == null or st.dead:
-		return "the journey could not be continued."
-	state = st
-	var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
-	var to := GameLaunch.site
-	if to != "home" and PoiDefs.has(to):
-		_loaded = {"game": home.get("game", {})}      # time scale, camera turns, the stragglers already done
-		return _make_site_world(to)
-	GameLaunch.site = "home"
+## Exp 007 (T): the home restored from the snapshot carried along (a return
+## by travel). Exp 009 (R): also the way back after a failed arrival.
+func _launch_home_snapshot(sd: Variant, home: Dictionary) -> String:
 	var p: Dictionary = RunSave.parse({"state": sd, "world": home.get("world", {}), "game": home.get("game", {})})
 	if not p["ok"]:
 		return p["error"]
@@ -282,10 +360,160 @@ func _launch_site_save(p: Dictionary, at: Dictionary) -> String:
 	return ""
 
 
+## Exp 009 (R): a POI that can't be generated or built (`err`): back home
+## instead, restoring the home snapshot carried along. Nothing is consumed:
+## no time has passed yet (the road's time passes on arrival), the leg's fuel
+## comes back, the car's cargo of an onward leg is unloaded at home as on any
+## return, and no save is written (the last checkpoint stays). Returns false
+## when there is no home to go back to (then the game fails to the menu).
+func _turn_back(err: String) -> bool:
+	var kind := str(_boot.get("kind", ""))
+	if kind not in ["site", "site_save"] or state == null:
+		return false
+	var home: Dictionary = _carry.get("home", {}) if typeof(_carry.get("home")) == TYPE_DICTIONARY else {}
+	if typeof(home.get("world")) != TYPE_DICTIONARY or (home["world"] as Dictionary).is_empty():
+		return false
+	var to := str(_boot.get("id", site)) if kind == "site" else site
+	var w: Variant = _site_job.world if _site_job != null else null
+	if w is Node and is_instance_valid(w):
+		(w as Node).queue_free()             # half made: never shown
+		if (w as Node).get_parent() == self:
+			remove_child(w)
+	_site_job = null
+	world = null
+	push_warning("SurvivalGame: %s; back home." % err)
+	if kind == "site":
+		_refund_leg(to)
+	var where := RegionLocations.name_of(to) if RegionLocations.has(to) else "That place"
+	_turned_back = "%s couldn't be reached. You turned back home; nothing was used up." % where
+	GameLaunch.site = "home"
+	GameLaunch.mode = "carry"
+	_boot = {"kind": "carry_home", "sd": state.to_dict(), "home": home}
+	return true
+
+
+## Exp 009 (R): the fuel of the leg that never happened (TravelFlow took it
+## before the scene change; the road's time had not passed yet).
+func _refund_leg(to: String) -> void:
+	var t: Dictionary = _carry.get("travel", {}) if typeof(_carry.get("travel")) == TYPE_DICTIONARY else {}
+	if not bool(t.get("car", false)) or state.cheats.get("unlimited", false):
+		return
+	var from := str(t.get("from", TravelRules.HOME))
+	var n := TravelRules.leg_fuel(from if from != "" else TravelRules.HOME, to, true)
+	if n > 0:
+		state.inventory.add("fuel", n)
+
+
+## Exp 009 (R): home after turning back: as a return by travel (what happened
+## at home while away, the car unloaded), but no autosave, then why.
+func _arrive_turned_back() -> void:
+	_hold_saves = true
+	var cargo: Variant = _carry.get("cargo", {})
+	travel.arrive_home(cargo if typeof(cargo) == TYPE_DICTIONARY else {})
+	_hold_saves = false
+	toast(_turned_back, "warn")
+
+
 func _fail(err: String) -> void:
+	LoadingScreen.close_current()          # Exp 009 (R)
 	GameLaunch.notice = NOTICE_PREFIX + err
 	push_warning("SurvivalGame: " + GameLaunch.notice)
 	_leave_to(GameLaunch.MENU_SCENE)
+
+
+## Exp 009 (R): the boot behind the loading screen (GameLaunch.staged: travel
+## and Continue). The same steps as _ready's, with the screen redrawn
+## between them: the save, the place (the layout and the POI's build, or the
+## house and its voxel chunks a few per frame), the game's parts and the
+## inhabitants, the storeys, then site_ready and travel's arrival. The game
+## stays modal ("loading": no clock, no input) and the player still until
+## the end. A POI that can't be made turns back home (_turn_back).
+func _boot_staged() -> void:
+	var t0 := Time.get_ticks_usec()
+	var f0 := Engine.get_process_frames()
+	_staging = true
+	_modal = "loading"
+	loading = LoadingScreen.open(self, _loading_title())
+	var ls := loading
+	HouseWorld.defer_chunks = true
+	if GameLaunch.mode == "continue":
+		ls.plan([["read", 1.0, GameBoot.TEXTS["read"]]])
+		ls.begin("read")
+		await _boot_frame()
+	var err := _launch_state()
+	var kind := str(_boot.get("kind", ""))
+	if err == "":
+		ls.expect(GameBoot.expected_ms(kind))
+		ls.plan(GameBoot.plan_for(kind))
+		err = await _staged_world(ls)
+	if err != "" and _turn_back(err):
+		ls.set_title("Returning home")
+		ls.plan(GameBoot.plan_for("carry_home"))
+		err = await _staged_world(ls)
+	if err != "" or not is_inside_tree():
+		HouseWorld.defer_chunks = false
+		_staging = false
+		if err != "":
+			_fail(err)
+		return
+	var at_site := not is_home()
+	ls.begin("inhabitants" if at_site else "assemble")
+	await _boot_frame()
+	_assemble()
+	_ok = true
+	player.input_enabled = false
+	_begin()
+	HouseWorld.defer_chunks = false
+	var rest := GameBoot.unbuilt(self)      # storeys restored with the house (levels.restore)
+	if not rest.is_empty():
+		await ls.drive(GameBoot.ChunkJob.new(rest), "storeys")
+	ls.begin("final")
+	await _boot_frame()                     # the POI helper's first frame: the visit's encounters
+	if not is_inside_tree():
+		return
+	player.input_enabled = not state.dead
+	if _modal == "loading":
+		_modal = ""
+	_staging = false
+	_update_cursor()
+	boot_ms = (Time.get_ticks_usec() - t0) / 1000.0
+	boot_frames = Engine.get_process_frames() - f0
+	if _turned_back == "":
+		GameBoot.took(kind, boot_ms)
+	_started()
+	ls.finish()
+
+
+## Exp 009 (R): the staged part of _launch_world(): the POI's SiteJob or the
+## house's chunks, stepped behind the screen. Returns "" or an error.
+func _staged_world(ls: LoadingScreen) -> String:
+	var kind := str(_boot.get("kind", ""))
+	ls.begin("site" if kind in ["site", "site_save"] else "house")
+	await _boot_frame()
+	var err := _launch_world()
+	if err != "":
+		return err
+	if _site_job != null:
+		await ls.drive(_site_job, "site", GameBoot.TEXTS)
+		return _finish_site_world()
+	await ls.drive(GameBoot.ChunkJob.new(GameBoot.unbuilt(self)), "chunks")
+	return ""
+
+
+func _boot_frame() -> void:
+	if is_inside_tree():
+		await get_tree().process_frame
+
+
+## Exp 009 (R): the loading screen's title for this boot.
+func _loading_title() -> String:
+	if GameLaunch.mode == "continue":
+		return "Loading saved game"
+	if GameLaunch.mode == "carry":
+		if GameLaunch.site == "home":
+			return "Returning home"
+		return "Entering %s" % (RegionLocations.name_of(GameLaunch.site) if RegionLocations.has(GameLaunch.site) else "the place")
+	return "Starting a new run"
 
 
 func _assemble() -> void:
@@ -548,6 +776,10 @@ func _leave_to(scene: String) -> void:
 
 func _exit_tree() -> void:
 	Input.set_custom_mouse_cursor(null)
+	if _staging:                          # Exp 009 (R): left in the middle of a staged boot
+		_staging = false
+		HouseWorld.defer_chunks = false
+		LoadingScreen.close_current()
 	if get_tree() != null:
 		get_tree().paused = false
 
@@ -593,7 +825,7 @@ func _physics_process(_delta: float) -> void:
 
 ## All game input arrives here (game_input.gd), also while paused.
 func _on_input(event: InputEvent) -> void:
-	if not _ok:
+	if not _ok or _modal == "loading":     # Exp 009 (R): nothing while the loading screen is up
 		return
 	if event.is_action_pressed("pause"):
 		_handled()
@@ -1129,7 +1361,17 @@ func travel_block_reason(at_site := false) -> String:
 func change_scene_to_site() -> void:
 	if map != null and map.is_open():
 		map.screen.close()
-	_leave_to(GameLaunch.GAME_SCENE)
+	_leave_staged(GameLaunch.GAME_SCENE, _loading_title())     # Exp 009 (R): behind the loading screen
+
+
+## Exp 009 (R): a scene change behind the loading screen (the next game boots
+## staged). Recorded only, as _leave_to, when the game stays in its scene (tests).
+func _leave_staged(scene: String, title: String) -> void:
+	left_to = scene
+	if stay_in_scene or not is_inside_tree():
+		return
+	get_tree().paused = false
+	LoadingScreen.change_scene(get_tree(), scene, title)
 
 
 # --- death -----------------------------------------------------------------------------
@@ -1211,6 +1453,9 @@ func save_now() -> String:
 
 ## Autosave at a safe transition; skipped (and logged) when unsafe.
 func _autosave(reason: String) -> bool:
+	if _hold_saves:                       # Exp 009 (R): turned back home; the save stays as it was
+		autosave_log.append("held:" + reason)
+		return false
 	if can_save() != "" or _modal in ["intro", "death"]:
 		autosave_log.append("skip:" + reason)
 		return false

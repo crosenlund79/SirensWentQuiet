@@ -76,13 +76,29 @@ static func poi_pristine(id: String) -> VoxelGrid:
 
 
 func build_new() -> void:
-	var p := poi_pristine(poi_id)
+	var job := begin_build()
+	while not job.step():
+		pass
+
+
+## Exp 009 (R): build_new in small steps (the same calls in the same order,
+## the same result), for the loading screen: `job.step()` does one and
+## returns true when the place is built; `job.stage` ("interior",
+## "furniture", "containers") and `job.progress` (0..1, weighted) say how far.
+## The voxel design is stamped wall by wall (unless cached) and the chunks
+## are meshed one per step. Call it with the world configured and in the tree.
+func begin_build() -> BuildJob:
+	return BuildJob.new(self)
+
+
+## The doors of the layout as world objects (build_new).
+func _layout_doors() -> Array:
 	var objs := []
 	for d in layout.get("doors", []):
 		var mat := str(d.get("mat", "wood"))        # Exp 008 (H): a steel door ("metal") keeps its own HP
 		objs.append({"kind": "door", "x": d["x"], "y": d["y"], "rot": d["rot"], "hp": WorldObject.DEFS["door"]["hp"] if mat == "wood" else -1,
 			"open": d["open"], "built": false, "door_id": d["id"], "locked": d["locked"], "mat": mat})
-	_build_poi(p.copy(), p.copy(), objs)
+	return objs
 
 
 # --- the voxel design --------------------------------------------------------------------
@@ -180,7 +196,14 @@ static func _wall_voxel(g: VoxelGrid, x: int, y: int, z: int, r: int, ai: int, s
 # --- building the scene --------------------------------------------------------------------
 
 func _build_poi(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array) -> void:
-	var t0 := Time.get_ticks_usec()
+	var job := BuildJob.new(self, g_design, g_cur, objs)
+	while not job.step():
+		pass
+
+
+# Exp 009 (R): _build_poi in parts (BuildJob runs them in this order).
+
+func _build_setup(g_design: VoxelGrid, g_cur: VoxelGrid) -> void:
 	design = g_design
 	grid = g_cur
 	surface_mat = _surface_material(grid.origin, grid.vs)
@@ -199,7 +222,9 @@ func _build_poi(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array) -> void:
 	chunks.name = "VoxelWorld"
 	chunks.setup(grid, surface_mat, glass_mat)
 	add_child(chunks)
-	chunks.build_all()
+
+
+func _build_structure(objs: Array) -> void:
 	nav = GridNav.new()
 	_static_solid.resize(nav.size.x * nav.size.y)
 	_static_solid.fill(0)
@@ -223,9 +248,14 @@ func _build_poi(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array) -> void:
 		if o is PoiDoor:
 			(o as PoiDoor).door_id = str(e.get("door_id", ""))
 			(o as PoiDoor).locked = e.get("locked", false) == true
-	_place_pieces()
+
+
+func _build_navigation() -> void:
 	_index_objects()
 	_full_nav()
+
+
+func _build_surroundings() -> void:
 	_scar_root = Node3D.new()
 	_scar_root.name = "Scars"
 	add_child(_scar_root)
@@ -233,9 +263,112 @@ func _build_poi(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array) -> void:
 	_build_bounds()
 	if layout.get("outdoor", false):
 		_build_fog_pines()
-	_place_spots()
-	apply_record()
-	stats["build_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+
+
+## Exp 009 (R): PoiWorld.build_new / _build_poi in steps (see begin_build).
+## Each step is one call of the original sequence: stamping one floor or wall
+## of the design (when it isn't cached yet), meshing one chunk, placing the
+## pieces, the navigation, the ground, the spots. Stage weights are rough
+## shares of a headless build (meshing dominates).
+class BuildJob extends RefCounted:
+	const WEIGHTS := {"stamp": 0.16, "chunks": 0.56, "furniture": 0.22, "containers": 0.06}
+	const STAGE_OF := {"stamp": "interior", "chunks": "interior", "furniture": "furniture", "containers": "containers"}
+
+	var stage := "interior"       ## "interior" | "furniture" | "containers"
+	var progress := 0.0           ## 0..1 over the whole build, weighted
+	var build_ms := 0.0           ## the build's own time (as stats["build_ms"]: after stamping)
+	var stamp_ms := 0.0
+	var steps := 0                ## steps taken (tests)
+	var w: PoiWorld
+	var _design: VoxelGrid
+	var _cur: VoxelGrid
+	var _objs: Array
+	var _parts := ["stamp", "chunks", "furniture", "containers"]
+	var _part := -1
+	var _queue: Array = []        # Callables of the current part
+	var _n := 0
+	var _done_w := 0.0
+	var _done := false
+
+	func _init(world: PoiWorld, g_design: VoxelGrid = null, g_cur: VoxelGrid = null, objs: Variant = null) -> void:
+		w = world
+		_design = g_design
+		_cur = g_cur
+		_objs = objs if objs is Array else w._layout_doors()
+
+	## One step; true when the place is built (further calls do nothing).
+	func step() -> bool:
+		if _done:
+			return true
+		while _queue.is_empty():
+			if _part >= 0:
+				_done_w += WEIGHTS[_parts[_part]]
+			_part += 1
+			if _part >= _parts.size():
+				_finish()
+				return true
+			stage = STAGE_OF[_parts[_part]]
+			_queue = _make(_parts[_part])
+			_n = _queue.size()
+		var t0 := Time.get_ticks_usec()
+		var f: Callable = _queue.pop_front()
+		f.call()
+		var ms := (Time.get_ticks_usec() - t0) / 1000.0
+		if _parts[_part] == "stamp":
+			stamp_ms += ms
+		else:
+			build_ms += ms
+		steps += 1
+		progress = minf(_done_w + WEIGHTS[_parts[_part]] * float(_n - _queue.size()) / float(maxi(_n, 1)), 1.0)
+		return false
+
+	func _make(part: String) -> Array:
+		var q: Array = []
+		match part:
+			"stamp":
+				if _design == null and PoiWorld._pristine_poi.has(w.poi_id):
+					var p: VoxelGrid = PoiWorld._pristine_poi[w.poi_id]
+					_design = p.copy()
+					_cur = p.copy()
+				elif _design == null:
+					var g := VoxelHouse.create_grid(true)
+					for f in w.layout.get("floors", []):
+						for strip in _strips(f):          # a big floor in 1 m strips (the same voxels)
+							q.append(func() -> void: PoiWorld._stamp_floors(g, [strip]))
+					for wall in w.layout.get("walls", []):
+						q.append(func() -> void: PoiWorld._stamp_poi_wall(g, wall))
+					q.append(func() -> void:
+						PoiWorld._pristine_poi[w.poi_id] = g
+						_design = g.copy()
+						_cur = g.copy())
+			"chunks":
+				w._build_setup(_design, _cur)
+				for c in w.chunks.chunk_coords():
+					q.append(w.chunks.build_chunk.bind(c))
+			"furniture":
+				q = [w._build_structure.bind(_objs), w._place_pieces, w._build_navigation, w._build_surroundings]
+			"containers":
+				q = [w._place_spots, w.apply_record]
+		return q
+
+	## A floor as strips 1 m deep (centre_range is half-open: they tile it exactly).
+	static func _strips(f: Dictionary) -> Array:
+		var r: Rect2 = f["rect"]
+		var out := []
+		var z := r.position.y
+		while z < r.end.y - 0.0001:
+			var z1 := minf(z + 1.0, r.end.y)
+			var part := f.duplicate()
+			part["rect"] = Rect2(r.position.x, z, r.size.x, z1 - z)
+			out.append(part)
+			z = z1
+		return out
+
+	func _finish() -> void:
+		_done = true
+		progress = 1.0
+		stage = "containers"
+		w.stats["build_ms"] = build_ms
 
 
 func _spawn_object(kind: String, p: Vector2, rot: int, is_built: bool, hp := -1, is_open := false, mat := "wood") -> WorldObject:

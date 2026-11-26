@@ -150,7 +150,11 @@ var _leaving := false
 
 
 func _init() -> void:
-	scene_changer = func(path: String) -> void: get_tree().change_scene_to_file(path)
+	scene_changer = func(path: String) -> void:
+		if path == GameLaunch.GAME_SCENE and GameLaunch.mode == "continue":
+			LoadingScreen.change_scene(get_tree(), path, "Loading saved game")     # Exp 009 (R): a staged boot
+		else:
+			get_tree().change_scene_to_file(path)
 
 
 func _ready() -> void:

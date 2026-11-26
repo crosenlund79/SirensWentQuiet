@@ -23,3 +23,8 @@ static var difficulty := "normal"   ## chosen in the main menu for a new game (D
 ## limit); "home" is the same snapshot all along the chain.
 static var site := "home"
 static var carry := {}
+## Exp 009 (R): the next game scene boots in stages behind the loading screen
+## (src/ui/loading_screen.gd, src/game/game_boot.gd). Set by the real scene
+## changes (LoadingScreen.change_scene: travel, the main menu's Continue);
+## the game clears it when it starts. Tests boot synchronously unless they set it.
+static var staged := false

@@ -20,6 +20,16 @@ const HelperScript := preload("res://src/poi/game_poi.gd")
 
 
 static func build_world(poi_id: String, game: Node, by_car := -1) -> HouseWorld:
+	var w := prepare_world(poi_id, game, by_car)
+	if w != null:
+		w.build_new()
+	return w
+
+
+## Exp 009 (R): build_world without the build: configured, holding the
+## visit's record and added to `game`; the caller builds it (build_new, or
+## begin_build() step by step behind the loading screen). null if unknown.
+static func prepare_world(poi_id: String, game: Node, by_car := -1) -> PoiWorld:
 	if not PoiDefs.has(poi_id):
 		push_warning("PoiSite: unknown place '%s'" % poi_id)
 		return null
@@ -33,7 +43,6 @@ static func build_world(poi_id: String, game: Node, by_car := -1) -> HouseWorld:
 		w.record = PoiState.record(st, poi_id)
 	if game != null and w.get_parent() == null:
 		game.add_child(w)
-	w.build_new()
 	return w
 
 

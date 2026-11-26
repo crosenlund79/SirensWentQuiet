@@ -43,12 +43,30 @@ func chunk_count() -> int:
 
 
 func build_all() -> void:
+	for c in chunk_coords():
+		build_chunk(c)
+
+
+## Exp 009 (R): every chunk of the grid, in build_all's order (the loading
+## screen builds them a few per frame with build_chunk).
+func chunk_coords() -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
 	for cz in range(0, grid.sz, CHUNK.z):
 		for cy in range(0, grid.sy, CHUNK.y):
 			for cx in range(0, grid.sx, CHUNK.x):
-				var c := Vector3i(cx / CHUNK.x, cy / CHUNK.y, cz / CHUNK.z)
-				_rebuild_mesh(c)
-				_rebuild_collision(c)
+				out.append(Vector3i(cx / CHUNK.x, cy / CHUNK.y, cz / CHUNK.z))
+	return out
+
+
+## Exp 009 (R): one chunk's mesh and collision (build_all does every chunk).
+func build_chunk(c: Vector3i) -> void:
+	_rebuild_mesh(c)
+	_rebuild_collision(c)
+
+
+## Exp 009 (R): true while nothing is built yet (HouseWorld.defer_chunks).
+func needs_build() -> bool:
+	return grid != null and _chunks.is_empty()
 
 
 ## Cells in [lo, hi) changed: collision now, meshes soon.

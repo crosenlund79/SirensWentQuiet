@@ -143,6 +143,10 @@ var voxel_furniture := false   ## Version A look: voxel furniture and voxel yard
 var damage_quantum := 2        ## damage resolution in voxels (1 = 0.1 m, 2 = 0.2 m blocks)
 
 static var _pristine_cache := {}
+## Exp 009 (R): while true, a build or load leaves the voxel chunks unbuilt
+## (no meshes, no collision): the staged boot (src/game/game_boot.gd) builds
+## them a few per frame with VoxelWorld.build_chunk, then clears this.
+static var defer_chunks := false
 
 var grid: VoxelGrid            ## current structure
 var design: VoxelGrid          ## intended structure
@@ -474,7 +478,8 @@ func _build(g_design: VoxelGrid, g_cur: VoxelGrid, objs: Array, built_list: Arra
 	chunks.name = "VoxelWorld"
 	chunks.setup(grid, surface_mat, glass_mat)
 	add_child(chunks)
-	chunks.build_all()
+	if not defer_chunks:              # Exp 009 (R): the loading screen builds them (VoxelWorld.build_chunk)
+		chunks.build_all()
 	nav = GridNav.new()
 	_static_solid.resize(nav.size.x * nav.size.y)
 	_static_solid.fill(0)
