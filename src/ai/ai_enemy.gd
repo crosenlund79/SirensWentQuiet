@@ -24,6 +24,8 @@ signal fizzled(enemy: AIEnemy, at: Vector3)
 signal died(enemy: AIEnemy, cause: String)
 ## Exp 007 (N): a calm enemy turned hostile (noise, seeing Eli, being hurt).
 signal provoked(enemy: AIEnemy, reason: String)
+## Exp 012 (E): dead and settled (keep_corpse): the corpse helper takes the body.
+signal corpse_settled(enemy: AIEnemy)
 
 const SWING_IMPACT := 0.28          ## s from the swing start to the impact
 const RETREAT_SPEED := 1.1          ## x speed while walking back into the fog
@@ -66,6 +68,15 @@ var spike_cd := 0.0
 ## behaviour). Invasion enemies never get one.
 var mind: StragglerMind = null
 var provoked_by := ""
+## Exp 012 (E): who this was (HumanNames, from the appearance seed and the
+## look's sex: it persists wherever the seed does), the first-sight reaction
+## (EnemyReaction: startle, scream, charge) and, with keep_corpse (set by the
+## game's corpse helper), a body that stays (corpse_settled, src/ai/corpse.gd)
+## instead of fading out.
+var display_name := ""
+var reaction: EnemyReaction
+var keep_corpse := false
+var _settled := false
 
 var _retreat_goal := Vector2.ZERO
 var _yaw := 0.0
@@ -108,6 +119,8 @@ func configure(k: String, w: HouseWorld, target: Node3D, opts := {}) -> void:
 	behaviour = EnemyBehaviour.make(str(def["behaviour"]))
 	behaviour.configure(self)
 	rig = HumanoidLooks.make_rig(kind, appearance, look)      # Exp 011: people for kinds with an archetype
+	display_name = HumanNames.for_enemy(kind, appearance)    # Exp 012 (E)
+	reaction = EnemyReaction.new(hash([appearance, "react"])) if EnemyReaction.applies(kind) else null
 
 
 func _ready() -> void:
@@ -130,7 +143,8 @@ func _ready() -> void:
 
 
 func speed() -> float:
-	return float(def["speed"]) * speed_scale * terrain_scale * (mind.pace() if mind != null else 1.0)   # Exp 007 (N): calm pace
+	return float(def["speed"]) * speed_scale * terrain_scale * (mind.pace() if mind != null else 1.0) \
+		* (reaction.speed_factor() if reaction != null and mind == null else 1.0)    # Exp 007 (N): calm pace; Exp 012 (E): the charge
 
 
 ## Exp 006 (D): crosses water-filled trenches (slowly); the others can't.
@@ -201,6 +215,8 @@ func provoke(reason := "") -> void:
 	mind.on_provoked(self)                # Exp 009 (P): a dormant one falls silent
 	mind = null
 	provoked_by = reason
+	if reaction != null:
+		reaction.on_provoked(self, reason)      # Exp 012 (E): startle, scream, charge
 	if has_meta("calm_leave") and not has_meta("fade"):     # it was walking off into the fog: it turns back
 		remove_meta("calm_leave")
 		remove_meta("retreat")
@@ -303,6 +319,8 @@ func _physics_process(delta: float) -> void:
 	var r := brain.update(delta, me, goal)
 	if not retreating:
 		r = mind.think(self, delta, r) if mind != null else behaviour.think(self, delta, r)
+		if reaction != null and mind == null:
+			r = reaction.think(self, delta, r)      # Exp 012 (E): the first-sight reaction
 	var move: Vector2 = r["move"]
 	var face: Vector2 = r["face"]
 	if _stagger > 0.0:
@@ -337,6 +355,8 @@ func _physics_process(delta: float) -> void:
 	rig.animate(delta)
 	if mind != null:
 		mind.pose(self, delta)              # Exp 009 (P): a dormant one's lean, sway, stare or tap
+	elif reaction != null:
+		reaction.pose(self, delta)          # Exp 012 (E): the scream
 
 
 func _corpse(delta: float) -> void:
@@ -351,6 +371,12 @@ func _corpse(delta: float) -> void:
 		rig.position.y = -0.1 * fall
 		rig.speed = 0.0
 		rig.animate(delta)
+	if keep_corpse:                         # Exp 012 (E): the body stays (the corpse helper takes it)
+		if _dead_t >= Corpse.SETTLE and not _settled:
+			_settled = true
+			set_physics_process(false)
+			corpse_settled.emit(self)
+		return
 	if _dead_t > Tuning.ENEMY_CORPSE_TIME:
 		var k := clampf((_dead_t - Tuning.ENEMY_CORPSE_TIME) / 1.2, 0.0, 1.0)
 		rig.position.y -= 0.35 * k
@@ -360,3 +386,10 @@ func _corpse(delta: float) -> void:
 				(n as Node3D).visible = k < 0.5
 		if k >= 1.0:
 			queue_free()
+
+
+# --- Exp 012 (E): identity --------------------------------------------------------------
+
+## "Psycho", "Runner", "Brute" or "Bomber" (the Architect is never an AIEnemy).
+func kind_label() -> String:
+	return HumanNames.kind_label(kind)

@@ -404,6 +404,7 @@ func _build() -> void:
 	# The lead routes each into its tab by replacing `box` with _tab("<Tab>").
 	var box := _unrouted
 	box.set_meta("unrouted", true)
+	_build_e12_e_section(_tab("Enemies"))   # Exp 012 (E)
 
 
 # --- Exp 012 (A): the tabbed shell --------------------------------------------
@@ -1493,3 +1494,29 @@ class DevErrorLog extends Logger:
 		_lines.clear()
 		total = 0
 		_lock.unlock()
+
+
+# --- Exp 012 (E): Enemies (names, reactions, corpses; src/ai/game_corpses.gd) ---------------
+
+func _build_e12_e_section(box: VBoxContainer) -> void:
+	var h: Variant = game.get("corpses") if game != null else null
+	if not (h is Object and is_instance_valid(h) and h.has_method("dev_list_text")):
+		return
+	box.add_child(UiTheme.make_section("Enemies: reactions and bodies"))
+	box.add_child(_grid(2, [["Psycho near (calm)", _e12_e_call.bind("dev_spawn_near", ["psycho"])],
+		["Runner near (calm)", _e12_e_call.bind("dev_spawn_near", ["runner"])],
+		["Brute near (calm)", _e12_e_call.bind("dev_spawn_near", ["brute"])],
+		["Bomber near (calm)", _e12_e_call.bind("dev_spawn_near", ["bomber"])],
+		["Kill nearest (leave corpse)", _e12_e_call.bind("dev_kill_nearest", [])],
+		["Nearest one screams", _e12_e_call.bind("dev_shout", [])],
+		["List living enemies", _e12_e_call.bind("dev_list_text", [])],
+		["Toggle perception debug", _e12_e_call.bind("dev_toggle_debug", [])],
+		["Clear looted corpses", _e12_e_call.bind("dev_clear_looted", [])]]))
+
+
+func _e12_e_call(method: String, args: Array) -> void:
+	var h: Variant = game.get("corpses") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("The game has no corpse helper.", true)
+		return
+	_say(str(h.callv(method, args)))

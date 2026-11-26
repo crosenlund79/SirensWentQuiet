@@ -29,6 +29,7 @@ const PROFILES := {
 	"drawers": {"holds": ["weapon", "ammo", "protective", "utility", "medical", "food", "water"], "for": "small personal things"},
 	"cabinet": {"holds": ["medical", "water", "utility"], "for": "medicine and toiletries"},
 	"pile": {"holds": [], "for": "whatever was inside"},
+	"body": {"holds": [], "for": "what they carried"},          # Exp 012 (E): a searched body (src/ai/corpse.gd)
 }
 ## Furniture type (SPEC §2 names, original or placed) -> [profile, capacity].
 ## Capacity 0 = unlimited (loot piles only).
@@ -47,10 +48,11 @@ const TYPES := {
 	"nightstand": ["drawers", 8],
 	"vanity": ["cabinet", 10],
 	"loot_pile": ["pile", 0],
+	"corpse": ["body", 0],
 }
 ## Display names of the storage types that differ from their capitalised type.
 const NAMES := {"cupboard": "Kitchen cupboard", "counter": "Kitchen cupboard", "island": "Kitchen island", "storage_chest": "Storage chest",
-	"boxes": "Cardboard boxes", "tool_cabinet": "Tool cabinet", "vanity": "Bathroom cabinet", "loot_pile": "Pile of belongings", "shelves": "Shelves"}
+	"boxes": "Cardboard boxes", "tool_cabinet": "Tool cabinet", "vanity": "Bathroom cabinet", "loot_pile": "Pile of belongings", "shelves": "Shelves", "corpse": "Body"}
 ## What the original house starts with in some of its containers (a small
 ## bonus on top of the start items, found by looking around).
 const START := {"fridge": {"canned_food": 1, "water": 1}, "shelves": {"nails": 6, "scrap": 1}, "vanity": {"bandage": 1}}

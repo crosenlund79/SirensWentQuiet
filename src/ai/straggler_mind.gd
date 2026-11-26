@@ -46,6 +46,7 @@ const ACTIVITIES := ["pass", "window", "door", "examine"]
 const WANDER_RANGE := 7.0         ## m around the anchor (POI modes)
 const RATTLE_EVERY := 1.1         ## s between a door test's tugs (an animation, no damage)
 const RESTLESS := 0.3             ## chance a straggler that ran out of things to do turns on the house instead of leaving
+const SHOUT_FUZZ := 2.5           ## Exp 012 (E): m: how far off a shout's origin may be heard
 
 var mode := "straggler"
 var state := "pass"
@@ -58,6 +59,7 @@ var linger := -1.0                ## < 0: not arrived yet
 var goal_t := 0.0
 var plan: Array = []
 var heard := 0                    ## noises heard (tests, F10)
+var shouts := 0                   ## Exp 012 (E): shouts heard (tests, F10)
 var history: Array = []           ## states it went through (tests, F10)
 var rng := RandomNumberGenerator.new()
 var _sense_t := 0.0
@@ -157,6 +159,9 @@ func on_provoked(_e: AIEnemy) -> void:
 
 ## A noise reached it (NoiseEvent._dispatch): `loud` = level x exposure x fall-off.
 func hear(e: AIEnemy, at: Vector2, loud: float, source := "") -> void:
+	if source == "shout":
+		hear_shout(e, at, loud)            # Exp 012 (E)
+		return
 	heard += 1
 	alert += loud
 	if alert >= PROVOKE:
@@ -166,6 +171,18 @@ func hear(e: AIEnemy, at: Vector2, loud: float, source := "") -> void:
 		investigate(e, at)
 	elif loud >= FAINT and rng.randf() < 0.35:
 		_lose_interest(e)                  # it wanders away from the sound
+
+
+## Exp 012 (E), the user's §11: another psycho screamed (EnemyReaction.shout,
+## a NoiseEvent "shout"). It comes to look roughly where the scream came from
+## (the origin fuzzed by up to SHOUT_FUZZ m) and grows alert, but a shout alone
+## never turns it: it hunts Eli only once it sees him itself (_sense).
+func hear_shout(e: AIEnemy, at: Vector2, loud: float) -> void:
+	heard += 1
+	shouts += 1
+	alert = clampf(alert + loud, 0.0, PROVOKE - 0.4)
+	var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.5, SHOUT_FUZZ)
+	investigate(e, at + off)
 
 
 ## Exp 008 (E): walks straight to plan point p (snapped to the nearest

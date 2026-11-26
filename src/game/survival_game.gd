@@ -97,6 +97,7 @@ var overview: Node                     ## src/overview/house_overview.gd (Exp 00
 var holes: Node                        ## src/holes/game_holes.gd (Exp 007 (O): drill, observation holes, look through)
 var travel: Node                       ## src/travel/travel_flow.gd (Exp 007 (T): travel, the home <-> POI flow)
 var poi: Node                          ## Exp 007 (P): the POI helper at a POI (looting, exits, encounters); null at home
+var corpses: GameCorpses               ## Exp 012 (E): names, the downed toast, persistent searchable bodies (src/ai/game_corpses.gd)
 var site := "home"                     ## Exp 007 (T): "home" or the POI id this scene is
 var time_scale := 1.0
 
@@ -644,6 +645,9 @@ func _assemble() -> void:
 			poi = h
 			if h.get_parent() == null:
 				add_child(h)
+	corpses = GameCorpses.new()        # Exp 012 (E): after the roster and the POI helper (bodies, names, the downed toast)
+	add_child(corpses)
+	corpses.setup(self)
 	noise = NoiseLink.new()            # Exp 007 (N): after combat and roster (gunfire, provoked enemies)
 	noise.name = "Noise"
 	add_child(noise)
@@ -1066,6 +1070,8 @@ func _interactables() -> Array:
 		l += balance.interactables()
 	if poi != null and is_instance_valid(poi) and poi.has_method("interactables"):
 		l += poi.interactables()           # Exp 007 (P): exits, containers, pickups
+	if corpses != null:
+		l += corpses.interactables()       # Exp 012 (E): bodies to search
 	return levels.interactables(l) if levels != null else l     # + stairs, by storey (L)
 
 

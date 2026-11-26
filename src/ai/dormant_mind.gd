@@ -479,6 +479,10 @@ func _suspect(e: AIEnemy, at: Vector2) -> void:
 
 ## A noise reached it (NoiseEvent._dispatch): `loud` = level x exposure x fall-off.
 func hear(e: AIEnemy, at: Vector2, loud: float, source := "") -> void:
+	if source == "shout":
+		voice.stop()
+		hear_shout(e, at, loud)            # Exp 012 (E): it goes to look (StragglerMind)
+		return
 	heard += 1
 	if source.begins_with("psycho"):
 		return                                   # its own (and its kind's) thuds

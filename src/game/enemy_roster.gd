@@ -77,6 +77,7 @@ func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 		o["look"] = 1 + (_count + rng.randi() % 4) % 4
 	if not o.has("appearance"):
 		o["appearance"] = HumanoidLooks.pick_seed(k, _app_rng)     # prefers looks already built
+	o["appearance"] = HumanNames.unique_seed(k, int(o["appearance"]), HumanNames.taken_names(self))   # Exp 012 (E): no duplicate names here
 	var e := AIEnemy.new()
 	e.configure(k, world, player, o)
 	e.name = "%s_%d" % [k.capitalize(), _count]
