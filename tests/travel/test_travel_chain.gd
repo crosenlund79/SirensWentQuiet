@@ -84,11 +84,10 @@ func _take_from_a_container(g: Node) -> Dictionary:
 
 func test_leg_rules_poi_to_poi_minutes_fuel_and_the_chain_daylight() -> void:
 	var s := GameState.new_run(5)
-	# the road time of a leg between two places: the same estimate as from home
+	# the time of a leg between two places: its route's own (Exp 012: RegionRouter, the route the map draws)
 	var m := TravelRules.minutes_between("convenience", "library")
 	var km := TravelRules.km_between("convenience", "library")
-	var expect := maxi(int(round(km * RegionLocations.ROAD_FACTOR * RegionLocations.MINUTES_PER_KM / 5.0)) * 5, 10)
-	check_eq(m, expect, "Corner Store -> Library: %.2f km" % km)
+	check_eq(m, RegionRouter.minutes("convenience", "library"), "Corner Store -> Library: %.2f km" % km)
 	check(m != TravelRules.minutes("library"), "not the time from home (%d vs %d)" % [m, TravelRules.minutes("library")])
 	check_eq(TravelRules.minutes_between("library", "convenience"), m, "the same both ways")
 	var mc := TravelRules.minutes_between("convenience", "library", true)

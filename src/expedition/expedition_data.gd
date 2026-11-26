@@ -1260,7 +1260,7 @@ static func travel_minutes(id: String, car := false) -> int:
 		return 0
 	if not car:
 		return int(d["travel"])
-	return maxi(int(round(float(d["travel"]) * CAR_TRAVEL / 5.0)) * 5, 5)
+	return RegionRouter.minutes("home", id, true)       # Exp 012 (L): the 4x4's own route
 
 
 # --- the car (Experiment 004, E) ---------------------------------------------------------

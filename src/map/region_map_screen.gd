@@ -321,7 +321,7 @@ func _sorted_ids() -> Array:
 
 ## Exp 008 (T): on-foot minutes from where Eli is (`origin`) to `id`.
 func _mins(id: String) -> int:
-	return TravelRules.minutes_between(origin, id) if origin != MapInfo.HOME else RegionLocations.travel_minutes(id)
+	return TravelRules.minutes_between(origin, id)          # Exp 012 (L): the walking route's own time
 
 
 ## The list's caption for a place: its time from here, "here", or "planned".
@@ -345,6 +345,9 @@ func _refresh_entries() -> void:
 		var name := "Your house" if id == MapInfo.HOME else RegionLocations.name_of(id)
 		var sub := "Home" if id == MapInfo.HOME else "%s · about %s" % [RegionLocations.CATEGORIES.get(cat, cat), UiTheme.duration_text(_mins(id))]
 		var overrun: bool = id != MapInfo.HOME and id != origin and DailySites.is_overrun(state, id)      # Exp 009 (D)
+		var mostly: bool = id != MapInfo.HOME and PoiState.mostly_searched(state, id)      # Exp 012 (L, §28)
+		if mostly and not overrun:
+			sub += " · " + PoiState.MOSTLY_TEXT.to_lower()
 		if id == origin and origin != MapInfo.HOME:
 			sub = "You are here"
 		elif id == MapInfo.HOME and origin != MapInfo.HOME:
@@ -352,22 +355,25 @@ func _refresh_entries() -> void:
 		elif overrun:
 			sub = "Overrun today: too many hostiles"
 		list.append({"id": id, "name": name, "cat": cat, "ground": ground, "top": Vector3(ground.x, top_y, ground.z), "sub": sub,
-			"overrun": overrun})
+			"overrun": overrun, "mostly": mostly})
 	markers.entries = list
 	markers.planned = state.region.planned if _known(state.region.planned) else ""
 
 
-## The road from where Eli is to `id` (Exp 008: from `origin`).
+## The route from where Eli is to `id` (Exp 008: from `origin`; Exp 012:
+## on foot or by car, the route the travel time is for).
 func _route(id: String) -> PackedVector3Array:
-	return _route_between(origin, id)
+	return _route_between(origin, id, by_car)
 
 
-## Exp 008 (T): the road between two places (either may be home), on the map.
-func _route_between(a: String, b: String) -> PackedVector3Array:
+## Exp 008 (T): the way between two places (either may be home), on the map.
+## Exp 012 (L, §20): RegionRouter's route (shortcuts on foot, the 4x4's own
+## ground by car), the one TravelRules times and the traveller follows.
+func _route_between(a: String, b: String, car := false) -> PackedVector3Array:
 	var out := PackedVector3Array()
 	if a == b:
 		return out
-	for p in view.terrain.route_between(a, b):
+	for p in TravelRules.route_between(a, b, car)["pts"]:
 		out.append(view.terrain.world_of(p) + Vector3(0, 0.12, 0))
 	return out
 
@@ -494,6 +500,8 @@ func _rebuild_list() -> void:
 			cap = "overrun"
 		elif id == state.region.planned and origin == MapInfo.HOME:
 			cap = "planned"
+		elif not is_home and id != origin and PoiState.mostly_searched(state, id):
+			cap = "searched · " + cap         # Exp 012 (L, §28): informational only
 		var b := UiTheme.make_button("    " + name, cap)
 		b.custom_minimum_size.y = 32
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -646,6 +654,8 @@ func _show_info() -> void:
 	var visits := state.region.visits(selected)
 	_row(grid, "Been there", MapInfo.visit_text(state, selected), UiTheme.TEXT if visits > 0 else UiTheme.TEXT_DIM)
 	_row(grid, "Stock", "%s  ·  %d %% left" % [s["stock_text"], int(round(s["stock"] * 100.0))], UiTheme.TEXT if s["stock"] >= 0.5 else UiTheme.WARN)
+	if PoiState.mostly_searched(state, selected):          # Exp 012 (L, §28): from the place's own record
+		_row(grid, "Searched", PoiState.mostly_line(state, selected), UiTheme.WARN)
 	var overrun := DailySites.is_overrun(state, selected)      # Exp 009 (D): today's availability
 	_row(grid, "Today", DailySites.availability_text(state, selected), UiTheme.BAD if overrun else UiTheme.GOOD)
 	_info.add_child(grid)
@@ -774,6 +784,8 @@ func _add_travel_section() -> void:
 		by_car = false
 	elif not by_car and foot_why != "" and car_why == "":
 		by_car = true
+	if selected != origin:
+		markers.route_world = _route(selected)        # Exp 012 (L): the route of the mode shown
 	var modes := HBoxContainer.new()
 	modes.name = "Modes"
 	modes.add_theme_constant_override("separation", 6)
@@ -797,8 +809,14 @@ func _add_travel_section() -> void:
 	grid.add_theme_constant_override("h_separation", 14)
 	grid.add_theme_constant_override("v_separation", 4)
 	var tm := TravelRules.leg_timing(state, origin, selected, by_car)
-	var km := TravelRules.km_between(origin, selected) * RegionLocations.ROAD_FACTOR
-	_row(grid, "Distance", "about %.1f km by road" % km, UiTheme.TEXT_DIM)
+	var rt := TravelRules.route_between(origin, selected, by_car)       # Exp 012 (L): the route drawn
+	var off := float(rt["off_km"])
+	var dist := "about %.1f km" % float(rt["km"])
+	if off >= 0.05:
+		dist += ", %.1f off-road" % off if by_car else ", %.1f across country" % off
+	else:
+		dist += " by road"
+	_row(grid, "Distance", dist, UiTheme.TEXT_DIM)
 	_row(grid, "Arrive", "around %s  (%s %s)" % [TravelRules.clock(tm["arrive_at"]), UiTheme.duration_text(tm["minutes"]), "by car" if by_car else "on foot"], UiTheme.TEXT)
 	if not to_home:
 		_row(grid, "Stay", "about %s to look around" % UiTheme.duration_text(tm["stay"]), UiTheme.TEXT_DIM)
@@ -874,6 +892,7 @@ func set_by_car(on: bool) -> void:
 		return
 	by_car = on
 	if selected != "" and (selected != MapInfo.HOME or origin != MapInfo.HOME):
+		markers.route_world = _route(selected)        # Exp 012 (L): the 4x4 takes its own way
 		_show_info()
 
 
@@ -911,7 +930,7 @@ func play_leg(from: String, to: String, car: bool, seconds: float, from_total: f
 		open(state)
 	select(to, false)
 	_info_panel.visible = false
-	var pts := _route_between(from, to)
+	var pts := _route_between(from, to, car)
 	if pts.size() < 2:
 		pts = PackedVector3Array([view.terrain.anchor_of(from) + Vector3(0, 0.12, 0), view.terrain.anchor_of(to) + Vector3(0, 0.12, 0)])
 	markers.route_world = pts

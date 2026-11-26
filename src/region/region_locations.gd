@@ -151,6 +151,9 @@ static func distance_km(id: String) -> float:
 
 ## One-way travel estimate in minutes (rounded to 5), the same for the map and
 ## the expedition system.
+## Exp 012 (L, §20): the walking route's own time (RegionRouter: roads,
+## fields, gardens and woods), the time the map shows and travel uses.
 static func travel_minutes(id: String) -> int:
-	var m := distance_km(id) * ROAD_FACTOR * MINUTES_PER_KM
-	return maxi(int(round(m / 5.0)) * 5, 10)
+	if not LOCATIONS.has(id):
+		return 0
+	return RegionRouter.minutes("home", id, false)

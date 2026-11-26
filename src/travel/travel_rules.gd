@@ -2,8 +2,8 @@ class_name TravelRules
 extends RefCounted
 ## Exp 007 (T): the numbers and checks of visible travel (pure, no scene).
 ##
-## Travel times are the existing ones: RegionLocations / ExpeditionData
-## (`travel_minutes(id, car)`: on foot, or x CAR_TRAVEL by car). A trip by
+## Exp 012 (L): travel times are the routes' own (RegionRouter), on foot or
+## by car; the map draws the same routes. A trip by
 ## car burns ExpeditionData.CAR_FUEL fuel cans (one per round trip, paid when
 ## Eli drives off). The map shows `timing()` (there, a typical stay, back,
 ## and whether that is before dark) and `capacity_text()`. `block_reason()`
@@ -45,13 +45,11 @@ const HOME := "home"                       ## Exp 008 (T): MapInfo.HOME, the hou
 
 
 ## One-way travel minutes to a place (0 for an unknown id).
+## Exp 012 (L, §20): the route's own time (RegionRouter), the same the map shows.
 static func minutes(id: String, car := false) -> int:
-	if ExpeditionData.has_destination(id):
-		return ExpeditionData.travel_minutes(id, car)
 	if not RegionLocations.has(id):
 		return 0
-	var m := RegionLocations.travel_minutes(id)
-	return maxi(int(round(float(m) * ExpeditionData.CAR_TRAVEL / 5.0)) * 5, 5) if car else m
+	return RegionRouter.minutes(HOME, id, car)
 
 
 ## Exp 008 (T): a place's position on the region (cells); "home" is the house.
@@ -68,16 +66,22 @@ static func km_between(from: String, to: String) -> float:
 
 ## One-way road minutes of a leg (either end may be "home"; 0 for the same
 ## place or an unknown id). From or to home it is exactly minutes().
+## Exp 012 (L, §20): the leg's route time (RegionRouter: off-road shortcuts
+## on foot, the 4x4's own ground by car); the map draws the same route.
 static func minutes_between(from: String, to: String, car := false) -> int:
 	if from == to or not _place_ok(from) or not _place_ok(to):
 		return 0
+	if to == HOME:
+		return minutes(from, car)          # the way home is the way out, reversed
 	if from == HOME:
 		return minutes(to, car)
-	if to == HOME:
-		return minutes(from, car)
-	var m := km_between(from, to) * RegionLocations.ROAD_FACTOR * RegionLocations.MINUTES_PER_KM
-	var foot := maxi(int(round(m / 5.0)) * 5, 10)
-	return maxi(int(round(float(foot) * ExpeditionData.CAR_TRAVEL / 5.0)) * 5, 5) if car else foot
+	return RegionRouter.minutes(from, to, car)
+
+
+## Exp 012 (L, §20): the route of a leg (RegionRouter.route: pts, minutes, km,
+## road_km, off_km); both ways are the same route.
+static func route_between(from: String, to: String, car := false) -> Dictionary:
+	return RegionRouter.route(from, to, car)
 
 
 static func _place_ok(id: String) -> bool:
