@@ -113,6 +113,23 @@ func test_staged_api_steps_to_the_same_layout() -> void:
 	check(float(ctx.layout["diag"]["ms"]) > 0.0, "the time is measured")
 
 
+func test_begin_def_generates_once_for_the_loading_screen() -> void:
+	var st := GameState.new_run(1234)
+	check(PoiDefs.begin_def("forest", st) == null, "a hand-made place needs no steps")
+	var ctx: Object = PoiDefs.begin_def("factory", st)
+	check(ctx != null and not ctx.get("done"), "a generated site steps")
+	var n := 0
+	while not ctx.call("step"):
+		n += 1
+		if n > 200:
+			break
+	var d := PoiDefs.get_def("factory", st)
+	check(ctx.get("done") and is_same(d, ctx.get("def")) and is_same(d["layout"], ctx.get("layout")), "the finished definition is the cached one")
+	check(is_same(PoiDefs.get_def("factory"), d), "and what PoiWorld.configure gets")
+	var again: Object = PoiDefs.begin_def("factory", st)
+	check(again != null and again.get("done") and is_same(again.get("layout"), d["layout"]), "a second arrival: done at once, no new generation")
+
+
 func test_routing_and_identity() -> void:
 	check_eq(PoiArchetypes.for_site("forest"), "hand_made", "Pine Woods stays hand-made")
 	for id in ["apartments", "auto_garage", "workshop", "factory", "office_block", "fire_station"]:

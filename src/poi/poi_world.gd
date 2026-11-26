@@ -327,8 +327,8 @@ class BuildJob extends RefCounted:
 		var q: Array = []
 		match part:
 			"stamp":
-				if _design == null and PoiWorld._pristine_poi.has(w.poi_id):
-					var p: VoxelGrid = PoiWorld._pristine_poi[w.poi_id]
+				if _design == null and PoiWorld._pristine_poi.has(PoiDefs.layout_key(w.poi_id)):      # Exp 009 (G): by the layout's key
+					var p: VoxelGrid = PoiWorld._pristine_poi[PoiDefs.layout_key(w.poi_id)]
 					_design = p.copy()
 					_cur = p.copy()
 				elif _design == null:
@@ -339,7 +339,7 @@ class BuildJob extends RefCounted:
 					for wall in w.layout.get("walls", []):
 						q.append(func() -> void: PoiWorld._stamp_poi_wall(g, wall))
 					q.append(func() -> void:
-						PoiWorld._pristine_poi[w.poi_id] = g
+						PoiWorld._pristine_poi[PoiDefs.layout_key(w.poi_id)] = g
 						_design = g.copy()
 						_cur = g.copy())
 			"chunks":

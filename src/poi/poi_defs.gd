@@ -165,6 +165,15 @@ static func layout_key(id: String) -> String:
 static func _generated_def(id: String, state: GameState) -> Dictionary:
 	if state == null and _current.has(id) and _cache.has(_current[id]):
 		return _cache[_current[id]]
+	var d := _gen_prepare(id, state)
+	if d.is_empty() or d.has("layout"):
+		return d
+	return _gen_finish(d, PoiGenerator.generate(d["setup"]))
+
+
+## Exp 009 (G): the definition of a generated site without its layout yet
+## (or the cached one, with it). {} when the site has no loot profile.
+static func _gen_prepare(id: String, state: GameState) -> Dictionary:
 	var s := setup_for(id, state)
 	var key := _gen_key(id, s)
 	_current[id] = key
@@ -178,19 +187,71 @@ static func _generated_def(id: String, state: GameState) -> Dictionary:
 		return {}
 	s["dark_hint"] = "flashlight" in dest.get("requires", [])
 	var name := str(a.get("name", arch)) if PoiArchetypes.is_test_id(id) else str(dest["name"])
-	var d := {
+	var lines: Array = a.get("arrival", [])
+	return {
 		"id": id, "name": name, "desc": str(dest["desc"]), "category": str(dest["category"]),
 		"template": "generated", "placeholder": false, "generated": true, "variant": variant_of(src),
 		"danger": float(dest.get("danger", 1.0)), "loot": dest.get("loot", []), "locked": dest.get("locked", []),
 		"locked_name": str(dest.get("locked_name", "locked doors")),
 		"regen": float(dest.get("regen", 0.02)), "deplete": float(dest.get("deplete", 0.2)), "floor": float(dest.get("floor", 0.1)),
 		"dark": false, "archetype": arch, "setup": s, "seed": int(s["seed"]), "gen_key": key, "loot_site": src,
+		"arrival": str(lines[posmod(int(s["seed"]), lines.size())]) if not lines.is_empty() else name,
 	}
-	d["layout"] = PoiGenerator.generate(s)
-	var lines: Array = a.get("arrival", [])
-	d["arrival"] = str(lines[posmod(int(s["seed"]), lines.size())]) if not lines.is_empty() else name
-	_cache[key] = d
+
+
+static func _gen_finish(d: Dictionary, layout: Dictionary) -> Dictionary:
+	d["layout"] = layout
+	_cache[d["gen_key"]] = d
+	_current[d["id"]] = d["gen_key"]
 	return d
+
+
+## Exp 009 (G): generation in steps for the loading screen (R). A generated
+## site gives a context with step() -> bool (true = done), stage, progress
+## 0..1, layout and def; once done, its definition is in the cache, so the
+## get_def calls that follow (PoiWorld.configure, PoiState) don't generate
+## again. An already cached site gives a context that is done at once. null
+## for hand-made places, the placeholder and unknown ids (one get_def call).
+static func begin_def(id: String, state: GameState = null) -> Object:
+	if _cache.has(id) or not is_generated(id):
+		return null
+	var d := _gen_prepare(id, state)
+	if d.is_empty():
+		return null
+	return DefCtx.new(d, null if d.has("layout") else PoiGenerator.begin(d["setup"]))
+
+
+class DefCtx:
+	extends RefCounted
+	var def := {}
+	var stage := "done"
+	var progress := 1.0
+	var layout := {}
+	var done := true
+	var _gen: Object = null
+
+	func _init(d: Dictionary, gen: Object) -> void:
+		def = d
+		_gen = gen
+		if gen == null:
+			layout = d.get("layout", {})
+		else:
+			done = false
+			stage = str(gen.get("stage"))
+			progress = 0.0
+
+	func step() -> bool:
+		if done:
+			return true
+		var fin: bool = _gen.call("step")
+		stage = str(_gen.get("stage"))
+		progress = float(_gen.get("progress"))
+		if fin:
+			layout = _gen.get("layout")
+			def = PoiDefs._gen_finish(def, layout)
+			done = true
+			progress = 1.0
+		return fin
 
 
 ## The visit's danger: the place x its lasting flags x difficulty (as the
