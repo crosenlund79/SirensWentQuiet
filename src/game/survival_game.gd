@@ -99,6 +99,7 @@ var travel: Node                       ## src/travel/travel_flow.gd (Exp 007 (T)
 var poi: Node                          ## Exp 007 (P): the POI helper at a POI (looting, exits, encounters); null at home
 var corpses: GameCorpses               ## Exp 012 (E): names, the downed toast, persistent searchable bodies (src/ai/game_corpses.gd)
 var story: Node                        ## Exp 012 (S): src/story/story_director.gd (Chapter One; takes encounter nights in _sleep)
+var siege: SiegeDirector               ## src/siege/siege_director.gd (Exp 012 (G): whole-group hordes, coordinated sieges, F10); null at a POI
 var site := "home"                     ## Exp 007 (T): "home" or the POI id this scene is
 var time_scale := 1.0
 
@@ -666,6 +667,10 @@ func _assemble() -> void:
 		overview.name = "Overview"
 		add_child(overview)
 		overview.setup(self)
+		siege = SiegeDirector.new()        # Exp 012 (G): after roster, noise and the camera (spawns out of view, sieges)
+		siege.name = "Siege"
+		add_child(siege)
+		siege.setup(self)
 	sync_roster()
 	var input := GameInput.new()
 	input.name = "Input"
@@ -976,6 +981,8 @@ func start_invasion(kinds: Array = []) -> void:
 		state.start_invasion()
 	sync_roster()
 	var seed := int(state.run.get("seed", 0)) * 31 + int(state.run.get("invasions_done", 0))
+	if siege != null:
+		kinds = siege.on_invasion_start(kinds, seed)   # Exp 012 (G): out of view; an organised siege when the story allows
 	director.begin_wave(state.difficulty, state.invasion_index(), seed, kinds)
 	Sfx.play("stinger/invasion")
 	ambience.set_tension(1.0)
@@ -986,8 +993,8 @@ func start_invasion(kinds: Array = []) -> void:
 func _run_director(delta: float) -> void:
 	if not director.active:
 		return
-	for k in director.tick_kinds(delta):
-		roster.spawn_type(k, director.pick_spawn(player.plan_pos()), director.spawn_opts(k))
+	for k in director.tick_kinds(delta):     # Exp 012 (G): the whole wave at once, each member with its start delay
+		director.note_spawned(roster.spawn_type(k, director.pick_spawn(player.plan_pos()), director.spawn_opts(k)))
 	if director.all_spawned() and roster.invaders_alive() == 0:
 		_end_invasion("cleared")
 
@@ -1090,7 +1097,7 @@ func _update_banner() -> void:
 	var b := ""
 	if director.active:
 		var left: int = director.remaining_to_spawn() + roster.invaders_alive()
-		b = "They're here · %d left" % left
+		b = ("They're here, organised · %d left" if siege != null and siege.active else "They're here · %d left") % left   # Exp 012 (G)
 	elif state.invasion_due_soon():
 		b = "Something is coming tonight." if is_home() else "They'll come for the house tonight."   # Exp 007 (T)
 	if b != _banner:

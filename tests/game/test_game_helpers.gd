@@ -71,30 +71,21 @@ func test_save_composition_round_trip_and_validation() -> void:
 	check(RunSave.parse(odd)["ok"] and RunSave.parse(odd)["player_pos"] == null, "bad position: ignored, not fatal")
 
 
-func test_invasion_director_paces_the_wave() -> void:
+## Exp 012 (G): was "paces the wave" (one invader every 25-40 s). The whole
+## wave now exists from the start (ASSIGNMENT §10); the start points stay
+## away from the player.
+func test_invasion_director_releases_the_whole_wave() -> void:
 	var d := Director.new()
 	d.begin(3, 4, 1.1, 9)
-	var spawned := 0
-	var t := 0.0
-	var times := []
-	while t < 200.0 and spawned < 3:
-		var n := d.tick(0.5)
-		if n > 0:
-			times.append(t)
-		spawned += n
-		t += 0.5
-	check_eq(spawned, 3, "all three spawn")
+	check_eq(d.tick(0.5), 3, "all three at once")
 	check(d.all_spawned(), "all_spawned")
-	check(times[0] <= Director.FIRST_DELAY + 0.5, "the first comes soon")
-	for i in range(1, times.size()):
-		var gap: float = times[i] - times[i - 1]
-		check(gap >= SurvivalTuning.INVASION_SPAWN_GAP.x - 0.5 and gap <= SurvivalTuning.INVASION_SPAWN_GAP.y + 0.5, "staggered 25-40 s (%.1f)" % gap)
 	check_eq(d.tick(100.0), 0, "no more after the wave")
 	for p in Director.fog_points():
 		check(not FogBoundary.LOT.has_point(p) and HousePlan.YARD.has_point(p), "fog band point %s" % p)
 	check(Director.fog_points().size() >= 4, "enough fog points")
-	var pick := d.pick_spawn(Vector2(6.5, 7.8))
-	check(pick.distance_to(Vector2(6.5, 7.8)) >= Director.MIN_SPAWN_DISTANCE - 0.6, "spawns away from the player")
+	for i in 3:
+		var pick := d.pick_spawn(Vector2(6.5, 7.8))
+		check(pick.distance_to(Vector2(6.5, 7.8)) >= Director.MIN_SPAWN_DISTANCE - 0.6, "spawns away from the player")
 
 
 ## The Experiment 003 wave contract the game uses (docs/experiment-003/ai.md,
@@ -129,6 +120,8 @@ func test_threat_budget_wave_through_the_roster() -> void:
 	for e in spawned:
 		check_eq(e.hp, EnemyDefs.stats(e.kind, "hard", 3)["hp"], "%s hp for Hard invasion 3" % e.kind)
 		var at: Vector2 = e.plan_pos()
-		check(not FogBoundary.LOT.has_point(at) and HousePlan.YARD.grow(1.0).has_point(at), "%s spawned in the fog band (%s)" % [e.kind, at])
+		# Exp 012 (G): the fog band, or a garden spot in the lot far from the player
+		var garden := FogBoundary.LOT.has_point(at) and at.distance_to(p.plan_pos()) >= Director.LOT_SPAWN_MIN - 0.5 and not HousePlan.FOOTPRINT.grow(2.5).has_point(at)
+		check((not FogBoundary.LOT.has_point(at) or garden) and HousePlan.YARD.grow(1.0).has_point(at), "%s spawned in the fog band or a far garden (%s)" % [e.kind, at])
 	check_eq(roster.kill_all(), d.total, "kill_all")
 	check_eq(roster.invaders_alive(), 0, "none left")

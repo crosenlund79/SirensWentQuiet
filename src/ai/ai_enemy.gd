@@ -78,6 +78,13 @@ var reaction: EnemyReaction
 var keep_corpse := false
 var _settled := false
 
+
+## Exp 012 (G): a goal a director gives (src/siege/, the horde's start delay):
+## walk there without swinging at Eli (walls in the way are still bashed);
+## INF = none. The storey stairs (goal_override) and calm minds come first.
+var directed_goal := Vector2.INF
+var directed_why := ""
+
 var _retreat_goal := Vector2.ZERO
 var _yaw := 0.0
 var _vanish := false
@@ -228,6 +235,41 @@ func provoke(reason := "") -> void:
 	provoked.emit(self, reason)
 
 
+# --- Exp 012 (G): directed goals (sieges, start delays) ---------------------------------
+
+## Walk to plan point `pos` (why: "wait", "encircle", "breach", "contain",
+## "trap", ...) instead of hunting Eli; a bomber keeps its own targets.
+func set_goal(pos: Vector2, why := "") -> void:
+	if not alive or brain == null or str(def["behaviour"]) != "chase":
+		return
+	var moved := directed_goal == Vector2.INF or directed_goal.distance_to(pos) > 0.4
+	if directed_goal == Vector2.INF and not retreating:
+		set_meta("goal_attack", brain.attack_goal)
+	directed_goal = pos
+	directed_why = why
+	if not retreating:
+		brain.attack_goal = false
+		brain.arrive_radius = 0.45
+	if moved:
+		brain.invalidate()
+
+
+## Back to the archetype's own hunting.
+func clear_goal() -> void:
+	if directed_goal == Vector2.INF:
+		return
+	directed_goal = Vector2.INF
+	directed_why = ""
+	if alive and brain != null and not retreating and mind == null:
+		brain.attack_goal = bool(get_meta("goal_attack", true))
+		brain.arrive_radius = 0.3
+		brain.invalidate()
+
+
+func has_goal() -> bool:
+	return directed_goal != Vector2.INF
+
+
 func set_facing(yaw: float) -> void:
 	_yaw = yaw
 	if rig != null:
@@ -315,7 +357,7 @@ func _physics_process(delta: float) -> void:
 		if mind != null:                      # Exp 007 (N): calm: the mind's goal
 			goal = mind.goal_of(self)
 		else:
-			goal = goal_override if goal_override != Vector2.INF else behaviour.goal(self)
+			goal = goal_override if goal_override != Vector2.INF else (directed_goal if directed_goal != Vector2.INF else behaviour.goal(self))   # Exp 012 (G)
 	var r := brain.update(delta, me, goal)
 	if not retreating:
 		r = mind.think(self, delta, r) if mind != null else behaviour.think(self, delta, r)

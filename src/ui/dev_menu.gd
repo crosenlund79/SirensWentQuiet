@@ -407,6 +407,7 @@ func _build() -> void:
 	_build_e12_e_section(_tab("Enemies"))   # Exp 012 (E)
 	_build_e12_s_section(_tab("Story"))   # Exp 012 (S)
 	_build_e12_s_audio_section(_tab("Audio"))   # Exp 012 (S)
+	_build_e12_g_section(_tab("Enemies"))   # Exp 012 (G)
 
 
 # --- Exp 012 (A): the tabbed shell --------------------------------------------
@@ -1531,3 +1532,24 @@ func _build_e12_s_section(box: VBoxContainer) -> void:
 
 func _build_e12_s_audio_section(box: VBoxContainer) -> void:
 	StoryDev.build_audio(self, box)
+
+
+# --- Exp 012 (G): hordes and sieges (src/siege/siege_director.gd, `game.siege`) ---
+
+func _build_e12_g_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Hordes & sieges"))
+	box.add_child(_grid(2, [["Invasion (whole group)", _siege_call.bind("dev_invasion")],
+		["Spawn horde", _siege_call.bind("dev_horde")],
+		["Coordinated siege now", _siege_call.bind("dev_siege")],
+		["Siege tactics", _siege_call.bind("dev_text")],
+		["Tactic markers", _siege_call.bind("dev_toggle_markers")],
+		["Enemy barricade here", _siege_call.bind("dev_barricade_nearest")],
+		["Clear enemy barricades", _siege_call.bind("dev_clear_barricades")]]))
+
+
+func _siege_call(method: String) -> void:
+	var h = game.get("siege") if game != null and is_instance_valid(game) else null
+	if not (h is Object and is_instance_valid(h) and h.has_method(method)):
+		_say("Sieges only happen at home.", true)
+		return
+	_say(str(h.call(method)))

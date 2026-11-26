@@ -84,39 +84,32 @@ func test_ai_compositions_are_deterministic_and_vary_by_seed() -> void:
 	check(p1.size() == d1.total and p1 == p2, "the same kinds, times and places")
 
 
-func test_ai_wave_pacing_in_groups_from_shared_fog_points() -> void:
+## Exp 012 (G): was "pacing in groups" (one alone, then groups 25-40 s apart,
+## a kill letting the next one come). The assignment (§10) replaced the
+## trickle: the whole wave is released on the first tick, in approach groups
+## on different sides, with short start delays instead of spawn gaps.
+func test_ai_wave_released_whole_in_approach_groups() -> void:
 	var d := Director.new()
 	d.begin_wave("normal", 5, 3)
 	var w: Array = d.wave
 	check_eq(w.size(), d.total, "total = wave size")
 	check(is_equal_approx(d.budget, Director.threat_budget("normal", 5)), "budget recorded")
-	var groups: Array = d.groups
+	var out := []
+	for k in d.tick_kinds(0.1):
+		out.append({"kind": k, "at": d.pick_spawn(Vector2(6.5, 7.8))})
+	check(d.all_spawned(), "all released at once")
+	check_eq(out.map(func(o): return o["kind"]), w, "in wave order")
+	check_eq(d.tick_kinds(30.0), [], "nobody later")
 	var sum := 0
-	for g in groups:
+	for g in d.groups:
 		sum += int(g)
 	check_eq(sum, d.total, "groups cover the wave")
-	check_eq(groups[0], 1, "one comes alone first")
-	var t := 0.0
-	var out := []
-	while t < 600.0 and not d.all_spawned():
-		for k in d.tick_kinds(0.1):
-			out.append({"kind": k, "t": t, "at": d.pick_spawn(Vector2(6.5, 7.8))})
-		t += 0.1
-	check(d.all_spawned(), "all spawned")
-	var kinds := out.map(func(o): return o["kind"])
-	check_eq(kinds, w, "spawned in wave order")
-	check(out[0]["t"] <= Director.FIRST_DELAY + 0.2, "the first comes soon")
-	var i := 0
-	for g in groups:
-		var first: Dictionary = out[i]
-		for m in range(1, int(g)):
-			var o: Dictionary = out[i + m]
-			check(o["t"] - out[i + m - 1]["t"] <= Director.GROUP_GAP.y + 0.2, "group members close together")
-			check((o["at"] as Vector2).distance_to(first["at"]) <= Director.GROUP_JITTER * 1.5 + 0.6, "from their group's fog point")
-		if i > 0:
-			var gap: float = first["t"] - out[i - 1]["t"]
-			check(gap >= SurvivalTuning.INVASION_SPAWN_GAP.x - 0.2, "groups 25-40 s apart (%.1f)" % gap)
-		i += int(g)
+	check(d.groups.size() >= 2, "several approach groups (%s)" % [d.groups])
+	var sides := {}
+	for e in d.plan:
+		sides[e["side"]] = true
+		check(float(e["delay"]) >= 0.0 and float(e["delay"]) <= Director.GROUP_DELAY * 4 + Director.GROUP_GAP.y * 14 + Director.BOMBER_DELAY, "a short start delay (%.1f)" % e["delay"])
+	check_eq(sides.size(), d.groups.size(), "one side per group")
 	var o := d.spawn_opts("brute")
 	check(o["level"] == "normal" and o["invasion"] == 5 and o["invader"], "spawn options carry level and invasion")
 
