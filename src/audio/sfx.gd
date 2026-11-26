@@ -112,6 +112,9 @@ const DEFS := {
 	"ambient/fireplace": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
 	"ambient/room_tone": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
 	"ambient/basement_tone": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
+	"ambient/room_store": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},      # Exp 008: per-place room tones
+	"ambient/room_clinic": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
+	"ambient/room_library": {"bus": "Ambient", "pos": false, "loop": true, "tpl": false},
 	"voice/eli_new_game": {"bus": "Voice", "pos": false, "cd": 1.0, "max": 1, "steal": false, "tpl": false},
 	"voice/eli_continue": {"bus": "Voice", "pos": false, "cd": 1.0, "max": 1, "steal": false, "tpl": false},
 	"music/dawn": {"bus": "Music", "vol": -8.0, "pos": false, "loop": true, "tpl": false},

@@ -44,6 +44,9 @@ var _dawn_left := -1.0
 func setup(g: Node) -> void:
 	game = g
 	AudioInbox.prepare_all()          # load and measure the recordings now, not at the first door
+	var amb: Variant = game.get("ambience")
+	if amb is Ambience and game.has_method("site_id"):
+		(amb as Ambience).set_room_tone(room_tone_for(str(game.site_id())))     # Exp 008
 	if game.has_signal("invasion_started"):
 		game.invasion_started.connect(_on_invasion_started)
 	var intro: Node = game.ui.get("intro") if game.get("ui") != null else null
@@ -95,12 +98,42 @@ func current_place() -> String:
 	if storey < 0:
 		return "basement"
 	var p: Vector2 = game.player.plan_pos()
+	var w: Variant = game.get("world")
+	if w is PoiWorld:                                   # Exp 008: at a POI, its own rooms (not the home's footprint)
+		return poi_place(w, p)
 	var comfort: Variant = game.get("comfort")
 	if comfort is Object and is_instance_valid(comfort) and comfort.has_method("room_at"):
 		var r: Variant = comfort.room_at(storey, p)     # Exp 005 (C), when present
 		if r is Dictionary and not (r as Dictionary).is_empty():
 			return "exposed" if bool(r.get("exposed", false)) else "inside"
 	return "inside" if HousePlan.FOOTPRINT.has_point(p) else "outside"
+
+
+## Exp 008: inside one of the POI's rooms ("exposed" in an outdoor place's
+## shelter, open to the weather), else outside.
+static func poi_place(w: PoiWorld, p: Vector2) -> String:
+	for r in w.rooms():
+		if (r["rect"] as Rect2).has_point(p):
+			return "exposed" if bool(w.layout.get("outdoor", false)) else "inside"
+	return "outside"
+
+
+## Exp 008: the indoor bed's recording for this site: a place-specific room
+## tone when one was delivered (store, clinic, library), else the house's.
+static func room_tone_for(site: String) -> Array:
+	if site == "" or site == "home" or not RegionLocations.has(site):
+		return ["ambient/room_tone"]
+	var cat := str(RegionLocations.get_def(site).get("category", ""))
+	var names := []
+	match cat:
+		"medical":
+			names.append("ambient/room_clinic")
+		"knowledge":
+			names.append("ambient/room_library")
+		"food", "construction", "weapons":
+			names.append("ambient/room_store")
+	names.append("ambient/room_tone")
+	return names
 
 
 # --- footsteps --------------------------------------------------------------------------

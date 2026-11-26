@@ -232,6 +232,21 @@ func set_place(where: String) -> void:
 		place = where
 
 
+## Exp 008: the room tone to use here: the first of `names` with a recording
+## (a store, clinic or library tone), else the house's room tone. Returns it.
+func set_room_tone(names: Array) -> String:
+	var pick := "ambient/room_tone"
+	for n in names:
+		if Sfx.available(str(n)):
+			pick = str(n)
+			break
+	var b: Variant = beds.get("room")
+	if b is AmbienceBed and (b as AmbienceBed).logical != pick:
+		(b as AmbienceBed).logical = pick
+		AudioInbox.prepare(pick)
+	return pick
+
+
 ## The listener's world position (house creaks happen near it).
 func set_listener(at: Vector3) -> void:
 	_listener = at

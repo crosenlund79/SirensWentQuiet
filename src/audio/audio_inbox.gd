@@ -135,7 +135,10 @@ const RULES := [
 	{"name": "ambient/distant_3", "all": ["distant", "siren"], "kind": "oneshot", "db": -20.0},
 	{"name": "ambient/forest", "all": [["natural", "nature", "forest", "outdoor", "woods", "wilderness"]], "none": ["footstep", "step"], "kind": "bed", "db": -31.0},
 	{"name": "ambient/fireplace", "all": [["fireplace", "hearth"]], "none": ["light", "ignite", "kindle", "extinguish", "out", "douse"], "kind": "bed", "db": -27.0},
-	{"name": "ambient/room_tone", "all": [["room", "interior", "indoor"], ["tone", "ambience", "ambiance", "hum"]], "none": ["basement"], "kind": "bed", "db": -42.0},
+	{"name": "ambient/room_store", "all": [["room", "interior", "indoor"], ["tone", "ambience", "ambiance", "hum"], ["store", "shop", "hardware"]], "none": ["basement"], "kind": "bed", "db": -42.0},      # Exp 008
+	{"name": "ambient/room_clinic", "all": [["room", "interior", "indoor"], ["tone", "ambience", "ambiance", "hum"], ["clinic", "hospital", "medical"]], "none": ["basement"], "kind": "bed", "db": -42.0},
+	{"name": "ambient/room_library", "all": [["room", "interior", "indoor"], ["tone", "ambience", "ambiance", "hum"], "library"], "none": ["basement"], "kind": "bed", "db": -42.0},
+	{"name": "ambient/room_tone", "all": [["room", "interior", "indoor"], ["tone", "ambience", "ambiance", "hum"]], "none": ["basement", "store", "shop", "hardware", "clinic", "hospital", "medical", "library"], "kind": "bed", "db": -42.0},
 	{"name": "ambient/basement_tone", "all": [["basement", "cellar"], ["tone", "ambience", "ambiance", "hum"]], "kind": "bed", "db": -40.0},
 	{"name": "ambient/owl", "all": [["owl", "hoot"]], "kind": "oneshot", "db": -24.0},
 	{"name": "ambient/wolf", "all": [["wolf", "wolves"]], "kind": "oneshot", "db": -23.0},
