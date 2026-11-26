@@ -25,7 +25,7 @@ func test_advance_reports_events_once_and_decays() -> void:
 func test_costs_are_atomic_and_unlimited_cheat_is_free() -> void:
 	var s := GameState.new_run(7)
 	check(not s.pay({"wood": 100, "nails": 1}), "can't pay what you don't have")
-	check_eq(s.inventory.count("nails"), 12, "nothing deducted on failure")
+	check_eq(s.inventory.count("nails"), int(SurvivalTuning.START_ITEMS["nails"]), "nothing deducted on failure")      # Exp 008 (E): the start's nails
 	s.cheats["unlimited"] = true
 	check(s.pay({"wood": 100}), "unlimited pays")
 	check_eq(s.inventory.count("wood"), 6, "unlimited deducts nothing")

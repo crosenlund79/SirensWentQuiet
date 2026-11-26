@@ -89,7 +89,7 @@ func test_costs_are_paid_and_the_unlimited_cheat_is_free() -> void:
 	b.select_id("wall")
 	check(b.apply(Vector2(0.5, 11.0)), "one wall segment")
 	check_eq(s.inventory.count("wood"), 2, "4 planks paid")
-	check_eq(s.inventory.count("nails"), 6, "6 nails paid")
+	check_eq(s.inventory.count("nails"), int(SurvivalTuning.START_ITEMS["nails"]) - 6, "6 nails paid")      # Exp 008 (E): the start's nails
 	check(not msgs.is_empty() and msgs[-1][1], "positive feedback")
 	check(not b.apply(Vector2(1.5, 11.0)), "the next one is unaffordable")
 	check(msgs[-1][0].begins_with("Needs"), "with a reason (%s)" % msgs[-1][0])
@@ -174,7 +174,7 @@ func test_demolish_refunds_player_pieces_and_opens_original_walls() -> void:
 	b.select_id("demolish")
 	check(b.apply(Vector2(0.5, 11.0)), "demolished")
 	check_eq(s.inventory.count("wood"), 2 + 4, "all the planks back (Experiment 004: full refund)")
-	check_eq(s.inventory.count("nails"), 6 + 6, "all the nails back")
+	check_eq(s.inventory.count("nails"), int(SurvivalTuning.START_ITEMS["nails"]), "all the nails back")      # Exp 008 (E): the start's nails
 	check_eq(w.nav.get_raw(w.nav.cell_of(Vector2(0.5, 11.0))), GridNav.OPEN, "nav open again")
 	check(not w.built.has(Vector3i(0, 11, 0)), "no longer a built section")
 	# an original wall section becomes an opening (Experiment 004: salvage)

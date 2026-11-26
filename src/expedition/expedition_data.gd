@@ -126,7 +126,7 @@ const PROFILES := {
 		"place": "house", "danger": 0.8, "search": 130, "two_events": 0.4,
 		"loot": [
 			["canned_food", 1, 2, 0.85], ["snacks", 1, 3, 0.7], ["water", 1, 3, 0.85],
-			["wood", 2, 5, 0.55], ["nails", 4, 10, 0.5], ["bandage", 1, 1, 0.35],
+			["wood", 2, 5, 0.55], ["nails", 4, 10, 0.65], ["bandage", 1, 1, 0.35],      # Exp 008 (E): nails 0.5 -> 0.65 (PACING.md)
 			["ammo", 2, 4, 0.15], ["crowbar", 1, 1, 0.12], ["flashlight", 1, 1, 0.2], ["backpack", 1, 1, 0.15],
 		],
 		"locked": [["wood", 3, 5, 0.8], ["nails", 6, 12, 0.7], ["scrap", 1, 3, 0.5], ["canned_food", 1, 2, 0.5]],
