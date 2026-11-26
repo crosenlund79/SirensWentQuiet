@@ -136,7 +136,7 @@ func test_search_take_and_remember_after_a_rebuild() -> void:
 	check(box["searched"], "still searched after the rebuild")
 	check_eq(FurnitureStorage.total(box["items"]), left, "nothing came back on the same day")
 	var s2: PoiSpot = (h2.world as PoiWorld).spot("container", cid)
-	check(left > 0 or s2.interact_prompt() == "", "an emptied container has no prompt")
+	check(left > 0 or s2.interact_prompt().ends_with("searched · empty"), "an emptied container says so (Exp 008): %s" % s2.interact_prompt())
 	check(h2.state.region.visits("convenience") >= 1, "the visit counted on the map")
 
 

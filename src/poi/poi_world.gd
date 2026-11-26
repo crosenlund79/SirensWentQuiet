@@ -45,6 +45,7 @@ var has_car := false
 var spots: Array = []           ## PoiSpot
 var ground: MeshInstance3D
 var _reveal: Node3D
+var _box_props := {}            ## Exp 008 (L): container id -> its props entry (container_cut)
 
 
 ## Call before adding to the tree.
@@ -563,6 +564,18 @@ func apply_record() -> void:
 		if o is PoiDoor and forced.has((o as PoiDoor).door_id):
 			(o as PoiDoor).locked = false
 	_update_reveal()
+
+
+## Exp 008 (L): true while the cutaway hides container `cid`'s piece (its
+## marker hides with it; the prompt still works).
+func container_cut(cid: String) -> bool:
+	if _box_props.is_empty():
+		for p in props:
+			var n: Variant = p.get("node")
+			if n is Node and is_instance_valid(n) and str((n as Node).name).begins_with("Box_"):
+				_box_props[str((n as Node).name).trim_prefix("Box_")] = p
+	var e: Variant = _box_props.get(cid)
+	return e is Dictionary and bool((e as Dictionary).get("cut", false))
 
 
 func spots_of(k: String) -> Array:

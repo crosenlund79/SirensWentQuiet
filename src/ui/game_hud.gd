@@ -82,6 +82,7 @@ var _pending := []
 var _home_room: Label                   # Exp 005 (C): "Living room · Comfortable" (set_home_line)
 var _home_mood: Label                   # Exp 005 (C): "Mood: Content"
 var _mat_row: HBoxContainer             # Exp 006 (U): wood / stone / iron with pixel icons
+var _pack_row: HBoxContainer            # Exp 008 (L): "Pack 18 / 30 · Boot 12 / 60" while away (set_pack_line)
 
 
 func _init() -> void:
@@ -290,7 +291,32 @@ func debug_texts() -> Dictionary:
 		"flash": _flash.modulate.a,
 		"home_room": _home_room.text if _home_room != null else "",       # Exp 005 (C)
 		"home_mood": _home_mood.text if _home_mood != null else "",
+		"pack": (_pack_row.get_node("Text") as Label).text if _pack_row != null and _pack_row.visible else "",   # Exp 008 (L)
 	}
+
+
+## Exp 008 (L): the pack line under the materials while away from home
+## ("Pack 18 / 30", "· Boot 12 / 60" when Eli drove); "" hides it. `tone`:
+## 0 normal, 1 nearly full, 2 full.
+func set_pack_line(text: String, tone := 0) -> void:
+	if _mat_row == null:
+		return
+	if _pack_row == null:
+		if text == "":
+			return
+		_pack_row = UiTheme.make_icon_label("inventory", "", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM, 12.0)
+		_pack_row.name = "Pack"
+		var t: Label = _pack_row.get_node("Text")
+		t.add_theme_constant_override("outline_size", 4)
+		t.add_theme_color_override("font_outline_color", Color(0, 0.01, 0.02, 0.72))
+		_mat_row.get_parent().add_child(_pack_row)
+		_mat_row.get_parent().move_child(_pack_row, _mat_row.get_index() + 1)
+	_pack_row.visible = text != ""
+	var c: Color = [UiTheme.TEXT_DIM, UiTheme.WARN, UiTheme.BAD][clampi(tone, 0, 2)]
+	var label: Label = _pack_row.get_node("Text")
+	label.text = text
+	label.add_theme_color_override("font_color", c)
+	(_pack_row.get_node("Icon") as UiIcon).color = c
 
 
 ## Exp 005 (C): the room and mood line under the materials, in the status card.

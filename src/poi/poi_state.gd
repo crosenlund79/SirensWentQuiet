@@ -10,6 +10,9 @@ extends RefCounted
 ##   taken    pickup id -> day taken
 ##   chop     fallen tree id -> chops used
 ##   forced   door id -> true (a locked door Eli forced stays open)
+##   found    one-of-a-kind item -> day Eli took it here (Exp 008 (L): such an
+##            item is never generated again anywhere, even once it is stored
+##            at home or in the car's boot)
 ##   visits, last_day, stock0 (the place's stock when the visit began),
 ##   total (the load of everything left when the visit began)
 ##   visit    the visit in progress (only while Eli is there): {"day", "car",
@@ -27,7 +30,13 @@ extends RefCounted
 ## small refill with chance regen x days x 2 (at most 70 %; the location's
 ## ExpeditionData regen), taken pickups come back with the same chance, and
 ## chopped trees regrow (regen x 10 chops a day). Leaving sets the region
-## stock (the map) to what is left.
+## stock (the map) to what is left. What Eli leaves in a container stays
+## there (a refill only adds).
+## One-of-a-kind items (tools, weapons, gear, books; Items.is_unique) exist
+## once in the region (Exp 008 (L), may_find): never generated, refilled or
+## put back as a pickup while Eli owns one, has learned the book, has ever
+## taken one at a POI (`found`), or one is lying in any POI's container,
+## lying as an untaken pickup, or riding in a car's boot.
 ##
 ## Carrying while away: what Eli takes at a POI goes into the household pool
 ## (the inventory and its caps) AND counts toward a pack limit (PACK_BASE
@@ -77,7 +86,7 @@ static func _clean(r: Dictionary) -> void:
 		_items_in(e, "items")
 		e["searched"] = e.get("searched", false) == true
 		e["day"] = _int(e.get("day"))
-	for k in ["taken", "chop"]:
+	for k in ["taken", "chop", "found"]:
 		var d := _dict_in(r, k)
 		for key in d.keys():
 			if typeof(key) != TYPE_STRING:
@@ -193,7 +202,8 @@ static func _seed(state: GameState, parts: Array) -> int:
 
 
 ## True if a one-of-a-kind item may appear: not owned, a book not yet learned,
-## and not already lying somewhere in this site.
+## not already lying somewhere in this site, and nowhere else in the region
+## (placed_elsewhere: Exp 008 (L)).
 static func may_find(state: GameState, r: Dictionary, id: String) -> bool:
 	if not Items.is_unique(id):
 		return true
@@ -204,7 +214,48 @@ static func may_find(state: GameState, r: Dictionary, id: String) -> bool:
 	for cid in r.get("c", {}):
 		if int(r["c"][cid]["items"].get(id, 0)) > 0:
 			return false
-	return true
+	return not placed_elsewhere(state, id)
+
+
+## Exp 008 (L): true if one-of-a-kind `id` already exists in the region: Eli
+## took one at some POI (stored at home or in the boot since: not "owned"
+## any more, but found), one lies in a POI's container or as an untaken
+## pickup of a generated POI, or one rides in a car's boot.
+static func placed_elsewhere(state: GameState, id: String) -> bool:
+	if state == null or state.region == null or typeof(state.region.get("poi")) != TYPE_DICTIONARY:
+		return false
+	var all: Dictionary = state.region.poi
+	for pid in all:
+		var r: Variant = all[pid]
+		if typeof(r) != TYPE_DICTIONARY:
+			continue
+		if typeof(r.get("found")) == TYPE_DICTIONARY and (r["found"] as Dictionary).has(id):
+			return true
+		var c: Variant = r.get("c")
+		if typeof(c) == TYPE_DICTIONARY:
+			for cid in c:
+				var e: Variant = c[cid]
+				if typeof(e) == TYPE_DICTIONARY and typeof(e.get("items")) == TYPE_DICTIONARY and int(e["items"].get(id, 0)) > 0:
+					return true
+		var vis: Variant = r.get("visit")
+		if typeof(vis) == TYPE_DICTIONARY and typeof(vis.get("cargo")) == TYPE_DICTIONARY and int(vis["cargo"].get(id, 0)) > 0:
+			return true
+		if typeof(c) == TYPE_DICTIONARY and not (c as Dictionary).is_empty() and PoiDefs.has(str(pid)):
+			var taken: Variant = r.get("taken", {})
+			for p in PoiDefs.get_def(str(pid))["layout"].get("pickups", []):
+				if str(p["item"]) == id and typeof(taken) == TYPE_DICTIONARY and not (taken as Dictionary).has(p["id"]):
+					return true
+	return false
+
+
+## Exp 008 (L): Eli took one-of-a-kind `id` at POI `poi` (the helper's
+## pack_add): it is never generated again (may_find).
+static func note_found(state: GameState, poi: String, id: String) -> void:
+	if not Items.is_unique(id):
+		return
+	var r := record(state, poi)
+	if not r.is_empty():
+		(r["found"] as Dictionary)[id] = state.day()
 
 
 ## Rolls a loot table (ExpeditionData entries [id, min, max, chance]) with the
@@ -255,9 +306,16 @@ static func generate(state: GameState, id: String, r: Dictionary) -> void:
 	_share(c, roll(state, r, def["loot"], mult, rng), open_ones, rng)
 	# rolled after the main share, so a one-of-a-kind item is never in both
 	_share(c, roll(state, r, def["locked"], mult, rng), locked_ones if not locked_ones.is_empty() else open_ones, rng)
+	var maybe := []
 	for p in L["pickups"]:
-		if rng.randf() > 0.35 + 0.65 * stock:
+		var gone := rng.randf() > 0.35 + 0.65 * stock
+		if gone or Items.is_unique(str(p["item"])):
 			r["taken"][p["id"]] = today
+			if not gone:
+				maybe.append(p)
+	for p in maybe:                        # Exp 008 (L): a one-of-a-kind pickup lies there only while it may be found
+		if may_find(state, r, str(p["item"])):
+			r["taken"].erase(p["id"])
 	r["last_day"] = today
 
 
@@ -325,11 +383,15 @@ static func replenish(state: GameState, id: String, r: Dictionary, today: int) -
 		FurnitureStorage.merge(box["items"], got)
 		box["searched"] = false
 		box["day"] = today
+	var unique_items := {}
+	for q in L.get("pickups", []):
+		if Items.is_unique(str(q["item"])):
+			unique_items[q["id"]] = str(q["item"])
 	for pid in (r["taken"] as Dictionary).keys():
 		var rng := RandomNumberGenerator.new()
 		rng.seed = _seed(state, [id, pid, "pickup", today])
-		if rng.randf() < p:
-			r["taken"].erase(pid)
+		if rng.randf() < p and (not unique_items.has(pid) or may_find(state, r, unique_items[pid])):
+			r["taken"].erase(pid)             # Exp 008 (L): never a second one-of-a-kind item
 	var regrow := int(floor(float(days) * regen * 10.0))
 	for wid in (r["chop"] as Dictionary).keys():
 		r["chop"][wid] = maxi(int(r["chop"][wid]) - regrow, 0)

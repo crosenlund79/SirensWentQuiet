@@ -5,6 +5,7 @@ extends Node3D
 ## poi, travel, _modal, toast, _set_modal, _advance_clock) around
 ## PoiSite.build_world + PoiSite.make_helper. Tests use it; it also runs:
 ##   godot --path . res://src/poi/poi_preview.tscn -- --poi=library [--car] [--hour=22] [--player-at=x,y]
+##   [--demo=markers|panel|boot]   (Exp 008 (L): looting states for screenshots, Corner Store aisles)
 ## WASD move, mouse aim, E use, LMB shoot (handgun), F1 restore loot, F2
 ## straggler, F3 reveal containers, Tab state, Esc quit.
 
@@ -30,6 +31,7 @@ var toasts: Array[String] = []
 var left := false
 var _modal := ""
 var _focus: Node3D
+var demo := ""
 
 
 ## Tests set these before adding the node (else the command line decides).
@@ -47,6 +49,8 @@ func _ready() -> void:
 			by_car = true
 		elif a.begins_with("--hour="):
 			hour = float(a.trim_prefix("--hour="))
+		elif a.begins_with("--demo="):
+			demo = a.trim_prefix("--demo=")
 		elif a.begins_with("--player-at="):
 			var xy := a.trim_prefix("--player-at=").split(",")
 			if xy.size() == 2:
@@ -92,6 +96,39 @@ func _ready() -> void:
 	world.chunks.flush(100000.0)
 	camera.snap()
 	world.update_view(player.global_position, camera, 5.0)
+	if demo != "":
+		_demo.call_deferred()
+
+
+## Exp 008 (L): looting states for screenshots (see the header).
+func _demo() -> void:
+	var r: Dictionary = poi.record
+	var w := world as PoiWorld
+	var fill := func(cid: String, items: Dictionary, searched: bool) -> void:
+		var box := PoiState.container(r, cid)
+		box["items"].clear()
+		box["items"].merge(items)
+		box["searched"] = searched
+	fill.call("aisle_1a", {"snacks": 2, "water": 1}, true)
+	fill.call("aisle_1b", {}, true)
+	fill.call("aisle_1c", {"canned_food": 3, "water": 12, "snacks": 4, "bandage": 1, "nails": 20}, false)
+	fill.call("aisle_2b", {"canned_food": 1}, false)
+	state.inventory.add("water", 14)
+	poi.pack_add("water", 14)
+	match demo:
+		"markers":
+			player.global_position = Vector3(3.4, 0, 5.45)
+		"panel":
+			player.global_position = Vector3(6.6, 0, 5.2)
+			var s := w.spot("container", "aisle_1c")
+			poi.interact_spot(s)
+			poi.complete_action()
+			poi.panel.take("canned_food", 2)
+		"boot":
+			player.global_position = Vector3(0.6, 0, 12.2)
+			poi.open_cargo()
+	player.aim_point = player.global_position + Vector3(0, 1.1, -3)
+	camera.snap()
 
 
 func _process(delta: float) -> void:
@@ -104,7 +141,8 @@ func _process(delta: float) -> void:
 		var mp := get_viewport().get_mouse_position()
 		player.aim_point = world.aim_ray(camera.project_ray_origin(mp), camera.project_ray_normal(mp))
 	world.update_view(player.global_position, camera, delta)
-	_focus = Finder.nearest(world.interactables(), player.plan_pos()) if _modal == "" else null
+	var was: Node3D = _focus if is_instance_valid(_focus) else null
+	_focus = Finder.best(world.interactables(), player.plan_pos(), Finder.facing_of(player), was) if _modal == "" else null
 	hud.set_prompt(str(_focus.interact_prompt()) if _focus != null else "")
 
 
@@ -132,7 +170,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func interact() -> void:
-	_focus = Finder.nearest(world.interactables(), player.plan_pos())
+	var was: Node3D = _focus if is_instance_valid(_focus) else null
+	_focus = Finder.best(world.interactables(), player.plan_pos(), Finder.facing_of(player), was)
 	if _focus != null:
 		_focus.interact(self)
 

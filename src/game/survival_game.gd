@@ -804,9 +804,11 @@ func sync_roster() -> void:
 
 func _update_prompt() -> void:
 	var p := ""
+	var was: Node3D = _focus if is_instance_valid(_focus) else null
 	_focus = null
 	if _modal == "" and not state.dead:
-		_focus = Finder.nearest(_interactables(), player.plan_pos())
+		var facing := Finder.facing_of(player) if not is_home() else Vector2.ZERO     # Exp 008 (L): one clear choice (facing at a POI)
+		_focus = Finder.best(_interactables(), player.plan_pos(), facing, was)
 		p = str(_focus.interact_prompt()) if _focus != null else (boundary.prompt_text() if boundary != null else "")
 	if p != _prompt:
 		_prompt = p

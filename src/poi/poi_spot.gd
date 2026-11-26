@@ -10,6 +10,18 @@ extends Node3D
 ##   cargo      the car's boot (only when Eli came by car)
 ## The game's POI helper (game.poi, game_poi.gd) owns the rules; a spot only
 ## asks it (world.helper) for its prompt and hands it the interaction.
+##
+## Exp 008 (L): containers and loose items carry a small marker in the HUD's
+## pixel style, shown by the helper (update_markers) while Eli is near and
+## can see them: an amber square (not searched yet), a lock (needs a
+## crowbar), a flashlight (too dark), a pale square with "3 left" (searched,
+## something left) or a faint "searched" (empty). The one the prompt points
+## at is brighter. interact_point() is where the thing itself is (the
+## interaction finder's facing test).
+
+const MARK_ICONS := {"new": "dot", "left": "dot", "locked": "lock", "dark": "flashlight"}
+const MARK_ICON_PX := {"dot": 60, "lock": 36, "flashlight": 36}   ## texture sizes (UiIcons, 12 x 12 bitmaps; the dot is a third of it)
+const MARK_PIXEL := 0.0075            ## m per texture or font pixel: about 1:1 on screen at the game's camera
 
 var kind := "container"
 var id := ""
@@ -17,6 +29,9 @@ var data := {}
 var world: Node                 ## the PoiWorld
 var front := Vector2.ZERO       ## containers: the way the piece faces (use it from that side)
 var visual: Node3D              ## pickups: the item's mesh (hidden when taken)
+var marker: Node3D              ## Exp 008 (L): the small sign over it (set_marker)
+var marker_look := ""           ## "", "new", "locked", "dark", "left", "empty"
+var _mark_key := ""
 
 
 func setup(k: String, spot_id: String, at: Vector2, d: Dictionary, w: Node) -> void:
@@ -36,6 +51,78 @@ func plan_pos() -> Vector2:
 
 func label() -> String:
 	return str(data.get("label", kind))
+
+
+## Exp 008 (L): where the thing itself is (a container's middle, a log's), as
+## opposed to where Eli stands to use it (plan_pos).
+func interact_point() -> Vector2:
+	if kind == "container" and data.get("rect") is Rect2:
+		return (data["rect"] as Rect2).get_center()
+	if kind == "wood" and data.get("at") is Vector2:
+		return data["at"]
+	return plan_pos()
+
+
+## Exp 008 (L): shows the marker as `look` ("" hides it; see the header) with
+## an optional short tag; `hot` = the prompt points at it.
+func set_marker(look: String, text := "", hot := false) -> void:
+	var key := "%s|%s|%s" % [look, text, hot]
+	if key == _mark_key:
+		return
+	_mark_key = key
+	marker_look = look
+	if look == "":
+		if marker != null:
+			marker.visible = false
+		return
+	if marker == null:
+		_make_marker()
+	marker.visible = true
+	var icon: Sprite3D = marker.get_node("Icon")
+	var tag: Label3D = marker.get_node("Tag")
+	var tint: Color = {"new": UiTheme.ACCENT, "locked": UiTheme.WARN, "dark": UiTheme.FROST, "left": UiTheme.TEXT}.get(look, UiTheme.TEXT_FAINT)
+	icon.visible = MARK_ICONS.has(look)
+	if icon.visible:
+		var k := str(MARK_ICONS[look])
+		icon.texture = UiIcons.texture(k, int(MARK_ICON_PX.get(k, 24)))
+		icon.modulate = Color(tint, 1.0 if hot else 0.8)
+	tag.text = text
+	tag.visible = text != ""
+	tag.modulate = Color(UiTheme.TEXT if look == "left" else UiTheme.TEXT_DIM, (1.0 if hot else 0.85) if look != "empty" else (0.9 if hot else 0.7))
+	tag.position.y = 0.2 if icon.visible else 0.0
+	marker.scale = Vector3.ONE * (1.25 if hot else 1.0)
+
+
+func _make_marker() -> void:
+	marker = Node3D.new()
+	marker.name = "Marker"
+	var over := interact_point() - plan_pos()
+	var h := float(data.get("h", 1.0)) + 0.32 if kind == "container" else 0.5
+	marker.position = Vector3(over.x, h, over.y)
+	add_child(marker)
+	var icon := Sprite3D.new()
+	icon.name = "Icon"
+	icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	icon.no_depth_test = true
+	icon.shaded = false
+	icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	icon.pixel_size = MARK_PIXEL
+	icon.render_priority = 2
+	marker.add_child(icon)
+	var tag := Label3D.new()
+	tag.name = "Tag"
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.no_depth_test = true
+	tag.shaded = false
+	tag.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	tag.font = UiTheme.font("bold")
+	tag.font_size = 32
+	tag.outline_size = 8
+	tag.outline_modulate = Color(0, 0.01, 0.02, 0.8)
+	tag.pixel_size = MARK_PIXEL
+	tag.render_priority = 2
+	tag.outline_render_priority = 1
+	marker.add_child(tag)
 
 
 func _helper() -> Object:

@@ -17,6 +17,14 @@ extends Node
 ## (only when you drove): its boot holds more. "[E] Leave for home" at the
 ## trail posts with the flares, whenever you want.
 ##
+## Exp 008 (L): searchable things show a small marker when Eli is near and
+## can see them (PoiSpot.set_marker: not searched, locked, dark, something
+## left, searched), and the prompt always says what a container holds now
+## ("[E] Take from the shelf · 2 cans of food", "Shelf: searched · empty").
+## The HUD shows "Pack 18 / 30" (and "· Boot 12 / 60" when Eli drove) while
+## away; a take that fills the pack says so. One-of-a-kind items Eli takes or
+## stows are noted (PoiState.note_found) so they never turn up again.
+##
 ## Enemies (PoiWorld.encounter_plan by the visit's danger): ordinary roster
 ## enemies that start unaware: hidden ones wait in a room, wanderers walk
 ## about, arrivals come in from the fog after a few minutes (sooner after a
@@ -40,6 +48,8 @@ const CHOP_MINUTES := 20
 const FORCE_SECS := 2.6
 const FORCE_MINUTES := 5
 const NOISE_RADIUS := 4.5          ## m per noise level (my own hearing; agent N's Noise is called too)
+const MARK_RANGE := 4.5            ## Exp 008 (L): m; markers show this close (and in sight)
+const PROMPT_KINDS := 2            ## Exp 008 (L): item kinds named in a partly taken container's prompt
 
 var game: Node
 var world: PoiWorld
@@ -63,6 +73,8 @@ var _tick := 0.0
 var _started := false
 var _rng := RandomNumberGenerator.new()
 var _seen_toast := false
+var _full_said := false            ## Exp 008 (L): "your pack is full" said (until it has room again)
+var _ui_tick := 0.0
 
 static var _noise_script: Variant = false     ## agent N's NoiseEvent script (looked up once; false = not yet)
 
@@ -116,6 +128,7 @@ func _process(delta: float) -> void:
 		_start_encounters()
 	_clock += delta
 	_step_action(delta)
+	_tick_loot_ui(delta)              # Exp 008 (L): markers, the HUD's pack line
 	for p in pending.duplicate():
 		if _clock >= float(p["when"]) and _roster() != null:
 			pending.erase(p)
@@ -136,8 +149,9 @@ func prompt_for(s: PoiSpot) -> String:
 		"container":
 			var box := PoiState.container(record, s.id)
 			if box["searched"]:
-				var n := FurnitureStorage.total(box["items"])
-				return "[E] Take from the %s (%d left)" % [s.label(), n] if n > 0 else ""
+				if (box["items"] as Dictionary).is_empty():
+					return "%s: searched · empty" % s.label().capitalize()
+				return "[E] Take from the %s · %s" % [s.label(), left_text(box["items"])]
 			var needs := str(s.data.get("needs", ""))
 			if needs == "crowbar" and not record["forced"].has(s.id):
 				return "[E] Force the %s open (crowbar)" % s.label() if owns("crowbar") else "The %s is locked · a crowbar would open it" % s.label()
@@ -147,7 +161,10 @@ func prompt_for(s: PoiSpot) -> String:
 		"pickup":
 			if record["taken"].has(s.id):
 				return ""
-			return "[E] Pick up %s" % ExpeditionData.count_text(str(s.data["item"]), int(s.data["n"]))
+			var what := ExpeditionData.count_text(str(s.data["item"]), int(s.data["n"]))
+			if PoiState.room_for(str(s.data["item"]), PoiState.pack_load(state, pack), PoiState.pack_cap(state)) < int(s.data["n"]):
+				return "[E] Pick up %s · no room in your pack" % what
+			return "[E] Pick up %s" % what
 		"wood":
 			var left := chops_left(s)
 			return "[E] Chop wood (fallen tree · %d left)" % left if left > 0 else ""
@@ -162,6 +179,25 @@ func door_prompt(d: PoiDoor) -> String:
 	if _action.get("door") == d:
 		return "%s… %d %%" % [_action_label(), int(100.0 * float(_action["t"]) / float(_action["dur"]))]
 	return "[E] Force the door open (crowbar)" if owns("crowbar") else "Locked door · a crowbar would open it"
+
+
+## Exp 008 (L): what a partly taken container still holds, for its prompt:
+## "2 cans of food, 1 bottle of water" (+ "and 3 more kinds").
+static func left_text(items: Dictionary) -> String:
+	var parts := []
+	var more := 0
+	for id in Items.DEFS:
+		var n := int(items.get(id, 0))
+		if n <= 0:
+			continue
+		if parts.size() < PROMPT_KINDS:
+			parts.append(ExpeditionData.count_text(id, n))
+		else:
+			more += 1
+	var t := ", ".join(parts)
+	if more > 0:
+		t += " and %d more %s" % [more, "kind" if more == 1 else "kinds"]
+	return t
 
 
 func _action_label() -> String:
@@ -193,9 +229,11 @@ func interact_spot(s: PoiSpot) -> void:
 	if not _can_act() or world == null:
 		return
 	if not _action.is_empty():
-		if _action.get("spot") != s:
-			_toast("You're busy.", "warn")
-		return
+		if s.kind != "exit":               # Exp 008 (L): leaving always works, mid-search too
+			if _action.get("spot") != s:
+				_toast("You're busy.", "warn")
+			return
+		cancel_action("")
 	match s.kind:
 		"container":
 			_use_container(s)
@@ -218,6 +256,9 @@ func interact_spot(s: PoiSpot) -> void:
 func _use_container(s: PoiSpot) -> void:
 	var box := PoiState.container(record, s.id)
 	if box["searched"]:
+		if (box["items"] as Dictionary).is_empty():
+			_toast("You already searched the %s. Nothing left." % s.label(), "info")
+			return
 		_open_panel(s)
 		return
 	var needs := str(s.data.get("needs", ""))
@@ -351,8 +392,11 @@ func pick_up(s: PoiSpot) -> bool:
 		return false
 	var item := str(s.data["item"])
 	var n := int(s.data["n"])
-	if PoiState.room_for(item, PoiState.pack_load(state, pack), PoiState.pack_cap(state)) < n or state.inventory.space_for(item) < n:
-		_toast("No room for it in your pack.", "warn")
+	if PoiState.room_for(item, PoiState.pack_load(state, pack), PoiState.pack_cap(state)) < n:
+		_toast(full_text(), "warn")
+		return false
+	if state.inventory.space_for(item) < n:
+		_toast("No room for more %s." % Items.name_of(item).to_lower() if not Items.is_unique(item) else "You already have one.", "warn")
 		return false
 	var k := state.inventory.add(item, n)
 	pack_add(item, k)
@@ -367,6 +411,7 @@ func pick_up(s: PoiSpot) -> bool:
 
 func _open_panel(s: PoiSpot) -> void:
 	open_spot = s
+	refresh_pack_line()
 	if game.has_method("_set_modal"):
 		game._set_modal("poi", true)
 	panel.open_loot(state, PoiState.container(record, s.id)["items"], s.label().capitalize(), self)
@@ -376,6 +421,7 @@ func open_cargo() -> void:
 	if not _can_act():
 		return
 	open_spot = world.spot("cargo", "car")
+	refresh_pack_line()
 	if game.has_method("_set_modal"):
 		game._set_modal("poi", true)
 	panel.open_cargo(state, cargo, self)
@@ -388,6 +434,7 @@ func close_panel() -> void:
 
 func _on_panel_closed() -> void:
 	open_spot = null
+	refresh_pack_line()
 	if world != null:
 		world._update_reveal()
 	if str(game.get("_modal")) == "poi" and game.has_method("_set_modal"):
@@ -397,9 +444,15 @@ func _on_panel_closed() -> void:
 func pack_add(id: String, n: int) -> void:
 	if n > 0:
 		pack[id] = int(pack.get(id, 0)) + n
+		PoiState.note_found(state, poi_id, id)       # Exp 008 (L): a one-of-a-kind item never turns up again
+		if pack_full() and not _full_said:
+			_full_said = true
+			_toast(full_text(), "warn")
+		refresh_pack_line()
 
 
 func pack_remove(id: String, n: int) -> void:
+	PoiState.note_found(state, poi_id, id)          # Exp 008 (L): stowed in the boot, it still exists
 	var k := mini(n, int(pack.get(id, 0)))
 	if k <= 0:
 		return
@@ -407,6 +460,93 @@ func pack_remove(id: String, n: int) -> void:
 		pack.erase(id)
 	else:
 		pack[id] = int(pack[id]) - k
+	refresh_pack_line()
+
+
+## Exp 008 (L): true when the pack takes nothing more (within a nail's weight).
+func pack_full() -> bool:
+	return state != null and PoiState.pack_load(state, pack) >= PoiState.pack_cap(state) - 0.05
+
+
+## Exp 008 (L): "Your pack is full (30 / 30). ..." with what Eli can do about it.
+func full_text() -> String:
+	var t := "Your pack is full (%s / %s)." % [PoiState._num(PoiState.pack_load(state, pack)), PoiState._num(PoiState.pack_cap(state))]
+	if has_car:
+		return t + " Stow things in the car's boot, or leave the rest here."
+	return t + " Leave the rest here, or come back for it."
+
+
+## Exp 008 (L): the HUD's line while away: "Pack 18 / 30", "· Boot 12 / 60"
+## when Eli drove, "· full" when nothing more fits.
+func pack_line() -> String:
+	if state == null:
+		return ""
+	var t := "Pack %s / %s" % [PoiState._num(PoiState.pack_load(state, pack)), PoiState._num(PoiState.pack_cap(state))]
+	if pack_full():
+		t += " · full"
+	if has_car:
+		t += " · Boot %s / %s" % [PoiState._num(PoiState.load_of(cargo)), PoiState._num(PoiState.CARGO_CAP)]
+	return t
+
+
+# --- markers and the HUD (Exp 008 (L)) -----------------------------------------------------
+
+func _tick_loot_ui(delta: float) -> void:
+	_ui_tick -= delta
+	if _ui_tick > 0.0:
+		return
+	_ui_tick = TICK
+	update_markers()
+	if _full_said and not pack_full():
+		_full_said = false
+	refresh_pack_line()
+
+
+## The HUD's pack line now (each tick, and at once when the pack changes).
+func refresh_pack_line() -> void:
+	var hud: Variant = game.get("hud") if game != null else null
+	if state != null and hud is Object and is_instance_valid(hud) and hud.has_method("set_pack_line"):
+		var ld := PoiState.pack_load(state, pack)
+		var cap := PoiState.pack_cap(state)
+		hud.set_pack_line(pack_line(), 2 if pack_full() else (1 if ld >= cap * 0.8 else 0))
+
+
+## The marker each container and loose item shows now: shown while Eli is
+## within MARK_RANGE and can see it; the prompt's choice (game._focus) is hot.
+func update_markers() -> void:
+	if world == null or state == null:
+		return
+	var pl: Variant = game.get("player")
+	if not (pl is Node3D):
+		return
+	var pp := Vector2((pl as Node3D).global_position.x, (pl as Node3D).global_position.z)
+	var focus: Variant = game.get("_focus")
+	for s in world.spots:
+		if not (s.kind in ["container", "pickup"]):
+			continue
+		var look := ["", ""]
+		var at: Vector2 = s.interact_point()
+		if at.distance_to(pp) <= MARK_RANGE and not (s.kind == "container" and world.container_cut(s.id)) and can_see(pp, at):
+			look = marker_for(s)
+		s.set_marker(look[0], look[1], is_same(s, focus))
+
+
+## [look, tag] for a spot's marker (PoiSpot.set_marker).
+func marker_for(s: PoiSpot) -> Array:
+	if s.kind == "pickup":
+		return ["", ""] if record["taken"].has(s.id) else ["new", ""]
+	if s.kind != "container":
+		return ["", ""]
+	var box := PoiState.container(record, s.id)
+	if box["searched"]:
+		var n := FurnitureStorage.total(box["items"])
+		return ["left", "%d left" % n] if n > 0 else ["empty", "searched"]
+	var needs := str(s.data.get("needs", ""))
+	if needs == "crowbar" and not record["forced"].has(s.id):
+		return ["locked", ""]
+	if needs == "flashlight" and not owns("flashlight"):
+		return ["dark", ""]
+	return ["new", ""]
 
 
 # --- leaving -------------------------------------------------------------------------------
