@@ -152,6 +152,13 @@ func test_chain_on_foot_store_then_library_by_the_map_then_home() -> void:
 	check_eq(OffscreenHome.events(s).size(), 1, "an attack on the house is recorded")
 	var got_a := await _take_from_a_container(g)
 	check(not got_a.is_empty(), "took something at the store (%s)" % [got_a])
+	# a refused leave doesn't end the visit (it would count twice later)
+	s.run["invasion_active"] = true
+	g.poi.leave()
+	await frames(2)
+	check_eq(g.left_to, "", "refused: Eli stays")
+	check(PoiState.in_visit(g.poi.record) and g.poi.finished.is_empty(), "and the visit goes on")
+	s.run.erase("invasion_active")
 	var exit: PoiSpot = g.world.spots_of("exit")[0]
 	check(exit.interact_prompt().begins_with("[E] Leave for home") and exit.interact_prompt().contains("M: travel on"), "the exit says both (%s)" % exit.interact_prompt())
 	# M: the map, from here
@@ -265,6 +272,7 @@ func test_chain_by_car_fuel_and_the_boot() -> void:
 	g.debug_kill_enemies()
 	check(await g.travel.travel_on("library", false) != "", "can't walk on and leave the car")
 	check_eq(g.left_to, "", "still here")
+	check(PoiState.in_visit(g.poi.record) and g.poi.finished.is_empty(), "the visit goes on after a refusal")
 	check_eq(await g.travel.travel_on("library", true), "", "drives on")
 	check_eq(int((GameLaunch.carry.get("cargo", {}) as Dictionary).get("stone", 0)), 4, "the boot goes along")
 	g = await _next_scene(g)

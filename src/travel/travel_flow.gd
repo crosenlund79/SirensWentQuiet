@@ -17,11 +17,12 @@ extends Node
 ##    the clock, the place is known, 30 % to spot a new place nearby
 ##    (TravelRules), Eli stands at world.entry_point(), autosave "arrived".
 ##    P starts the visit (pack, boot) and counts it when it ends.
-## 4. An exit's "[E] Leave for home": agent P's helper ends the visit
+## 4. An exit's "[E] Leave for home": agent P's helper calls leave_poi() ->
+##    leave_for_home(): once its checks pass it ends the visit
 ##    (game.poi.finish(): the place's stock and visit count, GameLaunch.carry
-##    ["poi"] = {site, by_car, cargo, pack, left}) and calls leave_poi() ->
-##    leave_for_home(): the return animation, the road's minutes, then a
-##    scene change home with {"state", "home", "travel", "cargo", "poi"}.
+##    ["poi"] = {site, by_car, cargo, pack, left}), then the return
+##    animation, the road's minutes, then a scene change home with
+##    {"state", "home", "travel", "cargo", "poi"}.
 ##    Every exit works at any time (P's rule), enemies or not.
 ## 5. Home (arrive() -> arrive_home()): the house is the snapshot (the game loaded it),
 ##    the attacks recorded while away are resolved (OffscreenHome), the car's
@@ -303,12 +304,15 @@ func arrive_at_site(carry := {}) -> void:
 	game._autosave("arrived")
 
 
-## Agent P's helper calls this after finish() ("[E] Leave for home").
+## The POI helper's "[E] Leave for home" calls this. Exp 008: the visit
+## ends here (in leave_for_home), only once the departure is accepted.
 func leave_poi() -> String:
 	return await leave_for_home()
 
 
-## Back home from a POI (leave_poi, game.leave_site(), F10). Returns "" or why not.
+## Back home from a POI (leave_poi, game.leave_site(), the map, F10). Returns
+## "" or why not. Every check comes before the visit ends (_end_visit), so a
+## refusal leaves the visit running (it is counted once, when Eli does go).
 func leave_for_home(instant := false) -> String:
 	if busy:
 		return "busy"

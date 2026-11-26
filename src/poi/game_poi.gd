@@ -569,17 +569,20 @@ func can_travel_on() -> bool:
 	return t is Object and is_instance_valid(t) and t.has_method("travel_on")
 
 
-## "[E] Leave for home": ends the visit and asks the travel flow (agent T's
-## game.travel.leave_poi()) to take Eli home; without it, leave_requested.
-## (Exp 008: M opens the map to travel on to another place instead.)
+## "[E] Leave for home": asks the travel flow (agent T's
+## game.travel.leave_poi()) to take Eli home; without it, ends the visit and
+## emits leave_requested. (Exp 008: M opens the map to travel on to another
+## place instead.) Exp 008 (T): with the travel flow, the visit ends
+## (finish()) only once the departure is accepted, so a refused leave (an
+## open panel, a wave at the door...) leaves the visit running.
 func leave() -> void:
 	cancel_action("")
-	var out := finish()
 	var t: Variant = game.get("travel") if game != null else null
 	if t is Object and is_instance_valid(t) and t.has_method("leave_poi"):
-		t.leave_poi()
-	else:
-		leave_requested.emit(poi_id)
+		t.leave_poi()                      # checks first, then finish() and the road home
+		return
+	var out := finish()
+	leave_requested.emit(poi_id)
 	if out.is_empty():
 		push_warning("GamePoi: leaving without a visit")
 
