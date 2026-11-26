@@ -70,3 +70,17 @@ func test_the_bar_and_the_car_survive_a_save_and_old_saves_load() -> void:
 	var junk := Hotbar.clean({"slots": ["handgun", "handgun", 5, "nope", "water"], "selected": 99})
 	check_eq(junk["slots"].slice(0, 5), ["handgun", "", "", "", "water"], "duplicates and junk dropped")
 	check_eq(int(junk["selected"]), Hotbar.SIZE - 1, "selection clamped")
+
+
+## Exp 008: a full bar (the flashlight slipped into the second weapon slot)
+## still puts a newly found shotgun on key 2; the flashlight stays owned.
+func test_a_found_gun_reclaims_the_weapon_slot_on_a_full_bar() -> void:
+	var s := GameState.new_run(5)
+	for id in ["crowbar", "flashlight"]:
+		s.inventory.add(id, 1)
+	Hotbar.fill(s.hotbar, s)
+	check_eq(str(s.hotbar["slots"][1]), "flashlight", "a full bar put the flashlight on key 2")
+	s.inventory.add("shotgun", 1)
+	Hotbar.fill(s.hotbar, s)
+	check_eq(str(s.hotbar["slots"][1]), "shotgun", "the shotgun takes key 2")
+	check_eq(s.inventory.count("flashlight"), 1, "the flashlight is still owned")

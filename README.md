@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 007 — The House Has Ears / Beyond the Front Door**, built on Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 008 — The First Week**, built on Experiment 007 (The House Has Ears / Beyond the Front Door), Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -32,25 +32,29 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
   - A backpack carries half as much again.
   - A flashlight and a crowbar open places and choices on expeditions.
 - **Weapons:** handgun (9 mm, magazine) and shotgun (shells loaded one by one, a spread of pellets). The shotgun is found while scavenging.
-- **Scavenging (Experiment 007): you go there yourself.**
+- **Scavenging (Experiments 007 and 008): you go there yourself.**
   1. **Choose a place:** open the region map (M, the map on the dining table, or **E** at the fog edge) and pick a known place. The panel shows:
-     - the travel time on foot and by car, and the route;
-     - what you might find and the danger;
+     - what the place is good for (food and water, building materials, medical, weapons and ammo, books, tools), its danger, and whether you've been;
+     - walking and driving side by side, with the time there, the arrival time and when you'd be home ("back before dark" or a warning);
      - fuel, if going by car;
-     - your carrying limit;
-     - whether you'll be back before dark.
-  2. **Travel:** press **Travel** (C switches on foot / by car). Eli, or the car, moves along the roads on the map while time passes; Space skips the animation.
+     - your pack, and the car's boot.
+  2. **Travel:** press **Travel** (C switches on foot / by car). Eli, or the car, moves along the roads on the map while time passes, with a progress card; Space skips the animation.
   3. **The place:** you arrive in a playable place, the same game in a different location.
      - **Pine Woods:** chop fallen trees for planks, search a shelter.
      - **Corner Store:** aisles, fridges, a locked stockroom.
      - **Public Library:** books and manuals in the stacks, a dark locked archive.
+     - **Hardware Store:** nails, planks, scrap, iron and parts; a jammed stockroom and a delivery yard.
+     - **Pike's Guns:** ammunition, and sometimes a gun; a locked steel back room.
+     - **Medical Clinic:** bandages and first-aid kits; dark rooms down the corridor and a locked medical store.
      - **Every other place:** a placeholder layout for now.
   4. **Searching:** **E** at shelves, fridges, desks and crates. It takes a little time, can come up empty, and makes some noise.
-     - You take what you choose, within your pack limit (more with a backpack, plus the car's boot when you drive).
+     - Small markers show what you haven't searched, what's locked or dark, what's partly taken and what's empty. The prompt says what's left.
+     - You take what you choose, within your pack limit, shown on the HUD (more with a backpack, plus the car's boot when you drive: "Stow what you found").
      - A crowbar opens locked rooms; a flashlight lights dark ones.
-  5. **People:** someone may be there, may wander in, or nobody at all. They stay calm until they hear or see you. Fight, sneak or just leave.
-  6. **Leaving:** **[E] Leave for home** at any exit, at any time. You travel back and arrive home with exactly what you carried. Places stay looted and only slowly recover.
-  - **While you're away,** attacks still come. Your defences (doors, barricades, spikes, moats with raised drawbridges, walls, and turrets with ammo) decide the damage. On return a short report tells you what happened.
+  5. **People:** often nobody. Someone may be hiding inside, watching through a window, walking in by a door, or arriving later. They stay calm until they hear or see you, and a hunter can lose you if you get out of sight. Fight, sneak or just leave.
+  6. **Leaving:** **[E] Leave for home** at any exit, at any time, or **M** to **travel on** to another place (home → hardware store → clinic → home). You arrive home with exactly what you carried. Places stay looted and only slowly recover.
+  - **While you're away,** attacks still come when they fall due. Your defences (doors, barricades, spikes, moats with raised drawbridges, walls, and turrets with ammo) decide the damage. Prowlers mostly look around and leave. On return a short report tells you what happened.
+  - **Saving at a place** works unless someone is hunting you; Continue puts everyone back where they were.
 - **Building (B):** wood, stone and iron.
   - Stone walls need a foundation (the house floor or a stone foundation).
   - Iron makes barricades, reinforced doors and plating.
@@ -214,6 +218,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-008/REPORT.md`: the Experiment 008 report (the verified loop, three new places, looting, POI-to-POI travel, encounters, the first week; scenarios A–D); `PACING.md` (first-week resource pacing)
 - `docs/experiment-007/REPORT.md`: the Experiment 007 report (playable scavenging, noise, visibility, overview, holes, security); `AUDIO_REQUIREMENTS.md` (what to record next)
 - `docs/experiment-006/REPORT.md`: the Experiment 006 report (Defensive Living)
 - `docs/experiment-005/REPORT.md`: the Experiment 005 report (A House Worth Living In); `AUDIO.md`, `AUDIO_REQUIREMENTS.md` (what to record next)

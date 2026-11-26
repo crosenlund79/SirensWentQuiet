@@ -104,8 +104,16 @@ static func fill(bar: Dictionary, s: GameState) -> bool:
 				if slots[i] == "":
 					at = i
 					break
+		if at < 0 and WeaponDefs.has(id):
+			# Exp 008: a newly found gun takes the second weapon slot back from
+			# a non-weapon that only sat there because the bar was full (the
+			# item stays in the inventory; the player can put it back)
+			for i in [1, 0]:
+				if slots[i] != "" and not WeaponDefs.has(str(slots[i])):
+					at = i
+					break
 		if at < 0:
-			break
+			continue
 		slots[at] = id
 		known.append(id)
 		changed = true
