@@ -158,6 +158,17 @@ func hear(e: AIEnemy, at: Vector2, loud: float, source := "") -> void:
 		_lose_interest(e)                  # it wanders away from the sound
 
 
+## Exp 008 (E): walks straight to plan point p (snapped to the nearest
+## walkable cell) and lingers there, without the entrance rule of
+## investigate(): a POI enemy's route (a doorway, then into the room). Returns
+## the goal, or INF when there is no walkable cell near p.
+func walk_to(e: AIEnemy, p: Vector2, s := "investigate", at := Vector2.INF) -> Vector2:
+	var to := _snap(e, p)
+	if to != Vector2.INF:
+		_go(e, s, to, at)
+	return to
+
+
 ## Comes to look at plan point p (outside a building: the entrance nearest to it).
 func investigate(e: AIEnemy, p: Vector2) -> void:
 	var to := _entrance_near(e, p)

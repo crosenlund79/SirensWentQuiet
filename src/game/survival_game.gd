@@ -1178,6 +1178,8 @@ func can_save() -> String:
 		return "You can't save while travelling."      # Exp 007 (T): the departure / the POI is the checkpoint
 	if director.active or state.run.get("invasion_active", false):
 		return "You can't save during an invasion."
+	if not is_home() and poi != null and poi.has_method("save_check"):
+		return poi.save_check()       # Exp 008 (E): at a POI only hunters stop it; calm ones are saved with the visit
 	if roster.living() > 0:
 		return "You can't save with enemies nearby."
 	return ""

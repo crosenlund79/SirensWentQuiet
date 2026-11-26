@@ -184,6 +184,7 @@ static func _pine_woods(_def: Dictionary) -> Dictionary:
 	_car(L, 9.6, 11.2)
 	L["wander"] = [Rect2(-3.0, -2.0, 20.0, 12.0)]
 	L["edges"] = [Vector2(-6.4, -4.6), Vector2(20.4, -4.6), Vector2(-6.4, 13.6), Vector2(20.4, 3.0), Vector2(7.0, -5.4)]
+	L["doorways"] = [Vector2(11.5, 5.8)]      # Exp 008 (E): into the shelter (no windows to look in by)
 	return L
 
 
@@ -238,6 +239,10 @@ static func _corner_store(_def: Dictionary) -> Dictionary:
 	_car(L, 1.0, 11.0)
 	L["hide"] = [Vector2(11.6, 1.6), Vector2(2.8, 2.2), Vector2(6.6, 1.4)]
 	L["wander"] = [Rect2(1.2, 3.6, 12.0, 4.8), Rect2(-3.0, 9.8, 20.0, 2.6)]
+	# Exp 008 (E): the shop windows and the side windows; the open front and the back door
+	L["peek"] = [{"at": Vector2(3.0, 9.75), "look": Vector2(3.0, 6.0)}, {"at": Vector2(11.0, 9.75), "look": Vector2(11.0, 6.0)},
+		{"at": Vector2(-0.75, 7.5), "look": Vector2(3.0, 7.5)}, {"at": Vector2(14.75, 6.0), "look": Vector2(11.0, 5.5)}]
+	L["doorways"] = [Vector2(7.0, 9.7), Vector2(6.5, -0.7)]
 	return L
 
 
@@ -302,6 +307,11 @@ static func _library(_def: Dictionary) -> Dictionary:
 	_car(L, 1.4, 11.0)
 	L["hide"] = [Vector2(13.4, 4.3), Vector2(8.0, 2.6), Vector2(3.0, 3.2), Vector2(15.0, 7.0)]
 	L["wander"] = [Rect2(11.4, 0.6, 4.2, 9.0), Rect2(5.6, 6.8, 5.0, 2.6), Rect2(-3.0, 10.6, 22.0, 2.4)]
+	# Exp 008 (E): the reading room, stacks and office windows; the front doors and the back door
+	L["peek"] = [{"at": Vector2(2.5, 10.75), "look": Vector2(2.5, 7.5)}, {"at": Vector2(13.5, 10.75), "look": Vector2(13.5, 7.0)},
+		{"at": Vector2(2.5, -0.75), "look": Vector2(2.5, 2.5)}, {"at": Vector2(-0.75, 7.5), "look": Vector2(2.5, 7.5)},
+		{"at": Vector2(16.75, 3.0), "look": Vector2(13.5, 3.0)}]
+	L["doorways"] = [Vector2(8.0, 10.7), Vector2(14.5, -0.7)]
 	return L
 
 
@@ -377,4 +387,9 @@ static func _placeholder(def: Dictionary) -> Dictionary:
 	_car(L, -0.6, 9.6)
 	L["hide"] = [Vector2(9.0, 5.0), Vector2(5.0, 5.6)]
 	L["wander"] = [Rect2(3.5, 2.5, 7.0, 5.0), Rect2(-2.0, 8.6, 16.0, 2.8)]
+	# Exp 008 (E): its five windows; the front and back doors
+	L["peek"] = [{"at": Vector2(4.5, 8.75), "look": Vector2(4.5, 5.0)}, {"at": Vector2(9.25, 8.75), "look": Vector2(9.25, 5.0)},
+		{"at": Vector2(5.5, 1.25), "look": Vector2(5.5, 4.5)}, {"at": Vector2(2.25, 7.0), "look": Vector2(5.0, 7.0)},
+		{"at": Vector2(11.7, 6.7), "look": Vector2(9.0, 7.0)}]
+	L["doorways"] = [Vector2(6.5, 8.7), Vector2(9.5, 1.3)]
 	return L

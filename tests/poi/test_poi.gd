@@ -221,7 +221,7 @@ func test_encounters_start_unaware_and_notice_the_player() -> void:
 		var p := w.encounter_plan(1.4, k)
 		check(p.size() <= 5, "at most five")
 		for e in p:
-			check(e["mode"] in ["wander", "hidden", "arrive"] and EnemyDefs.has(e["kind"]), "a plan entry %s" % str(e))
+			check(e["mode"] in ["wander", "hidden", "arrive", "peek", "enter"] and EnemyDefs.has(e["kind"]) and e["kind"] != "bomber", "a plan entry %s" % str(e))   # Exp 008 (E): + peek, enter
 			any = true
 	check(any, "a dangerous place has visitors")
 	check_eq(str(w.encounter_plan(0.8, 3)), str(w.encounter_plan(0.8, 3)), "deterministic")

@@ -662,18 +662,34 @@ func room_floor_rects(storey := 0) -> Array:
 
 
 ## Who is here this visit: [{kind, at: Vector2, when: s after arrival (0 =
-## there already), mode: "wander" | "hidden" | "arrive"}], from the visit's
-## danger (PoiDefs.danger_of) and a seed. Not an arena: often nobody, at most
-## five (dangerous places), the first one hidden inside a room where the
-## layout has hiding places; arrivals come in from the fog later.
+## there already), mode, ...}], from the visit's danger (PoiDefs.danger_of)
+## and a seed. Not an arena: a quiet visit (nobody at all) with
+## quiet_share(danger), low-danger places more often; else one to five
+## (dangerous places), psychos, runners from danger 1.0, brutes from 1.3, no
+## bombers. Exp 008 (E) modes (the helper, game_poi.gd, runs them):
+##   hidden  already inside, waiting in a room (layout "hide"): an apparently
+##           empty building that isn't
+##   peek    outside a window looking in (layout "peek": "at", "look"); there
+##           from the start when the spot is far from the entry, else it comes
+##           to the window later ("spot", "look"; "at" is a fog edge). It may
+##           see Eli through the glass and come in by the nearest doorway.
+##   enter   comes in from the fog later and walks in by a doorway ("door",
+##           from the layout's "doorways"), opening a closed door
+##   arrive  comes in from the fog later and roams outside; a loud noise brings
+##           it (and every other arrival) sooner, to the doorway nearest the
+##           noise and in to look
+##   wander  already about
+## A layout without "peek" or "doorways" gets hidden, arrive and wander only.
 func encounter_plan(danger: float, seed: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 	var out := []
-	if rng.randf() < clampf(0.55 - 0.35 * danger, 0.05, 0.4):
+	if rng.randf() < quiet_share(danger):
 		return out
 	var n := clampi(1 + int(floor(rng.randf() * danger * 1.6)), 1, 5)
 	var hide: Array = (layout.get("hide", []) as Array).duplicate()
+	var peeks: Array = (layout.get("peek", []) as Array).duplicate()
+	var doors: Array = layout.get("doorways", [])
 	var edges: Array = layout.get("edges", PoiLayouts.EDGES)
 	for i in n:
 		var r := rng.randf()
@@ -682,21 +698,78 @@ func encounter_plan(danger: float, seed: int) -> Array:
 			kind = "brute"
 		elif danger >= 1.0 and r < 0.3:
 			kind = "runner"
-		var mode := "hidden" if i == 0 and not hide.is_empty() else ("arrive" if rng.randf() < 0.45 else "wander")
-		if mode == "hidden" and hide.is_empty():
+		var m := rng.randf()
+		var mode := "hidden" if m < 0.3 else ("peek" if m < 0.45 else ("enter" if m < 0.62 else ("arrive" if m < 0.8 else "wander")))
+		if mode == "hidden" and hide.is_empty() or mode == "peek" and peeks.is_empty():
 			mode = "wander"
-		var at := Vector2.ZERO
-		var when := 0.0
+		if mode == "enter" and doors.is_empty():
+			mode = "arrive"
+		var e := {"kind": kind, "at": Vector2.ZERO, "when": 0.0, "mode": mode}
 		match mode:
 			"hidden":
-				at = hide.pop_at(rng.randi() % hide.size())
+				e["at"] = hide.pop_at(rng.randi() % hide.size())
+			"peek":
+				var pk: Dictionary = peeks.pop_at(rng.randi() % peeks.size())
+				e["look"] = pk["look"]
+				if (pk["at"] as Vector2).distance_to(entry_point()) >= PEEK_FAR:
+					e["at"] = pk["at"]
+				else:
+					e["spot"] = pk["at"]
+					e["at"] = nearest_of(edges, pk["at"])
+					e["when"] = rng.randf_range(30.0, 120.0)
+			"enter":
+				var d: Vector2 = doors[rng.randi() % doors.size()]
+				e["door"] = d
+				e["at"] = nearest_of(edges, d)
+				e["when"] = rng.randf_range(45.0, 170.0)
 			"arrive":
-				at = edges[rng.randi() % edges.size()]
-				when = rng.randf_range(60.0, 200.0)
+				e["at"] = edges[rng.randi() % edges.size()]
+				e["when"] = rng.randf_range(60.0, 200.0)
 			_:
-				at = wander_point(rng, entry_point(), 9.0)
-		out.append({"kind": kind, "at": at, "when": when, "mode": mode})
+				e["at"] = wander_point(rng, entry_point(), 9.0)
+		out.append(e)
 	return out
+
+
+## Exp 008 (E): the chance a visit is quiet (nobody there and nobody coming):
+## about 45 % at danger 0.7 (Pine Woods), a third at 1.05 (the library), a
+## fifth at 1.4 (the gun shop), never below 8 %.
+static func quiet_share(danger: float) -> float:
+	return clampf(0.75 - 0.4 * danger, 0.08, 0.6)
+
+
+## A peek spot this close to the entry is empty on arrival (its watcher comes later).
+const PEEK_FAR := 9.0
+
+
+## The point of `pts` (Vector2) nearest to p (p itself when there are none).
+static func nearest_of(pts: Array, p: Vector2) -> Vector2:
+	var best := p
+	var best_d := INF
+	for q in pts:
+		if q is Vector2 and (q as Vector2).distance_to(p) < best_d:
+			best_d = (q as Vector2).distance_to(p)
+			best = q
+	return best
+
+
+## The middle of the room a doorway leads into (the nearest room within
+## 1.5 m of it), else the building's middle: where someone who comes in by
+## that doorway heads.
+func inside_of(door: Vector2) -> Vector2:
+	var best := Vector2.INF
+	var best_d := INF
+	for r in rooms():
+		var rect: Rect2 = r["rect"]
+		if not rect.grow(1.5).has_point(door):
+			continue
+		var d := rect.get_center().distance_to(door)
+		if d < best_d:
+			best_d = d
+			best = rect.get_center()
+	if best == Vector2.INF and not layout.get("walls", []).is_empty():
+		best = building_rect().get_center()
+	return best if best != Vector2.INF else door
 
 
 ## A walkable point in one of the layout's wander areas, at least `away` m
