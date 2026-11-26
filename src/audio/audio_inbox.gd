@@ -42,7 +42,8 @@ const ALIASES := {
 ## Exp 012 (A): story-only recordings. A file is reserved when this word
 ## appears anywhere in its name or in one of its folders under the scanned
 ## root (case ignored, also inside compounds like "TheArchitect"), or when it
-## lies in a folder named like one of RESERVED_FOLDERS. Reserved files never
+## lies in a folder named like one of RESERVED_FOLDERS, or its name starts
+## with that word ("Story - Knock 1.wav"). Reserved files never
 ## join a generic pool (psycho voices, the menu siege, ambience beds, random
 ## pools); the story reads them through reserved_files() and plays them under
 ## its own `story/*` logical names (src/story/story_audio.gd).
@@ -120,6 +121,7 @@ const RULES := [
 	{"name": "home/fireplace_out", "all": [["fireplace", "fire"], ["extinguish", "out", "douse"]], "kind": "oneshot", "db": -22.0},
 	{"name": "home/light_switch", "all": [["light", "lamp"], "switch"], "none": ["weapon"], "kind": "oneshot", "db": -24.0},
 	{"name": "car/start", "all": ["car", ["start", "engine", "ignition"]], "kind": "oneshot", "db": -18.0},
+	{"name": "travel/depart", "all": [["depart", "departure"]], "kind": "oneshot", "db": -22.0},      # Exp 012 (A): leaving on foot (travel_flow)
 	{"name": "build/dig", "all": [["shovel", "dig"]], "kind": "oneshot", "db": -19.0},
 	# Exp 007: drilling, scavenging and electronic security
 	{"name": "build/drill", "all": ["drill"], "kind": "oneshot", "db": -20.0},
@@ -139,6 +141,10 @@ const RULES := [
 	{"name": "psycho/bang", "all": [["psycho", "dormant"], ["bang", "knock", "thud"]], "kind": "oneshot", "db": -20.0},
 	{"name": "psycho/scratch", "all": [["psycho", "dormant"], "scratch"], "kind": "oneshot", "db": -25.0},
 	{"name": "psycho/tap", "all": [["psycho", "dormant"], ["tap", "drum"]], "kind": "oneshot", "db": -25.0},
+	# Exp 012 (A): first-sight shouts and screams (agent E's EnemyReaction plays
+	# psycho/shout, then psycho/scream, then enemy/moan): "Psycho - Shout 1.wav"
+	{"name": "psycho/shout", "all": [["psycho", "enemy"], ["shout", "yell", "holler"]], "kind": "oneshot", "db": -17.0},
+	{"name": "psycho/scream", "all": [["psycho", "enemy"], ["scream", "shriek"]], "kind": "oneshot", "db": -17.0},
 	# interface
 	{"name": "ui/click", "all": ["ui", "click"], "kind": "oneshot", "db": -24.0},
 	{"name": "ui/hover", "all": ["ui", "hover"], "kind": "oneshot", "db": -31.0},
@@ -364,7 +370,8 @@ static func is_story_name(name: String) -> bool:
 ## True when `path` is a story-only recording (see RESERVED_WORD): the word
 ## anywhere in the file name or in a folder below `root` (the whole path when
 ## no root is given), or a folder named like RESERVED_FOLDERS. Works on
-## exported listings too (".import" / ".remap" names).
+## exported listings too (".import" / ".remap" names). A file name starting
+## with the word "Story" is reserved as well.
 static func is_reserved_path(path: String, root := "") -> bool:
 	if path == "":
 		return false
@@ -375,7 +382,8 @@ static func is_reserved_path(path: String, root := "") -> bool:
 	for part in rel.get_base_dir().split("/", false):
 		if part in RESERVED_FOLDERS:
 			return true
-	return false
+	var w := words(rel.get_file().get_basename())      # "Story - Knock on the door 1.wav"
+	return not w.is_empty() and w[0] in RESERVED_FOLDERS
 
 
 ## Every story-only recording found by the scan (loadable paths, sorted).

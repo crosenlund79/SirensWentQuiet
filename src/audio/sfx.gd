@@ -142,6 +142,11 @@ const DEFS := {
 	"psycho/bang": {"pitch": 0.08, "cd": 0.3, "max": 3, "tpl": false},
 	"psycho/scratch": {"pitch": 0.06, "cd": 0.5, "max": 2, "steal": false, "tpl": false},
 	"psycho/tap": {"pitch": 0.06, "cd": 0.5, "max": 2, "steal": false, "tpl": false},
+	# Exp 012 (A): slots the user's recordings fill (silent until then; the
+	# callers fall back): first-sight shouts (EnemyReaction), leaving on foot.
+	"psycho/shout": {"pitch": 0.06, "cd": 0.25, "max": 3, "steal": false, "tpl": false},
+	"psycho/scream": {"pitch": 0.06, "cd": 0.25, "max": 3, "steal": false, "tpl": false},
+	"travel/depart": {"cd": 1.0, "max": 1, "pos": false, "tpl": false},
 }
 
 ## The scene host gets an AudioListener3D that follows the point the current

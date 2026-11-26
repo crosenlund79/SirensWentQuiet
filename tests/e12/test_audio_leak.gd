@@ -122,6 +122,7 @@ func test_export_style_listing_and_tricky_names() -> void:
 		"voice/TheArchitect enemy voice 1.wav.import",
 		"The Architect/Heavy breathing 2.wav.import",
 		"story/Enemy - Vocal 7.wav.import",
+		"Story - Heavy knock on the bedroom door 1.wav.import",
 		"foley/Enemy - Vocal 1.wav.import",
 		"foley/Enemy - Heavy impact wood 1.wav.import",
 	]:
@@ -129,10 +130,10 @@ func test_export_style_listing_and_tricky_names() -> void:
 	AudioInbox.roots_override = [d]
 	AudioInbox.reset()
 	var listed := AudioInbox.list_audio_files(d)
-	check_eq(listed.size(), 8, "the export listing is read (suffixes stripped): %s" % str(listed))
+	check_eq(listed.size(), 9, "the export listing is read (suffixes stripped): %s" % str(listed))
 	check_eq(AudioInbox.files_of("enemy/moan"), PackedStringArray([d.path_join("foley/Enemy - Vocal 1.wav")]), "only the real enemy vocal pools")
 	check_eq(AudioInbox.files_of("door/bash"), PackedStringArray([d.path_join("foley/Enemy - Heavy impact wood 1.wav")]), "only the real impact pools")
-	check_eq(AudioInbox.reserved_files().size(), 6, "six story files held back")
+	check_eq(AudioInbox.reserved_files().size(), 7, "seven story files held back")
 	for n in AudioInbox.names():
 		for p in AudioInbox.files_of(n):
 			check(not _bad(p), "%s holds no story file" % n)
