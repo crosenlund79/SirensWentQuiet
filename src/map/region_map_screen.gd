@@ -590,7 +590,7 @@ func _update_title() -> void:
 	for id in RegionLocations.ids():
 		if state.region.is_discovered(id) and not DailySites.is_overrun(state, id):
 			open_n += 1
-	t += " · %d approachable today" % open_n
+	t += "\n%d approachable today" % open_n
 	if not layout_ok:
 		t += "\nSaved on another map layout (%s)" % state.region.layout
 	if _known(state.region.planned) and state.region.planned != MapInfo.HOME:
@@ -836,6 +836,8 @@ func _add_travel_section() -> void:
 	_travel_button.disabled = block != ""
 	_travel_button.pressed.connect(request_travel)
 	_info.add_child(_travel_button)
+	if block == DailySites.OVERRUN_LINE:              # Exp 009 (D): the line above already says why
+		block = "Not today. Pick an open place, or try another day."
 	_travel_status = UiTheme.make_caption(block, INFO_W - 40, UiTheme.WARN)
 	_info.add_child(_travel_status)
 
