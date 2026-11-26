@@ -56,7 +56,8 @@ static func apply(rig: VoxelRig, kind: String) -> Dictionary:
 	if rig is HumanoidRig:
 		# Exp 011: a person (src/character): proportions, posture and clothes come
 		# from its look; no scale, tint or hunch on top. Its extras are the archetype's.
-		return {}
+		var a := HumanoidLooks.archetype(kind)
+		return a.extras(rig) if a != null else {}
 	rig.scale = d["scale"]
 	rig.hunch = float(d["hunch"])
 	var m := material(kind)

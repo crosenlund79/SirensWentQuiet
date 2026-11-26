@@ -10,6 +10,8 @@ extends RefCounted
 ##                   "name", "body", "outfit", "face", "hair", "style"
 ##                   (see HumanoidSculpt, HumanoidBody, HumanoidRig.STYLE)
 ##   new_rig(look)   optional: a HumanoidRig subclass for its own animation
+##   extras(rig)     optional: attach props (club, bomb pack, light) once the
+##                   rig is in the tree; returns them by name for AIEnemy.extras
 ## The key ("<kind>/<i>") is filled in by look().
 
 var kind := ""
@@ -26,6 +28,13 @@ func make_look(_i: int) -> Dictionary:
 
 func new_rig(l: Dictionary) -> HumanoidRig:
 	return HumanoidRig.new(l)
+
+
+## Props for an enemy of this archetype (called by EnemyLooks.apply with the
+## rig in the tree). Names the AI reads: "club" (brute), "pack", "pack_mat",
+## "light" (bomber_behaviour.gd).
+func extras(_rig: HumanoidRig) -> Dictionary:
+	return {}
 
 
 ## The look for appearance seed `seed` (stable: the same seed, the same look).
