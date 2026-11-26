@@ -484,7 +484,7 @@ static func _face(q: Vector3, v: Dictionary, x: int, y: int, z: int) -> int:
 			return _mix(SKIN_DK, LIP, 0.3)                            # lower lip
 	# beard: jaw, chin and upper lip, sideburns up to the hair
 	var beard := int(v["beard"])
-	var jaw := y <= R_MOUTH + 1 and y >= 2 and q.z < -0.005 and (ax >= 3 or y <= R_MOUTH - 2 or not front)
+	var jaw := y <= R_MOUTH + 1 and y >= 2 and q.z < -0.005 and (ax >= 3 or y <= R_MOUTH - 2 or (y == R_MOUTH - 1 and ax >= 1) or not front)
 	var lip := front and y == R_MOUTH + 1 and ax <= 1
 	var burn := ax >= 5 and y >= R_MOUTH + 1 and y <= R_EYE and q.z > -0.03 and q.z < 0.0
 	if jaw or lip or burn:
