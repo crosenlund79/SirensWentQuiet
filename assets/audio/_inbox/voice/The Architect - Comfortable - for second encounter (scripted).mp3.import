@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://db56f6ucx44vf"
+path="res://.godot/imported/The Architect - Comfortable - for second encounter (scripted).mp3-72ffa4e776976c5d43eb0b104227de22.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/voice/The Architect - Comfortable - for second encounter (scripted).mp3"
+dest_files=["res://.godot/imported/The Architect - Comfortable - for second encounter (scripted).mp3-72ffa4e776976c5d43eb0b104227de22.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ecypdgibqmex"
+path="res://.godot/imported/Architect followers - human bark like a dog 4.wav-6849a43ac75fdf0f98a96a81322ed859.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/Architect followers - human bark like a dog 4.wav"
+dest_files=["res://.godot/imported/Architect followers - human bark like a dog 4.wav-6849a43ac75fdf0f98a96a81322ed859.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

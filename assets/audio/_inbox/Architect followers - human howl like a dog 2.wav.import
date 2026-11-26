@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://c5udrmc5p8bcj"
+path="res://.godot/imported/Architect followers - human howl like a dog 2.wav-cc0902cd282c633503643b566d8a15fe.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/Architect followers - human howl like a dog 2.wav"
+dest_files=["res://.godot/imported/Architect followers - human howl like a dog 2.wav-cc0902cd282c633503643b566d8a15fe.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cai58hp8queu2"
+path="res://.godot/imported/The Architect - The final encounter before confrontation.mp3-dcff2f5cb57e2e12c06670ad1d15a765.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/voice/The Architect - The final encounter before confrontation.mp3"
+dest_files=["res://.godot/imported/The Architect - The final encounter before confrontation.mp3-dcff2f5cb57e2e12c06670ad1d15a765.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

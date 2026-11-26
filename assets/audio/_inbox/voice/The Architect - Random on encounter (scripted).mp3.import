@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://crwaretw28bo2"
+path="res://.godot/imported/The Architect - Random on encounter (scripted).mp3-1967c810cc49a3ed490d8691f5cc04b7.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/voice/The Architect - Random on encounter (scripted).mp3"
+dest_files=["res://.godot/imported/The Architect - Random on encounter (scripted).mp3-1967c810cc49a3ed490d8691f5cc04b7.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

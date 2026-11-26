@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dn7ydd1nl8fbo"
+path="res://.godot/imported/Architect followers - basebal bat hammers door (must be aligned with actual sound) 1.wav-6bf87098f67f62a029c960b352ba6834.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/Architect followers - basebal bat hammers door (must be aligned with actual sound) 1.wav"
+dest_files=["res://.godot/imported/Architect followers - basebal bat hammers door (must be aligned with actual sound) 1.wav-6bf87098f67f62a029c960b352ba6834.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

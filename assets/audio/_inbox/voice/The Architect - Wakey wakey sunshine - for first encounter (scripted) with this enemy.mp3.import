@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dipv61ckkorem"
+path="res://.godot/imported/The Architect - Wakey wakey sunshine - for first encounter (scripted) with this enemy.mp3-d899eead086cf897c92e46a13e0735c4.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/voice/The Architect - Wakey wakey sunshine - for first encounter (scripted) with this enemy.mp3"
+dest_files=["res://.godot/imported/The Architect - Wakey wakey sunshine - for first encounter (scripted) with this enemy.mp3-d899eead086cf897c92e46a13e0735c4.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

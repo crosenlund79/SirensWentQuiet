@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://conuqc426b48m"
+path="res://.godot/imported/Architect followers - human heavy breathing 3.wav-0c771ab0f87772117706c5595824c782.sample"
+
+[deps]
+
+source_file="res://assets/audio/_inbox/Architect followers - human heavy breathing 3.wav"
+dest_files=["res://.godot/imported/Architect followers - human heavy breathing 3.wav-0c771ab0f87772117706c5595824c782.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
