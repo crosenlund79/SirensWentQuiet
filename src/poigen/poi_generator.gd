@@ -64,6 +64,9 @@ const STAGE_TEXT := {"layout": "Pacing out the building", "rooms": "Walls and ro
 const BACK_OK := ["kitchen", "stockroom", "storage", "corridor", "hallway", "work_floor", "bay", "hall", "staff", "lanes", "living", "dining"]
 const METAL_DOORS := ["police", "pharmacy", "range"]
 const SIDES := ["N", "E", "S", "W"]
+## Rooms that keep door-to-door aisles free (rows of shelves or racks).
+const PATH_ROOMS := ["sales", "hall"]
+const ROW_BOXES := 8                ## at most this many searchable row pieces per room
 const INTO := {"N": "S", "S": "N", "E": "W", "W": "E"}       ## a piece against wall side X faces INTO[X]
 const NORMAL := {"N": Vector2(0, -1), "S": Vector2(0, 1), "E": Vector2(1, 0), "W": Vector2(-1, 0)}
 
@@ -1056,16 +1059,17 @@ static func _rc(b: Dictionary, r: Dictionary) -> Dictionary:
 				p = Vector2(rect.end.x - 0.6, (f + t) * 0.5)
 		rc["reserved"].append(zone)
 		rc["points"].append(p)
-	# door-to-door paths (each door to the first), a stub into one-door rooms
+	# a stub in from every door; door-to-door paths (each door to the first) in
+	# halls with rows, where an aisle must run from the entrance (elsewhere the
+	# clearances keep the way round free, and validation checks it)
 	var pts: Array = rc["points"]
-	if pts.size() >= 2:
+	var c := rect.get_center()
+	if pts.size() >= 2 and r["type"] in PATH_ROOMS:
 		for k in range(1, pts.size()):
 			_reserve_path(rc, pts[0], pts[k])
-	elif pts.size() == 1:
-		var c := rect.get_center()
-		var p0: Vector2 = pts[0]
-		var q := p0 + (c - p0).limit_length(0.8)
-		_reserve_path(rc, p0, q)
+	else:
+		for p0 in pts:
+			_reserve_path(rc, p0, (p0 as Vector2) + (c - (p0 as Vector2)).limit_length(0.8))
 	for e in b["hall_ends"]:
 		if rect.intersects(e):
 			rc["reserved"].append(e)
@@ -1358,7 +1362,11 @@ static func _rows(b: Dictionary, rc: Dictionary, e: Dictionary) -> void:
 	var z0 := area.position.y + (area.size.y - units * size.x) * 0.5
 	var rows := int(floor((area.size.x + aisle) / (depth + aisle)))
 	var x := area.position.x + (area.size.x - (rows * (depth + aisle) - aisle)) * 0.5
+	var n0 := (b["L"]["containers"] as Array).size()
 	for i in rows:
+		if (b["L"]["containers"] as Array).size() - n0 >= ROW_BOXES:
+			e = e.duplicate()
+			e["c"] = 0.0                # enough to search here: the rest are plain racks
 		for u in units:
 			var unit := Rect2(x, z0 + u * size.x, depth, size.x)
 			if _hits(rc["reserved"], unit) or _hits(rc["blocks"], unit):
