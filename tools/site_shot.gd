@@ -1,7 +1,7 @@
 extends Node
 ## Experiment 008 (lead): screenshots of the real game scene at a POI (or at
 ## home), with the HUD, for visual review. Used with tools/capture.sh:
-##   tools/capture.sh res://tools/site_shot.tscn /abs/out.png 30 --site=hardware [--hour=11] [--pos=x,y] [--car] [--yaw=rad] [--panel=search|map|inventory] [--reveal]
+##   tools/capture.sh res://tools/site_shot.tscn /abs/out.png 30 --site=hardware [--clock=11] [--pos=x,y] [--car] [--yaw=rad] [--panel=search|map|inventory] [--reveal]
 ## --site: a POI id (RegionLocations) or "home". --pos: where Eli stands (plan
 ## metres; default the entry). --panel=search opens the take panel of the
 ## nearest container that holds something (after its search).
@@ -22,8 +22,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--site="):
 			site = a.trim_prefix("--site=")
-		elif a.begins_with("--hour="):
-			hour = float(a.trim_prefix("--hour="))
+		elif a.begins_with("--clock="):     # not --hour: the game reads that one itself (and skips a day to it)
+			hour = float(a.trim_prefix("--clock="))
 		elif a.begins_with("--pos="):
 			var p := a.trim_prefix("--pos=").split(",")
 			pos = Vector2(float(p[0]), float(p[1]))
