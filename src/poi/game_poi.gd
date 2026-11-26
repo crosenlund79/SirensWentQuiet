@@ -1529,6 +1529,26 @@ func dev_reveal() -> String:
 	return "Containers revealed." if world.is_revealed() else "Container labels hidden."
 
 
+## Exp 009 (lead): F10 "Reveal stash": where the main stash is, what guards
+## it, and whether it was looted; the container labels are shown.
+func dev_reveal_stash() -> String:
+	if world == null:
+		return "Not at a POI."
+	var sid := str(world.layout.get("stash", ""))
+	var sp: PoiSpot = world.spot("container", sid) if sid != "" else null
+	if sp == null:
+		return "This place has no main stash."
+	if not world.is_revealed():
+		world.set_reveal(true)
+	var box := PoiState.container(record, sid)
+	var needs := str(sp.data.get("needs", ""))
+	var p := sp.plan_pos()
+	var left := FurnitureStorage.total(box["items"])
+	return "Main stash: %s at (%.1f, %.1f)%s · %s" % [sp.label(), p.x, p.y,
+		" · needs a %s" % needs if needs != "" else "",
+		("searched, %d left" % left) if bool(box["searched"]) else "not searched yet"]
+
+
 func dev_state_text() -> String:
 	if world == null:
 		return "Not at a POI."
