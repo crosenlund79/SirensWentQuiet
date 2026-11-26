@@ -182,7 +182,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "The First Week" (Experiment 008)
 
-**Status: Approved by the user's message of 2026-11-26 ("Experiment 008 — The First Week", autonomous overnight, Rapid Delivery). Delivered on the branch 2026-11-26 and as the source-only checkpoint `checkpoint/exp008-first-week` (report: `docs/experiment-008/REPORT.md`); final suite run in progress, then awaiting the user's playtest.** Branch `exp008/first-week` from Experiment 007 (`8dff97b`). Contracts: `docs/experiment-008/SPEC.md`.
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 008 — The First Week", autonomous overnight, Rapid Delivery). Delivered on the branch 2026-11-26 and as the source-only checkpoint `checkpoint/exp008-first-week` (report: `docs/experiment-008/REPORT.md`; suite 556/556); awaiting the user's playtest.** Branch `exp008/first-week` from Experiment 007 (`8dff97b`). Contracts: `docs/experiment-008/SPEC.md`.
 
 - **Scope, in the user's priority order:**
   1. verify the Experiment 007 loop and fix critical integration problems;

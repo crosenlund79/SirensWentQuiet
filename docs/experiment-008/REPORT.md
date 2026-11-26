@@ -130,7 +130,7 @@ Each place now has a reason to go: food at the stores, materials at the Hardware
 
 ## Tests and runtime checks
 
-- **Full headless suite:** see Verification below.
+- **Full headless suite:** 556 passed, 0 failed (see Verification).
 - **New tests:**
   - `test_first_week`: the loop plus scenarios A–D;
   - `test_poi_places`: the three places;
@@ -199,4 +199,5 @@ Each place now has a reason to go: food at the stores, materials at the Hardware
 
 ## Verification
 
-- (filled in at delivery)
+- **Full headless suite** on the final branch: **556 passed, 0 failed, 0 skipped**. That includes scenarios A–D and the loop test.
+- **Headless boot:** the main menu and the game scene both start without script errors.
