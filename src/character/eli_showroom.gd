@@ -426,12 +426,16 @@ func _rebuild_people() -> void:
 		r.name = "Person%d" % i
 		var c := i % cols
 		var row := i / cols
-		r.position = Vector3((c - (cols - 1) * 0.5) * 0.95, 0.0, (row - (rows - 1) * 0.5) * 1.6)
+		var gap := 1.5 if people == "brute" else 0.95     # brutes are twice as broad
+		r.position = Vector3((c - (cols - 1) * 0.5) * gap, 0.0, (row - (rows - 1) * 0.5) * 1.6)
 		if view == "sheet":
-			r.position = Vector3((1.5 - i) * 0.95, 0.0, 0.0)
+			r.position = Vector3((1.5 - i) * gap, 0.0, 0.0)
 			r.rotation.y = [0.0, deg_to_rad(35.0), deg_to_rad(90.0), PI][i]
 		r.set_meta("yaw", r.rotation.y)
 		_stage.add_child(r)
+		var arch := HumanoidLooks.archetype(people)
+		if arch != null and r is HumanoidRig:
+			arch.extras(r)              # the brute's club, the bomber's pack (as in the game)
 		_rigs.append(r)
 
 
