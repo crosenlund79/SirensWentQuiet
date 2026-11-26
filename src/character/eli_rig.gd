@@ -49,6 +49,18 @@ var _glance_t := 2.0
 var _aim_blend := 0.0
 var _two_blend := 0.0
 var preview_dir := Vector2.ZERO ## showroom: a move direction when the rig itself does not move
+static var _material: ShaderMaterial
+
+
+## The player's character material (night uniform, x-ray pass) with a softer
+## rim: at 1.5 cm every voxel step would catch the full rim light. Its
+## `night` follows the shared material, which the game's lighting drives.
+static func eli_material() -> ShaderMaterial:
+	if _material == null:
+		_material = VoxelRig.look_material(true).duplicate() as ShaderMaterial
+		_material.set_shader_parameter("rim_day", Color(0.3, 0.32, 0.36))
+		_material.set_shader_parameter("rim_night", Color(0.16, 0.22, 0.38))
+	return _material
 
 
 func _init(v := 0) -> void:
@@ -79,7 +91,7 @@ func _ready() -> void:
 	torso.add_child(gun)
 	_pistol = MeshInstance3D.new()
 	_pistol.name = "Pistol"
-	_pistol.mesh = EliSculpt.mesh(variant, "pistol", look_material(true))
+	_pistol.mesh = EliSculpt.mesh(variant, "pistol", eli_material())
 	gun.add_child(_pistol)
 	parts.append(_pistol)
 	_last = Vector3.INF
@@ -97,7 +109,7 @@ func _bone(parent: Node3D, pos: Vector3, nm: String, part: String) -> Node3D:
 	parent.add_child(n)
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
-	mi.mesh = EliSculpt.mesh(variant, part, look_material(true))
+	mi.mesh = EliSculpt.mesh(variant, part, eli_material())
 	n.add_child(mi)
 	parts.append(mi)
 	return n
@@ -110,11 +122,11 @@ func _hand(parent: Node3D, sfx: String) -> Node3D:
 	parent.add_child(n)
 	var a := MeshInstance3D.new()
 	a.name = "Open"
-	a.mesh = EliSculpt.mesh(variant, "hand" + sfx, look_material(true))
+	a.mesh = EliSculpt.mesh(variant, "hand" + sfx, eli_material())
 	n.add_child(a)
 	var b := MeshInstance3D.new()
 	b.name = "Fist"
-	b.mesh = EliSculpt.mesh(variant, "fist" + sfx, look_material(true))
+	b.mesh = EliSculpt.mesh(variant, "fist" + sfx, eli_material())
 	b.visible = false
 	n.add_child(b)
 	parts.append(a)
@@ -139,12 +151,12 @@ func set_variant(v: int) -> void:
 		forearm_l: "farm_l", forearm_r: "farm_r", leg_l: "thigh_l", leg_r: "thigh_r", shin_l: "shin_l",
 		shin_r: "shin_r", foot_l: "foot_l", foot_r: "foot_r"}
 	for b in names:
-		((b as Node3D).get_node("Mesh") as MeshInstance3D).mesh = EliSculpt.mesh(v, names[b], look_material(true))
+		((b as Node3D).get_node("Mesh") as MeshInstance3D).mesh = EliSculpt.mesh(v, names[b], eli_material())
 	for h in [hand_l, hand_r]:
 		var sfx := "_l" if h == hand_l else "_r"
 		var m: Array = _open[h]
-		(m[0] as MeshInstance3D).mesh = EliSculpt.mesh(v, "hand" + sfx, look_material(true))
-		(m[1] as MeshInstance3D).mesh = EliSculpt.mesh(v, "fist" + sfx, look_material(true))
+		(m[0] as MeshInstance3D).mesh = EliSculpt.mesh(v, "hand" + sfx, eli_material())
+		(m[1] as MeshInstance3D).mesh = EliSculpt.mesh(v, "fist" + sfx, eli_material())
 
 
 ## Held items sit in the right palm (hand space matches VoxelRig's arm space).
@@ -191,6 +203,8 @@ func animate(delta: float) -> void:
 	if pelvis == null:
 		return
 	_t += delta
+	var night: Variant = VoxelRig.look_material(true).get_shader_parameter("night")
+	eli_material().set_shader_parameter("night", float(night) if night != null else 0.0)
 	# how fast and which way the body really moves (local), else `speed` forward
 	var v := speed
 	if is_inside_tree():

@@ -171,8 +171,8 @@ func _build_stage() -> void:
 	# floor: a large soft disc
 	var floor_mi := MeshInstance3D.new()
 	var disc := CylinderMesh.new()
-	disc.top_radius = 9.0
-	disc.bottom_radius = 9.0
+	disc.top_radius = 40.0
+	disc.bottom_radius = 40.0
 	disc.height = 0.02
 	disc.radial_segments = 64
 	floor_mi.mesh = disc

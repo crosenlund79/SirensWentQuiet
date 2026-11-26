@@ -69,3 +69,14 @@ func test_showroom_loads() -> void:
 	s._apply_view("gameplay")
 	s._set_variant(2)
 	await frames(1)
+
+
+func test_showroom_overlay_opens_and_closes() -> void:
+	var s := EliShowroom.open_overlay(tree)
+	await frames(2)
+	check(tree.paused, "the game pauses under the showroom")
+	check(s.rigs().size() == 1, "Eli on the overlay stage")
+	s.close()
+	await frames(2)
+	check(not tree.paused, "closing restores the game")
+	check(tree.root.get_node_or_null("EliShowroomLayer") == null, "the overlay is gone")

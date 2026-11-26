@@ -556,6 +556,9 @@ static func _chest(p: Vector3, v: Dictionary, x: int, y: int, z: int) -> int:
 	var knit := body - 0.005
 	if p.y < 0.3 or p.y > 0.5:
 		knit = 1.0
+	# a carpenter's pencil standing in the right chest pocket (graphite end up)
+	if _rbox(p, Vector3(0.06, 0.328, -0.114), Vector3(0.008, 0.028, 0.012), 0.0) <= 0.0:
+		return 0x3a3a3a if p.y > 0.342 else PENCIL
 	# order: scarf > collar > jacket > knit
 	if scarf <= 0.0 or tail <= 0.0 or back_tail <= 0.0:
 		var sc: int = v["scarf"]
@@ -596,7 +599,7 @@ static func _jacket_paint(p: Vector3, v: Dictionary, x: int, y: int, z: int, fla
 			c = _sc(jd, 0.75)
 	# front zipper (brass teeth on a dark tape), up to the collar V
 	if p.z < -0.05 and ax < VS * 0.6 and p.y < 0.32:
-		return BRASS if posmod(y, 2) == 0 else 0x2e2a24
+		return _mix(BRASS, jd, 0.3) if posmod(y, 2) == 0 else _sc(jd, 0.7)
 	if p.z < -0.05 and absf(ax - VS) < VS * 0.6 and p.y < 0.32:
 		c = _sc(jd, 0.9)                                              # placket
 	# chest pockets: flap with a dark edge and a button, the pocket below
@@ -613,7 +616,7 @@ static func _jacket_paint(p: Vector3, v: Dictionary, x: int, y: int, z: int, fla
 	if p.z < -0.04 and ax > 0.05 and ax < 0.14 and p.y > 0.02 and p.y < 0.16:
 		var slant := (ax - 0.05) * 1.3 + 0.03
 		if absf(p.y - slant) < VS * 0.6:
-			c = 0x2b241c
+			c = _sc(jd, 0.55)
 		elif absf(p.y - slant - VS) < VS * 0.6:
 			c = _sc(c, 1.1)
 	# side seams, yoke seam across the back, shoulder seams
@@ -627,9 +630,6 @@ static func _jacket_paint(p: Vector3, v: Dictionary, x: int, y: int, z: int, fla
 	if p.z > 0.06 and p.x < -0.03 and p.x > -0.11 and p.y > 0.06 and p.y < 0.13:
 		var edge := p.x < -0.104 or p.x > -0.036 or p.y < 0.066 or p.y > 0.124
 		c = _sc(PATCH, 0.8) if edge and posmod(x + y, 2) == 0 else _cloth(PATCH, x, y, z, 0.05)
-	# carpenter's pencil in the left chest pocket
-	if p.x < -0.055 and p.x > -0.076 and p.z < -0.04 and p.y > 0.3:
-		return PENCIL
 	return c
 
 
