@@ -197,7 +197,6 @@ func prompt_for(s: PoiSpot) -> String:
 			return "[E] Chop wood (fallen tree · %d left)" % left if left > 0 else ""
 		"exit":
 			return "[E] Leave location"       # Exp 009 (X): the car, the departure marker
-
 		"cargo":
 			return "[E] Car (cargo) · boot %s / %s" % [PoiState._num(PoiState.load_of(cargo)), PoiState._num(PoiState.CARGO_CAP)]
 	return ""
