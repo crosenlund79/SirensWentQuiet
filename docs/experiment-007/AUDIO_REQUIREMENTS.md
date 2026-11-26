@@ -62,7 +62,7 @@ All of these are mapped and in use.
 |---|---|---|---|---|---|
 | `Room tone - House interior 1–2` | Inside the house and indoor locations (silent today) | Quiet interior of a wooden house in winter: faint air, muffled wind against walls | 30–60 | bed | **High** |
 | `Room tone - Basement 1–2` | Basements (silent today) | Cold concrete basement: low rumble, faint drip, muffled house above | 30–60 | bed | Medium |
-| *(later)* `Room tone - Abandoned store`, `Room tone - Library` | Per-location indoor tones | Empty shop with a dead fridge hum / silent library with old-building ticking | 30–60 | bed | Low: not wired yet. Today every indoor place shares the house interior room tone, so record that first. |
+| `Room tone - Abandoned store`, `Room tone - Clinic`, `Room tone - Library` | Inside the stores (Corner Store, Hardware Store, Pike's Guns, …), the clinics, the library | Empty shop with a dead fridge hum / a clinic's still air and a faint ballast buzz / a silent library with old-building ticking | 30–60 | bed | Low. **Wired since Experiment 008**; until they arrive every indoor place uses the house interior room tone, so record that first. |
 | `Wind - Winter day loop`, `Night - Wind loop` | Outdoors, day and night | Steady winter wind over open snow / cold still night wind, very sparse | 45–60 | ON | Medium |
 | `Tension - Invasion drone loop` | During invasions | Low ominous beating drone, slow pulse, no melody | 20–30 | ON | Medium |
 | `Distant - Siren` | Out in the fog at random (the game's motif) | Very distant civil-defence siren rising, faltering, winding down, through fog | 6.0 | OFF | Medium |
