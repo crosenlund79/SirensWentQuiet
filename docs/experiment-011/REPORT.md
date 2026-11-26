@@ -130,4 +130,4 @@ All humanoids share one gait: the feet are planted at the real ground speed, it 
   - `tests/character/test_architect.gd` (6): his flags, secrecy and F10.
 - **Screenshots:** taken headlessly with the showroom and `tools/site_shot`, and looked at.
 - **Not checked:** the Windows build wasn't started on Windows by Claude (there is no Windows machine here).
-- **Windows build:** BUILD_PLACEHOLDER
+- **Windows build:** GitHub Actions run 10 succeeded for `playtest/exp011-faces-of-madness` (`37671ff`). Artifact `SirensWentQuiet-windows-37671ff…` (an 84 MB ZIP, kept until 2026-12-26): https://github.com/crosenlund79/SirensWentQuiet/actions/runs/45869308625
