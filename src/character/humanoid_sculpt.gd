@@ -45,7 +45,7 @@ const BLOCK_MARGIN := 0.066      ## half 4-voxel block diagonal (0.052) + smooth
 
 ## Shell thickness each layer adds over the ones under it (m, at k = 1).
 const INCR := {"tshirt": 0.006, "shirt": 0.007, "blouse": 0.007, "sport": 0.009, "sweater": 0.01,
-	"hoodie": 0.013, "fleece": 0.012, "cardigan": 0.01, "coverall": 0.011, "coat": 0.013, "parka": 0.024,
+	"hoodie": 0.012, "fleece": 0.011, "cardigan": 0.009, "coverall": 0.011, "coat": 0.013, "parka": 0.017,
 	"work_jacket": 0.014, "hivis": 0.007, "apron": 0.006}
 ## Hem height (chest space, m at k = 1); "long" layers continue as a skirt on the pelvis.
 const HEM := {"tshirt": -0.13, "shirt": -0.14, "blouse": -0.1, "sport": -0.1, "sweater": -0.11, "hoodie": -0.13,
@@ -147,6 +147,7 @@ var hair_col2 := 0x5a4030
 var beard := ""
 var max_t := 0.0
 var hood_up := false
+var hat_low := 1.0                  ## hair above this (q space) is pressed under the hat
 var claw := 0.5
 var torn_l := false
 var torn_r := false
@@ -235,6 +236,13 @@ func _init(l: Dictionary) -> void:
 				hat["col"] = g["col"]
 				hat["col2"] = g["col2"]
 				hat["fur"] = int(g.get("fur", -1))
+	match str(hat.get("type", "")):
+		"hood":
+			hat_low = -1.0
+		"beanie":
+			hat_low = 0.15
+		"cap":
+			hat_low = 0.19
 	for a in o.get("acc", []):
 		acc[str(a)] = true
 	torn_l = acc.has("torn_l")
@@ -583,7 +591,7 @@ func _torso_skin(p: Vector3) -> float:
 	var d := E._ell(p, chest_c, chest_r)
 	d = E._smin(d, E._ell(p, abd_c, abd_r), 0.05 * k)
 	for s: float in [-1.0, 1.0]:
-		d = E._smin(d, E._cone(p, Vector3(0.03 * s * k, shoulder.y + 0.02 * T, shoulder.z), Vector3((shoulder.x - 0.012 * k) * s, shoulder.y - 0.015 * T, shoulder.z), sh_r, sh_r * 0.93), 0.06 * k)
+		d = E._smin(d, E._cone(p, Vector3(0.03 * s * k, shoulder.y + 0.02 * T, shoulder.z), Vector3((shoulder.x - 0.022 * k) * s, shoulder.y - 0.025 * T, shoulder.z), sh_r * 0.95, sh_r * 0.86), 0.06 * k)
 	d = E._smin(d, E._cone(p, Vector3(0.0, shoulder.y - 0.015 * T, 0.015 * k), Vector3(0.0, neck_p.y + 0.03 * k, neck_p.z + 0.008 * k), neck_r * 1.28, neck_r * 1.02), 0.05 * k)
 	if belly > 0.02:
 		d = E._smin(d, E._ell(p, Vector3(0.0, 0.075 * T, -0.03 * k - 0.025 * k * belly), Vector3(0.125 * k * (0.9 + 0.2 * belly), 0.12 * T, (0.06 + 0.05 * belly) * k)), 0.05 * k)
@@ -615,25 +623,35 @@ func _opening(g: Dictionary, y: float) -> float:
 	return _open_i(int(g["i"]), y)
 
 
-## The neckline of layer i: it covers the neck base only below this (chest space).
+## The neckline of layer i: it covers the neck base only below this (chest
+## space). The cut is local to the neck (shoulders stay covered) and opens
+## lower and wider at the front for crew, scoop and V necks.
 func _neck_i(i: int, p: Vector3) -> float:
-	var front := clampf(-p.z / (0.06 * k), 0.0, 1.0)
+	var base := 0.0
+	var v := 0.0
 	match l_ty[i]:
 		TSHIRT, SWEATER, SPORT:
-			return neck_p.y - (0.035 + 0.03 * front) * k
+			base = 0.03
+			v = 0.03
 		BLOUSE:
-			return neck_p.y - (0.03 + 0.06 * front) * k
+			base = 0.025
+			v = 0.045
 		HOODIE:
-			return neck_p.y - (0.03 + 0.03 * front) * k
+			base = 0.028
+			v = 0.02
 		SHIRT, COVERALL, WORK_JACKET, FLEECE, PARKA:
-			return neck_p.y + 0.02 * k
+			base = 0.012
 		COAT, CARDIGAN:
-			return neck_p.y - 0.01 * k
+			base = 0.01
 		HIVIS:
-			return neck_p.y - (0.03 + 0.1 * front) * k
+			base = 0.03
+			v = 0.1
 		APRON:
 			return 0.33 * T
-	return neck_p.y
+	var front := clampf((neck_p.z - p.z) / (0.06 * k), 0.0, 1.0)
+	var r := Vector2(p.x, (p.z - neck_p.z) * (1.0 - 0.6 * front)).length()
+	var near := 1.0 - smoothstep(neck_r * 1.15, neck_r * 1.15 + 0.035 * k, r)
+	return lerpf(neck_p.y + 0.06 * k, neck_p.y - (base + v * front) * k, near)
 
 
 func _neckline(g: Dictionary, p: Vector3) -> float:
@@ -677,7 +695,7 @@ func _arm_hole(p: Vector3) -> bool:
 func _puff_i(i: int, h: float) -> float:
 	if l_ty[i] != PARKA:
 		return 0.0
-	return 0.009 * k * (0.5 + 0.5 * cos(TAU * h / (0.075 * k)))
+	return 0.006 * k * (0.5 + 0.5 * cos(TAU * h / (0.075 * k)))
 
 
 func _puff(g: Dictionary, h: float) -> float:
@@ -822,8 +840,6 @@ func _paint_extra_chest(id: int, p: Vector3, x: int, y: int, z: int) -> int:
 	if id >= 10 and id < 30:
 		var g: Dictionary = layers[id - 10]
 		var cc: int = g["col2"] if g["type"] in ["work_jacket", "coverall"] else g["col"]
-		if g["type"] == "parka" and int(g.get("fur", -1)) >= 0:
-			return _fur(int(g["fur"]), x, y, z)
 		return _cloth(cc, x, y, z, 0.05)
 	if id >= 30 and id < 40:
 		var g: Dictionary = layers[id - 30]
@@ -1164,7 +1180,7 @@ func _arm(p: Vector3, side: float, lower: bool, x: int, y: int, z: int, paint: b
 	var along := 0.0               ## 0 at the shoulder, 1 at the wrist
 	var total := upper_arm + forearm
 	if not lower:
-		skin_d = E._sph(p, Vector3(0.006 * side * k, -0.006 * k, 0.004 * k), arm_r0 * 1.07)
+		skin_d = E._sph(p, Vector3(0.004 * side * k, -0.014 * k, 0.004 * k), arm_r0 * 0.98)
 		skin_d = E._smin(skin_d, E._cone(p, Vector3(0.0, -0.02 * k, 0.0), Vector3(0.0, -upper_arm + 0.005, 0.004 * k), arm_r0, arm_r1), 0.03 * k)
 		along = clampf(-p.y / total, 0.0, 1.0)
 	else:
@@ -1186,7 +1202,7 @@ func _arm(p: Vector3, side: float, lower: bool, x: int, y: int, z: int, paint: b
 			continue
 		if along > sl - 0.02 and along > sl + (_h(x, 0, z, 51) - 0.5) * 0.04 * tears:
 			continue
-		var t := l_t[i]
+		var t := l_t[i] * 0.8
 		if l_rolled[i] != 0 and along > sl - 0.07:
 			t += 0.01 * k                                         # the rolled cuff
 		elif sl >= 0.99 and along > 0.94:
@@ -1581,6 +1597,8 @@ func _head(p: Vector3, x: int, y: int, z: int, paint: bool) -> float:
 	var ds := _skull(q)
 	var dh := _hair_d(q, x, y, z)
 	var dt := _hat_d(q, x, y, z)
+	if hat_low < 1.0 and q.y > hat_low and dh < 1.0:
+		dh = maxf(dh, ds - 0.008)                                # hair stays under the hat or hood
 	var db := _beard_d(q, ds, x, y, z)
 	var dg := _glasses_d(q)
 	var bandage := 1.0
@@ -1645,8 +1663,10 @@ func _paint_hair(q: Vector3, x: int, y: int, z: int) -> int:
 	elif s > 0.85:
 		c = _sc(c, 1.1)
 	var grey := float(hair.get("grey", 0.0))
-	if grey > 0.0 and _h(x, y, z, 29) < grey:
-		c = _mix(c, 0xa8a49c, 0.55 + 0.3 * grey)
+	if grey > 0.0:
+		var gq := E._vn(x, y, z, 2, 29) * 0.7 + _h(x, y, z, 30) * 0.3
+		if gq < grey * 0.9:
+			c = _mix(c, 0x9c9890, 0.35 + 0.45 * grey)
 	if hair_style == "ponytail" and absf(q.y - 0.19 * hh) < 0.01 and q.z > 0.1:
 		return int(hair.get("tie", 0xa02a3a))
 	if dirt > 0.3 and E._vn(x, y, z, 3, 31) > 0.8:

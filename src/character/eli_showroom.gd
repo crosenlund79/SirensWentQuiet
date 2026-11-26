@@ -13,7 +13,8 @@ extends Control
 ## --moving --hide-ui
 ## Exp 011, people (HumanoidLooks): --people=<kind> shows that archetype's
 ## looks in a row (--seed=first, --count=n, --cols=n per row), with the
-## people animations (idle, walk, jog, attack, hit, die).
+## people animations (idle, walk, jog, attack, hit, die); --pose=x freezes
+## attack / hit / die at progress x (die: seconds).
 
 const SCENE := "res://src/character/eli_showroom.tscn"
 const LAUNCHER := "res://src/launcher/launcher.tscn"
@@ -38,6 +39,9 @@ var people_seed := 0
 var people_count := 1
 var people_cols := 0
 var _anim_t := 0.0
+var _pose := -1.0           ## people: freeze attack / hit / die at this progress (captures)
+var _dormant := ""          ## people: a dormant pose (DormantMind.pose: bang, tap, sway, stare, listen)
+var _dorm: Array = []       ## [DormantMind, AIEnemy stand-in] per rig
 
 var _vp: SubViewport
 var _stage: Node3D
@@ -105,6 +109,10 @@ func _ready() -> void:
 			people_seed = int(a.trim_prefix("--seed="))
 		elif a.begins_with("--count="):
 			people_count = maxi(int(a.trim_prefix("--count=")), 1)
+		elif a.begins_with("--dormant="):
+			_dormant = a.trim_prefix("--dormant=")
+		elif a.begins_with("--pose="):
+			_pose = float(a.trim_prefix("--pose="))
 		elif a.begins_with("--cols="):
 			people_cols = maxi(int(a.trim_prefix("--cols=")), 1)
 	if overlay:
@@ -125,6 +133,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_exit_tree_people()
 	if overlay and is_instance_valid(get_tree()):
 		get_tree().paused = _was_paused
 	var m := VoxelRig.look_material(true)
@@ -360,8 +369,20 @@ func _process(delta: float) -> void:
 				r.position.z = 6.0
 		if people != "" and r is HumanoidRig:
 			var h := r as HumanoidRig
+			if _pose >= 0.0 and anim in ["attack", "hit", "die"]:
+				if anim == "die":
+					h.collapse(0.0, _pose, Vector3.LEFT, _people_yaw(h))
+					continue
+				h.swing = 1.0 - _pose if anim == "attack" else 0.0
+				h.stagger = 1.0 - _pose if anim == "hit" else 0.0
+				h.animate(delta)
+				continue
+			if _dormant != "":
+				h.animate(delta)
+				_pose_dormant(h, delta)
+				continue
 			if anim == "die":
-				h.collapse(delta, fmod(_anim_t, 4.0), Vector3.RIGHT, _people_yaw(h))
+				h.collapse(delta, fmod(_anim_t, 4.0), Vector3.LEFT, _people_yaw(h))
 				if fmod(_anim_t, 4.0) < delta * 1.5 and h.dead:
 					h.dead = false
 					h.transform.basis = Basis(Vector3.UP, _people_yaw(h))
@@ -394,6 +415,30 @@ func _process(delta: float) -> void:
 		_zoom(-delta * 2.0)
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
 		_zoom(delta * 2.0)
+
+
+## The dormant behaviours' pose on a showroom person (a stand-in enemy body
+## that only carries the rig; DormantMind.pose reads nothing else).
+func _pose_dormant(h: HumanoidRig, delta: float) -> void:
+	var i := _rigs.find(h)
+	while _dorm.size() <= i:
+		var m := DormantMind.new()
+		var e := AIEnemy.new()
+		_dorm.append([m, e])
+	var m: DormantMind = _dorm[i][0]
+	var e: AIEnemy = _dorm[i][1]
+	e.rig = h
+	m.state = _dormant
+	m.tap_kind = "tap" if i % 2 == 0 else "scratch"
+	m.set("_lean", 0.5 + 0.5 * sin(_anim_t * 2.4))
+	m.set("_flick", maxf(sin(_anim_t * 5.0), 0.0))
+	m.set("_t", _anim_t)
+	m.pose(e, delta)
+
+
+func _exit_tree_people() -> void:
+	for d in _dorm:
+		(d[1] as Node).free()
 
 
 func _people_yaw(h: HumanoidRig) -> float:

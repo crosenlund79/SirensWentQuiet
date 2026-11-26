@@ -549,16 +549,18 @@ func collapse(delta: float, t: float, axis: Vector3, yaw: float) -> void:
 		var sh := shin_l if s < 0.0 else shin_r
 		var ft := foot_l if s < 0.0 else foot_r
 		var bend := buckle * (1.0 if s == _coll_bend else 0.75)
-		th.rotation = Vector3(1.1 * bend - 0.6 * lie * float(s != _coll_bend), 0.0, s * 0.12 * bend)
-		sh.rotation = Vector3(-1.6 * bend + 1.0 * lie * float(s != _coll_bend), 0.0, 0.0)
-		ft.rotation = Vector3(0.4 * bend, 0.0, 0.0)
-	torso.rotation = Vector3(-0.55 * buckle + 0.35 * lie, 0.2 * _coll_bend * buckle, 0.15 * _coll_bend * lie)
+		var keep := 0.45 if s == _coll_bend else 0.1        # one knee stays bent as it lies
+		th.rotation = Vector3(lerpf(1.1 * bend, 0.9 * keep, lie), 0.0, s * lerpf(0.12 * bend, 0.18, lie))
+		sh.rotation = Vector3(lerpf(-1.6 * bend, -1.8 * keep, lie), 0.0, 0.0)
+		ft.rotation = Vector3(lerpf(0.4 * bend, 0.3, lie), 0.0, s * 0.55 * lie)     # feet flop outward
+	torso.rotation = Vector3(-0.55 * buckle + 0.5 * lie, 0.2 * _coll_bend * buckle, 0.15 * _coll_bend * lie)
 	head.rotation = Vector3(-0.5 * buckle + 0.3 * lie, 0.5 * _coll_bend * lie, 0.4 * _coll_bend * lie)
 	for s: float in [-1.0, 1.0]:
 		var u := arm_l if s < 0.0 else arm_r
 		var f := forearm_l if s < 0.0 else forearm_r
-		u.rotation = Vector3(0.35 * buckle - 0.9 * lie * float(s == _coll_bend), 0.0, s * (0.15 + 0.9 * lie))
-		f.rotation = Vector3(0.4 + 0.5 * lie * float(s != _coll_bend), 0.0, 0.0)
+		var flung := float(s == _coll_bend)
+		u.rotation = Vector3(0.35 * buckle * (1.0 - lie) + lie * (0.4 - 1.4 * flung), 0.0, s * (0.15 + lie * (1.25 if flung > 0.0 else 0.35)))
+		f.rotation = Vector3(0.4 + 0.6 * lie * (1.0 - flung), 0.0, 0.0)
 	# then the whole body tips over and comes to rest on the ground
 	var ang := fall * 1.42
 	transform.basis = Basis(axis, -ang) * Basis(Vector3.UP, yaw)
