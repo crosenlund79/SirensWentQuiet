@@ -517,13 +517,25 @@ static func _trolley_at(mm: PropMesh, t: Transform3D, x: float, h: float) -> voi
 	mm.xf = keep
 
 
-## A low cone-shaped heap on the ground (rx across x, rz across z, height ht).
-static func _mound(mm: PropMesh, c: Vector3, rx: float, rz: float, ht: float) -> void:
-	var keep := mm.xf
-	mm.xf = keep * Transform3D(Basis.from_scale(Vector3(1.0, 1.0, rz / maxf(rx, 0.01))), c)
-	mm.cylinder(Vector3.ZERO, rx, rx * 0.35, ht * 0.75, 9)
-	mm.cylinder(Vector3(0, ht * 0.75, 0), rx * 0.35, rx * 0.08, ht * 0.25, 9)
-	mm.xf = keep
+## A low rounded heap on the ground (rx across x, rz across z, height ht):
+## the upper half of a squashed sphere.
+static func _mound(mm: PropMesh, c: Vector3, rx: float, rz: float, ht: float, rings := 3, seg := 10) -> void:
+	var radii := Vector3(rx, ht, rz)
+	for j in rings:
+		var t0 := PI * 0.5 * j / rings
+		var t1 := PI * 0.5 * (j + 1) / rings
+		for i in seg:
+			var a0 := TAU * i / seg
+			var a1 := TAU * (i + 1) / seg
+			var p00 := c + Vector3(cos(t0) * cos(a0), sin(t0), cos(t0) * sin(a0)) * radii
+			var p01 := c + Vector3(cos(t0) * cos(a1), sin(t0), cos(t0) * sin(a1)) * radii
+			var p10 := c + Vector3(cos(t1) * cos(a0), sin(t1), cos(t1) * sin(a0)) * radii
+			var p11 := c + Vector3(cos(t1) * cos(a1), sin(t1), cos(t1) * sin(a1)) * radii
+			var n := (((p00 + p01 + p10 + p11) * 0.25 - c) / (radii * radii)).normalized()
+			if j == rings - 1:
+				mm.tri(p00, p01, p10, n)
+			else:
+				mm.quad(p00, p01, p11, p10, n)
 
 
 static func _snowbank(mm: PropMesh, w: float, d: float, h: float, rng: RandomNumberGenerator) -> void:
@@ -531,7 +543,7 @@ static func _snowbank(mm: PropMesh, w: float, d: float, h: float, rng: RandomNum
 	for i in n:
 		var c := Vector3(lerpf(-w * 0.27, w * 0.27, float(i) / float(n - 1)), 0, 0)
 		mm.set_mat(M.L_PLAIN, SNOW.lerp(SNOW_SHADE, rng.randf() * 0.5))
-		_mound(mm, c, w * 0.22, d * rng.randf_range(0.4, 0.5), h * rng.randf_range(0.7, 1.0))
+		_mound(mm, c, w * 0.23, d * rng.randf_range(0.4, 0.5), h * rng.randf_range(0.6, 1.0))
 
 
 # --- signs, furniture, lights ------------------------------------------------------------------

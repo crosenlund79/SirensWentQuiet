@@ -160,7 +160,7 @@ func test_chain_on_foot_store_then_library_by_the_map_then_home() -> void:
 	check(PoiState.in_visit(g.poi.record) and g.poi.finished.is_empty(), "and the visit goes on")
 	s.run.erase("invasion_active")
 	var exit: PoiSpot = g.world.spots_of("exit")[0]
-	check(exit.interact_prompt().begins_with("[E] Leave for home") and exit.interact_prompt().contains("M: travel on"), "the exit says both (%s)" % exit.interact_prompt())
+	check_eq(exit.interact_prompt(), "[E] Leave location", "the exit (Exp 009: its choice offers home and travelling on)")
 	# M: the map, from here
 	var t1: float = s.total_minutes
 	g.open_map()

@@ -359,7 +359,9 @@ func test_retreat_any_time_with_what_was_taken() -> void:
 	h.poi.interact_spot(other)
 	check(not h.poi._action.is_empty(), "searching the next one")
 	h.poi.interact_spot((h.world as PoiWorld).spots_of("exit")[0])
-	check(h.poi._action.is_empty() and h.left, "left at once")
+	check(h.poi._action.is_empty() and h.poi.leave_dialog.is_open, "the search stops, the way-out choice opens (Exp 009)")
+	h.poi.leave_dialog.choose("home")
+	check(h.left, "left at once")
 	check_eq(int(h.poi.finished["pack"].get("water", 0)), 1, "with what was taken")
 	check_eq(int(PoiState.container(h.poi.record, s.id)["items"].get("water", 0)), 1, "the rest stays")
 

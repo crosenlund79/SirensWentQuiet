@@ -204,8 +204,10 @@ func test_car_boot_and_the_way_home() -> void:
 	check_eq(int(h.poi.pack.get("water", 0)), 2, "the pack is lighter")
 	h.poi.close_panel()
 	var e: PoiSpot = (h.world as PoiWorld).spots_of("exit")[0]
-	check_eq(e.interact_prompt(), "[E] Leave for home", "exit prompt")
+	check_eq(e.interact_prompt(), "[E] Leave location", "exit prompt (Exp 009: at the car)")
 	h.poi.interact_spot(e)
+	check(h.poi.leave_dialog.is_open, "E asks: Go home / Travel on / Stay (Exp 009)")
+	h.poi.leave_dialog.choose("home")
 	check(h.left, "leaving asks the travel flow (leave_requested without it)")
 	check_eq(int(h.poi.finished["cargo"].get("water", 0)), 4, "the cargo goes home")
 	check(not PoiState.in_visit(h.poi.record), "the visit ended")

@@ -14,8 +14,11 @@ extends Node
 ## ("Pack: 18 / 30"; a backpack carries more). Locked doors and crates need a
 ## crowbar ("[E] Force ..."), dark rooms a flashlight. Fallen trees: "[E]
 ## Chop wood" (planks, loud, 20 minutes). Loose items: "[E] Pick up". The car
-## (only when you drove): its boot holds more. "[E] Leave for home" at the
-## trail posts with the flares, whenever you want.
+## (only when you drove): its boot holds more. Exp 009 (X): "[E] Leave
+## location" at the car (when you drove) or at the departure marker at the
+## scene's edge (on foot), whenever you want: a small choice, Go home /
+## Travel on (map) / Stay. An apartment's hallway fades into the dark at its
+## end; walking into it asks "Leave this location?" once per time in.
 ##
 ## Exp 008 (L): searchable things show a small marker when Eli is near and
 ## can see them (PoiSpot.set_marker: not searched, locked, dark, something
@@ -88,6 +91,11 @@ var _rng := RandomNumberGenerator.new()
 var _seen_toast := false
 var _full_said := false            ## Exp 008 (L): "your pack is full" said (until it has room again)
 var _ui_tick := 0.0
+var leave_dialog: PoiLeaveDialog     ## Exp 009 (X): Go home / Travel on / Stay
+var _leave_via := ""               ## Exp 009 (X): "car" | "edge" | "dark" while the choice is open
+var _in_dark := false              ## Exp 009 (X): Eli stands in the dark hallway end
+var _dark_armed := false
+var _exit_tick := 0.0
 
 static var _noise_script: Variant = false     ## agent N's NoiseEvent script (looked up once; false = not yet)
 
@@ -99,6 +107,10 @@ func setup(g: Node) -> void:
 	panel.name = "PoiLootPanel"
 	add_child(panel)
 	panel.closed.connect(_on_panel_closed)
+	leave_dialog = PoiLeaveDialog.new()
+	leave_dialog.name = "PoiLeaveDialog"
+	add_child(leave_dialog)
+	leave_dialog.chosen.connect(_on_leave_chosen)
 	_bind_world()
 
 
@@ -142,6 +154,7 @@ func _process(delta: float) -> void:
 	_clock += delta
 	_step_action(delta)
 	_tick_loot_ui(delta)              # Exp 008 (L): markers, the HUD's pack line
+	_tick_exits(delta)                # Exp 009 (X): the dark hallway end
 	for p in pending.duplicate():
 		if _clock >= float(p["when"]) and _roster() != null:
 			pending.erase(p)
@@ -183,7 +196,8 @@ func prompt_for(s: PoiSpot) -> String:
 			var left := chops_left(s)
 			return "[E] Chop wood (fallen tree · %d left)" % left if left > 0 else ""
 		"exit":
-			return "[E] Leave for home" + (" · M: travel on" if can_travel_on() else "")     # Exp 008 (T)
+			return "[E] Leave location"       # Exp 009 (X): the car, the departure marker
+
 		"cargo":
 			return "[E] Car (cargo) · boot %s / %s" % [PoiState._num(PoiState.load_of(cargo)), PoiState._num(PoiState.CARGO_CAP)]
 	return ""
@@ -267,7 +281,7 @@ func interact_spot(s: PoiSpot) -> void:
 			_begin("chop", s, null, CHOP_SECS, CHOP_MINUTES, 3.0)
 			Sfx.play_first(["poi/chop", "build/hammer"], Vector3(s.position.x, 0.6, s.position.z))
 		"exit":
-			leave()
+			open_leave(str(s.data.get("via", "edge")))      # Exp 009 (X): Go home / Travel on / Stay
 		"cargo":
 			open_cargo()
 
@@ -593,6 +607,93 @@ func leave() -> void:
 	leave_requested.emit(poi_id)
 	if out.is_empty():
 		push_warning("GamePoi: leaving without a visit")
+
+
+## Exp 009 (X): "[E] Leave location" (at the car or the departure marker;
+## "Leave" in the dark hallway): Go home / Travel on (map) / Stay, with the
+## world paused. A running search stops (leaving always works).
+func open_leave(via := "edge") -> void:
+	if not _can_act() or world == null:
+		return
+	cancel_action("")
+	_leave_via = via
+	if game.has_method("_set_modal"):
+		game._set_modal("poi", true)
+	leave_dialog.ask_leave(str(world.def.get("name", "")), can_travel_on() and game.has_method("open_map"), has_car)
+
+
+## Exp 009 (X): walking into the dark hallway end: "Leave this location?".
+func open_dark_leave() -> void:
+	if not _can_act() or world == null:
+		return
+	cancel_action("")
+	_leave_via = "dark"
+	if game.has_method("_set_modal"):
+		game._set_modal("poi", true)
+	leave_dialog.ask_dark()
+
+
+func _on_leave_chosen(what: String) -> void:
+	var via := _leave_via
+	_leave_via = ""
+	if str(game.get("_modal")) == "poi" and game.has_method("_set_modal"):
+		game._set_modal("", false)
+	match what:
+		"home":
+			leave()
+		"map":
+			if game.has_method("open_map"):
+				game.open_map()           # Exp 008 (T): the map from here; Travel goes straight on
+			else:
+				_toast("No map to hand here.", "warn")
+		"leave":
+			open_leave(via)
+		_:
+			if via == "dark":
+				step_out_of_dark()
+
+
+## Exp 009 (X): the dark hallway end asks once each time Eli walks in (not
+## again while he stands in it, nor when he arrived inside it).
+func _tick_exits(delta: float) -> void:
+	_exit_tick -= delta
+	if _exit_tick > 0.0 or world == null:
+		return
+	_exit_tick = 0.1
+	var r: Rect2 = world.dark_exit()
+	if r.size == Vector2.ZERO:
+		return
+	var pl: Variant = game.get("player")
+	if not (pl is Node3D):
+		return
+	var inside := r.has_point(Vector2((pl as Node3D).global_position.x, (pl as Node3D).global_position.z))
+	if not _dark_armed:
+		_dark_armed = true
+		_in_dark = inside
+		return
+	if inside == _in_dark:
+		return
+	_in_dark = inside
+	if inside:
+		open_dark_leave()
+
+
+## Exp 009 (X): "Stay" in the dark: Eli steps back out toward the lit hallway.
+func step_out_of_dark() -> void:
+	var pl: Variant = game.get("player")
+	var r: Rect2 = world.dark_exit() if world != null else Rect2()
+	if not (pl is Node3D) or r.size == Vector2.ZERO:
+		return
+	var n := pl as Node3D
+	var dir: Vector2 = world.dark_dir()
+	var q := Vector2(n.global_position.x, n.global_position.z)
+	for i in 80:
+		if not r.grow(0.05).has_point(q):
+			break
+		q -= dir * 0.1
+	q -= dir * 0.4
+	n.global_position = Vector3(q.x, n.global_position.y, q.y)
+	_in_dark = false
 
 
 ## Ends the visit once (PoiState.finish_visit: the map's stock, the visit

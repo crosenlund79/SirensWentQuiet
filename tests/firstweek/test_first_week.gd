@@ -144,6 +144,8 @@ func test_the_core_loop_food_trip_and_back() -> void:
 	await frames(2)
 	check(g.debug_prompt().contains("Leave"), "the exit's prompt (%s)" % g.debug_prompt())
 	g.debug_interact()
+	check(g.poi.leave_dialog.is_open, "E opens the way-out choice (Exp 009)")
+	g.poi.leave_dialog.choose("home")
 	check(await _wait_until(func(): return g.left_to != "", 60), "leaves")
 	# 9.-10. home with exactly what was carried
 	g = await _next_scene(g)

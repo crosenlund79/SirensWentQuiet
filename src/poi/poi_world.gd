@@ -376,11 +376,7 @@ func _place_spots() -> void:
 		s.add_child(s.visual)
 	for wd in layout.get("wood", []):
 		_add_spot("wood", wd["id"], log_stand(wd), wd)
-	var k := 0
-	for e in layout.get("exits", []):
-		var s := _add_spot("exit", "exit_%d" % k, e, {"label": "the way home"})
-		s.add_child(_exit_marker())
-		k += 1
+	_place_exit_spots()             # Exp 009 (X): the car, or the departure markers; the dark hallway end
 	if has_car and not (layout.get("car", {}) as Dictionary).is_empty():
 		_add_spot("cargo", "car", layout["car"]["cargo"], {"label": "car"})
 
@@ -450,6 +446,175 @@ func _exit_marker() -> Node3D:
 	return root
 
 
+# --- Exp 009 (X): the ways out ----------------------------------------------------------------
+
+## When Eli drove, the car is the way out: "[E] Leave location" by its door
+## (the boot stays its own spot), and no trail posts. On foot: a departure
+## marker at each of the layout's exits. An apartment's dark hallway end
+## (layout "dark_exit") fades into darkness; the helper asks there.
+func _place_exit_spots() -> void:
+	var car: Dictionary = layout.get("car", {})
+	if has_car and not car.is_empty():
+		_add_spot("exit", "car", car_door_point(), {"label": "the car", "via": "car"})
+	else:
+		var k := 0
+		for e in layout.get("exits", []):
+			var s := _add_spot("exit", "exit_%d" % k, e, {"label": "the way out", "via": "edge"})
+			s.add_child(_departure_marker(e))
+			k += 1
+	if dark_exit().size != Vector2.ZERO:
+		_build_dark_exit()
+
+
+## Where Eli stands to leave by car: beside the driver's door (the layout's
+## "door", else the side the open door hangs on, else the other side), on
+## walkable ground inside the lot.
+func car_door_point() -> Vector2:
+	var car: Dictionary = layout.get("car", {})
+	var tries := []
+	if car.get("door") is Vector2:
+		tries.append(car["door"])
+	tries.append(PoiExterior.car_points(car["rect"], str(car.get("facing", "E")))["door"])
+	tries.append(PoiExterior.car_points(car["rect"], str(car.get("facing", "E")), true)["door"])
+	for p in tries:
+		if HousePlan.YARD.grow(-0.6).has_point(p) and (nav == null or nav.is_walkable(nav.cell_of(p))):
+			return p
+	return tries[0]
+
+
+## A trail post with a flare (lit at night too) and a small board pointing
+## out to the nearest edge of the lot: the way out on foot.
+func _departure_marker(at: Vector2) -> Node3D:
+	var root := _exit_marker()
+	var y := HousePlan.YARD
+	var gaps := [at.x - y.position.x, y.end.x - at.x, at.y - y.position.y, y.end.y - at.y]
+	var dirs := [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]
+	var out: Vector2 = dirs[gaps.find(gaps.min())]
+	var board := MeshInstance3D.new()
+	board.name = "Board"
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.5, 0.14, 0.03)
+	board.mesh = bm
+	var paint := StandardMaterial3D.new()
+	paint.albedo_color = Color(0.78, 0.74, 0.62)
+	board.material_override = paint
+	board.position = Vector3(out.x * 0.22, 0.95, out.y * 0.22)
+	board.rotation.y = atan2(-out.y, out.x)
+	root.add_child(board)
+	return root
+
+
+func dark_exit() -> Rect2:
+	var r: Variant = layout.get("dark_exit")
+	return r if r is Rect2 else Rect2()
+
+
+## The way into the dark (plan, unit): the layout's "dark_dir", else along
+## the dark end's long side, away from the building's middle.
+func dark_dir() -> Vector2:
+	var d: Variant = layout.get("dark_dir")
+	if d is Vector2 and (d as Vector2).length() > 0.01:
+		return (d as Vector2).normalized()
+	var r := dark_exit()
+	var b: Variant = layout.get("bounds")
+	var mid: Vector2 = (b as Rect2).get_center() if b is Rect2 else building_rect().get_center()
+	var to := r.get_center() - mid
+	if r.size.x >= r.size.y:
+		return Vector2(signf(to.x) if to.x != 0.0 else 1.0, 0)
+	return Vector2(0, signf(to.y) if to.y != 0.0 else 1.0)
+
+
+const DARK_SHADER := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec2 dir = vec2(1.0, 0.0);
+uniform vec2 half_size = vec2(1.0, 1.0);
+uniform float top = 1.0;
+varying vec3 lp;
+void vertex() { lp = VERTEX; }
+void fragment() {
+	float t = dot(lp.xz, dir) / max(dot(abs(dir), half_size), 0.001);
+	ALBEDO = vec3(0.0);
+	ALPHA = clamp(smoothstep(-1.0, 0.7, t) * top, 0.0, 0.985);
+}
+"""
+
+
+## A cheap darkness: stacked flat layers over the hallway end, each clear at
+## the lit side and black toward the far end (denser near the floor), so it
+## reads as a volume of dark from the game camera (no collision, no fog).
+func _build_dark_exit() -> void:
+	var r := dark_exit()
+	var dir := dark_dir()
+	var sh := Shader.new()
+	sh.code = DARK_SHADER
+	var layers := [[0.03, 0.97], [0.7, 0.5], [1.4, 0.45], [2.1, 0.4]]
+	for i in layers.size():
+		var mi := MeshInstance3D.new()
+		mi.name = "Dark" if i == 0 else "Dark%d" % i
+		var pm := PlaneMesh.new()
+		pm.size = r.size
+		mi.mesh = pm
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		m.render_priority = i
+		m.set_shader_parameter("dir", dir)
+		m.set_shader_parameter("half_size", r.size * 0.5)
+		m.set_shader_parameter("top", layers[i][1])
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = Vector3(r.get_center().x, layers[i][0], r.get_center().y)
+		add_child(mi)
+
+
+## Exp 009 (X): the layout's ground patches (PoiExterior): {rect, art:
+## "asphalt" | "paving" | "line"} and trodden paths {pts, r, art: "trodden"}.
+func _paint_exterior(img: Image) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	for e in layout.get("paint", []):
+		var art := str(e.get("art", ""))
+		if e.get("rect") is Rect2:
+			var r: Rect2 = e["rect"]
+			var i0 := maxi(int((r.position.x - GROUND_ORIGIN.x) / GROUND_PX), 0)
+			var i1 := mini(int((r.end.x - GROUND_ORIGIN.x) / GROUND_PX) + 1, w)
+			var j0 := maxi(int((r.position.y - GROUND_ORIGIN.y) / GROUND_PX), 0)
+			var j1 := mini(int((r.end.y - GROUND_ORIGIN.y) / GROUND_PX) + 1, h)
+			for j in range(j0, j1):
+				for i in range(i0, i1):
+					var p := GROUND_ORIGIN + Vector2(i + 0.5, j + 0.5) * GROUND_PX
+					if not r.has_point(p):
+						continue
+					var c := 0
+					var was := img.get_pixel(i, j)
+					var cur := (int(was.r8) << 16) | (int(was.g8) << 8) | int(was.b8)
+					match art:
+						"asphalt":
+							c = VoxelArt.mix(VoxelArt.sample("asphalt", i, j), cur, 0.35 + 0.3 * VoxelArt.hash3(i, j, 21))
+						"paving":
+							c = VoxelArt.mix(VoxelArt.sample("paving", i, j), cur, 0.45)
+						"line":
+							c = VoxelArt.mix(0xd9d4bf, cur, 0.35 + 0.4 * VoxelArt.hash3(i, j, 22))
+						_:
+							c = cur
+					img.set_pixel(i, j, VoxelArt.to_color(c))
+		elif e.get("pts") is Array and art == "trodden":
+			var rad := float(e.get("r", 0.55))
+			var pts: Array = e["pts"]
+			for k in range(pts.size() - 1):
+				var a: Vector2 = pts[k]
+				var b: Vector2 = pts[k + 1]
+				var box := Rect2(a, Vector2.ZERO).expand(b).grow(rad)
+				for j in range(maxi(int((box.position.y - GROUND_ORIGIN.y) / GROUND_PX), 0), mini(int((box.end.y - GROUND_ORIGIN.y) / GROUND_PX) + 1, h)):
+					for i in range(maxi(int((box.position.x - GROUND_ORIGIN.x) / GROUND_PX), 0), mini(int((box.end.x - GROUND_ORIGIN.x) / GROUND_PX) + 1, w)):
+						var p := GROUND_ORIGIN + Vector2(i + 0.5, j + 0.5) * GROUND_PX
+						var d := Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p)
+						if d > rad or VoxelArt.hash3(i, j, 23) > 1.15 - d / rad:
+							continue
+						var was := img.get_pixel(i, j)
+						img.set_pixel(i, j, was.lerp(Color8(0xaa, 0xb4, 0xc0), 0.35 + 0.2 * VoxelArt.hash3(i, j, 24)))
+
+
 ## The snowy ground (with an asphalt lot and a sidewalk around buildings).
 func _build_ground() -> void:
 	if not _ground_tex.has(poi_id):
@@ -516,6 +681,7 @@ func _ground_image() -> Image:
 				var d := p.distance_to(t)
 				if d < 1.3 and VoxelArt.hash3(i, j, 12) < (1.0 - d / 1.3) * 0.8:
 					img.set_pixel(i, j, VoxelArt.to_color([0x5e5540, 0x4b4636, 0x6e6450, 0x8a8f86][int(VoxelArt.hash3(i, j, 13) * 4.0) % 4]))
+	_paint_exterior(img)            # Exp 009 (X): driveways, parking, trodden paths (layout "paint")
 	return img
 
 
