@@ -92,14 +92,16 @@ func test_ai_every_type_spawns_with_its_look_and_numbers() -> void:
 		check(e is VoxelEnemy and e.kind == k, "%s is a VoxelEnemy-compatible body" % k)
 		check_eq(e.hp, st["hp"], "%s hp from the difficulty and invasion" % k)
 		check(is_equal_approx(e.speed(), float(EnemyDefs.get_def(k)["speed"]) * st["speed_scale"]), "%s speed" % k)
-		check_eq(e.rig.scale, EnemyDefs.get_def(k)["scale"], "%s rig scale" % k)
+		if e.rig is HumanoidRig:
+			check_eq(e.rig.scale, Vector3.ONE, "%s: a voxel person is never scaled (its body is its own, Exp 011)" % k)
+		else:
+			check_eq(e.rig.scale, EnemyDefs.get_def(k)["scale"], "%s rig scale" % k)
 		check(e.get_meta("invader", true) == false, "%s: not an invader unless asked" % k)
-	check(spawned["runner"].rig.parts[0].material_override != spawned["psycho"].rig.parts[0].material_override, "the runner is tinted")
-	check(spawned["brute"].rig.parts[0].material_override != spawned["runner"].rig.parts[0].material_override, "the brute has its own tint")
+	for k in spawned:
+		check((spawned[k].rig is HumanoidRig) == HumanoidLooks.has_humanoid(k), "the %s is a voxel person when it has an archetype (Exp 011)" % k)
 	check(spawned["brute"].extras.has("club"), "the brute carries a club")
 	var light: OmniLight3D = spawned["bomber"].extras.get("light")
 	check(light != null and spawned["bomber"].extras.has("pack"), "the bomber wears a glowing pack with a light")
-	check(spawned["psycho"].rig is HumanoidRig, "the psycho is a voxel person (Exp 011)")
 	check_eq(roster.living_by_kind(), {"psycho": 1, "runner": 1, "brute": 1, "bomber": 1}, "living_by_kind")
 	check_eq(roster.living(), 4, "living() counts every type")
 	check_eq(roster.kill_all(), 4, "kill_all() kills every type")
