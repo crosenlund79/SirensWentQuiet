@@ -191,6 +191,23 @@ const _AO := [0.62, 0.8, 0.92, 1.0]
 
 ## Face-culled mesh with per-vertex AO (COLOR.a, as VoxelMesher does).
 static func _mesh_grid(g: Dictionary, material: Material) -> ArrayMesh:
+	return arrays_to_mesh(grid_arrays(g), material)
+
+
+## Exp 011: the mesh from grid_arrays() (main thread; null arrays = empty).
+static func arrays_to_mesh(arr: Variant, material: Material) -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	if arr == null:
+		return mesh
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	mesh.surface_set_material(0, material)
+	return mesh
+
+
+## Exp 011: the surface arrays of a voxel grid ({"n", "i0", "col"}; cells
+## < 0 are empty), or null when it has no faces. Sets g["verts"]. Pure: safe
+## on a worker thread (HumanoidSculpt builds its parts in parallel).
+static func grid_arrays(g: Dictionary) -> Variant:
 	var n: Vector3i = g["n"]
 	var i0: Vector3i = g["i0"]
 	var col: PackedInt32Array = g["col"]
@@ -258,18 +275,15 @@ static func _mesh_grid(g: Dictionary, material: Material) -> ArrayMesh:
 						inds.append_array([nv, nv + 3, nv + 1, nv + 1, nv + 3, nv + 2])
 					nv += 4
 	g["verts"] = nv
-	var mesh := ArrayMesh.new()
 	if nv == 0:
-		return mesh
+		return null
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = verts
 	arr[Mesh.ARRAY_NORMAL] = norms
 	arr[Mesh.ARRAY_COLOR] = cols
 	arr[Mesh.ARRAY_INDEX] = inds
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	mesh.surface_set_material(0, material)
-	return mesh
+	return arr
 
 
 # --- implicit shapes -------------------------------------------------------------------

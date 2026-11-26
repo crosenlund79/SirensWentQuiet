@@ -749,8 +749,11 @@ func _begin_encounters() -> void:
 
 
 func _start_encounters() -> void:
-	plan = world.encounter_plan(PoiDefs.danger_of(state, poi_id), PoiState._seed(state, [poi_id, "encounter", int(record.get("visits", 0))]))
+	var seed := PoiState._seed(state, [poi_id, "encounter", int(record.get("visits", 0))])
+	plan = world.encounter_plan(PoiDefs.danger_of(state, poi_id), seed)
 	pending = []
+	for i in plan.size():                # Exp 011: each encounter's person (a stable appearance seed)
+		plan[i]["app"] = posmod(hash([seed, i, "app"]), 1000000)
 	for p in plan:
 		if float(p["when"]) <= 0.0:
 			_spawn(p)
@@ -770,6 +773,8 @@ func _spawn(p: Dictionary) -> Node:
 	var opts := {"level": state.difficulty, "invasion": maxi(state.invasion_index(), 1), "mode": mind}
 	if mind == "dormant":
 		opts["dormant"] = p["dormant"]
+	if p.has("app"):
+		opts["appearance"] = int(p["app"])     # Exp 011: the same person after Continue
 	var e: Node = r.spawn_type(str(p["kind"]), p["at"], opts)
 	if not (e is AIEnemy):
 		return e
@@ -1140,13 +1145,15 @@ func _sync_encounters() -> void:
 
 ## The encounters as they are now: {"v": 1, "pending": [plan entries with
 ## "in" (s still to come)], "calm": [{"kind", "at", "hp", "mode", "mind",
-## "anchor", "alert", "yaw", "route", "then", "look", "peek", "stay"}],
-## "spawned", "killed"}. Vectors are [x, y]. Hunting enemies aren't in it
+## "anchor", "alert", "yaw", "route", "then", "look", "peek", "stay", "app"}],
+## "spawned", "killed"}. "app" (Exp 011) is the person's appearance seed. Vectors are [x, y]. Hunting enemies aren't in it
 ## (saving waits for them); the killed and the gone aren't either.
 func encounter_state() -> Dictionary:
 	var pend := []
 	for p in pending:
 		var q := {"kind": str(p["kind"]), "mode": str(p["mode"]), "at": _arr(p["at"]), "in": maxf(float(p["when"]) - _clock, 0.0)}
+		if p.has("app"):
+			q["app"] = int(p["app"])
 		for k in ["look", "spot", "door", "drawn"]:
 			if p.get(k) is Vector2:
 				q[k] = _arr(p[k])
@@ -1160,7 +1167,8 @@ func encounter_state() -> Dictionary:
 		if not en.is_calm():
 			continue
 		var c := {"kind": en.kind, "at": _arr(en.plan_pos()), "hp": en.hp, "mode": str(w["mode"]), "mind": en.mind.mode,
-			"anchor": _arr(en.mind.anchor), "alert": en.mind.alert, "yaw": en.rig.rotation.y if en.rig != null else 0.0}
+			"anchor": _arr(en.mind.anchor), "alert": en.mind.alert, "yaw": en.rig.rotation.y if en.rig != null else 0.0,
+			"app": en.appearance}
 		if w.has("route"):
 			var legs := []
 			for l in w["route"]:
@@ -1193,6 +1201,8 @@ func _restore_encounters() -> bool:
 		if at == Vector2.INF:
 			continue
 		var p := {"kind": _kind(q.get("kind")), "mode": str(q.get("mode", "arrive")), "at": at, "when": _clock + clampf(_num(q.get("in")), 0.0, 600.0)}
+		if typeof(q.get("app")) in [TYPE_INT, TYPE_FLOAT]:
+			p["app"] = int(q["app"])
 		for k in ["look", "spot", "door", "drawn"]:
 			if _vec(q.get(k)) != Vector2.INF:
 				p[k] = _vec(q[k])
@@ -1207,6 +1217,8 @@ func _restore_encounters() -> bool:
 		var mind := str(c.get("mind", "wander"))
 		var q := {"kind": _kind(c.get("kind")), "at": at, "mode": str(c.get("mode", "wander")),
 			"mind": mind if mind in ["hidden", "wander"] else "wander", "restored": true}
+		if typeof(c.get("app")) in [TYPE_INT, TYPE_FLOAT]:
+			q["app"] = int(c["app"])
 		if mind == "dormant" and typeof(c.get("dormant")) == TYPE_DICTIONARY:
 			q["mind"] = "dormant"            # Exp 009 (P): back at its spot, busy as it was
 			q["dormant"] = c["dormant"]

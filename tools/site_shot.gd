@@ -5,6 +5,8 @@ extends Node
 ## --site: a POI id (RegionLocations) or "home". --pos: where Eli stands (plan
 ## metres; default the entry). --panel=search opens the take panel of the
 ## nearest container that holds something (after its search).
+## Exp 011: --enemies=N[,first_seed] places N calm psychos (people, one
+## appearance seed each) in an arc 3..6 m in front of Eli.
 
 const SCENE := "res://src/game/game.tscn"
 
@@ -20,6 +22,8 @@ func _ready() -> void:
 	var panel := ""
 	var reveal := false
 	var weapon := ""
+	var enemies := 0
+	var first_seed := 0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--site="):
 			site = a.trim_prefix("--site=")
@@ -36,6 +40,10 @@ func _ready() -> void:
 			panel = a.trim_prefix("--panel=")
 		elif a == "--reveal":
 			reveal = true
+		elif a.begins_with("--enemies="):
+			var e := a.trim_prefix("--enemies=").split(",")
+			enemies = int(e[0])
+			first_seed = int(e[1]) if e.size() > 1 else 0
 		elif a.begins_with("--weapon="):     # Exp 010: the shotgun in hand, or empty hands
 			weapon = a.trim_prefix("--weapon=")
 	var s := GameState.new_run(8008)
@@ -74,6 +82,15 @@ func _ready() -> void:
 		game.combat.weapons.holstered = true
 	if reveal and game.get("poi") != null:
 		game.poi.dev_reveal()
+	if enemies > 0:
+		var pp: Vector2 = game.debug_player_pos()
+		var fwd := Vector2(-sin(game.player.rig.rotation.y), -cos(game.player.rig.rotation.y))
+		for i in enemies:
+			var ang := (float(i) / maxf(enemies - 1, 1) - 0.5) * 2.2
+			var at := pp + fwd.rotated(ang) * (3.0 + 2.5 * float(i % 2))
+			var e: Node = game.roster.spawn_type("psycho", at, {"mode": "hidden", "appearance": first_seed + i})
+			if e is AIEnemy:
+				(e as AIEnemy).set_facing(atan2(-(pp - at).x, -(pp - at).y))
 	for i in 4:
 		await get_tree().physics_frame
 	match panel:

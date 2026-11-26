@@ -11,12 +11,18 @@ extends Control
 ## Capture args (tools/capture.sh): --view=front|three|side|back|face|gameplay|sheet
 ## --anim=idle|walk|jog|run|handgun|shotgun|flashlight|tool --variant=N --yaw=deg --dist=m --ty=m --night --compare
 ## --moving --hide-ui
+## Exp 011, people (HumanoidLooks): --people=<kind> shows that archetype's
+## looks in a row (--seed=first, --count=n, --cols=n per row), with the
+## people animations (idle, walk, jog, attack, hit, die).
 
 const SCENE := "res://src/character/eli_showroom.tscn"
 const LAUNCHER := "res://src/launcher/launcher.tscn"
 const ANIMS := [["idle", "Idle"], ["walk", "Walk"], ["jog", "Jog (game pace)"], ["run", "Run (sprint)"],
 	["handgun", "Handgun"], ["shotgun", "Two-handed"], ["flashlight", "Flashlight"], ["tool", "Hammer"]]
 const SPEEDS := {"idle": 0.0, "walk": 1.4, "jog": 4.0, "run": 6.4, "handgun": 0.0, "shotgun": 0.0, "flashlight": 0.0, "tool": 1.4}
+const PEOPLE_ANIMS := [["idle", "Idle"], ["walk", "Walk"], ["jog", "Hunt (game pace)"], ["run", "Run"],
+	["attack", "Attack"], ["hit", "Hit"], ["die", "Collapse"]]
+const PEOPLE_SPEEDS := {"idle": 0.0, "walk": 1.2, "jog": 1.85, "run": 3.3, "attack": 0.0, "hit": 0.0, "die": 0.0}
 const VIEWS := [["three", "3/4"], ["front", "Front"], ["side", "Side"], ["back", "Back"], ["face", "Face"],
 	["sheet", "Turnaround"], ["gameplay", "Gameplay distance"]]
 
@@ -27,6 +33,11 @@ var variant := 0
 var night := false
 var compare := false
 var moving := false         ## walk the gait across the stage (feet planted on the floor)
+var people := ""            ## Exp 011: an archetype's looks instead of Eli ("" = Eli)
+var people_seed := 0
+var people_count := 1
+var people_cols := 0
+var _anim_t := 0.0
 
 var _vp: SubViewport
 var _stage: Node3D
@@ -88,6 +99,14 @@ func _ready() -> void:
 			_hide_ui = true
 		elif a == "--moving":
 			moving = true
+		elif a.begins_with("--people="):
+			people = a.trim_prefix("--people=")
+		elif a.begins_with("--seed="):
+			people_seed = int(a.trim_prefix("--seed="))
+		elif a.begins_with("--count="):
+			people_count = maxi(int(a.trim_prefix("--count=")), 1)
+		elif a.begins_with("--cols="):
+			people_cols = maxi(int(a.trim_prefix("--cols=")), 1)
 	if overlay:
 		_was_paused = get_tree().paused
 		get_tree().paused = true
@@ -190,6 +209,7 @@ func _build_stage() -> void:
 func _apply_light() -> void:
 	var m := VoxelRig.look_material(true)
 	m.set_shader_parameter("night", 1.0 if night else 0.0)
+	VoxelRig.look_material(false).set_shader_parameter("night", 1.0 if night else 0.0)
 	if night:
 		_env.background_color = Color(0.035, 0.045, 0.07)
 		_env.ambient_light_color = Color(0.3, 0.38, 0.6)
@@ -213,6 +233,9 @@ func _rebuild_rigs() -> void:
 	if _orig != null:
 		_orig.queue_free()
 		_orig = null
+	if people != "":
+		_rebuild_people()
+		return
 	var n := 4 if view == "sheet" else 1
 	for i in n:
 		var r := EliRig.new(variant)
@@ -230,7 +253,37 @@ func _rebuild_rigs() -> void:
 	_apply_anim()
 
 
+## Exp 011: a row (or grid) of an archetype's looks.
+func _rebuild_people() -> void:
+	var n := people_count if view != "sheet" else 4
+	var cols := people_cols if people_cols > 0 else n
+	var rows := ceili(float(n) / cols)
+	for i in n:
+		var seed := people_seed + (i if view != "sheet" else 0)
+		var r := HumanoidLooks.make_rig(people, seed)
+		r.name = "Person%d" % i
+		var c := i % cols
+		var row := i / cols
+		r.position = Vector3((c - (cols - 1) * 0.5) * 0.95, 0.0, (row - (rows - 1) * 0.5) * 1.6)
+		if view == "sheet":
+			r.position = Vector3((1.5 - i) * 0.95, 0.0, 0.0)
+			r.rotation.y = [0.0, deg_to_rad(35.0), deg_to_rad(90.0), PI][i]
+		r.set_meta("yaw", r.rotation.y)
+		_stage.add_child(r)
+		_rigs.append(r)
+	_anim_t = 0.0
+	_apply_anim()
+
+
 func _apply_anim() -> void:
+	if people != "":
+		for r in _rigs:
+			r.speed = PEOPLE_SPEEDS.get(anim, 0.0)
+			if r is HumanoidRig:
+				(r as HumanoidRig).preview_dir = Vector2(0.0, -1.0)
+		_anim_t = 0.0
+		_say()
+		return
 	for r in _rigs + ([_orig] if _orig != null else []):
 		r.speed = SPEEDS.get(anim, 0.0)
 		r.aiming = anim == "handgun" or anim == "shotgun"
@@ -298,14 +351,33 @@ func _process(delta: float) -> void:
 	var rigs: Array = _rigs.duplicate()
 	if _orig != null:
 		rigs.append(_orig)
+	_anim_t += delta
 	for r in rigs:
-		if moving and SPEEDS.get(anim, 0.0) > 0.0:
-			r.position.z -= delta * float(SPEEDS[anim])
+		var sp: float = PEOPLE_SPEEDS.get(anim, 0.0) if people != "" else SPEEDS.get(anim, 0.0)
+		if moving and sp > 0.0:
+			r.position.z -= delta * sp
 			if r.position.z < -6.0:
 				r.position.z = 6.0
+		if people != "" and r is HumanoidRig:
+			var h := r as HumanoidRig
+			if anim == "die":
+				h.collapse(delta, fmod(_anim_t, 4.0), Vector3.RIGHT, _people_yaw(h))
+				if fmod(_anim_t, 4.0) < delta * 1.5 and h.dead:
+					h.dead = false
+					h.transform.basis = Basis(Vector3.UP, _people_yaw(h))
+					h.position.y = 0.0
+				continue
+			if anim == "attack" and fmod(_anim_t, 1.4) < delta:
+				h.swing = 1.0
+			if anim == "hit" and fmod(_anim_t, 1.6) < delta:
+				h.stagger = 1.0
+				h.set_flash(1.0)
+			h.swing = maxf(h.swing - delta / 0.5, 0.0)
 		r.animate(delta)
 	if moving and not _rigs.is_empty():
 		_target.z = _rigs[0].position.z
+	if people != "" and view == "face" and not _rigs.is_empty() and _rigs[0].head != null:
+		_target = _rigs[0].head.global_position + Vector3(0.0, 0.15, 0.0)
 	# yaw 0: in front of him (he faces -Z); the gameplay view looks north like VoxelCamera
 	var dir := Vector3(-sin(_yaw) * cos(_pitch), -sin(_pitch), -cos(_yaw) * cos(_pitch))
 	if view == "gameplay":
@@ -322,6 +394,10 @@ func _process(delta: float) -> void:
 		_zoom(-delta * 2.0)
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
 		_zoom(delta * 2.0)
+
+
+func _people_yaw(h: HumanoidRig) -> float:
+	return h.get_meta("yaw", h.rotation.y)
 
 
 func _zoom(f: float) -> void:
@@ -368,7 +444,7 @@ func _build_ui() -> void:
 	col.add_child(UiTheme.make_title("Character Showroom", 20))
 	col.add_child(UiTheme.make_caption("Elias \"Eli\" Walker, 41. Former carpenter.", 280, UiTheme.TEXT_DIM))
 	col.add_child(UiTheme.make_section("Animation"))
-	col.add_child(_grid(2, ANIMS.map(func(a): return [a[1], func(): _set_anim(a[0])])))
+	col.add_child(_grid(2, (ANIMS if people == "" else PEOPLE_ANIMS).map(func(a): return [a[1], func(): _set_anim(a[0])])))
 	var walk := UiTheme.make_toggle("Walk across the stage", moving)
 	walk.toggled.connect(func(on: bool):
 		moving = on
@@ -378,6 +454,10 @@ func _build_ui() -> void:
 	col.add_child(walk)
 	col.add_child(UiTheme.make_section("View"))
 	col.add_child(_grid(2, VIEWS.map(func(v): return [v[1], func(): _apply_view(v[0])])))
+	col.add_child(UiTheme.make_section("People (Exp 011)"))
+	col.add_child(_grid(2, [["Eli", func(): _set_people("", 0)], ["Psychos", func(): _set_people("psycho", 0)],
+		["< Previous look", func(): _set_people(people, people_seed - maxi(people_count, 1))],
+		["Next look >", func(): _set_people(people, people_seed + maxi(people_count, 1))]]))
 	col.add_child(UiTheme.make_section("Variation"))
 	var vs := []
 	for i in EliSculpt.variant_count():
@@ -431,8 +511,21 @@ func _set_anim(a: String) -> void:
 func _set_variant(i: int) -> void:
 	variant = i
 	for r in _rigs:
-		(r as EliRig).set_variant(i)
+		if r is EliRig:
+			(r as EliRig).set_variant(i)
 	_say()
+
+
+func _set_people(kind: String, seed: int) -> void:
+	if kind != "" and HumanoidLooks.variety(kind) <= 0:
+		return
+	people = kind
+	people_seed = posmod(seed, maxi(HumanoidLooks.variety(kind), 1)) if kind != "" else 0
+	if kind != "" and anim not in PEOPLE_SPEEDS:
+		anim = "idle"
+	elif kind == "" and anim not in SPEEDS:
+		anim = "idle"
+	_rebuild_rigs()
 
 
 func _set_night(on: bool) -> void:
@@ -443,8 +536,11 @@ func _set_night(on: bool) -> void:
 func _say() -> void:
 	if _status == null:
 		return
+	var who := EliSculpt.variant_name(variant)
+	if people != "":
+		who = str(HumanoidLooks.look(people, people_seed).get("name", people))
 	_status.text = "%s · %s · %s     Drag / A D: turn   Wheel / W S: zoom   Esc: %s" % [
-		EliSculpt.variant_name(variant), anim, view, "close" if overlay else "back"]
+		who, anim, view, "close" if overlay else "back"]
 
 
 ## Test access.

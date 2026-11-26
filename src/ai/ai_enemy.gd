@@ -43,6 +43,9 @@ var blast_damage := 0.0             ## bomber: character damage at the centre
 var small_damage := 0.0             ## bomber: the pop when killed mid-fuse
 var extras := {}                    ## attached look nodes (EnemyLooks.apply)
 var look := 1
+## Exp 011: the appearance seed (HumanoidLooks.make_rig): which person this
+## is. Stable per enemy (POI encounters save it as "app").
+var appearance := -1
 var retreating := false
 var death_cause := ""
 var swings := {"player": 0, "wall": 0}   ## counts (tests, debug)
@@ -70,7 +73,8 @@ var _vanish := false
 
 
 ## Sets the archetype and its scaled numbers. opts: level, invasion, hp
-## (override), speed (speed_scale override), look (VoxelRig look).
+## (override), speed (speed_scale override), look (VoxelRig look of kinds
+## without a humanoid archetype), appearance (Exp 011: the person's seed).
 func configure(k: String, w: HouseWorld, target: Node3D, opts := {}) -> void:
 	kind = k if EnemyDefs.has(k) else "psycho"
 	def = EnemyDefs.get_def(kind)
@@ -89,6 +93,7 @@ func configure(k: String, w: HouseWorld, target: Node3D, opts := {}) -> void:
 	wall_strikes = int(def["wall_strikes"])
 	var looks: Array = def["looks"]
 	look = int(opts.get("look", looks[0]))
+	appearance = int(opts.get("appearance", appearance if appearance >= 0 else randi() % 1000000))
 	brain = PursuitBrain.new(nav)
 	brain.speed = float(def["speed"]) * speed_scale
 	brain.attack_range = float(def["attack_range"])
@@ -102,7 +107,7 @@ func configure(k: String, w: HouseWorld, target: Node3D, opts := {}) -> void:
 	brain.planner = WeightedNav.for_nav(nav, float(def["bash_weight"]), wades())    # Exp 006 (D): + wading
 	behaviour = EnemyBehaviour.make(str(def["behaviour"]))
 	behaviour.configure(self)
-	rig = VoxelRig.new(look)
+	rig = HumanoidLooks.make_rig(kind, appearance, look)      # Exp 011: people for kinds with an archetype
 
 
 func _ready() -> void:
@@ -118,7 +123,7 @@ func _ready() -> void:
 	cs.position.y = (VoxelPlayer.BODY_TOP + VoxelPlayer.BODY_BOTTOM) * 0.5
 	add_child(cs)
 	if rig == null:
-		rig = VoxelRig.new(look)
+		rig = HumanoidLooks.make_rig(kind, maxi(appearance, 0), look)
 	add_child(rig)
 	extras = EnemyLooks.apply(rig, kind)
 	_yaw = rig.rotation.y
@@ -338,14 +343,17 @@ func _corpse(delta: float) -> void:
 	_dead_t += delta
 	var fall := clampf(_dead_t / 0.45, 0.0, 1.0)
 	fall = fall * fall
-	var s: Vector3 = def["scale"]
-	rig.transform.basis = Basis(_fall_axis, -fall * PI * 0.48) * Basis(Vector3.UP, _yaw) * Basis.from_scale(s)
-	rig.position.y = -0.1 * fall
-	rig.speed = 0.0
-	rig.animate(delta)
+	if rig is HumanoidRig:
+		(rig as HumanoidRig).collapse(delta, _dead_t, _fall_axis, _yaw)    # Exp 011: knees buckle, then it falls
+	else:
+		var s: Vector3 = def["scale"]
+		rig.transform.basis = Basis(_fall_axis, -fall * PI * 0.48) * Basis(Vector3.UP, _yaw) * Basis.from_scale(s)
+		rig.position.y = -0.1 * fall
+		rig.speed = 0.0
+		rig.animate(delta)
 	if _dead_t > Tuning.ENEMY_CORPSE_TIME:
 		var k := clampf((_dead_t - Tuning.ENEMY_CORPSE_TIME) / 1.2, 0.0, 1.0)
-		rig.position.y = -0.1 - 0.35 * k
+		rig.position.y -= 0.35 * k
 		rig.set_fade(1.0 - k)
 		for n in extras.values():
 			if n is Node3D:

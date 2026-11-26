@@ -99,7 +99,7 @@ func test_ai_every_type_spawns_with_its_look_and_numbers() -> void:
 	check(spawned["brute"].extras.has("club"), "the brute carries a club")
 	var light: OmniLight3D = spawned["bomber"].extras.get("light")
 	check(light != null and spawned["bomber"].extras.has("pack"), "the bomber wears a glowing pack with a light")
-	check(spawned["psycho"].rig.parts[0].material_override == VoxelRig.look_material(false), "the psycho keeps the Experiment 002 look")
+	check(spawned["psycho"].rig is HumanoidRig, "the psycho is a voxel person (Exp 011)")
 	check_eq(roster.living_by_kind(), {"psycho": 1, "runner": 1, "brute": 1, "bomber": 1}, "living_by_kind")
 	check_eq(roster.living(), 4, "living() counts every type")
 	check_eq(roster.kill_all(), 4, "kill_all() kills every type")

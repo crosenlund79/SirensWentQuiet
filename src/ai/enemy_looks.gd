@@ -53,6 +53,10 @@ static func sync_night() -> void:
 ## Returns the extra nodes by name ("club", "pack", "pack_mat", "lamp", "light").
 static func apply(rig: VoxelRig, kind: String) -> Dictionary:
 	var d := EnemyDefs.get_def(kind)
+	if rig is HumanoidRig:
+		# Exp 011: a person (src/character): proportions, posture and clothes come
+		# from its look; no scale, tint or hunch on top. Its extras are the archetype's.
+		return {}
 	rig.scale = d["scale"]
 	rig.hunch = float(d["hunch"])
 	var m := material(kind)

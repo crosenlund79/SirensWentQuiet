@@ -40,12 +40,14 @@ var level := "normal"                   ## default difficulty for spawn_type
 var invasion := 1                       ## default invasion index for spawn_type
 var blasts := 0                         ## detonations seen (tests, debug)
 var _count := 0
+var _app_rng := RandomNumberGenerator.new()     ## Exp 011: appearance seeds (apart from `rng`: its sequence stays as it was)
 
 
 func setup(w: HouseWorld, p: Node3D, seed := 0) -> void:
 	world = w
 	player = p
 	rng.seed = seed
+	_app_rng.seed = seed + 7919
 
 
 ## Experiment 002: a psycho with the given hp and speed scale.
@@ -58,7 +60,8 @@ func spawn(at: Vector2, hp := Tuning.ENEMY_HP, speed := 1.0, invader := false) -
 ##                     (default: this roster's level / invasion)
 ##   hp, speed         overrides (speed = scale on the archetype speed)
 ##   invader           counts for invaders_alive() (a wave member)
-##   look              VoxelRig look (psychos vary by default)
+##   look              VoxelRig look (kinds without a humanoid archetype)
+##   appearance        Exp 011: the person's seed (HumanoidLooks); random by default
 ##   facing            initial yaw (default random)
 ##   mode              Exp 007 (N): calm until provoked: "straggler" (home
 ##                     nights), "wander", "hidden", "arrive" (POIs); absent
@@ -72,6 +75,8 @@ func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 	o["invasion"] = o.get("invasion", invasion)
 	if k == "psycho" and not o.has("look"):
 		o["look"] = 1 + (_count + rng.randi() % 4) % 4
+	if not o.has("appearance"):
+		o["appearance"] = _app_rng.randi() % 1000000
 	var e := AIEnemy.new()
 	e.configure(k, world, player, o)
 	e.name = "%s_%d" % [k.capitalize(), _count]
