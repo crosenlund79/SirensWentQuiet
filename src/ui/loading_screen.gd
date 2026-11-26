@@ -107,8 +107,7 @@ static func close_current() -> void:
 static func change_scene(tree: SceneTree, path: String, text: String) -> LoadingScreen:
 	var ls := open(tree.root, text)
 	GameLaunch.staged = true
-	ls.plan([["scene", 1.0, "Loading…"]])
-	ls.begin("scene")
+	ls.begin_scene_load()
 	ls._scene_path = path
 	if ResourceLoader.load_threaded_request(path, "PackedScene") != OK:
 		ls._scene_path = ""
@@ -121,6 +120,13 @@ static func change_scene(tree: SceneTree, path: String, text: String) -> Loading
 ## starts with one long step; showing nothing through it would look frozen).
 func expect(ms: float) -> void:
 	expect_ms = int(ms)
+
+
+## The scene's own loading: the first 8 % of the bar (the game's plan shares
+## the rest once it boots).
+func begin_scene_load() -> void:
+	plan([["scene", 0.08, "Loading…"], ["game", 0.92, "Loading…"]])
+	begin("scene")
 
 
 func set_title(text: String) -> void:

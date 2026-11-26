@@ -121,6 +121,16 @@ func test_progress_is_stage_weighted_and_never_goes_back() -> void:
 	check(is_equal_approx(ls.progress, 0.8125), "a new plan shares what's left (%f)" % ls.progress)
 	ls.finish()
 	check_eq(ls.progress, 1.0, "full at the end")
+	# a scene change: the scene's loading is a small first share, the game's boot the rest
+	var sc := LoadingScreen.open(host, "Entering somewhere")
+	sc.begin_scene_load()
+	sc.set_fraction(1.0)
+	check(sc.progress > 0.0 and sc.progress <= 0.1, "the scene loaded (%f)" % sc.progress)
+	sc.plan([["site", 1.0, "Preparing interior…"]])
+	sc.begin("site")
+	sc.set_fraction(0.5)
+	check(sc.progress > 0.5 and sc.progress < 0.6, "the boot shares the rest (%f)" % sc.progress)
+	sc.finish()
 	check(LoadingScreen.current() == null, "closed")
 	await frames(2)
 
