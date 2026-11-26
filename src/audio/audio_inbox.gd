@@ -34,6 +34,7 @@ const LEVEL_SECONDS := 10.0                  ## beds and loops: the level of the
 const ALIASES := {
 	"player/footstep": "player/step_wood",   # the stairs and the old footstep group
 	"music/dawn": "music/menu",              # the theme, softly at dawn
+	"enemy/step_wood": "player/step_wood",   # Exp 012 (A): enemies indoors until "Enemy - Footsteps Wood" exists
 }
 
 ## Files whose names contain this word are recordings for a scripted encounter

@@ -113,6 +113,14 @@ const IMPACT_SOUND := {
 	VoxelMat.Impact.WOOD: "impact/wood", VoxelMat.Impact.GLASS: "impact/glass", VoxelMat.Impact.METAL: "impact/metal",
 	VoxelMat.Impact.PLANT: "impact/wood",
 }
+## Exp 012 (A): an enemy's blow (not a bullet) on wood plays the user's
+## recorded heavy impacts ("Enemy - Heavy impact wood", door/bash).
+const STRIKE_SOUND := {VoxelMat.Impact.WOOD: "door/bash", VoxelMat.Impact.PLANT: "door/bash"}
+
+
+## Exp 012 (A): the sound of an enemy's blow on a material's impact class.
+static func strike_sound(impact: int) -> String:
+	return STRIKE_SOUND.get(impact, IMPACT_SOUND.get(impact, "impact/plaster"))
 ## Night lights (no grid power): candles and battery lanterns on furniture.
 ## Three cast shadows; the others are cheap fill.
 const NIGHT_LIGHTS := [
@@ -912,6 +920,16 @@ func _hit_voxels(vh: Dictionary, dir: Vector3) -> void:
 		furniture.on_shot_cell(c)
 
 
+## Exp 012 (A): a passage opened through wood is the recorded wooden wall
+## giving way ("Destruction - Wooden Wall", structure/break); through
+## anything else the crumble.
+static func _breach_sound(mats: PackedByteArray) -> String:
+	for m in mats:
+		if VoxelMat.IMPACT[m] == VoxelMat.Impact.WOOD:
+			return "structure/break"
+	return "structure/crumble"
+
+
 ## Damage only removes voxels, so only WALL cells can change (to OPEN).
 func _apply_damage(ch: Dictionary) -> void:
 	var cells: PackedInt32Array = ch["cells"]
@@ -927,7 +945,7 @@ func _apply_damage(ch: Dictionary) -> void:
 			if s != null:
 				sections[s]["current"] -= 1
 	if _recompute_nav(_plan_rect(ch["lo"], ch["hi"]).grow(GridNav.CELL), true):
-		Sfx.play("structure/crumble", grid.center((ch["lo"] + ch["hi"]) / 2))
+		Sfx.play(_breach_sound(mats), grid.center((ch["lo"] + ch["hi"]) / 2))
 	if furniture != null:
 		furniture.on_removed(ch)
 	if not _settling:                # Refinement 01 (S): what this left hanging falls next frame
@@ -992,7 +1010,7 @@ func _bite(attacker_pos: Vector3, target: Vector2, strength: float) -> void:
 		return
 	_apply_damage(ch)
 	fx.impact(VoxelMat.IMPACT[m], center - dir * 0.1, n, dir, ch)
-	Sfx.play(IMPACT_SOUND.get(VoxelMat.IMPACT[m], "impact/plaster"), center)
+	Sfx.play(strike_sound(VoxelMat.IMPACT[m]), center)      # Exp 012 (A): the recorded heavy impact on wood
 
 
 func _blockers(target: Vector2, along: Vector2) -> Array:

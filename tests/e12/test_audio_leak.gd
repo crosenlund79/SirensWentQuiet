@@ -184,3 +184,15 @@ func test_story_audio_stops_on_menu_and_load() -> void:
 	check_eq(StoryAudioGuard.playing_count(tree), 0, "nothing left playing")
 	for path in ["res://src/menu/main_menu.gd", "res://src/game/survival_game.gd"]:
 		check(FileAccess.get_file_as_string(path).contains("StoryAudioGuard.stop_all("), "%s stops story audio in _ready" % path.get_file())
+
+
+## §38: the triggers connected to recordings the user already made.
+func test_connected_triggers() -> void:
+	_restore()
+	check_eq(HouseWorld.strike_sound(VoxelMat.Impact.WOOD), "door/bash", "an enemy blow on wood: the recorded heavy impacts")
+	check_eq(HouseWorld.strike_sound(VoxelMat.Impact.GLASS), "impact/glass", "glass keeps its shatter")
+	check_eq(HouseWorld._breach_sound(PackedByteArray([VoxelMat.DRYWALL, VoxelMat.SIDING])), "structure/break", "a wooden wall giving way")
+	check_eq(HouseWorld._breach_sound(PackedByteArray([VoxelMat.MASONRY])), "structure/crumble", "masonry crumbles")
+	check_eq(AudioInbox.pool_name("enemy/step_wood"), "player/step_wood", "enemies indoors use the wood-floor steps until their own exist")
+	check(Sfx.available("enemy/step_wood"), "so indoor enemy steps are audible")
+	_restore()

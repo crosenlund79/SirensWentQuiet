@@ -336,7 +336,7 @@ func strike(id: String, n: int, from: Vector3) -> void:
 	if not (ch["cells"] as PackedInt32Array).is_empty():
 		world._apply_damage(ch)
 		world.fx.impact(VoxelMat.IMPACT[(ch["mats"] as PackedByteArray)[0]], at, -dir, dir, ch)
-		Sfx.play(HouseWorld.IMPACT_SOUND.get(VoxelMat.IMPACT[(ch["mats"] as PackedByteArray)[0]], "impact/wood"), at)
+		Sfx.play(HouseWorld.strike_sound(VoxelMat.IMPACT[(ch["mats"] as PackedByteArray)[0]]), at)     # Exp 012 (A)
 	if pieces[id]["state"] == DAMAGED:
 		hurt(id, n)
 
