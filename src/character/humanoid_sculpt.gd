@@ -54,7 +54,7 @@ const HEM := {"tshirt": -0.13, "shirt": -0.14, "blouse": -0.1, "sport": -0.1, "s
 const TY := ["tshirt", "shirt", "blouse", "sport", "sweater", "hoodie", "fleece", "cardigan", "coverall",
 	"coat", "parka", "work_jacket", "hivis", "apron"]
 enum { TSHIRT, SHIRT, BLOUSE, SPORT, SWEATER, HOODIE, FLEECE, CARDIGAN, COVERALL, COAT, PARKA, WORK_JACKET, HIVIS, APRON }
-const SKIRT := {"coat": 0.41, "parka": 0.27, "apron": 0.36, "skirt": 0.37}
+const SKIRT := {"coat": 0.41, "parka": 0.22, "apron": 0.36, "skirt": 0.37}
 const LEG_T := {"jeans": 0.008, "trousers": 0.011, "cargo": 0.012, "sweatpants": 0.017, "skirt": 0.002,
 	"leggings": 0.004, "coverall": 0.012}
 
@@ -1168,7 +1168,7 @@ func _pelvis(p: Vector3, x: int, y: int, z: int, paint: bool) -> float:
 		var gd := 1.0
 		if SKIRT.has(gt):
 			var len: float = float(SKIRT[gt]) * k
-			gd = _skirt(p, len + _fray(x, z, g) * 2.0, t + _puff(g, p.y), 0.22 if gt == "coat" else 0.14)
+			gd = _skirt(p, len + _fray(x, z, g) * 2.0, t + _puff(g, p.y), {"coat": 0.16, "parka": 0.05}.get(gt, 0.12))
 			if gt == "apron":
 				if p.z > 0.0 or absf(p.x) > 0.15 * k + 0.02 * k * weight:
 					gd = 1.0
