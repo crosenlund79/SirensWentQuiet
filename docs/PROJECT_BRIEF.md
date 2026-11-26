@@ -180,6 +180,21 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - save and load across home, travel and POI.
 - **Delivery:** source-only checkpoints (`checkpoint/exp007-*`). No exe and no Windows CI builds; no merge to `main`.
 
+## Current approved objective: "The First Week" (Experiment 008)
+
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 008 — The First Week", autonomous overnight, Rapid Delivery); in progress.** Branch `exp008/first-week` from Experiment 007 (`8dff97b`). Contracts: `docs/experiment-008/SPEC.md`.
+
+- **Scope, in the user's priority order:**
+  1. verify the Experiment 007 loop and fix critical integration problems;
+  2. three distinct playable POIs: Hardware Store, Pike's Guns, Medical Clinic;
+  3. better physical scavenging and loot persistence;
+  4. direct POI → POI travel;
+  5. more varied expedition risk and encounters;
+  6. verify the first-week survival loop (the house while away included);
+  7. minor presentation and audio, with save/load reliability throughout.
+- **Out of scope:** new survival meters, crafting trees, vehicles or enemy classes; a scripted seven-day campaign; an exe or installer; Windows CI; merges to `main`.
+- **Verification:** scenarios A–D (food, equipment, research and building, night defence), lightweight and headless, plus a few screenshots. The user playtests.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
