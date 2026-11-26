@@ -656,8 +656,13 @@ func _spawn(p: Dictionary) -> Node:
 		return null
 	var mode := str(p["mode"])
 	var mind := str(p.get("mind", "wander" if p.has("spot") else MIND_OF.get(mode, "wander")))
+	if mind == "dormant" and typeof(p.get("dormant")) != TYPE_DICTIONARY:
+		mind = "hidden"                    # Exp 009 (P): a dormant one without its spot just waits
 	# "mode": agent N's roster spawns a calm straggler (hostile on noise, sight or damage)
-	var e: Node = r.spawn_type(str(p["kind"]), p["at"], {"level": state.difficulty, "invasion": maxi(state.invasion_index(), 1), "mode": mind})
+	var opts := {"level": state.difficulty, "invasion": maxi(state.invasion_index(), 1), "mode": mind}
+	if mind == "dormant":
+		opts["dormant"] = p["dormant"]
+	var e: Node = r.spawn_type(str(p["kind"]), p["at"], opts)
 	if not (e is AIEnemy):
 		return e
 	e.set_meta("poi_mode", mode)
@@ -670,7 +675,7 @@ func _spawn(p: Dictionary) -> Node:
 		if not p.get("restored", false):
 			_plan_route(w, p)
 		return e
-	if p["mode"] == "hidden":
+	if p["mode"] == "hidden" or p["mode"] == "dormant":
 		_calm(w, "idle")
 	elif p["mode"] == "arrive":
 		_investigate(w, world.building_rect().get_center() if not world.layout.get("outdoor", false) else world.entry_point())
@@ -814,7 +819,8 @@ func _clear_line(from: Vector2, to: Vector2, h0: float, h1: float, skip: PackedB
 # game can be saved again.
 
 ## The calm mind (StragglerMind mode) a plan mode starts with.
-const MIND_OF := {"hidden": "hidden", "peek": "hidden", "wander": "wander", "arrive": "wander", "enter": "wander"}
+const MIND_OF := {"hidden": "hidden", "peek": "hidden", "wander": "wander", "arrive": "wander", "enter": "wander",
+	"dormant": "dormant"}
 const PEEK_RANGE := 9.0           ## m it sees through a window
 const PEEK_CONE := 1.13          ## rad (65 degrees): half the angle around where it looks
 const PEEK_NOTICE := 1.0          ## s of seeing Eli before it comes round
@@ -1058,6 +1064,8 @@ func encounter_state() -> Dictionary:
 				c[k] = _arr(w[k])
 		if w.has("stay"):
 			c["stay"] = float(w["stay"])
+		if en.mind is DormantMind:
+			c["dormant"] = (en.mind as DormantMind).save_data()       # Exp 009 (P)
 		calm.append(c)
 	return {"v": 1, "pending": pend, "calm": calm, "spawned": spawned, "killed": killed}
 
@@ -1089,8 +1097,12 @@ func _restore_encounters() -> bool:
 		if at == Vector2.INF:
 			continue
 		var mind := str(c.get("mind", "wander"))
-		var e: Node = _spawn({"kind": _kind(c.get("kind")), "at": at, "mode": str(c.get("mode", "wander")),
-			"mind": mind if mind in ["hidden", "wander"] else "wander", "restored": true})
+		var q := {"kind": _kind(c.get("kind")), "at": at, "mode": str(c.get("mode", "wander")),
+			"mind": mind if mind in ["hidden", "wander"] else "wander", "restored": true}
+		if mind == "dormant" and typeof(c.get("dormant")) == TYPE_DICTIONARY:
+			q["mind"] = "dormant"            # Exp 009 (P): back at its spot, busy as it was
+			q["dormant"] = c["dormant"]
+		var e: Node = _spawn(q)
 		if not (e is AIEnemy):
 			continue
 		var en := e as AIEnemy
@@ -1256,6 +1268,150 @@ func dev_spawn_straggler() -> String:
 	var at := world.wander_point(_rng, Vector2(pl.global_position.x, pl.global_position.z), 6.0)
 	_spawn({"kind": "psycho", "at": at, "when": 0.0, "mode": "wander"})
 	return "A straggler wanders in at (%.1f, %.1f)." % [at.x, at.y]
+
+
+## Exp 009 (P), F10 "POI generator": a dormant psycho at the layout's
+## nearest free dormant spot to Eli (at least DEV_NEAR m away), with
+## `behaviour` when given (else the spot's); without a fitting spot, one made
+## from the geometry around him (dormant_spot_near).
+func dev_spawn_dormant(behaviour := "") -> String:
+	if world == null or _roster() == null:
+		return "Not at a POI."
+	if behaviour != "" and not (behaviour in DormantMind.BEHAVIOURS):
+		return "Unknown behaviour '%s' (%s)." % [behaviour, ", ".join(DormantMind.BEHAVIOURS)]
+	var pl: Node3D = game.get("player")
+	var near := Vector2(pl.global_position.x, pl.global_position.z)
+	var sp := dormant_spot_near(behaviour, near)
+	if sp.is_empty():
+		return "No room for a dormant psycho near Eli."
+	var e: Node = _spawn({"kind": "psycho", "at": sp["at"], "when": 0.0, "mode": "dormant",
+		"dormant": {"behaviour": sp["behaviour"], "spot": sp["at"], "target": sp.get("target", Vector2.INF),
+			"radius": float(sp.get("radius", 1.2)), "sensitivity": snappedf(_rng.randf_range(0.5, 1.5), 0.01), "mumble": _rng.randf() < 0.6}})
+	_sync_encounters()
+	if not (e is AIEnemy) or not ((e as AIEnemy).mind is DormantMind):
+		return "The roster refused."
+	return "A dormant psycho at (%.1f, %.1f): %s." % [sp["at"].x, sp["at"].y, dormant_text(e)]
+
+
+## Exp 009 (P), F10: the dormant enemy nearest Eli switches to `behaviour`
+## (at a spot that suits it, near where it is; invalid -> the usual fallback).
+func dev_force_behaviour(behaviour: String) -> String:
+	if world == null:
+		return "Not at a POI."
+	if not (behaviour in DormantMind.BEHAVIOURS):
+		return "Unknown behaviour '%s' (%s)." % [behaviour, ", ".join(DormantMind.BEHAVIOURS)]
+	var pl: Node3D = game.get("player")
+	var pp := Vector2(pl.global_position.x, pl.global_position.z)
+	var best: AIEnemy = null
+	for w in watch:
+		var e: Variant = w["e"]
+		if is_instance_valid(e) and e is AIEnemy and (e as AIEnemy).alive and (e as AIEnemy).mind is DormantMind:
+			if best == null or (e as AIEnemy).plan_pos().distance_to(pp) < best.plan_pos().distance_to(pp):
+				best = e
+	if best == null:
+		return "No dormant psycho here."
+	var dm := best.mind as DormantMind
+	var sp := dormant_spot_near(behaviour, best.plan_pos(), 0.0, false)
+	if sp.is_empty():
+		sp = {"at": best.plan_pos(), "behaviour": behaviour, "target": Vector2.INF, "radius": 1.2}
+	dm.reconfigure(best, {"behaviour": behaviour, "spot": sp["at"], "target": sp.get("target", Vector2.INF),
+		"radius": float(sp.get("radius", 1.2)), "sensitivity": dm.sensitivity, "mumble": dm.mumble})
+	_sync_encounters()
+	return "It %s." % dormant_text(best)
+
+
+## "bangs its head on the wall (sensitivity 0.8, mumbles)" for F10.
+static func dormant_text(e: AIEnemy) -> String:
+	var dm := e.mind as DormantMind if e != null and e.mind is DormantMind else null
+	if dm == null:
+		return "is not dormant"
+	var what := {"bang": "bangs its head against the wall", "circle": "circles something", "sway": "sways in place",
+		"stare": "stares at nothing", "tap": {"tap": "taps at a cabinet", "scratch": "scratches at a door", "drawer": "works a drawer"}.get(dm.tap_kind, "taps")}
+	var t := str(what.get(dm.behaviour, dm.behaviour))
+	if dm.behaviour != dm.asked and dm.asked != "":
+		t += " (asked: %s, no place for it)" % dm.asked
+	return "%s · sensitivity %.2f%s" % [t, dm.sensitivity, " · mumbles" if dm.mumble else ""]
+
+
+const DEV_NEAR := 3.0                ## m: a dev dormant spot at least this far from Eli
+const DEV_FAR := 9.0                 ## m: and at most this far (when the geometry allows)
+
+
+## Exp 009 (P): a spot {at, behaviour, target, radius} for a dormant psycho
+## near `near`: the layout's nearest free "dormant" spot of that behaviour
+## between `min_d` and DEV_FAR m (when `use_layout`), else one made from the
+## nav grid: bang / tap / stare beside a wall or furniture (target: the
+## surface), circle round furniture with room all round (or an open point),
+## sway anywhere walkable. {} when nothing near is walkable.
+func dormant_spot_near(behaviour: String, near: Vector2, min_d := DEV_NEAR, use_layout := true) -> Dictionary:
+	if world == null or world.nav == null:
+		return {}
+	if use_layout:
+		var best := {}
+		var best_d := INF
+		for d in world.dormant_spots():
+			var at: Vector2 = d["at"]
+			var dist := at.distance_to(near)
+			if (behaviour != "" and str(d.get("behaviour", "")) != behaviour) or dist < min_d or dist > DEV_FAR or _occupied(at):
+				continue
+			if dist < best_d:
+				best_d = dist
+				best = d.duplicate()
+		if not best.is_empty():
+			return best
+	var b: String = behaviour if behaviour != "" else str(DormantMind.BEHAVIOURS[_rng.randi() % DormantMind.BEHAVIOURS.size()])
+	var nav: GridNav = world.nav
+	var c0 := nav.cell_of(near)
+	var lo := int(ceil(min_d / GridNav.CELL))
+	var dirs := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	var fallback := {}
+	for r in range(maxi(lo, 1), int(DEV_FAR / GridNav.CELL) + 1):
+		for dj in range(-r, r + 1):
+			for di in range(-r, r + 1):
+				if maxi(absi(di), absi(dj)) != r or (di + dj) % 2 != 0:
+					continue
+				var c := c0 + Vector2i(di, dj)
+				if not nav.is_walkable(c) or _occupied(nav.center_of(c)):
+					continue
+				var at := nav.center_of(c)
+				if fallback.is_empty():
+					fallback = {"at": at, "behaviour": "sway", "target": Vector2.INF, "radius": 1.2}
+				match b:
+					"bang", "tap", "stare":
+						for dv in dirs:
+							var k: int = nav.get_raw(c + dv * 2)
+							if k == GridNav.WALL or k == GridNav.SOLID:
+								return {"at": at, "behaviour": b, "target": nav.center_of(c + dv * 2), "radius": 1.2}
+					"circle":
+						for dv in dirs:
+							for step in [3, 4, 5]:
+								var o: Vector2i = c + dv * step
+								if nav.get_raw(o) == GridNav.SOLID and _ring_free(nav, nav.center_of(o), float(step) * GridNav.CELL):
+									return {"at": at, "behaviour": b, "target": nav.center_of(o), "radius": float(step) * GridNav.CELL}
+						var mid := at + Vector2(1.3, 0.0)
+						if nav.is_walkable(nav.cell_of(mid)) and _ring_free(nav, mid, 1.3):
+							return {"at": at, "behaviour": b, "target": mid, "radius": 1.3}
+					_:
+						return {"at": at, "behaviour": b, "target": Vector2.INF, "radius": 1.2}
+	if not fallback.is_empty():
+		fallback["behaviour"] = b            # DormantMind falls back to sway where b doesn't fit
+	return fallback
+
+
+static func _ring_free(nav: GridNav, at: Vector2, radius: float) -> bool:
+	var n := 0
+	for i in 8:
+		if nav.is_walkable(nav.cell_of(at + Vector2.from_angle(TAU * i / 8.0) * radius)):
+			n += 1
+	return n >= 6
+
+
+func _occupied(p: Vector2) -> bool:
+	for w in watch:
+		var e: Variant = w["e"]
+		if is_instance_valid(e) and e is AIEnemy and (e as AIEnemy).alive and (e as AIEnemy).plan_pos().distance_to(p) < 1.0:
+			return true
+	return false
 
 
 func dev_reveal() -> String:

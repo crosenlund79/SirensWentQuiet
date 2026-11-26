@@ -705,6 +705,16 @@ func room_floor_rects(storey := 0) -> Array:
 ##           noise and in to look
 ##   wander  already about
 ## A layout without "peek" or "doorways" gets hidden, arrive and wander only.
+## Exp 009 (P):
+##   dormant busy with something at one of the layout's "dormant" spots
+##           ({at, behaviour, target, radius}; DormantMind): a psycho, now and
+##           then a brute (never a runner), with its own sensitivity
+##           (0.5-1.5) and maybe a mumble. DORMANT_SHARE of the occupants
+##           when the layout has spots (at most DORMANT_MAX); the quiet share
+##           and the count stay as they were. At most one sits within
+##           GUARD_RANGE m of a valuable container (the stash, a locked one).
+##           A layout without "dormant" spots gets none (and the same plans
+##           as before).
 func encounter_plan(danger: float, seed: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
@@ -716,6 +726,10 @@ func encounter_plan(danger: float, seed: int) -> Array:
 	var peeks: Array = (layout.get("peek", []) as Array).duplicate()
 	var doors: Array = layout.get("doorways", [])
 	var edges: Array = layout.get("edges", PoiLayouts.EDGES)
+	var dorm := dormant_spots()
+	var valuables := valuable_points()
+	var guarded := false
+	var dormants := 0
 	for i in n:
 		var r := rng.randf()
 		var kind := "psycho"
@@ -729,6 +743,17 @@ func encounter_plan(danger: float, seed: int) -> Array:
 			mode = "wander"
 		if mode == "enter" and doors.is_empty():
 			mode = "arrive"
+		if not dorm.is_empty() and dormants < DORMANT_MAX and rng.randf() < DORMANT_SHARE:
+			var k := _pick_dormant(dorm, valuables, guarded, rng)
+			if k >= 0:
+				var sp: Dictionary = dorm.pop_at(k)
+				guarded = guarded or _near_any(sp["at"], valuables)
+				dormants += 1
+				out.append({"kind": "brute" if kind == "brute" else "psycho", "at": sp["at"], "when": 0.0, "mode": "dormant",
+					"dormant": {"behaviour": str(sp.get("behaviour", "sway")), "spot": sp["at"], "target": sp.get("target", Vector2.INF),
+						"radius": float(sp.get("radius", 1.2)), "sensitivity": snappedf(rng.randf_range(0.5, 1.5), 0.01),
+						"mumble": rng.randf() < 0.55}})
+				continue
 		var e := {"kind": kind, "at": Vector2.ZERO, "when": 0.0, "mode": mode}
 		match mode:
 			"hidden":
@@ -754,6 +779,55 @@ func encounter_plan(danger: float, seed: int) -> Array:
 				e["at"] = wander_point(rng, entry_point(), 9.0)
 		out.append(e)
 	return out
+
+
+## Exp 009 (P): the share of a visit's occupants who are dormant when the
+## layout has spots, at most this many, and the guard rule's range (m).
+const DORMANT_SHARE := 0.45
+const DORMANT_MAX := 3
+const GUARD_RANGE := 2.2
+
+
+## Exp 009 (P): the layout's valid dormant spots (Dictionaries with a
+## finite "at"; agent G's generator provides them).
+func dormant_spots() -> Array:
+	var out := []
+	for d in layout.get("dormant", []):
+		if typeof(d) == TYPE_DICTIONARY and d.get("at") is Vector2 and (d["at"] as Vector2).is_finite():
+			out.append(d)
+	return out
+
+
+## Exp 009 (P): the middles of the valuable containers (the stash, locked
+## ones, the location's locked table).
+func valuable_points() -> Array:
+	var out := []
+	var stash := str(layout.get("stash", ""))
+	for c in layout.get("containers", []):
+		if typeof(c) != TYPE_DICTIONARY or not (c.get("rect") is Rect2):
+			continue
+		if c.get("stash", false) == true or (stash != "" and str(c.get("id", "")) == stash) or str(c.get("table", "")) == "locked" \
+				or str(c.get("needs", "")) == "crowbar":
+			out.append((c["rect"] as Rect2).get_center())
+	return out
+
+
+static func _near_any(p: Vector2, pts: Array) -> bool:
+	for q in pts:
+		if (q as Vector2).distance_to(p) <= GUARD_RANGE:
+			return true
+	return false
+
+
+## A random spot of `spots` (index), skipping those beside a valuable
+## container once one dormant already sits by one; -1 if none fits.
+static func _pick_dormant(spots: Array, valuables: Array, guarded: bool, rng: RandomNumberGenerator) -> int:
+	var start := rng.randi() % spots.size()
+	for i in spots.size():
+		var k := (start + i) % spots.size()
+		if not guarded or not _near_any(spots[k]["at"], valuables):
+			return k
+	return -1
 
 
 ## Exp 008 (E): the chance a visit is quiet (nobody there and nobody coming):

@@ -149,13 +149,20 @@ func state_name() -> String:
 
 ## mode: "straggler" (home nights), "wander", "hidden", "arrive" (POIs); ""
 ## or "hostile" turns a calm enemy hostile. Call after configure().
-func set_calm_mode(mode: String, seed := -1) -> void:
+## Exp 009 (P): "dormant" (POIs) with `data` (the spot: behaviour, spot,
+## target, radius, sensitivity, mumble) gives it a DormantMind.
+func set_calm_mode(mode: String, seed := -1, data := {}) -> void:
 	if mode == "" or mode == "hostile" or mode == "attack":
 		provoke("mode")
 		return
 	if not alive or brain == null:
 		return
-	mind = StragglerMind.new()
+	if mode == "dormant":
+		var dm := DormantMind.new()
+		dm.configure(data)
+		mind = dm
+	else:
+		mind = StragglerMind.new()
 	mind.setup(self, mode, seed if seed >= 0 else randi())
 
 
@@ -186,6 +193,7 @@ func investigate(p: Vector2) -> void:
 func provoke(reason := "") -> void:
 	if mind == null or not alive:
 		return
+	mind.on_provoked(self)                # Exp 009 (P): a dormant one falls silent
 	mind = null
 	provoked_by = reason
 	if has_meta("calm_leave") and not has_meta("fade"):     # it was walking off into the fog: it turns back
@@ -322,6 +330,8 @@ func _physics_process(delta: float) -> void:
 	rig.swing = maxf(rig.swing - delta / (0.7 if kind == "brute" else 0.5), 0.0)
 	rig.speed = Vector2(velocity.x, velocity.z).length() if _stagger <= 0.0 else 0.0
 	rig.animate(delta)
+	if mind != null:
+		mind.pose(self, delta)              # Exp 009 (P): a dormant one's lean, sway, stare or tap
 
 
 func _corpse(delta: float) -> void:

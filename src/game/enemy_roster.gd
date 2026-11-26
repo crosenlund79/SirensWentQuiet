@@ -62,7 +62,9 @@ func spawn(at: Vector2, hp := Tuning.ENEMY_HP, speed := 1.0, invader := false) -
 ##   facing            initial yaw (default random)
 ##   mode              Exp 007 (N): calm until provoked: "straggler" (home
 ##                     nights), "wander", "hidden", "arrive" (POIs); absent
-##                     or "hostile": attacks at once (invasions)
+##                     or "hostile": attacks at once (invasions). Exp 009
+##                     (P): "dormant" (POIs), with the spot in opts "dormant"
+##                     (DormantMind.configure)
 func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 	var k := kind if EnemyDefs.has(kind) else "psycho"
 	var o := opts.duplicate()
@@ -87,7 +89,7 @@ func spawn_type(kind: String, at: Vector2, opts := {}) -> Node:
 	e.provoked.connect(func(en: AIEnemy, why: String): enemy_provoked.emit(en, why))   # Exp 007 (N)
 	var mode := str(o.get("mode", o.get("calm", "")))
 	if mode != "" and mode != "hostile":
-		e.set_calm_mode(mode, rng.randi())
+		e.set_calm_mode(mode, rng.randi(), o.get("dormant", {}))
 	enemies.append(e)
 	enemy_spawned.emit(e, k)
 	return e
@@ -203,8 +205,8 @@ func _process(delta: float) -> void:
 		if e.has_meta("retreat"):
 			_retreat_step(e, delta)
 			continue
-		if e is AIEnemy and not (e as AIEnemy).def.get("moan", true):
-			continue
+		if e is AIEnemy and (not (e as AIEnemy).def.get("moan", true) or (e as AIEnemy).mind is DormantMind):
+			continue                         # Exp 009 (P): a dormant one has its own voice (PsychoVoice)
 		var t: float = e.get_meta("moan_t", 5.0) - delta
 		if t <= 0.0:
 			t = rng.randf_range(MOAN_GAP.x, MOAN_GAP.y)

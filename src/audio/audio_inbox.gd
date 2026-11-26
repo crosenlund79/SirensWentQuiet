@@ -114,6 +114,15 @@ const RULES := [
 	{"name": "security/alarm", "all": ["alarm"], "none": ["distant", "theme", "music"], "kind": "oneshot", "db": -16.0},
 	{"name": "security/sensor_beep", "all": [["sensor", "motion"], ["beep", "chirp", "alert"]], "kind": "oneshot", "db": -22.0},
 	{"name": "security/turret_reload", "all": ["turret", ["reload", "load"]], "kind": "oneshot", "db": -19.0},
+	# Exp 009 (P): dormant psychos ("Psycho - Incoherent Mumbling 01.mp3", ...);
+	# "psycho" keeps them apart from the enemy vocals and heavy impacts
+	{"name": "psycho/mumble", "all": [["psycho", "dormant"], ["mumbl", "mutter", "babbl"]], "kind": "oneshot", "db": -26.0},
+	{"name": "psycho/hum", "all": [["psycho", "dormant"], "hum"], "kind": "oneshot", "db": -27.0},
+	{"name": "psycho/whisper", "all": [["psycho", "dormant"], "whisper"], "kind": "oneshot", "db": -28.0},
+	{"name": "psycho/startle", "all": [["psycho", "dormant"], ["silence", "startle", "sudden", "gasp"]], "kind": "oneshot", "db": -23.0},
+	{"name": "psycho/bang", "all": [["psycho", "dormant"], ["bang", "knock", "thud"]], "kind": "oneshot", "db": -20.0},
+	{"name": "psycho/scratch", "all": [["psycho", "dormant"], "scratch"], "kind": "oneshot", "db": -25.0},
+	{"name": "psycho/tap", "all": [["psycho", "dormant"], ["tap", "drum"]], "kind": "oneshot", "db": -25.0},
 	# interface
 	{"name": "ui/click", "all": ["ui", "click"], "kind": "oneshot", "db": -24.0},
 	{"name": "ui/hover", "all": ["ui", "hover"], "kind": "oneshot", "db": -31.0},

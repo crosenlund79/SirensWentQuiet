@@ -143,6 +143,16 @@ func think(e: AIEnemy, delta: float, r: Dictionary) -> Dictionary:
 	return r
 
 
+## Exp 009 (P): hooks for DormantMind (nothing here): the rig's pose after
+## VoxelRig.animate, and the moment the enemy turns hostile.
+func pose(_e: AIEnemy, _delta: float) -> void:
+	pass
+
+
+func on_provoked(_e: AIEnemy) -> void:
+	pass
+
+
 # --- events ---------------------------------------------------------------------------
 
 ## A noise reached it (NoiseEvent._dispatch): `loud` = level x exposure x fall-off.

@@ -132,6 +132,16 @@ const DEFS := {
 	"security/alarm": {"cd": 2.0, "max": 2, "far": true, "tpl": false},
 	"security/sensor_beep": {"pitch": 0.03, "cd": 0.5, "max": 2, "tpl": false},
 	"security/turret_reload": {"pitch": 0.04, "cd": 0.3, "max": 2, "tpl": false},
+	# Exp 009 (P): dormant psychos. The voices play through PsychoVoice (one
+	# line per enemy, pauses, a cap); bang, scratch and tap through play_first
+	# with the old sounds as fallbacks (src/ai/dormant_mind.gd).
+	"psycho/mumble": {"pitch": 0.05, "cd": 0.2, "max": 2, "steal": false, "tpl": false},
+	"psycho/hum": {"pitch": 0.04, "cd": 0.2, "max": 2, "steal": false, "tpl": false},
+	"psycho/whisper": {"pitch": 0.04, "cd": 0.2, "max": 2, "steal": false, "tpl": false},
+	"psycho/startle": {"pitch": 0.05, "cd": 0.3, "max": 2, "steal": false, "tpl": false},
+	"psycho/bang": {"pitch": 0.08, "cd": 0.3, "max": 3, "tpl": false},
+	"psycho/scratch": {"pitch": 0.06, "cd": 0.5, "max": 2, "steal": false, "tpl": false},
+	"psycho/tap": {"pitch": 0.06, "cd": 0.5, "max": 2, "steal": false, "tpl": false},
 }
 
 ## The scene host gets an AudioListener3D that follows the point the current
