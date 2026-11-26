@@ -257,6 +257,22 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Noted for later (user's message of 2026-11-26, not yet approved as a task):** The Architect's scripted first encounter (a night in a blacked-out, locked bedroom, knocking, "wakey wakey sunshine…", green gas, waking rattled), escalating encounters, and him directing the horde to trap and barricade Eli in a room.
   - The user's recordings for it ("The Architect – …" voice lines and "Architect followers – …" sounds in `assets/audio/_inbox/`) are held back by the audio inbox until that work is approved.
 
+## Current approved objective: "The World Is Watching" (Experiment 012)
+
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 012 — The World Is Watching", autonomous, delivery-oriented, minimal testing); in progress.** Branch `exp012/the-world-is-watching` from `exp011/faces-of-madness` (`1ed8ba2`); baseline and recovery point `playtest/exp011-faces-of-madness`. Record: `docs/experiment-012/ASSIGNMENT.md`; contracts: `docs/experiment-012/SPEC.md`.
+
+- **Scope (one combined milestone):**
+  - Chapter One "Someone Is Watching": four Architect encounters (The Visitor, The Observer, The Warning, The Last Courtesy), the four-ropes aftermath, persistent story state, strict secrecy (including the main-menu audio leak);
+  - coordinated, counterable sieges after Encounter 4, and whole-group horde spawning;
+  - psychos that shout and charge, human names, downed notifications, persistent searchable corpses with loot;
+  - fog of war, real line of sight, directional vision, doors in cutaways, a soft fog boundary;
+  - off-road regional routing, a smaller 4×4 on the map, double-walled secured rooms, kitchen chairs, interaction highlights, reliable looting with fixed-size windows, compact item rows, mostly-depleted POIs;
+  - model break-up and clipping fixes, one flashlight beam, graphics presets, an FPS display, stutter work, a modern UI font;
+  - the user's Architect recordings in escalating soundscapes, door jolts synced to the bat impacts, `docs/audio/AUDIO_REQUIREMENTS.md`;
+  - a tabbed F10 menu with Story, Enemies, Audio and Debug tabs.
+- **Delivery:** a Windows x64 portable ZIP through GitHub Actions (explicitly required) and a playtest checkpoint.
+- **Out of scope:** merges to `main`; generated or synthesised audio; a generic Architect voice; resolving the Architect mystery.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
