@@ -75,4 +75,4 @@ This is a rapid visual experiment: a handcrafted voxel Elias "Eli" Walker in the
   - `test_versions_smoke`.
 - **Headless boot:** the main menu, the game and the showroom start without script errors.
 - **Not run:** the full suite, by request (minimal testing).
-- **Windows build:** see the final report.
+- **Windows build:** GitHub Actions run 9 succeeded. Artifact `SirensWentQuiet-windows-68e92c7…` (77.5 MB ZIP, kept until 2026-12-26): https://github.com/crosenlund79/SirensWentQuiet/actions/runs/45837772717. It wasn't started on Windows by Claude (there's no Windows machine here).
