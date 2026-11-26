@@ -32,6 +32,7 @@ const Survival := preload("res://src/props/prop_survival.gd")
 const Home := preload("res://src/props/prop_home.gd")
 const StorageProps := preload("res://src/props/prop_storage.gd")   # Exp 005 (F)
 const Places := preload("res://src/props/prop_places.gd")   # Exp 008 (H)
+const GenExterior := preload("res://src/props/prop_gen_exterior.gd")   # Exp 009 (X)
 
 const FURNITURE_TYPES := [
 	"tv_stand", "sofa", "coffee_table", "rug", "armchair", "floor_lamp", "bookshelf", "dining_table",
@@ -51,6 +52,8 @@ const HOME_TYPES := ["ceiling_light", "range_hood", "table_lamp", "bare_bulb", "
 const STORAGE_TYPES := ["cupboard", "storage_chest", "tool_cabinet", "painting", "loot_pile"]
 ## Exp 008 (H): pieces for the hand-made places (prop_places.gd).
 const PLACE_TYPES := ["gun_rack", "exam_bed", "lumber_rack"]
+## Exp 009 (X): outdoor pieces around the generated places (prop_gen_exterior.gd).
+const EXTERIOR_TYPES := GenExterior.TYPES
 
 ## Span pieces: the longer horizontal side of `size` is the span.
 const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
@@ -145,17 +148,17 @@ static var _builds := 0
 
 
 static func types() -> PackedStringArray:
-	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES + PLACE_TYPES)
+	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES + PLACE_TYPES + EXTERIOR_TYPES)
 
 
 static func has(type: String) -> bool:
 	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES or type in STORAGE_TYPES \
-		or type in PLACE_TYPES
+		or type in PLACE_TYPES or type in EXTERIOR_TYPES
 
 
 ## Canonical default size (w across the front, h, d front to back).
 static func default_size(type: String) -> Vector3:
-	return DEFAULT_SIZE.get(type, DEFAULT_SIZE["crate"])
+	return DEFAULT_SIZE.get(type, GenExterior.SIZES.get(type, DEFAULT_SIZE["crate"]))
 
 
 static func make(type: String, size: Vector3, opts := {}) -> Node3D:
@@ -280,7 +283,7 @@ static func canonical_size(type: String, size: Vector3, facing := "N") -> Vector
 		return def
 	var w := sz if turned else sx
 	var d := sx if turned else sz
-	if type in SPAN_TYPES:
+	if type in SPAN_TYPES or type in GenExterior.SPANS:
 		var a := maxf(sx, sz)
 		var b := minf(sx, sz)
 		w = a if a > 0.0 else def.x
@@ -300,7 +303,7 @@ static func canonical_size(type: String, size: Vector3, facing := "N") -> Vector
 static func max_bounds(type: String, size: Vector3, facing := "N") -> AABB:
 	var t := type if has(type) else "crate"
 	var c := canonical_size(t, size, facing)
-	var o: Array = OVERHANG.get(t, [0.0, 0.0, 0.0, 0.0])
+	var o: Array = OVERHANG.get(t, GenExterior.OVERHANG.get(t, [0.0, 0.0, 0.0, 0.0]))
 	var lo := Vector3(-c.x * 0.5 - o[0], 0.0, -c.z * 0.5 - o[2])
 	var hi := Vector3(c.x * 0.5 + o[0], c.y + o[1], c.z * 0.5 + o[3])
 	var b := facing_basis(facing)
@@ -407,6 +410,8 @@ static func _parts(type: String, dims: Vector3, damage: float, seed: int, style:
 			done = StorageProps.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
 		if not done:
 			done = Places.build(mm, type, dims.x, dims.y, dims.z, rng, style)
+		if not done:
+			done = GenExterior.build(mm, type, dims.x, dims.y, dims.z, rng, style)
 		if not done or mm.is_empty():
 			mm = _new_mesh("crate", damage)
 			Survival.build(mm, "crate", dims.x, dims.y, dims.z, rng, damage, "")
@@ -424,5 +429,5 @@ static func _new_mesh(type: String, damage: float) -> PropMesh:
 	var mm := PropMesh.new()
 	# Builders work with the front toward +Z; turn it to the canonical -Z.
 	mm.xf = Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
-	mm.wear_bias = damage * 0.45 + (0.12 if type in OUTDOOR else 0.0)
+	mm.wear_bias = damage * 0.45 + (0.12 if type in OUTDOOR or type in EXTERIOR_TYPES else 0.0)
 	return mm
