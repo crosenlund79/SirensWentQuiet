@@ -44,7 +44,7 @@ const E := preload("res://src/character/eli_sculpt.gd")
 const VS := 0.015
 const PARTS := ["head", "chest", "pelvis", "uarm_l", "uarm_r", "farm_l", "farm_r", "hand_l", "hand_r",
 	"thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r"]
-const CACHE_MAX := 32
+const CACHE_MAX := 48
 const UNPAINTED := 0x1000000
 const BLOCK := 4
 const SLAB := 8                  ## rows per parallel job (a multiple of BLOCK)

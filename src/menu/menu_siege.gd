@@ -161,6 +161,8 @@ func new_round() -> void:
 	roster.invasion = rng.randi_range(1, 4)
 	_round_root.add_child(roster)
 	HumanoidLooks.warm("psycho", roster, 8)   # Exp 011: the people build in the background
+	for k in ["runner", "bomber", "brute"]:
+		HumanoidLooks.warm(k, roster, 2)
 	roster.wall_swing.connect(_on_wall_swing)
 	roster.player_swing.connect(_on_reached)
 	_mute_sfx(true)                   # the pre-damage is not heard; unmuted as the view fades in
