@@ -1,7 +1,8 @@
 class_name PropKit
 extends RefCounted
 ## Conventional stylized 3D meshes for furniture, doors, barricades, storage,
-## lights, yard props and vegetation (SPEC §7.5). Owner: P.
+## lights, yard props and vegetation (SPEC §7.5). Owner: P. Exp 008 (H): three
+## pieces for the hand-made places (gun_rack, exam_bed, lumber_rack).
 ##
 ## Visual only (no collision). Every piece is one MeshInstance3D ("Mesh",
 ## one surface, one shared material = one draw call); a door adds a second
@@ -19,7 +20,8 @@ extends RefCounted
 ##   Zero or negative components fall back to default_size(type).
 ##
 ## opts: "facing" N|E|S|W (default N), "seed" int, "damage" 0..1, "lit" bool
-## or 0..1; additive: "style" ("panel" | "plank" for doors), "ghost" (draw
+## or 0..1; additive: "style" ("panel" | "plank" for doors, "empty" for a
+## gun_rack with nothing on it), "ghost" (draw
 ## with the translucent preview material), "tint" (ghost colour), "light"
 ## (add a small OmniLight3D named "Light" to candles and lanterns, driven by
 ## set_lit).
@@ -29,6 +31,7 @@ const Yard := preload("res://src/props/prop_yard.gd")
 const Survival := preload("res://src/props/prop_survival.gd")
 const Home := preload("res://src/props/prop_home.gd")
 const StorageProps := preload("res://src/props/prop_storage.gd")   # Exp 005 (F)
+const Places := preload("res://src/props/prop_places.gd")   # Exp 008 (H)
 
 const FURNITURE_TYPES := [
 	"tv_stand", "sofa", "coffee_table", "rug", "armchair", "floor_lamp", "bookshelf", "dining_table",
@@ -46,6 +49,8 @@ const SURVIVAL_TYPES := ["door", "barricade", "crate", "rain_collector", "candle
 const HOME_TYPES := ["ceiling_light", "range_hood", "table_lamp", "bare_bulb", "bulb", "light_switch", "fireplace", "radio"]   # Exp 006 (B): + radio
 ## Exp 005 (F): new furniture and the loot pile (prop_storage.gd).
 const STORAGE_TYPES := ["cupboard", "storage_chest", "tool_cabinet", "painting", "loot_pile"]
+## Exp 008 (H): pieces for the hand-made places (prop_places.gd).
+const PLACE_TYPES := ["gun_rack", "exam_bed", "lumber_rack"]
 
 ## Span pieces: the longer horizontal side of `size` is the span.
 const SPAN_TYPES := ["door", "barricade", "wall_ghost", "boards"]
@@ -90,6 +95,7 @@ const DEFAULT_SIZE := {
 	"fireplace": Vector3(1.5, 2.6, 0.55),
 	"cupboard": Vector3(1.0, 0.92, 0.6), "storage_chest": Vector3(1.0, 0.6, 0.55), "tool_cabinet": Vector3(0.9, 1.8, 0.45),
 	"painting": Vector3(0.8, 0.6, 0.05), "loot_pile": Vector3(0.8, 0.3, 0.8),
+	"gun_rack": Vector3(1.6, 1.9, 0.35), "exam_bed": Vector3(1.9, 0.75, 0.7), "lumber_rack": Vector3(2.0, 1.8, 0.7),   # Exp 008 (H)
 }
 
 ## Documented reach beyond the requested size, in the canonical frame:
@@ -139,11 +145,12 @@ static var _builds := 0
 
 
 static func types() -> PackedStringArray:
-	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES)
+	return PackedStringArray(FURNITURE_TYPES + PROP_TYPES + SURVIVAL_TYPES + HOME_TYPES + STORAGE_TYPES + PLACE_TYPES)
 
 
 static func has(type: String) -> bool:
-	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES or type in STORAGE_TYPES
+	return type in FURNITURE_TYPES or type in PROP_TYPES or type in SURVIVAL_TYPES or type in HOME_TYPES or type in STORAGE_TYPES \
+		or type in PLACE_TYPES
 
 
 ## Canonical default size (w across the front, h, d front to back).
@@ -398,6 +405,8 @@ static func _parts(type: String, dims: Vector3, damage: float, seed: int, style:
 			done = Home.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
 		if not done:
 			done = StorageProps.build(mm, type, dims.x, dims.y, dims.z, rng, damage)
+		if not done:
+			done = Places.build(mm, type, dims.x, dims.y, dims.z, rng, style)
 		if not done or mm.is_empty():
 			mm = _new_mesh("crate", damage)
 			Survival.build(mm, "crate", dims.x, dims.y, dims.z, rng, damage, "")

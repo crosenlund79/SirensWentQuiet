@@ -8,7 +8,8 @@ extends HouseWorld
 ## crowbar). Nothing of the house's plan is used: no HousePlan fixtures, yard,
 ## roof, furniture states, fuse box, bed, support or defences.
 ##
-## Built from PoiDefs.get_def(id)["layout"] (PoiLayouts). The searchable
+## Built from PoiDefs.get_def(id)["layout"] (PoiLayouts); Exp 008 (H): its
+## optional lights and story details through PoiDressing. The searchable
 ## containers, loose pickups, fallen trees, exits and the car's boot are PoiSpot
 ## interactables (interactables() lists them with the doors); the game's POI
 ## helper (`helper`, game_poi.gd) owns their rules and the visit's state
@@ -78,8 +79,9 @@ func build_new() -> void:
 	var p := poi_pristine(poi_id)
 	var objs := []
 	for d in layout.get("doors", []):
-		objs.append({"kind": "door", "x": d["x"], "y": d["y"], "rot": d["rot"], "hp": WorldObject.DEFS["door"]["hp"],
-			"open": d["open"], "built": false, "door_id": d["id"], "locked": d["locked"]})
+		var mat := str(d.get("mat", "wood"))        # Exp 008 (H): a steel door ("metal") keeps its own HP
+		objs.append({"kind": "door", "x": d["x"], "y": d["y"], "rot": d["rot"], "hp": WorldObject.DEFS["door"]["hp"] if mat == "wood" else -1,
+			"open": d["open"], "built": false, "door_id": d["id"], "locked": d["locked"], "mat": mat})
 	_build_poi(p.copy(), p.copy(), objs)
 
 
@@ -298,6 +300,29 @@ func _place_pieces() -> void:
 	if has_car and not (layout.get("car", {}) as Dictionary).is_empty():
 		var car: Dictionary = layout["car"]
 		_piece("car", car["rect"], car["facing"], 1.45, true, 77, "Car")
+	PoiDressing.place(self)            # Exp 008 (H): the layout's lights and story details
+
+
+## Exp 008 (H): collision and a SOLID navigation mark for a piece drawn
+## elsewhere (a story piece that stands tall), as _piece gives its own.
+func _block(r: Rect2, h: float, node: Node3D) -> void:
+	var tall := h >= Tuning.TALL_THRESHOLD
+	var body := _box_body(r, maxf(h, 0.4), 1 if tall else 1 << 4)
+	body.set_meta("impact", VoxelMat.Impact.WOOD)
+	body.name = "Body_" + node.name
+	add_child(body)
+	for c in nav.cells_in_rect(r.grow(-0.05)):
+		_static_solid[c.y * nav.size.x + c.x] = 1
+	if tall:
+		props.append({"node": node, "centre": Vector3(r.get_center().x, h * 0.5, r.get_center().y),
+			"half": maxf(r.size.x, r.size.y) * 0.5, "body": body.get_rid(), "cut": false})
+
+
+## Exp 008 (H): the POI's own lights burn day and night (HouseWorld drives
+## the candles by the night first).
+func _process(delta: float) -> void:
+	super(delta)
+	PoiDressing.update_lights(self, _t)
 
 
 ## A fallen tree lying along `yaw` (collision for bodies, not bullets).
