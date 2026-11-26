@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 008 — The First Week**, built on Experiment 007 (The House Has Ears / Beyond the Front Door), Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 009 — The World Never Stands Still**, built on Experiment 008 (The First Week), Experiment 007 (The House Has Ears / Beyond the Front Door), Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -32,6 +32,12 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
   - A backpack carries half as much again.
   - A flashlight and a crowbar open places and choices on expeditions.
 - **Weapons:** handgun (9 mm, magazine) and shotgun (shells loaded one by one, a spread of pellets). The shotgun is found while scavenging.
+- **The world never stands still (Experiment 009):**
+  - Every day 4–6 places are open; the others are **overrun** ("too many hostiles to approach safely") and may open again later. Pine Woods is always open.
+  - Places other than the six hand-made ones are **generated when you first go there** (houses, apartments, supermarkets, diners, pharmacies, offices, workshops, garages, warehouses, factories, yards, hospitals, police stations, clinics, ranges, fire stations), with rooms, fitting furniture, surroundings and **one main stash**. They stay the same building on every revisit.
+  - **Dormant psychos** may be absorbed in something strange (banging their heads, circling, swaying, staring, tapping, mumbling). Sneak past, or wake them.
+  - Leave by the car or the trail post ("[E] Leave location": Go home / Travel on / Stay); apartments end in a dark hallway.
+  - A loading screen shows real progress when a place is being prepared.
 - **Scavenging (Experiments 007 and 008): you go there yourself.**
   1. **Choose a place:** open the region map (M, the map on the dining table, or **E** at the fog edge) and pick a known place. The panel shows:
      - what the place is good for (food and water, building materials, medical, weapons and ammo, books, tools), its danger, and whether you've been;
@@ -218,6 +224,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-009/REPORT.md`: the Experiment 009 report (two-stage POI generation, archetypes, daily availability, exteriors, stashes, apartments, dormant psychos, loading; scenarios A–H)
 - `docs/experiment-008/REPORT.md`: the Experiment 008 report (the verified loop, three new places, looting, POI-to-POI travel, encounters, the first week; scenarios A–D); `PACING.md` (first-week resource pacing)
 - `docs/experiment-007/REPORT.md`: the Experiment 007 report (playable scavenging, noise, visibility, overview, holes, security); `AUDIO_REQUIREMENTS.md` (what to record next)
 - `docs/experiment-006/REPORT.md`: the Experiment 006 report (Defensive Living)

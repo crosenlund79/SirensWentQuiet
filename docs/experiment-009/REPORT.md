@@ -194,7 +194,7 @@ Logical names and inbox rules are ready for your ElevenLabs files. The suggested
   - `test_daily_sites`;
   - `test_dormant`;
   - `test_loading_screen`.
-- **Full suite:** see Verification.
+- **Full suite:** 609 passed, 0 failed.
 - **Frames looked at:**
   - **Lead:** six generated places in the real game scene with the HUD (family house, supermarket, hospital, apartment, police station at night, workshop).
   - **G:** house, supermarket, workshop, hospital, apartment and yard.
@@ -252,4 +252,5 @@ Logical names and inbox rules are ready for your ElevenLabs files. The suggested
 
 ## Verification
 
-- (filled in at delivery)
+- **Full headless suite** on the final branch: **609 passed, 0 failed, 0 skipped**. That includes the scenarios A–H and the agents' new tests.
+- **Headless boot:** the main menu and the game scene both start without script errors.

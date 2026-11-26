@@ -197,7 +197,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "The World Never Stands Still" (Experiment 009)
 
-**Status: Approved by the user's message of 2026-11-26 ("Experiment 009 — The World Never Stands Still", autonomous overnight, Rapid Delivery); in progress.** Branch `exp009/poi-generator` from Experiment 008 (`d29773f`). Contracts: `docs/experiment-009/SPEC.md`.
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 009 — The World Never Stands Still", autonomous overnight, Rapid Delivery). Delivered on the branch 2026-11-26 and as the source-only checkpoint `checkpoint/exp009-poi-generator` (report: `docs/experiment-009/REPORT.md`; suite 609/609); awaiting the user's playtest.** Branch `exp009/poi-generator` from Experiment 008 (`d29773f`). Contracts: `docs/experiment-009/SPEC.md`.
 
 - **Scope, in the user's priority order:**
   1. a two-stage generator: cheap daily setups, detailed places generated only on demand, stable seeds and persistence;
