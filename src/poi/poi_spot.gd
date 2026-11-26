@@ -19,9 +19,11 @@ extends Node3D
 ## at is brighter. interact_point() is where the thing itself is (the
 ## interaction finder's facing test).
 
-const MARK_ICONS := {"new": "dot", "left": "dot", "locked": "lock", "dark": "flashlight"}
-const MARK_ICON_PX := {"dot": 60, "lock": 36, "flashlight": 36}   ## texture sizes (UiIcons, 12 x 12 bitmaps; the dot is a third of it)
-const MARK_PIXEL := 0.0075            ## m per texture or font pixel: about 1:1 on screen at the game's camera
+## Exp 012 (L, §24): larger, smoother icons (MarkIcons) in a restrained
+## modern style; the prompt's choice ("hot") is brighter and a little larger.
+const MARK_ICONS := {"new": "search", "left": "left", "locked": "lock", "dark": "dark", "empty": "empty", "pickup": "take"}
+const MARK_PIXEL := 0.0085            ## m per texture px (64 px icons: about 0.55 m, ~46 px on screen)
+const MARK_HOT_SCALE := 1.22
 
 var kind := "container"
 var id := ""
@@ -80,17 +82,17 @@ func set_marker(look: String, text := "", hot := false) -> void:
 	marker.visible = true
 	var icon: Sprite3D = marker.get_node("Icon")
 	var tag: Label3D = marker.get_node("Tag")
-	var tint: Color = {"new": UiTheme.ACCENT, "locked": UiTheme.WARN, "dark": UiTheme.FROST, "left": UiTheme.TEXT}.get(look, UiTheme.TEXT_FAINT)
+	var tint: Color = {"new": UiTheme.ACCENT, "pickup": UiTheme.ACCENT, "locked": UiTheme.WARN, "dark": UiTheme.FROST, "left": UiTheme.TEXT}.get(look, UiTheme.TEXT_DIM)
 	icon.visible = MARK_ICONS.has(look)
 	if icon.visible:
-		var k := str(MARK_ICONS[look])
-		icon.texture = UiIcons.texture(k, int(MARK_ICON_PX.get(k, 24)))
-		icon.modulate = Color(tint, 1.0 if hot else 0.8)
+		icon.texture = MarkIcons.texture(str(MARK_ICONS[look]))
+		var a := 1.0 if hot else (0.72 if look != "empty" else 0.5)
+		icon.modulate = Color(tint.lightened(0.15) if hot else tint, a)
 	tag.text = text
-	tag.visible = text != ""
-	tag.modulate = Color(UiTheme.TEXT if look == "left" else UiTheme.TEXT_DIM, (1.0 if hot else 0.85) if look != "empty" else (0.9 if hot else 0.7))
-	tag.position.y = 0.2 if icon.visible else 0.0
-	marker.scale = Vector3.ONE * (1.25 if hot else 1.0)
+	tag.visible = text != "" and (hot or look != "empty")      # "searched" only on the one Eli points at
+	tag.modulate = Color(UiTheme.TEXT if look == "left" else UiTheme.TEXT_DIM, 1.0 if hot else 0.8)
+	tag.position.y = 0.36 if icon.visible else 0.0
+	marker.scale = Vector3.ONE * (MARK_HOT_SCALE if hot else 1.0)
 
 
 func _make_marker() -> void:
@@ -105,7 +107,8 @@ func _make_marker() -> void:
 	icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	icon.no_depth_test = true
 	icon.shaded = false
-	icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	icon.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
 	icon.pixel_size = MARK_PIXEL
 	icon.render_priority = 2
 	marker.add_child(icon)
@@ -114,12 +117,12 @@ func _make_marker() -> void:
 	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	tag.no_depth_test = true
 	tag.shaded = false
-	tag.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	tag.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	tag.font = UiTheme.font("bold")
-	tag.font_size = 32
-	tag.outline_size = 8
+	tag.font_size = 30
+	tag.outline_size = 10
 	tag.outline_modulate = Color(0, 0.01, 0.02, 0.8)
-	tag.pixel_size = MARK_PIXEL
+	tag.pixel_size = MARK_PIXEL * 0.8
 	tag.render_priority = 2
 	tag.outline_render_priority = 1
 	marker.add_child(tag)

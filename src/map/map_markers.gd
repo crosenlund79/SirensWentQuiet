@@ -166,6 +166,10 @@ func _draw() -> void:
 		draw_circle(h, r + 1.6, Color(0.05, 0.05, 0.06, 0.85))
 		draw_circle(h, r, col)
 		_glyph(e["cat"], h, r)
+		if bool(e.get("mostly", false)) and not overrun:      # Exp 012 (L, §28): a small "searched" tick
+			var tk := h + Vector2(r * 0.78, -r * 0.78)
+			draw_circle(tk, 5.5, Color(0.05, 0.05, 0.06, 0.9))
+			draw_polyline(PackedVector2Array([tk + Vector2(-2.6, 0.2), tk + Vector2(-0.6, 2.2), tk + Vector2(2.8, -2.2)]), Color(0.86, 0.82, 0.7), 1.6, true)
 		if overrun:
 			var bad := Color(0.86, 0.3, 0.26, 0.95)
 			draw_line(h + Vector2(-r, -r) * 0.75, h + Vector2(r, r) * 0.75, Color(0, 0, 0, 0.6), 4.0, true)
@@ -177,8 +181,10 @@ func _draw() -> void:
 			_label(e["name"], h + Vector2(r + 6.0, 5.0), 14 if hot or is_home else 13, lc.darkened(0.35) if overrun else lc)
 			if overrun:
 				_label("OVERRUN", h + Vector2(r + 6.0, 19.0), 11, Color(0.86, 0.36, 0.3))
+			elif bool(e.get("mostly", false)):            # Exp 012 (L, §28): informational
+				_label("MOSTLY SEARCHED", h + Vector2(r + 6.0, 19.0), 11, Color(0.78, 0.74, 0.62))
 			if id == planned:
-				_label("PLANNED", h + Vector2(r + 6.0, 33.0 if overrun else 19.0), 11, UiTheme.ACCENT)
+				_label("PLANNED", h + Vector2(r + 6.0, 33.0 if overrun or bool(e.get("mostly", false)) else 19.0), 11, UiTheme.ACCENT)
 	if hovered != "" and hovered != selected and _screen.has(hovered):
 		_draw_card(_entry(hovered), _screen[hovered][1])
 	_draw_traveller()

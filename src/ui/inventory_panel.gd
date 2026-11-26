@@ -40,6 +40,11 @@ var _bars := {}
 var _feedback: Label
 var _crates: Label
 var home_source: Object   # Exp 005 (C): the game's comfort helper (report()); the Home tab shows only with one
+var _details: Label       # Exp 012 (L, §27): the hovered / selected item's description
+var _scroll: ScrollContainer
+
+const WIDTH := 1040
+const HEIGHT := 720       ## Exp 012 (L, §26): a fixed size; the lists scroll inside
 
 
 func _init() -> void:
@@ -78,7 +83,10 @@ func _build_tab() -> Control:
 	_tabs.clear()
 	_bars.clear()
 	_crates = null
-	var box := _begin("", 1040)
+	var box := _begin("", WIDTH)
+	_panel.custom_minimum_size = Vector2(WIDTH, HEIGHT)      # Exp 012 (L): never grows, never shrinks
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_details = ItemRows.details_line(WIDTH - 60)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	box.add_child(head)
@@ -113,7 +121,15 @@ func _build_tab() -> Control:
 	box.add_child(UiTheme.make_spacer(2))
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 34)
-	box.add_child(cols)
+	_scroll = ScrollContainer.new()          # Exp 012 (L): the lists scroll within the fixed window
+	_scroll.name = "Scroll"
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.custom_minimum_size.y = 120
+	_scroll.follow_focus = true
+	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(cols)
+	box.add_child(_scroll)
 	var lists := {}
 	for side in ["left", "right"]:
 		var list := VBoxContainer.new()
@@ -130,10 +146,12 @@ func _build_tab() -> Control:
 		ResearchPanelView.build(lists, state, self)     # Exp 006 (R): the research tree and the books
 	else:
 		_build_equipment(lists)
-	box.add_child(UiTheme.make_spacer(2))
+	box.add_child(_details)
+	_details.visible = tab in ["supplies", "equipment"]
 	_feedback = UiTheme.make_label("", UiTheme.FONT_BODY - 1, UiTheme.GOOD)
 	_feedback.name = "Feedback"
-	_feedback.custom_minimum_size.y = 22
+	_feedback.custom_minimum_size = Vector2(1, 22)
+	_feedback.clip_text = true
 	box.add_child(_feedback)
 	var close_b := UiTheme.make_button("Close")
 	close_b.name = "Close"
@@ -217,26 +235,36 @@ func _slot_row(slot: String) -> Control:
 
 func _item_row(id: String, gear := false) -> Control:
 	var d: Dictionary = Items.DEFS[id]
+	# Exp 012 (L, §27): one line (icon, name, a short status, the count, the
+	# buttons); the description is the row's tooltip and the details line's
 	var row := HBoxContainer.new()
 	row.name = "Row_" + id
-	row.add_theme_constant_override("separation", 14)
+	row.add_theme_constant_override("separation", 12)
+	row.custom_minimum_size.y = ItemRows.ROW_H
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
+	var desc := str(EFFECTS.get(id, d.get("desc", ""))) if gear else str(d.get("desc", ""))
+	row.tooltip_text = "%s: %s" % [d.get("name", id), desc] if gear else ItemRows.description(id)
 	var icon := UiTheme.make_icon(UiIcons.for_item(id), 24, UiTheme.TEXT)    # Exp 006 (U)
 	icon.name = "Icon"
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.mouse_filter = Control.MOUSE_FILTER_PASS
 	row.add_child(icon)
-	var texts := VBoxContainer.new()
-	texts.add_theme_constant_override("separation", 0)
-	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(texts)
-	var name_row := HBoxContainer.new()
-	name_row.add_theme_constant_override("separation", 10)
-	texts.add_child(name_row)
-	name_row.add_child(UiTheme.make_label(d.get("name", id), UiTheme.FONT_BODY))
+	var name_l := UiTheme.make_label(d.get("name", id), UiTheme.FONT_BODY)
+	name_l.name = "Name"
+	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	name_l.clip_text = true
+	name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name_l.mouse_filter = Control.MOUSE_FILTER_PASS
+	name_l.tooltip_text = row.tooltip_text
+	row.add_child(name_l)
 	var fl := UiTheme.make_label(_effect_text(d) if not gear else "", UiTheme.FONT_SMALL, UiTheme.TEXT_DIM)
 	fl.name = "Fx"
 	fl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	name_row.add_child(fl)
-	texts.add_child(UiTheme.make_caption(EFFECTS.get(id, d.get("desc", "")) if gear else d.get("desc", ""), 300, UiTheme.TEXT_DIM))
+	fl.custom_minimum_size.x = 150 if not gear else 170
+	fl.clip_text = true
+	fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(fl)
 	var count := UiTheme.make_label("", UiTheme.FONT_LARGE if not gear else UiTheme.FONT_SMALL + 1)
 	count.name = "Count"
 	count.custom_minimum_size.x = 70 if not gear else 120
@@ -279,7 +307,24 @@ func _item_row(id: String, gear := false) -> Control:
 		gap.custom_minimum_size.x = 80
 		row.add_child(gap)
 	_rows[id] = {"row": row, "count": count, "use": use, "fx": fl, "gear": gear}
+	_track(row, row.tooltip_text)
 	return row
+
+
+## Exp 012 (L, §27): hovering a row or focusing one of its buttons shows its
+## description in the details line (the keyboard equivalent of the tooltip).
+func _track(row: Control, text: String) -> void:
+	var show := func():
+		if is_instance_valid(_details):
+			_details.text = text
+			_details.add_theme_color_override("font_color", UiTheme.TEXT)
+	row.mouse_entered.connect(show)
+	for c in row.get_children():
+		if c is BaseButton:
+			(c as BaseButton).focus_entered.connect(show)
+			(c as BaseButton).mouse_entered.connect(show)
+		elif c is Control:
+			(c as Control).mouse_entered.connect(show)
 
 
 static func _effect_text(d: Dictionary) -> String:

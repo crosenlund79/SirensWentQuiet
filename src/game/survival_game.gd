@@ -1059,11 +1059,13 @@ func _update_prompt() -> void:
 	var was: Node3D = _focus if is_instance_valid(_focus) else null
 	_focus = null
 	if _modal == "" and not state.dead:
+		var cands := Finder.in_sight(_interactables(), self)      # Exp 012 (L, §24): never through walls
 		if is_home():
-			_focus = Finder.nearest(_interactables(), player.plan_pos())
+			_focus = Finder.nearest(cands, player.plan_pos(), Finder.RADIUS, was)
 		else:          # Exp 008 (L): one clear choice at a POI (facing, things to use before notes, no flicker)
-			_focus = Finder.best(_interactables(), player.plan_pos(), Finder.facing_of(player), was)
+			_focus = Finder.best(cands, player.plan_pos(), Finder.facing_of(player), was)
 		p = str(_focus.interact_prompt()) if _focus != null else (boundary.prompt_text() if boundary != null else "")
+	FocusRing.show_for(self, _focus)       # Exp 012 (L, §24): the target's highlight
 	if p != _prompt:
 		_prompt = p
 		hud.set_prompt(p)

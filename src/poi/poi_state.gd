@@ -199,11 +199,16 @@ static func sync_gen(state: GameState, id: String, r: Dictionary) -> bool:
 	var old: Variant = r.get("gen")
 	var same: bool = typeof(old) == TYPE_DICTIONARY and int(old.get("seed", -1)) == g["seed"] and int(old.get("v", -1)) == g["v"] \
 		and str(old.get("size", "")) == g["size"] and str(old.get("surroundings", "")) == g["surroundings"]
+	# Exp 012 (L, §22): "sec" marks a site first built with secured rooms; a
+	# site generated before keeps its building (no "sec": PoiDefs.setup_for)
+	if not (same and generated(r) and not (old as Dictionary).has("sec")):
+		g["sec"] = 1
 	r["gen"] = g
 	if same or not generated(r):
 		return false
 	r["c"] = {}
 	r["taken"] = {}
+	r["part"] = {}
 	r["chop"] = {}
 	r["forced"] = {}
 	if in_visit(r):
@@ -231,6 +236,50 @@ static func finish_visit(state: GameState, id: String) -> Dictionary:
 	r["last_day"] = today
 	r.erase("visit")
 	return {"pack": v.get("pack", {}), "cargo": v.get("cargo", {}), "left": left}
+
+
+# --- Exp 012 (L, §28): mostly searched -------------------------------------------------------
+
+const MOSTLY_SEARCHED := 0.8
+const MOSTLY_TEXT := "Mostly searched"
+
+
+## How much of a site's searchable content is done, 0..1, from the real
+## record: the share of its containers that were searched and hold nothing
+## any more (a box left half full because the pack was full doesn't count;
+## a refill makes a container unsearched again). 0 before the first visit.
+static func searched_share(r: Dictionary) -> float:
+	var c: Variant = r.get("c", {})
+	if typeof(c) != TYPE_DICTIONARY or (c as Dictionary).is_empty():
+		return 0.0
+	var done := 0
+	for cid in c:
+		var e: Variant = c[cid]
+		if typeof(e) == TYPE_DICTIONARY and e.get("searched", false) == true and FurnitureStorage.total(e.get("items", {})) <= 0:
+			done += 1
+	return float(done) / float((c as Dictionary).size())
+
+
+## True when about 80 % of a place's searchable content is done (the map's
+## "Mostly searched": informational, never a travel block). Reads the saved
+## record only (never generates anything).
+static func mostly_searched(state: GameState, id: String) -> bool:
+	if state == null or state.region == null:
+		return false
+	var all: Variant = state.region.get("poi")
+	if typeof(all) != TYPE_DICTIONARY or typeof(all.get(id)) != TYPE_DICTIONARY:
+		return false
+	return searched_share(all[id]) >= MOSTLY_SEARCHED - 0.0001
+
+
+## The map's line for a mostly searched place: honest about refills (the
+## location's regen: searched containers may slowly refill), no promise.
+static func mostly_line(state: GameState, id: String) -> String:
+	var def := ExpeditionData.destination(id) if ExpeditionData.has_destination(id) else {}
+	var regen := float(def.get("regen", 0.0))
+	if regen > 0.0:
+		return "Mostly searched. A few things may turn up again over the days."
+	return "Mostly searched. Not much left to find."
 
 
 ## Everything left in the site's containers (weight units).
@@ -524,6 +573,8 @@ static func replenish(state: GameState, id: String, r: Dictionary, today: int) -
 		rng.seed = _seed(state, [id, pid, "pickup", today])
 		if rng.randf() < p and (not unique_items.has(pid) or may_find(state, r, unique_items[pid])):
 			r["taken"].erase(pid)             # Exp 008 (L): never a second one-of-a-kind item
+			if typeof(r.get("part")) == TYPE_DICTIONARY:
+				(r["part"] as Dictionary).erase(pid)      # Exp 012 (L): it comes back whole
 	var regrow := int(floor(float(days) * regen * 10.0))
 	for wid in (r["chop"] as Dictionary).keys():
 		r["chop"][wid] = maxi(int(r["chop"][wid]) - regrow, 0)
@@ -537,6 +588,7 @@ static func restore(state: GameState, id: String) -> void:
 	var keep: Variant = r.get("visit")
 	r["c"] = {}
 	r["taken"] = {}
+	r["part"] = {}
 	r["chop"] = {}
 	r["forced"] = {}
 	state.region.stock.erase(id)

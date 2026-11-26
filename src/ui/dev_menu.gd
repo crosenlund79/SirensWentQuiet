@@ -408,6 +408,7 @@ func _build() -> void:
 	_build_e12_s_section(_tab("Story"))   # Exp 012 (S)
 	_build_e12_s_audio_section(_tab("Audio"))   # Exp 012 (S)
 	_build_e12_g_section(_tab("Enemies"))   # Exp 012 (G)
+	_build_e12_l_section(_tab("POIs"))   # Exp 012 (L)
 
 
 # --- Exp 012 (A): the tabbed shell --------------------------------------------
@@ -1073,6 +1074,14 @@ func _build_poi_section(box: VBoxContainer) -> void:
 		["Spawn a straggler here", _poi_call.bind("dev_spawn_straggler")],
 		["Reveal containers", _poi_call.bind("dev_reveal")],
 		["POI state", _poi_call.bind("dev_state_text")]]))
+
+
+## Exp 012 (L): looting, POIs and travel (src/travel/dev_looting.gd).
+func _build_e12_l_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Looting & routes"))
+	box.add_child(_grid(3, [["Route debug", func(): _say(DevLooting.route_text(game))],
+		["Mark POI 80 % searched", func(): _say(DevLooting.mark_mostly(game))],
+		["Fill pack / supplies", func(): _say(DevLooting.fill_pack(game))]]))
 
 
 func _poi_call(method: String) -> void:

@@ -63,7 +63,10 @@ const FORCE_SECS := 2.6
 const FORCE_MINUTES := 5
 const NOISE_RADIUS := 4.5          ## m per noise level (my own hearing; agent N's Noise is called too)
 const MARK_RANGE := 4.5            ## Exp 008 (L): m; markers show this close (and in sight)
+const MARK_KEEP := 0.8             ## Exp 012 (L, §24): m further a shown marker stays on (hysteresis)
+const MARK_GRACE := 0.6            ## Exp 012 (L, §24): s a shown marker survives losing sight
 const PROMPT_KINDS := 2            ## Exp 008 (L): item kinds named in a partly taken container's prompt
+const INTERRUPT_HP := 1.0          ## Exp 012 (L, §25): health lost during a timed action that stops it (a hit)
 
 var game: Node
 var world: PoiWorld
@@ -96,6 +99,7 @@ var _leave_via := ""               ## Exp 009 (X): "car" | "edge" | "dark" while
 var _in_dark := false              ## Exp 009 (X): Eli stands in the dark hallway end
 var _dark_armed := false
 var _exit_tick := 0.0
+var _mark_on := {}                 ## Exp 012 (L, §24): "kind:id" -> clock when last seen (markers shown)
 
 static var _noise_script: Variant = false     ## agent N's NoiseEvent script (looked up once; false = not yet)
 
@@ -188,9 +192,13 @@ func prompt_for(s: PoiSpot) -> String:
 		"pickup":
 			if record["taken"].has(s.id):
 				return ""
-			var what := ExpeditionData.count_text(str(s.data["item"]), int(s.data["n"]))
-			if PoiState.room_for(str(s.data["item"]), PoiState.pack_load(state, pack), PoiState.pack_cap(state)) < int(s.data["n"]):
-				return "[E] Pick up %s · no room in your pack" % what
+			var left := pickup_left(s)          # Exp 012 (L, §25): what a partial take left
+			var what := ExpeditionData.count_text(str(s.data["item"]), left)
+			var fit := _room_now(str(s.data["item"]))
+			if fit <= 0:
+				return "[E] Pick up %s · no room" % what
+			if fit < left:
+				return "[E] Pick up %s · room for %d" % [what, fit]
 			return "[E] Pick up %s" % what
 		"wood":
 			var left := chops_left(s)
@@ -343,8 +351,8 @@ func _step_action(delta: float) -> void:
 	if (pl as Node3D).global_position.distance_to(Vector3(at.x, 0, at.y)) > ACTION_REACH:
 		cancel_action("You stopped.")
 		return
-	if state.health < float(_action["health"]) - 0.01:
-		cancel_action("Interrupted!")
+	if state.health < float(_action["health"]) - INTERRUPT_HP:
+		cancel_action("Interrupted!")       # Exp 012 (L, §25): a hit, not hunger or thirst slowly draining health
 		return
 	_action["t"] = float(_action["t"]) + delta
 	if float(_action["t"]) >= float(_action["dur"]):
@@ -419,24 +427,56 @@ func _chop_done(s: PoiSpot) -> void:
 		_toast("No room for the planks.", "warn")
 
 
+## Exp 012 (L, §25): takes as much of a loose item as the pack and the
+## household caps allow; the rest stays where it lies (record "part": pickup
+## id -> n left) until it is really gone. True if anything was taken.
 func pick_up(s: PoiSpot) -> bool:
 	if record["taken"].has(s.id):
 		return false
 	var item := str(s.data["item"])
-	var n := int(s.data["n"])
-	if PoiState.room_for(item, PoiState.pack_load(state, pack), PoiState.pack_cap(state)) < n:
+	var n := pickup_left(s)
+	if PoiState.room_for(item, PoiState.pack_load(state, pack), PoiState.pack_cap(state)) <= 0:
 		_toast(full_text(), "warn")
 		return false
-	if state.inventory.space_for(item) < n:
+	if state.inventory.space_for(item) <= 0:
 		_toast("No room for more %s." % Items.name_of(item).to_lower() if not Items.is_unique(item) else "You already have one.", "warn")
 		return false
-	var k := state.inventory.add(item, n)
+	var k := state.inventory.add(item, mini(n, _room_now(item)))
+	if k <= 0:
+		return false
 	pack_add(item, k)
-	record["taken"][s.id] = state.day()
+	var part: Dictionary = _part()
+	if k >= n:
+		record["taken"][s.id] = state.day()
+		part.erase(s.id)
+	else:
+		part[s.id] = n - k
 	world.apply_record()
 	Sfx.play_first(["poi/pickup", "ui/click"], Vector3(s.position.x, 0.3, s.position.z))
-	_toast("Picked up %s." % ExpeditionData.count_text(item, k), "info")
+	if k >= n:
+		_toast("Picked up %s." % ExpeditionData.count_text(item, k), "info")
+	else:
+		_toast("Picked up %s. %d left here: no room for more." % [ExpeditionData.count_text(item, k), n - k], "warn")
 	return true
+
+
+## Exp 012 (L, §25): how many of a loose item are still lying there.
+func pickup_left(s: PoiSpot) -> int:
+	var part: Variant = record.get("part", {})
+	if typeof(part) == TYPE_DICTIONARY and (part as Dictionary).has(s.id):
+		return maxi(int((part as Dictionary)[s.id]), 1)
+	return int(s.data.get("n", 1))
+
+
+func _part() -> Dictionary:
+	if typeof(record.get("part")) != TYPE_DICTIONARY:
+		record["part"] = {}
+	return record["part"]
+
+
+## What of `id` Eli can take now: the pack's room and the household caps.
+func _room_now(id: String) -> int:
+	return mini(PoiState.room_for(id, PoiState.pack_load(state, pack), PoiState.pack_cap(state)), state.inventory.space_for(id))
 
 
 # --- panels --------------------------------------------------------------------------------
@@ -545,6 +585,9 @@ func refresh_pack_line() -> void:
 
 ## The marker each container and loose item shows now: shown while Eli is
 ## within MARK_RANGE and can see it; the prompt's choice (game._focus) is hot.
+## Exp 012 (L, §24): no flicker: a marker comes on within MARK_RANGE in
+## sight, and stays on until Eli is MARK_KEEP further away or out of sight
+## for MARK_GRACE s (a pillar passing between them doesn't blink it).
 func update_markers() -> void:
 	if world == null or state == null:
 		return
@@ -558,15 +601,27 @@ func update_markers() -> void:
 			continue
 		var look := ["", ""]
 		var at: Vector2 = s.interact_point()
-		if at.distance_to(pp) <= MARK_RANGE and not (s.kind == "container" and world.container_cut(s.id)) and can_see(pp, at):
+		var d := at.distance_to(pp)
+		var key: String = str(s.kind) + ":" + str(s.id)
+		var was: bool = _mark_on.has(key)
+		var on := false
+		if d <= MARK_RANGE + (MARK_KEEP if was else 0.0) and not (s.kind == "container" and world.container_cut(s.id)):
+			if can_see(pp, at):
+				_mark_on[key] = _clock
+				on = true
+			elif was and _clock - float(_mark_on[key]) < MARK_GRACE:
+				on = true
+		if not on:
+			_mark_on.erase(key)
+		else:
 			look = marker_for(s)
-		s.set_marker(look[0], look[1], is_same(s, focus))
+		s.set_marker(look[0], look[1], is_same(s, focus) and on)
 
 
 ## [look, tag] for a spot's marker (PoiSpot.set_marker).
 func marker_for(s: PoiSpot) -> Array:
 	if s.kind == "pickup":
-		return ["", ""] if record["taken"].has(s.id) else ["new", ""]
+		return ["", ""] if record["taken"].has(s.id) else ["pickup", ""]
 	if s.kind != "container":
 		return ["", ""]
 	var box := PoiState.container(record, s.id)

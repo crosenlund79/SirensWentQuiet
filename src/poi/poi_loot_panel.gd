@@ -15,9 +15,10 @@ extends StoragePanel
 ## found" (everything taken at this place, as far as the boot holds).
 
 const RULE := "What you take goes into your pack (a backpack carries more). The car's boot holds more, and comes home with you."
+const RULE_HOME := "What you take goes into the household supplies, as far as their caps allow."
 
 var mode := "loot"
-var helper: Object              ## game_poi.gd: pack accounting
+var helper: Object              ## game_poi.gd: pack accounting (null: no pack, e.g. at home)
 var label_text := ""
 
 
@@ -27,6 +28,17 @@ func open_loot(s: GameState, contents: Dictionary, title: String, h: Object) -> 
 	helper = h
 	label_text = title.to_lower()
 	open(s, "loot_pile", contents, title)
+
+
+## Exp 012 (L): the public way to loot anything that holds items (a corpse,
+## a dropped bag...): a take-only window of the same fixed size on the live
+## `contents` dictionary. `h`: the POI helper when away (the pack limit
+## applies and what is taken counts in the pack), or null at home (only the
+## household caps apply). Listen to `taken(id, n)` for each take and
+## `closed` when it closes. Whatever doesn't fit stays in `contents`.
+##   game.poi.panel.open_items(state, "Body of Ray Duncan", corpse.items, game.poi)
+func open_items(s: GameState, title: String, contents: Dictionary, h: Object = null) -> void:
+	open_loot(s, contents, title, h)
 
 
 ## The car's boot (contents: the live cargo).
@@ -41,113 +53,104 @@ func _pack() -> Dictionary:
 	return helper.pack if helper != null else {}
 
 
-func _render() -> void:
-	if state == null:
-		return
-	var had_focus := is_open
-	var box := _begin(title_text, WIDTH)
+# --- the layout hooks (StoragePanel's fixed frame) --------------------------------------------
+
+func _sub_text() -> String:
+	if helper == null and mode != "cargo":
+		return "Take what you can carry home."
 	var sub := PoiState.pack_text(state, _pack())
-	var full := _full()
-	if full:
+	if _full():
 		sub += " · full"
 	if mode == "cargo":
 		sub = "Boot: %s / %s  ·  %s" % [PoiState._num(PoiState.load_of(items)), PoiState._num(PoiState.CARGO_CAP), sub]
 	elif helper != null and bool(helper.get("has_car")):
 		sub += "  ·  Boot %s / %s (at the car)" % [PoiState._num(PoiState.load_of(helper.get("cargo"))), PoiState._num(PoiState.CARGO_CAP)]
-	var subl := UiTheme.make_label(sub, UiTheme.FONT_BODY, UiTheme.WARN if full and mode != "cargo" else UiTheme.TEXT_DIM)
-	subl.name = "Fill"
-	box.add_child(subl)
-	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 30)
-	box.add_child(cols)
-	var left := _column(cols, "You carry" if mode == "cargo" else "Your pack")
-	var right := _column(cols, "In the boot" if mode == "cargo" else "In the %s" % label_text)
-	var any_left := false
+	return sub
+
+
+func _sub_color() -> Color:
+	return UiTheme.WARN if _full() and mode != "cargo" else UiTheme.TEXT_DIM
+
+
+func _left_heading() -> String:
+	if mode == "cargo":
+		return "You carry"
+	return "Your pack" if helper != null else "Taken"
+
+
+func _right_heading() -> String:
+	return "In the boot" if mode == "cargo" else "In the %s" % label_text
+
+
+func _fill_left(list: VBoxContainer) -> bool:
+	var any := false
 	for id in Items.DEFS:
 		if mode == "cargo":
 			if state.inventory.count(id) > 0:
-				left.add_child(_row(id, state.inventory.count(id), true))
-				any_left = true
+				list.add_child(_row(id, state.inventory.count(id), true))
+				any = true
 		else:
 			var k := mini(int(_pack().get(id, 0)), state.inventory.count(id))
 			if k > 0:
-				var l := UiTheme.make_label("%s  ×%d" % [Items.name_of(id), k], UiTheme.FONT_BODY)
-				l.name = "Pack_" + id
-				left.add_child(l)
-				any_left = true
-	if not any_left:
-		left.add_child(UiTheme.make_caption("Nothing yet." if mode != "cargo" else "You carry nothing.", 420, UiTheme.TEXT_FAINT))
-	var any_right := false
-	for id in Items.DEFS:
-		if int(items.get(id, 0)) > 0:
-			right.add_child(_row(id, int(items[id]), false))
-			any_right = true
-	if not any_right:
-		right.add_child(UiTheme.make_caption("Empty." if mode == "cargo" else "Nothing here.", 420, UiTheme.TEXT_FAINT))
-	box.add_child(UiTheme.make_spacer(2))
-	box.add_child(UiTheme.make_caption(RULE, WIDTH - 60, UiTheme.TEXT_FAINT))
-	_feedback = UiTheme.make_label(last_text, UiTheme.FONT_BODY - 1, UiTheme.GOOD)
-	_feedback.name = "Feedback"
-	_feedback.custom_minimum_size.y = 22
-	box.add_child(_feedback)
-	var all_b := UiTheme.make_button("Take everything")
-	all_b.name = "TakeAll"
-	all_b.disabled = items.is_empty()
-	all_b.pressed.connect(take_everything)
-	var close_b := UiTheme.make_button("Close")
-	close_b.name = "Close"
-	close_b.pressed.connect(_close_and_emit)
-	var buttons := [all_b, close_b]
+				var r := ItemRows.row(id, k, {"prefix": "Pack_", "status": "wt %s" % PoiState._num(PoiState.weight_of(id) * k)})
+				ItemRows.track(r, id, _details)
+				list.add_child(r)
+				any = true
+	return any
+
+
+func _left_empty_text() -> String:
+	return "You carry nothing." if mode == "cargo" else "Nothing yet."
+
+
+func _right_empty_text() -> String:
+	return "Empty." if mode == "cargo" else "Nothing here."
+
+
+func _rule_text() -> String:
+	return RULE if helper != null or mode == "cargo" else RULE_HOME
+
+
+func _buttons() -> Array:
+	var buttons := super()
 	if mode == "cargo":                # Exp 008 (L): the quick way into the boot
 		var stow_b := UiTheme.make_button("Stow what you found")
 		stow_b.name = "StowFound"
 		stow_b.disabled = _carried_found().is_empty()
 		stow_b.pressed.connect(stow_found)
 		buttons.push_front(stow_b)
-	box.add_child(_footer("E / Esc", "Close", buttons))
-	if had_focus:
-		_root.modulate.a = 1.0
-		_focus()
+	return buttons
 
 
 ## Exp 008 (L): a row with its weight; taking is capped by the pack's room.
-func _row(id: String, n: int, carried: bool) -> Control:
-	var row: Control = super(id, n, carried)
-	var wt := UiTheme.make_label("wt %s" % PoiState._num(PoiState.weight_of(id) * n), UiTheme.FONT_SMALL, UiTheme.TEXT_FAINT)
-	wt.name = "Weight"
-	wt.custom_minimum_size.x = 64
-	wt.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	wt.tooltip_text = "%s each" % PoiState._num(PoiState.weight_of(id))
-	row.add_child(wt)
-	row.move_child(wt, row.get_node("Count").get_index() + 1)
+## Exp 012 (L): one line, the weight as its status.
+func _row_opts(id: String, n: int, carried: bool) -> Dictionary:
+	var o := super(id, n, carried)
+	o["status"] = "wt %s" % PoiState._num(PoiState.weight_of(id) * n)
+	o["status_name"] = "Weight"
+	o["status_color"] = UiTheme.TEXT_FAINT
 	if not carried:
-		if not Items.is_consumable(id):       # keeps the columns lined up with the rows that have Eat / Drink
-			var gap := Control.new()
-			gap.name = "NoVerb"
-			gap.custom_minimum_size.x = 76
-			gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			row.add_child(gap)
-			row.move_child(gap, row.get_node("Take1").get_index())
 		var fit := mini(_room(id), state.inventory.space_for(id))
-		var one: Button = row.get_node_or_null("Take1")
-		var all: Button = row.get_node_or_null("Takeall")
-		if one != null:
-			one.disabled = fit <= 0
-		if all != null:
-			all.disabled = fit <= 0
-			if fit > 0 and fit < n:
-				all.text = "Take %d" % fit
+		for a in o["actions"]:
+			if str(a[3]) in ["Take1", "Takeall"]:
+				a[2] = fit <= 0
+			if str(a[3]) == "Takeall" and fit > 0 and fit < n:
+				a[0] = "Take %d" % fit
+		if fit <= 0:
+			o["status"] = "no room"
+			o["status_color"] = UiTheme.WARN
 	elif mode == "cargo":
 		var room := PoiState.room_for(id, PoiState.load_of(items), PoiState.CARGO_CAP)
-		for b in ["Put1", "Putall"]:
-			var btn: Button = row.get_node_or_null(b)
-			if btn != null:
-				btn.disabled = room <= 0
-	return row
+		for a in o["actions"]:
+			if str(a[3]) in ["Put1", "Putall"]:
+				a[2] = room <= 0
+	return o
 
 
 ## Room in the pack for `id` (cargo mode: taking out of the boot counts too).
 func _room(id: String) -> int:
+	if helper == null and mode != "cargo":
+		return 1 << 20                  # Exp 012 (L): no pack at home, only the household caps
 	return PoiState.room_for(id, PoiState.pack_load(state, _pack()), PoiState.pack_cap(state))
 
 
@@ -176,7 +179,7 @@ func _full_text() -> String:
 
 ## Takes up to n of `id` (as far as the pack and the household caps allow).
 func take(id: String, n: int) -> int:
-	var room := PoiState.room_for(id, PoiState.pack_load(state, _pack()), PoiState.pack_cap(state))
+	var room := _room(id)
 	if room <= 0:
 		_say(_full_text(), false)
 		_render()
@@ -193,10 +196,11 @@ func take(id: String, n: int) -> int:
 func take_everything() -> Dictionary:
 	var got := {}
 	for id in items.keys():
-		var room := PoiState.room_for(id, PoiState.pack_load(state, _pack()), PoiState.pack_cap(state))
+		var room := _room(id)
 		var k := FurnitureStorage.take(state, items, id, mini(int(items[id]), room))
 		if k > 0:
 			got[id] = k
+			taken.emit(id, k)
 			if helper != null:
 				helper.pack_add(id, k)
 	if got.is_empty():
