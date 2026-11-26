@@ -342,3 +342,40 @@ func test_the_dark_hallway_asks_once_and_stay_keeps_eli_inside() -> void:
 	h.poi.leave_dialog.choose("home")
 	await frames(2)
 	check(h.left, "and Go home leaves")
+
+
+func test_the_hand_made_places_keep_their_ways_out() -> void:
+	for id in PoiDefs.HAND_MADE:
+		var h: Node = (load(PREVIEW) as PackedScene).instantiate()
+		h.configure(id, true, 4242)
+		add(h)
+		await physics_frames(3)
+		var w: PoiWorld = h.world
+		var out: Array = w.spots_of("exit")
+		if check(out.size() == 1 and out[0].id == "car", "%s by car: the car is the way out" % id):
+			var p: Vector2 = out[0].plan_pos()
+			check(HousePlan.YARD.grow(-0.6).has_point(p) and w.nav.is_walkable(w.nav.cell_of(p)), "%s: by the car's door, on open ground (%s)" % [id, p])
+			check(not w.nav.find_path(w.entry_point(), p).is_empty(), "%s: reachable from the entry" % id)
+		h.queue_free()
+		await frames(2)
+		var f: Node = (load(PREVIEW) as PackedScene).instantiate()
+		f.configure(id, false, 4242)
+		add(f)
+		await physics_frames(3)
+		check_eq((f.world as PoiWorld).spots_of("exit").size(), (f.world.layout["exits"] as Array).size(), "%s on foot: a departure marker at each exit" % id)
+		f.queue_free()
+		await frames(2)
+
+
+func test_a_building_that_fills_the_lot_still_gets_a_way_out() -> void:
+	for arch in ["warehouse", "hospital", "house_family"]:
+		var L := building(arch, "small")
+		L["bounds"] = Rect2(-5, -4, 24, 16)
+		L["doorways"] = [Vector2(7.5, 12.7)]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 3
+		PoiExterior.decorate(L, {}, rng)
+		check((L["exits"] as Array).size() == 1 and PoiExterior.LOT.has_point(L["entry"]), "%s: an entry and a departure point" % arch)
+		check(PoiExterior.validate(L).is_empty(), "%s: still reachable (%s)" % [arch, PoiExterior.validate(L)])
+		var car: Dictionary = L["car"]
+		check(car.is_empty() or PoiExterior.LOT.encloses(car["rect"]), "%s: a car spot on the lot, or none" % arch)

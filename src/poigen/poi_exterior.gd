@@ -375,46 +375,55 @@ static func car_points(rect: Rect2, facing: String, other_side := false) -> Dict
 
 
 ## A parking spot near the main entrance for Eli's car (empty when he walked).
+## With no room at all the layout gets no car spot ({}): PoiWorld then keeps
+## the departure markers even when he drove.
 static func _park(S: Site) -> void:
 	var L := S.L
 	var entry: Vector2 = L["entry"]
 	var want := Vector2(S.main.x + (3.6 if S.main.x < S.B.get_center().x + 0.01 else -3.6), S.main.y + 2.4)
 	var start := _cell(want)
-	for ring in 22:
-		var cells := _ring(start, ring)
-		_shuffle(S, cells)
-		for c in cells:
-			for facing in ["E", "W"]:
+	for pass_i in 2:
+		var clear := 0.3 if pass_i == 0 else 0.0
+		var allow := [FREE, DECOR] if pass_i == 0 else [FREE, DECOR, RESERVED]
+		for ring in 22:
+			var cells := _ring(start, ring)
+			_shuffle(S, cells)
+			for c in cells:
+				if _at(S, c) == BLOCKED:
+					continue
 				var at := _centre(c)
 				var rect := Rect2(at.x - 2.2, at.y - 1.0, 4.4, 2.0)
-				if not _free_rect(S, rect.grow(0.3), [FREE, DECOR]):
+				if not _free_rect(S, rect.grow(clear), allow):
 					continue
-				for other in [false, true]:
-					var pts := car_points(rect, facing, other)
-					if not _walkable(S, pts["cargo"]) or not _walkable(S, pts["door"]):
-						continue
-					var keep := S.grid.duplicate()
-					_mark(S, rect, BLOCKED)
-					var p1 := _path(S, entry, pts["cargo"])
-					var p2 := _path(S, entry, pts["door"])
-					if p1.is_empty() or p2.is_empty():
-						S.grid = keep
-						continue
-					_reserve(S, p1, 0)
-					_reserve(S, p2, 0)
-					_reserve_disc(S, pts["cargo"], 0.7)
-					_reserve_disc(S, pts["door"], 0.7)
-					L["car"] = {"rect": rect, "facing": facing, "cargo": pts["cargo"], "door": pts["door"]}
-					if S.family == "residential":
-						# the driveway: from the car down to the street, kept clear
-						var drive := Rect2(rect.position.x - 0.3, rect.position.y - 0.3, rect.size.x + 0.6, LOT.end.y - rect.position.y + 0.3)
-						L["paint"].append({"rect": drive, "art": "paving"})
-						_mark(S, drive, RESERVED)
-					return
-	# no room by the door: the car stands on the entry walk's side, unchecked
-	var r := Rect2(entry.x - 2.2, entry.y - 2.6, 4.4, 2.0)
-	var p := car_points(r, "E")
-	L["car"] = {"rect": r, "facing": "E", "cargo": p["cargo"], "door": p["door"]}
+				for facing in ["E", "W"]:
+					for other in [false, true]:
+						var pts := car_points(rect, facing, other)
+						if not _walkable(S, pts["cargo"]) or not _walkable(S, pts["door"]):
+							continue
+						var keep := S.grid.duplicate()
+						_mark(S, rect, BLOCKED)
+						var p1 := _path(S, entry, pts["cargo"])
+						var p2 := _path(S, entry, pts["door"])
+						var cut := false
+						for d in S.doors:
+							cut = cut or _path(S, entry, d).is_empty()
+						for e in L["exits"]:
+							cut = cut or _path(S, entry, e).is_empty()
+						if p1.is_empty() or p2.is_empty() or cut:
+							S.grid = keep
+							continue
+						_reserve(S, p1, 0)
+						_reserve(S, p2, 0)
+						_reserve_disc(S, pts["cargo"], 0.7)
+						_reserve_disc(S, pts["door"], 0.7)
+						L["car"] = {"rect": rect, "facing": facing, "cargo": pts["cargo"], "door": pts["door"]}
+						if S.family == "residential":
+							# the driveway: from the car down to the street, kept clear
+							var drive := Rect2(rect.position.x - 0.3, rect.position.y - 0.3, rect.size.x + 0.6, LOT.end.y - rect.position.y + 0.3)
+							L["paint"].append({"rect": drive, "art": "paving"})
+							_mark(S, drive, RESERVED)
+						return
+	L["car"] = {}
 
 
 static func _walkable(S: Site, p: Vector2) -> bool:
