@@ -230,6 +230,32 @@ This file **records** decisions and approvals; it never grants them. Only the us
   - large test suites;
   - merges to `main`.
 
+## Current approved objective: "Faces of Madness" (Experiment 011)
+
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 011 — Faces of Madness", autonomous, visual quality first); in progress.** Branch `exp011/faces-of-madness` from Experiment 010 (`6d5fc0f`).
+
+- **Decision recorded:** the Experiment 010 handcrafted voxel style (the new Eli) is now the visual foundation for all humanoids. The old cuboid style no longer defines them.
+- **Scope:**
+  - a shared humanoid visual foundation;
+  - ordinary psychos with real human variety and stable appearance seeds;
+  - a disturbingly thin runner;
+  - a massive brute (about 1.3–1.5 × Eli's height, much broader);
+  - a recognisable human bomber;
+  - **The Architect**: an internal name only, never shown to the player. He gets the visual foundation and a minimal internal archetype identity only, and is reachable only through F10 and the showroom. There is no spawning, scripted encounter or siege behaviour yet.
+  - per-archetype animation personality;
+  - the expanded showroom with comparison;
+  - integration with the existing AI and gameplay unchanged;
+  - a short developer note on adding humanoids;
+  - a portable Windows x64 ZIP as a GitHub Actions artifact (explicitly approved).
+- **Out of scope:**
+  - AI or balance changes;
+  - The Architect's scripted encounter, siege or voice;
+  - a character editor or large framework;
+  - large test suites;
+  - SirenVoxelLibrary;
+  - merges to `main`.
+- **Noted for later (user's message of 2026-11-26, not yet approved as a task):** The Architect's scripted first encounter (a night in a blacked-out, locked bedroom, knocking, "wakey wakey sunshine…", green gas, waking rattled), escalating encounters, and him directing the horde to trap and barricade Eli in a room.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
