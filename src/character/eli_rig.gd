@@ -65,6 +65,7 @@ static func eli_material() -> ShaderMaterial:
 
 func _init(v := 0) -> void:
 	look = Look.PLAYER
+	walk_phase = PI * 0.5        # a footstep sound at each foot plant (_phase 0 and 0.5)
 	variant = clampi(v, 0, EliSculpt.variant_count() - 1)
 
 
@@ -230,7 +231,9 @@ func animate(delta: float) -> void:
 	var duty := lerpf(0.62, 0.36, run) - 0.04 * sprint
 	var reach := minf(0.32 + 0.42 * v, lerpf(0.9, 1.02, run))
 	if v > 0.05:
-		_phase = fposmod(_phase + delta * duty * v / maxf(reach, 0.1), 1.0)
+		var dp := delta * duty * v / maxf(reach, 0.1)
+		_phase = fposmod(_phase + dp, 1.0)
+		walk_phase += TAU * dp    # VoxelRig's running phase: footstep sounds count its half-cycles
 	var aim_target := 1.0 if aiming else 0.0
 	_aim_blend = move_toward(_aim_blend, aim_target, delta * 7.0)
 	_two_blend = move_toward(_two_blend, 1.0 if two_handed() else 0.0, delta * 7.0)

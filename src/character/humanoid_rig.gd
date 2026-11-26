@@ -124,6 +124,7 @@ static func _sync_night() -> void:
 ## `l`: a look (HumanoidLooks.look / an archetype's look()).
 func _init(l: Dictionary = {}) -> void:
 	look = Look.ENEMY_A
+	walk_phase = PI * 0.5        # a footstep sound at each foot plant (_phase 0 and 0.5)
 	look_data = l
 	style = STYLE.duplicate()
 	style.merge(l.get("style", {}), true)
@@ -267,6 +268,7 @@ func animate(delta: float) -> void:
 		else:
 			dp *= 1.0 - 0.25 * limp
 		_phase = fposmod(_phase + dp, 1.0)
+		walk_phase += TAU * dp    # VoxelRig's running phase: footstep sounds count its half-cycles
 	var half := int(_phase * 2.0)
 	if half != _half:
 		_half = half
