@@ -691,6 +691,7 @@ func _process_events(events: Array) -> void:
 			"dusk":
 				toast("Dusk. It will be dark soon.", "warn")
 			"new_day":
+				DailySites.on_new_day(self, int(floor(float(e.get("at", state.total_minutes)) / DAY_MIN)) + 1)     # Exp 009 (D): today's places
 				toast("Day %d" % (int(floor(float(e.get("at", state.total_minutes)) / DAY_MIN)) + 1), "info")
 				if save_reason == "":
 					save_reason = "new_day"
@@ -1176,6 +1177,8 @@ func can_save() -> String:
 		return "You can't save during an expedition."
 	if _modal == "travel":
 		return "You can't save while travelling."      # Exp 007 (T): the departure / the POI is the checkpoint
+	if DailySites.is_test_id(site):
+		return "A generated test site is never saved."      # Exp 009 (D): F10 test sites
 	if director.active or state.run.get("invasion_active", false):
 		return "You can't save during an invasion."
 	if not is_home() and poi != null and poi.has_method("save_check"):

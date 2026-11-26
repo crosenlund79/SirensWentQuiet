@@ -5,7 +5,9 @@ extends Control
 ## ground, the name when close or hovered), the road route from the house to
 ## the selected place, and a hover card. Mouse: hover, click to select, drag
 ## to pan, wheel to zoom at the cursor. Undiscovered places are not in
-## `entries` at all (hidden).
+## `entries` at all (hidden). Exp 009 (D): an entry with "overrun" (not
+## approachable today, DailySites) is drawn greyed with a red cross and
+## "OVERRUN" under its name.
 
 signal place_clicked(id: String)
 signal hover_changed(id: String)
@@ -148,6 +150,9 @@ func _draw() -> void:
 		var is_home: bool = id == MapInfo.HOME
 		var r := HOME_R if is_home else HEAD_R
 		var col := MapInfo.category_color(e["cat"])
+		var overrun := bool(e.get("overrun", false))      # Exp 009 (D): dimmed and crossed out
+		if overrun:
+			col = col.lerp(Color(0.32, 0.32, 0.34), 0.65)
 		var hot: bool = id == hovered or id == selected
 		if hot:
 			r += 1.5
@@ -161,10 +166,19 @@ func _draw() -> void:
 		draw_circle(h, r + 1.6, Color(0.05, 0.05, 0.06, 0.85))
 		draw_circle(h, r, col)
 		_glyph(e["cat"], h, r)
+		if overrun:
+			var bad := Color(0.86, 0.3, 0.26, 0.95)
+			draw_line(h + Vector2(-r, -r) * 0.75, h + Vector2(r, r) * 0.75, Color(0, 0, 0, 0.6), 4.0, true)
+			draw_line(h + Vector2(-r, r) * 0.75, h + Vector2(r, -r) * 0.75, Color(0, 0, 0, 0.6), 4.0, true)
+			draw_line(h + Vector2(-r, -r) * 0.75, h + Vector2(r, r) * 0.75, bad, 2.0, true)
+			draw_line(h + Vector2(-r, r) * 0.75, h + Vector2(r, -r) * 0.75, bad, 2.0, true)
 		if close or hot or is_home or id == planned:
-			_label(e["name"], h + Vector2(r + 6.0, 5.0), 14 if hot or is_home else 13, UiTheme.TEXT if hot or is_home else Color(0.95, 0.93, 0.9, 0.92))
+			var lc := UiTheme.TEXT if hot or is_home else Color(0.95, 0.93, 0.9, 0.92)
+			_label(e["name"], h + Vector2(r + 6.0, 5.0), 14 if hot or is_home else 13, lc.darkened(0.35) if overrun else lc)
+			if overrun:
+				_label("OVERRUN", h + Vector2(r + 6.0, 19.0), 11, Color(0.86, 0.36, 0.3))
 			if id == planned:
-				_label("PLANNED", h + Vector2(r + 6.0, 19.0), 11, UiTheme.ACCENT)
+				_label("PLANNED", h + Vector2(r + 6.0, 33.0 if overrun else 19.0), 11, UiTheme.ACCENT)
 	if hovered != "" and hovered != selected and _screen.has(hovered):
 		_draw_card(_entry(hovered), _screen[hovered][1])
 	_draw_traveller()

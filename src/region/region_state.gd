@@ -38,6 +38,10 @@ var applied := []
 ## generated and searched containers, taken pickups, chopped wood, forced
 ## doors, the visit in progress). Saved as is; PoiState.record cleans it.
 var poi := {}
+## Exp 009 (D): today's selection of approachable places (DailySites owns it:
+## {"day", "available", "overrun", "streak", "since", "until"}). {} = not
+## made yet (an older save): DailySites.today() makes it on first use.
+var daily := {}
 
 
 static func new_region() -> RegionState:
@@ -214,7 +218,8 @@ func to_dict() -> Dictionary:
 	disc.sort()
 	return {"discovered": disc, "stock": stock.duplicate(), "notes": notes.duplicate(true),
 		"layout": layout, "planned": planned, "planned_purpose": planned_purpose,
-		"applied": applied.duplicate(), "poi": poi.duplicate(true)}      # Exp 007 (P): poi
+		"applied": applied.duplicate(), "poi": poi.duplicate(true),      # Exp 007 (P): poi
+		"daily": daily.duplicate(true)}      # Exp 009 (D)
 
 
 ## Restores from untrusted data: unknown ids, non-numbers and wrong types are
@@ -270,4 +275,31 @@ static func from_dict(d) -> RegionState:
 		for id in pois:
 			if RegionLocations.has(str(id)) and typeof(pois[id]) == TYPE_DICTIONARY:
 				r.poi[str(id)] = (pois[id] as Dictionary).duplicate(true)
+	r.daily = _daily_from(d.get("daily", {}))      # Exp 009 (D)
 	return r
+
+
+## Exp 009 (D): today's selection from untrusted data ({} when unusable:
+## DailySites makes a new one). Unknown ids are dropped, numbers clamped.
+static func _daily_from(v) -> Dictionary:
+	if typeof(v) != TYPE_DICTIONARY:
+		return {}
+	var day := int(_num(v.get("day"), 0.0))
+	if day < 1 or day > MAX_DAY:
+		return {}
+	var out := {"day": day, "available": [], "overrun": [], "streak": {}, "since": {}, "until": {}}
+	for k in ["available", "overrun"]:
+		var a = v.get(k, [])
+		if typeof(a) == TYPE_ARRAY:
+			for id in a:
+				if (typeof(id) == TYPE_STRING or typeof(id) == TYPE_STRING_NAME) and RegionLocations.has(str(id)) \
+						and not str(id) in out["available"] and not str(id) in out["overrun"]:
+					out[k].append(str(id))
+	for k in ["streak", "since", "until"]:
+		var m = v.get(k, {})
+		if typeof(m) == TYPE_DICTIONARY:
+			for id in m:
+				var n := _num(m[id], -1.0)
+				if RegionLocations.has(str(id)) and n >= 0.0:
+					out[k][str(id)] = clampi(int(n), 0, MAX_DAY)
+	return out

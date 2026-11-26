@@ -27,6 +27,11 @@ extends RefCounted
 ##          whether that is before dark ("Back home by 18:40" / "You'd get
 ##          home after dark")
 ##   gate   `leg_block_reason` (the map at a POI, travel_flow.travel_on)
+##
+## Exp 009 (D): an OVERRUN place (DailySites: not among today's approachable
+## sites) refuses travel with DailySites.OVERRUN_LINE, from home and from a
+## POI; home always works. Developer test sites ("gen:<archetype>:<seed>",
+## F10) are accepted with 0 road minutes.
 
 const T := preload("res://src/survival/survival_tuning.gd")
 
@@ -174,10 +179,14 @@ static func capacity_text(state: GameState, car := false) -> String:
 static func block_reason(state: GameState, id: String, car := false) -> String:
 	if state == null or state.dead:
 		return "You're dead."
+	if DailySites.is_test_id(id):
+		return "" if not DailySites.parse_test_id(id).is_empty() else "Unknown place."    # Exp 009 (D): F10 test sites
 	if not RegionLocations.has(id):
 		return "Unknown place."
 	if not state.region.is_discovered(id):
 		return "You don't know where that is yet."
+	if DailySites.is_overrun(state, id):
+		return DailySites.OVERRUN_LINE          # Exp 009 (D): not today
 	if state.run.get("invasion_active", false) or state.run.get("invasion_announced", false):
 		return "Not with them at the door."
 	if car:
@@ -210,11 +219,13 @@ static func leg_block_reason(state: GameState, from: String, to: String, car := 
 		return "You're dead."
 	if to == from:
 		return "You're here."
-	if to != HOME:
+	if to != HOME and not DailySites.is_test_id(to):
 		if not RegionLocations.has(to):
 			return "Unknown place."
 		if not state.region.is_discovered(to):
 			return "You don't know where that is yet."
+		if DailySites.is_overrun(state, to):
+			return DailySites.OVERRUN_LINE      # Exp 009 (D): not today (home always works)
 	var why := mode_reason(state, from, car, car_here)
 	if why != "":
 		return why

@@ -50,6 +50,8 @@ const LOCATIONS := {
 		"desc": "Cramped trailers by the river. Odds and ends, sometimes a box of shells."},
 	"farmhouse": {"name": "Halvorsen Farm", "category": "residential", "district": "farmland", "pos": Vector2(36, 108), "size": Vector2(5, 4),
 		"desc": "An isolated farmhouse: preserves, firewood, and maybe an old shotgun."},
+	"apartments": {"name": "Linden Apartments", "category": "residential", "district": "suburbs", "pos": Vector2(68, 80), "size": Vector2(4, 3),
+		"desc": "A four-storey block of flats. Dozens of doors, most of them shut, and a stairwell with no light."},      # Exp 009 (D)
 	# --- food and water ------------------------------------------------------------
 	"convenience": {"name": "Corner Store", "category": "food", "district": "suburbs", "pos": Vector2(70, 94), "size": Vector2(2, 2),
 		"desc": "A small corner shop near home. A little of everything."},
@@ -70,6 +72,8 @@ const LOCATIONS := {
 		"desc": "A veterinary practice on the farm road. Mixed medical supplies."},
 	"hospital": {"name": "St. Brigid's Hospital", "category": "medical", "district": "centre", "pos": Vector2(108, 50), "size": Vector2(7, 6),
 		"desc": "The regional hospital. Large stores, many floors, and whatever stayed behind."},
+	"fire_station": {"name": "Fire Station No. 2", "category": "medical", "district": "centre", "pos": Vector2(110, 68), "size": Vector2(3, 3),
+		"desc": "The fire station on the ring road: first-aid bags, rescue tools, and the engines still in the bays."},      # Exp 009 (D)
 	# --- construction --------------------------------------------------------------
 	"hardware": {"name": "Hardware Store", "category": "construction", "district": "suburbs", "pos": Vector2(80, 76), "size": Vector2(4, 3),
 		"desc": "A hardware store on the ring road. Planks, nails, tools; a locked stockroom."},
@@ -87,6 +91,13 @@ const LOCATIONS := {
 		"desc": "Mountains of scrap by the river: iron for the taking, if you can carry it."},
 	"warehouse": {"name": "Riverside Warehouse", "category": "construction", "district": "docks", "pos": Vector2(122, 78), "size": Vector2(6, 4),
 		"desc": "A distribution warehouse: mixed materials on pallets."},
+	# Exp 009 (D): three more places for building materials and tools
+	"auto_garage": {"name": "Kessler Auto Repair", "category": "construction", "district": "industrial", "pos": Vector2(91, 92), "size": Vector2(3, 2),
+		"desc": "A car repair shop by Route 9: scrap, spare parts, fuel cans, and cars up on the lifts."},
+	"workshop": {"name": "Carpentry Workshop", "category": "construction", "district": "industrial", "pos": Vector2(104, 93), "size": Vector2(3, 3),
+		"desc": "A joiner's workshop: offcuts, nails and hand tools on the benches."},
+	"factory": {"name": "Northway Metalworks", "category": "construction", "district": "industrial", "pos": Vector2(119, 89), "size": Vector2(6, 4),
+		"desc": "A metal factory by the river: iron stock and scrap in the halls, and long dark aisles."},
 	# --- weapons and ammunition ----------------------------------------------------
 	"gun_shop": {"name": "Pike's Guns", "category": "weapons", "district": "centre", "pos": Vector2(102, 68), "size": Vector2(2, 2),
 		"desc": "A gun shop. Looted early, but not everything was on the shelves."},
@@ -99,6 +110,8 @@ const LOCATIONS := {
 	# --- books and knowledge (Exp 006, R) ------------------------------------------
 	"library": {"name": "Public Library", "category": "knowledge", "district": "centre", "pos": Vector2(106, 60), "size": Vector2(4, 3),
 		"desc": "The town library: handbooks and technical manuals nobody thought to loot. Dark between the stacks."},
+	"office_block": {"name": "Meridian Offices", "category": "knowledge", "district": "centre", "pos": Vector2(97, 65), "size": Vector2(3, 2),
+		"desc": "An office block in the centre: desk drawers, a staff kitchen, a few manuals and a lot of wiring."},      # Exp 009 (D)
 }
 
 
@@ -115,6 +128,8 @@ static func get_def(id: String) -> Dictionary:
 
 
 static func name_of(id: String) -> String:
+	if id.begins_with("gen:"):              # Exp 009 (D): a developer test site (never in this list)
+		return DailySites.test_name(id)
 	return str(LOCATIONS.get(id, {}).get("name", id))
 
 

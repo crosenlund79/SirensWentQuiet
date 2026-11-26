@@ -111,12 +111,13 @@ const CATEGORY_ORDER := ["residential", "food", "medical", "construction", "weap
 
 ## Display order (grouped by category); the same ids as RegionLocations.
 const ORDER := [
-	"homes", "cul_de_sac", "trailer_park", "farmhouse",
+	"homes", "cul_de_sac", "trailer_park", "farmhouse", "apartments",
 	"convenience", "grocery", "diner", "restaurant", "fast_food",
-	"drugstore", "clinic", "vet_clinic", "hospital",
+	"drugstore", "clinic", "vet_clinic", "hospital", "fire_station",
 	"hardware", "forest", "logging", "sawmill", "quarry", "construction_site", "scrapyard", "warehouse",
+	"auto_garage", "workshop", "factory",
 	"gun_shop", "shooting_range", "police", "military",
-	"library",      # Exp 006 (R)
+	"library", "office_block",      # Exp 006 (R): the library; Exp 009 (D): + six places
 ]
 
 # --- loot profiles ---------------------------------------------------------------------
@@ -245,6 +246,12 @@ const LOCATIONS := {
 			["fuel", 1, 2, 0.45], ["car_battery", 1, 1, 0.2]],
 		"events": {"collapsed_floor": 3, "dogs": 2, "tracks": 2, "boarded_house": 1, "fog_bank": 2},
 		"two_events": 0.45, "deplete": 0.25, "regen": 0.025},
+	# Exp 009 (D): a block of flats: many small kitchens, little lumber
+	"apartments": {"profile": "residential", "place": "apartment block", "danger": 0.95, "search": 170,
+		"mods": {"wood": 0.6, "nails": 0.8, "backpack": 1.2},
+		"extra": [["canned_food", 1, 2, 0.5], ["water", 1, 2, 0.5], ["bandage", 1, 1, 0.3], ["flashlight", 1, 1, 0.1]],
+		"events": {"boarded_house": 2, "collapsed_floor": 2, "lone_psycho": 2, "dogs": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.5, "deplete": 0.15, "regen": 0.03},
 	# food and water
 	"convenience": {"profile": "food", "place": "corner shop", "danger": 0.8, "search": 90,
 		"mods": {"canned_food": 0.6, "snacks": 1.2, "water": 0.9},      # Exp 008 (E): snacks 0.9 -> 1.2, water 0.7 -> 0.9 (PACING.md: 18 containers, too many empty)
@@ -290,6 +297,15 @@ const LOCATIONS := {
 		"events": {"ward": 4, "waiting_room": 3, "dark_pharmacy": 2, "patrol": 2, "fog_bank": 1},
 		"two_events": 1.0, "prep": {"flashlight": 0.85, "shots": 0.85}, "prep_shots": 3,
 		"max_damage": 50.0, "risk_floor": 0.9},
+	# Exp 009 (D): first-aid bags and rescue tools
+	"fire_station": {"profile": "medical", "place": "fire station", "danger": 1.05, "search": 170,
+		"mods": {"medkit": 0.8, "ammo": 0.0},
+		"extra": [["crowbar", 1, 1, 0.3], ["flashlight", 1, 1, 0.3], ["fuel", 1, 2, 0.4], ["hammer", 1, 1, 0.15],
+			["water", 1, 3, 0.4], ["vest", 1, 1, 0.05]],
+		"locked": [["medkit", 1, 1, 0.7], ["bandage", 1, 3, 0.6], ["fuel", 1, 1, 0.4], ["crowbar", 1, 1, 0.2]],
+		"locked_name": "the equipment lockers", "locked_text": "The crowbar opened the crew's equipment lockers.",
+		"events": {"storage_door": 2, "locked_car": 2, "lone_psycho": 2, "dogs": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.55},
 	# construction
 	"hardware": {"profile": "construction_wood", "place": "hardware store", "danger": 1.0, "search": 210,
 		"mods": {"nails": 1.3, "scrap": 1.3, "hammer": 1.5, "crowbar": 1.4},
@@ -337,6 +353,22 @@ const LOCATIONS := {
 			["electronics", 1, 2, 0.35]],      # Exp 007 (S)
 		"events": {"storage_door": 3, "heavy_load": 2, "lone_psycho": 2, "collapsed_floor": 1, "fog_bank": 1},
 		"deplete": 0.22, "regen": 0.02, "floor": 0.15},
+	# Exp 009 (D): a garage, a joiner's workshop, a metal factory
+	"auto_garage": {"profile": "construction_iron", "place": "garage", "danger": 1.0, "search": 160,
+		"mods": {"scrap": 1.2, "iron": 0.8},
+		"extra": [["fuel", 1, 2, 0.5], ["car_battery", 1, 1, 0.35], ["flashlight", 1, 1, 0.1]],
+		"events": {"locked_car": 3, "heavy_load": 2, "dogs": 1, "lone_psycho": 1, "fog_bank": 1},
+		"deplete": 0.2, "regen": 0.03, "floor": 0.15},
+	"workshop": {"profile": "construction_wood", "place": "workshop", "danger": 0.95, "search": 170,
+		"mods": {"wood": 0.8, "nails": 1.2, "hammer": 1.3},
+		"extra": [["iron", 1, 2, 0.3], ["electronics", 1, 2, 0.3], ["drill", 1, 1, 0.15], ["book_woodworking", 1, 1, 0.08]],
+		"events": {"timber_rack": 2, "storage_door": 2, "lone_psycho": 1, "tracks": 1, "fog_bank": 1},
+		"deplete": 0.2, "regen": 0.03, "floor": 0.15},
+	"factory": {"profile": "construction_iron", "place": "factory", "danger": 1.2, "search": 220,
+		"mods": {"iron": 1.3, "scrap": 1.2},
+		"extra": [["nails", 4, 10, 0.5], ["electronics", 1, 3, 0.4], ["fuel", 1, 1, 0.25], ["book_metalworking", 1, 1, 0.06]],
+		"events": {"heavy_load": 3, "storage_door": 2, "lone_psycho": 2, "collapsed_floor": 1, "fog_bank": 1},
+		"two_events": 0.65, "prep": {"flashlight": 0.9}},
 	# weapons and ammunition (dangerous)
 	# Exp 006 (R): tuned. Known from the start (RegionState.START_KNOWN), so its
 	# danger and quick depletion keep it scarce: the shotgun is uncommon (10 %
@@ -373,6 +405,14 @@ const LOCATIONS := {
 	"library": {"profile": "library", "place": "library", "danger": 1.05, "search": 180,
 		"prep": {"flashlight": 0.85},
 		"extra": [["water", 1, 2, 0.35], ["snacks", 1, 2, 0.35], ["bandage", 1, 1, 0.25]]},      # Exp 008 (E): the desks and the returns (PACING.md)
+	# Exp 009 (D): an office block: a few manuals on the shelves, wiring, the staff kitchen
+	"office_block": {"profile": "library", "place": "office", "danger": 1.0, "search": 150,
+		"mods": {"book_woodworking": 0.3, "book_reinforced": 0.3, "book_metalworking": 0.3, "book_advanced_metal": 0.0, "book_automation": 0.6},
+		"extra": [["snacks", 1, 2, 0.5], ["water", 1, 2, 0.5], ["electronics", 1, 2, 0.4], ["bandage", 1, 1, 0.2]],
+		"locked": [["electronics", 1, 3, 0.6], ["book_electronics", 1, 1, 0.2], ["book_automation", 1, 1, 0.1], ["snacks", 1, 2, 0.4]],
+		"locked_name": "the server room", "locked_text": "The crowbar opened the locked server room.",
+		"events": {"storage_door": 3, "lone_psycho": 2, "collapsed_floor": 1, "tracks": 1, "fog_bank": 1},
+		"two_events": 0.5, "deplete": 0.2, "regen": 0.02},
 }
 
 # --- mission approaches ----------------------------------------------------------------------

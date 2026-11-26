@@ -61,6 +61,12 @@ extends Node
 ##
 ## F10 "Travel" (dev_*): instant travel to any place (from a POI, straight
 ## on), instant return home, fuel, car repair, skip the animation.
+##
+## Exp 009 (D): an overrun place (DailySites) is refused like any blocked
+## place (TravelRules); F10 travel makes it available for the day first.
+## F10 test sites ("gen:<archetype>:<seed>", src/poigen/dev_poigen.gd) go
+## through dev_travel_to too: no discovery, no save while there, and
+## DailySites.forget_test clears their record when Eli leaves.
 
 const RunSave := preload("res://src/game/run_save.gd")
 const TravelCard := preload("res://src/travel/travel_card.gd")
@@ -169,6 +175,7 @@ func travel_on(id: String, car := false, instant := false) -> String:
 	var minutes := 0 if instant else TravelRules.minutes_between(from, id, car)
 	game._autosave("departed")              # quitting on the road resumes here (skipped with enemies about)
 	var fin := _end_visit()                 # once, before the next leg: this place's stock and visit count
+	DailySites.forget_test(s, from)         # Exp 009 (D): a test site leaves nothing in the region
 	var cargo: Dictionary = (fin.get("cargo", {}) as Dictionary).duplicate() if typeof(fin.get("cargo")) == TYPE_DICTIONARY else {}
 	var pack := _still_carried(fin.get("pack", {}) if typeof(fin.get("pack")) == TYPE_DICTIONARY else {})
 	var t0 := s.total_minutes
@@ -288,6 +295,9 @@ func arrive_at_site(carry := {}) -> void:
 		return
 	_bring_along(carry)
 	_arrival_card(RegionLocations.name_of(id), TravelRules.day_clock(s.total_minutes))
+	if DailySites.is_test_id(id):           # Exp 009 (D): an F10 test site: no discovery, nothing recorded
+		game.toast("%s. A generated test site: nothing here is saved." % RegionLocations.name_of(id), "info")
+		return
 	var found := TravelRules.roll_discovery(s, id, int(s.run.get("seed", 0)) * 7 + s.region.visits(id) * 131 + id.hash())
 	var poi: Variant = game.get("poi")
 	if poi is Object and is_instance_valid(poi) and poi.has_method("finish"):
@@ -327,6 +337,7 @@ func leave_for_home(instant := false) -> String:
 	var car := by_car()
 	var minutes := 0 if instant else TravelRules.minutes(id, car)
 	var fin := _end_visit()                 # P: ends the visit once (idempotent); the cargo left the inventory
+	DailySites.forget_test(s, id)           # Exp 009 (D): a test site leaves nothing in the region
 	var cargo: Dictionary = fin.get("cargo", {}) if typeof(fin.get("cargo")) == TYPE_DICTIONARY else {}
 	var t0 := s.total_minutes
 	game._set_modal("travel", true)
@@ -470,11 +481,12 @@ func _unload(cargo: Dictionary) -> Dictionary:
 ## Instantly to a place (no animation, no time on the road). Exp 008: from a
 ## POI straight on (in the mode Eli came with).
 func dev_travel_to(id: String) -> String:
-	if not RegionLocations.has(id):
+	if not RegionLocations.has(id) and DailySites.parse_test_id(id).is_empty():
 		return "Unknown place."
 	if not game.is_home() and id == game.site_id():
 		return "Already here."
 	game.state.region.discover(id)
+	DailySites.force_available(game.state, id)      # Exp 009 (D): the developer tool goes even when it's overrun
 	var why := ""
 	if game.is_home():
 		why = await depart(id, false, true)

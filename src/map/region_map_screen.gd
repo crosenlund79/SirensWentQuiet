@@ -39,6 +39,13 @@ extends CanvasLayer
 ## boot; then what might be found and the gear. At a POI the mode is the one
 ## he came with (the car stays with him). play_leg() animates any leg; its
 ## card shows the clock, a progress bar and the arrival time.
+##
+## Exp 009 (D): today's places (DailySites). An overrun place stays on the
+## map, dimmed and crossed out (MapMarkers), "overrun" in the list, and its
+## panel says "Overrun — too many hostiles to approach safely." with Travel
+## disabled (TravelRules); the "Today" row says how long a place has been
+## open and whether it may be gone tomorrow. The title counts today's
+## approachable places.
 
 signal closed
 signal destination_selected(id: String, purpose: String)
@@ -337,11 +344,15 @@ func _refresh_entries() -> void:
 		var cat := MapInfo.HOME if id == MapInfo.HOME else str(RegionLocations.get_def(id)["category"])
 		var name := "Your house" if id == MapInfo.HOME else RegionLocations.name_of(id)
 		var sub := "Home" if id == MapInfo.HOME else "%s · about %s" % [RegionLocations.CATEGORIES.get(cat, cat), UiTheme.duration_text(_mins(id))]
+		var overrun: bool = id != MapInfo.HOME and id != origin and DailySites.is_overrun(state, id)      # Exp 009 (D)
 		if id == origin and origin != MapInfo.HOME:
 			sub = "You are here"
 		elif id == MapInfo.HOME and origin != MapInfo.HOME:
 			sub = "Home · about %s from here" % UiTheme.duration_text(_mins(id))
-		list.append({"id": id, "name": name, "cat": cat, "ground": ground, "top": Vector3(ground.x, top_y, ground.z), "sub": sub})
+		elif overrun:
+			sub = "Overrun today: too many hostiles"
+		list.append({"id": id, "name": name, "cat": cat, "ground": ground, "top": Vector3(ground.x, top_y, ground.z), "sub": sub,
+			"overrun": overrun})
 	markers.entries = list
 	markers.planned = state.region.planned if _known(state.region.planned) else ""
 
@@ -478,7 +489,10 @@ func _rebuild_list() -> void:
 		var is_home: bool = id == MapInfo.HOME
 		var name := "Your house" if is_home else RegionLocations.name_of(id)
 		var cap := _caption(id)                       # Exp 008 (T): from where Eli is
-		if id == state.region.planned and origin == MapInfo.HOME:
+		var overrun: bool = not is_home and id != origin and DailySites.is_overrun(state, id)      # Exp 009 (D)
+		if overrun:
+			cap = "overrun"
+		elif id == state.region.planned and origin == MapInfo.HOME:
 			cap = "planned"
 		var b := UiTheme.make_button("    " + name, cap)
 		b.custom_minimum_size.y = 32
@@ -498,6 +512,12 @@ func _rebuild_list() -> void:
 		var cl: Label = b.get_node_or_null("Caption")
 		if cl != null and id == state.region.planned:
 			cl.add_theme_color_override("font_color", UiTheme.ACCENT)
+		if overrun:                                   # Exp 009 (D): dimmed, still listed
+			b.modulate = Color(1, 1, 1, 0.55)
+			dot.color = dot.color.darkened(0.45)
+			if cl != null:
+				cl.add_theme_color_override("font_color", UiTheme.BAD)
+			b.tooltip_text = DailySites.OVERRUN_LINE
 		b.pressed.connect(select.bind(id, true))
 		_list_box.add_child(b)
 		_list_buttons[id] = b
@@ -566,6 +586,11 @@ func _update_title() -> void:
 		if state.region.is_discovered(id):
 			known += 1
 	var t := "%s\n%d of %d places known" % [UiTheme.day_time_text(state.day(), state.clock_text()), known, RegionLocations.LOCATIONS.size()]
+	var open_n := 0                                   # Exp 009 (D)
+	for id in RegionLocations.ids():
+		if state.region.is_discovered(id) and not DailySites.is_overrun(state, id):
+			open_n += 1
+	t += " · %d approachable today" % open_n
 	if not layout_ok:
 		t += "\nSaved on another map layout (%s)" % state.region.layout
 	if _known(state.region.planned) and state.region.planned != MapInfo.HOME:
@@ -621,7 +646,13 @@ func _show_info() -> void:
 	var visits := state.region.visits(selected)
 	_row(grid, "Been there", MapInfo.visit_text(state, selected), UiTheme.TEXT if visits > 0 else UiTheme.TEXT_DIM)
 	_row(grid, "Stock", "%s  ·  %d %% left" % [s["stock_text"], int(round(s["stock"] * 100.0))], UiTheme.TEXT if s["stock"] >= 0.5 else UiTheme.WARN)
+	var overrun := DailySites.is_overrun(state, selected)      # Exp 009 (D): today's availability
+	_row(grid, "Today", DailySites.availability_text(state, selected), UiTheme.BAD if overrun else UiTheme.GOOD)
 	_info.add_child(grid)
+	if overrun:
+		var ol := UiTheme.make_caption(DailySites.OVERRUN_LINE, INFO_W - 40, UiTheme.BAD)
+		ol.name = "Overrun"
+		_info.add_child(ol)
 	_add_travel_section()              # Exp 007 (T): replaces the mission purpose; Exp 008: right under the facts
 	if s["resources_text"] != "":
 		_info.add_child(UiTheme.make_section("Might find"))

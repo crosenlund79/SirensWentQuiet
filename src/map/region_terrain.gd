@@ -1274,6 +1274,43 @@ func _location(id: String) -> void:
 				var q := Vector3(lo.x + 0.6 + k * (s.x - 1.2) / 4.0, g, hi.z - 0.6)
 				_box(q - Vector3(0.06, 0, 0.06), q + Vector3(0.06, 0.6, 0.06), lib.lightened(0.12))
 			_box(Vector3(lo.x + 0.45, g + 0.6, hi.z - 0.85), Vector3(hi.x - 0.45, g + 0.68, hi.z - 0.42), lib)
+		# Exp 009 (D): six more places
+		"apartments":      # a four-storey block with a stair tower
+			_block(Vector3(lo.x + 0.3, g, lo.z + 0.4), Vector3(hi.x - 0.3, g + 1.5, lo.z + 1.8), Color(0.72, 0.66, 0.58))
+			_box(Vector3(lo.x + 0.25, g + 1.5, lo.z + 0.35), Vector3(hi.x - 0.25, g + 1.58, lo.z + 1.85), Color(0.36, 0.36, 0.38))
+			_box(Vector3(ctr.x - 0.25, g, lo.z + 1.8), Vector3(ctr.x + 0.25, g + 1.75, lo.z + 2.2), Color(0.62, 0.58, 0.52))
+			_parking(Rect2(lo.x + 0.3, lo.z + 2.3, s.x - 0.6, 0.5), g)
+		"auto_garage":     # a low workshop with roller doors and cars in the yard
+			_block(Vector3(lo.x + 0.2, g, lo.z + 0.2), Vector3(hi.x - 0.2, g + 0.5, lo.z + 1.2), Color(0.66, 0.68, 0.7))
+			for k in 2:
+				_box(Vector3(lo.x + 0.45 + k * 1.1, g, lo.z + 1.2), Vector3(lo.x + 1.25 + k * 1.1, g + 0.36, lo.z + 1.24), Color(0.42, 0.44, 0.46))
+			_box(Vector3(lo.x + 0.2, g + 0.42, lo.z + 1.2), Vector3(hi.x - 0.2, g + 0.5, lo.z + 1.3), Color(0.3, 0.42, 0.62))
+			_car(Vector3(lo.x + 0.7, g, hi.z - 0.35), true)
+			_car(Vector3(hi.x - 0.8, g, hi.z - 0.35), true)
+		"workshop":        # a timber workshop with a stack of planks
+			_house(Vector3(ctr.x - 0.3, g, ctr.z - 0.4), 1.8, 1.4, 0.45, Color(0.6, 0.46, 0.32), Color(0.34, 0.32, 0.3), true)
+			_stacks(Rect2(lo.x + 0.3, hi.z - 0.9, s.x - 0.6, 0.6), g, WOOD, 3)
+		"factory":         # two halls with roof lights, a chimney, a yard of stock
+			var steel := Color(0.56, 0.58, 0.6)
+			_block(Vector3(lo.x + 0.3, g, lo.z + 0.3), Vector3(ctr.x + 0.6, g + 0.9, hi.z - 0.3), steel)
+			_block(Vector3(ctr.x + 0.8, g, lo.z + 0.3), Vector3(hi.x - 0.3, g + 0.75, ctr.z + 0.5), steel.darkened(0.08))
+			for k in 4:
+				var x0 := lo.x + 0.4 + k * (ctr.x + 0.2 - lo.x) / 4.0
+				_box(Vector3(x0, g + 0.9, lo.z + 0.4), Vector3(x0 + 0.35, g + 1.15, hi.z - 0.4), steel.lightened(0.1))
+			_box(Vector3(hi.x - 0.9, g, hi.z - 0.9), Vector3(hi.x - 0.6, g + 2.2, hi.z - 0.6), Color(0.5, 0.36, 0.3))
+			_stacks(Rect2(ctr.x + 0.9, ctr.z + 0.8, hi.x - ctr.x - 1.9, 0.8), g, RUST, 3)
+		"office_block":    # a glass office tower
+			_block(Vector3(lo.x + 0.3, g, lo.z + 0.25), Vector3(hi.x - 0.3, g + 2.2, hi.z - 0.25), Color(0.46, 0.54, 0.6))
+			for k in 5:
+				_box(Vector3(lo.x + 0.28, g + 0.35 + k * 0.4, hi.z - 0.27), Vector3(hi.x - 0.28, g + 0.42 + k * 0.4, hi.z - 0.22), Color(0.72, 0.74, 0.74))
+		"fire_station":    # a red-brick station, three bay doors and a hose tower
+			var brick := Color(0.6, 0.32, 0.26)
+			_block(Vector3(lo.x + 0.2, g, lo.z + 0.3), Vector3(hi.x - 0.2, g + 0.6, lo.z + 1.8), brick)
+			for k in 3:
+				var x0 := lo.x + 0.4 + k * 0.75
+				_box(Vector3(x0, g, lo.z + 1.8), Vector3(x0 + 0.55, g + 0.42, lo.z + 1.84), Color(0.82, 0.8, 0.76))
+			_box(Vector3(hi.x - 0.7, g, lo.z + 0.4), Vector3(hi.x - 0.3, g + 1.3, lo.z + 0.8), brick.darkened(0.1))
+			_pave(Vector3(ctr.x, g, hi.z - 0.55), 0.9, ASPHALT)
 		"military":
 			_fence(Rect2(lo.x, lo.z, s.x, s.y), g, Color(0.4, 0.42, 0.36))
 			for k in 3:

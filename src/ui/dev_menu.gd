@@ -518,6 +518,7 @@ func _build() -> void:
 	_build_poi_section(box)     # Exp 007 (P)
 	_build_overview_section(box)     # Exp 007 (O)
 	_build_travel_section(box)     # Exp 007 (T)
+	_build_poigen_section(box)     # Exp 009 (D)
 
 	_status = UiTheme.make_caption("", WIDTH - 52, UiTheme.GOOD)
 	_status.name = "Status"
@@ -1009,3 +1010,39 @@ func _travel_call(method: String, args: Array, said: String) -> void:
 		return
 	var r: Variant = t.callv(method, args)
 	_say(said if said != "" or typeof(r) != TYPE_STRING else str(r))
+
+
+# --- Exp 009 (D): the POI generator (actions in src/poigen/dev_poigen.gd) ------------------
+
+## Today's places and the next day, a site's setup, a generated test site
+## by archetype (instant travel), dormant psychos (P), the stash (G), the
+## layout's diagnostics, home.
+func _build_poigen_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("POI generator"))
+	var pick := func(nm: String, items: Array) -> OptionButton:
+		var ob := OptionButton.new()
+		ob.name = nm
+		ob.focus_mode = Control.FOCUS_NONE
+		ob.fit_to_longest_item = false
+		ob.clip_text = true
+		ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ob.add_theme_font_size_override("font_size", UiTheme.px(UiTheme.FONT_SMALL + 1))
+		for it in items:
+			ob.add_item(str(it[1]))
+			ob.set_item_metadata(ob.item_count - 1, it[0])
+		box.add_child(ob)
+		return ob
+	var meta := func(ob: OptionButton) -> String:
+		return str(ob.get_item_metadata(ob.selected)) if ob.selected >= 0 else ""
+	box.add_child(_grid(2, [["Today's places", func(): _say(DevPoigen.today_text(game))],
+		["Next day (00:00)", func(): _say(DevPoigen.next_day(game))]]))
+	var sites: OptionButton = pick.call("PoigenSite", ExpeditionData.ORDER.map(func(id): return [id, RegionLocations.name_of(id)]))
+	box.add_child(_grid(1, [["Inspect setup", func(): _say(DevPoigen.inspect(game, meta.call(sites)))]]))
+	var arch: OptionButton = pick.call("PoigenArchetype", DailySites.test_archetypes().map(func(a): return [a, str(a).replace("_", " ")]))
+	box.add_child(_grid(1, [["Generate test site", func(): _say(DevPoigen.generate(game, meta.call(arch)))]]))
+	var beh: OptionButton = pick.call("PoigenBehaviour", DevPoigen.BEHAVIOURS.map(func(b): return [b, "behaviour: " + b]))
+	box.add_child(_grid(2, [["Dormant psycho", func(): _say(DevPoigen.spawn_dormant(game, meta.call(beh)))],
+		["Force behaviour", func(): _say(DevPoigen.force_behaviour(game, meta.call(beh)))],
+		["Reveal stash", func(): _say(DevPoigen.reveal_stash(game))],
+		["Diagnostics", func(): _say(DevPoigen.diagnostics(game))],
+		["Return home (POI gen)", func(): _say(DevPoigen.return_home(game))]]))
