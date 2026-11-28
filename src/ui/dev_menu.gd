@@ -1435,18 +1435,9 @@ func _build_debug_section(box: VBoxContainer) -> void:
 ## asks the game (dev_toggle_fps_overlay) or toggles a node in the group
 ## "fps_overlay".
 func _toggle_fps_overlay() -> void:
-	for target in [game, game.get("hud") if game != null and is_instance_valid(game) else null]:
-		if target is Object and is_instance_valid(target) and target.has_method("dev_toggle_fps_overlay"):
-			_say(str(target.call("dev_toggle_fps_overlay")))
-			return
-	var nodes: Array = get_tree().get_nodes_in_group("fps_overlay") if is_inside_tree() else []
-	if nodes.is_empty():
-		_say("No FPS overlay in this build", true)
-		return
-	var on := not bool(nodes[0].get("visible"))
-	for n in nodes:
-		n.set("visible", on)
-	_say("FPS overlay " + ("on" if on else "off"))
+	var on := not GraphicsQuality.show_fps()        # Exp 012 (C): the frame-rate display (Settings, F3)
+	GraphicsQuality.set_show_fps(on)
+	_say("Frame-rate display " + ("on" if on else "off"))
 
 
 func _debug_game_call(method: String, said: String) -> void:
