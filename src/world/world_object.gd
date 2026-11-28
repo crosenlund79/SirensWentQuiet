@@ -22,6 +22,7 @@ extends Node3D
 
 const FACINGS := ["N", "E", "S", "W"]
 const YAW := [0.0, -PI * 0.5, PI, PI * 0.5]   ## node yaw that turns local -Z to N, E, S, W
+const DOOR_CUT_H := 0.75                      ## Exp 012 (V): a door's height in the cutaway (walls are cut to 0.45 m)
 
 ## size = Vector3(width across the front, height, depth) before rotation.
 const DEFS := {
@@ -625,8 +626,16 @@ func _apply_open(instant: bool) -> void:
 
 
 func _apply_cut() -> void:
-	if visual != null:
-		set_geometry_cut(visual, _cut)
+	if visual == null:
+		return
+	if kind == "door":
+		# Exp 012 (V, the user's §18): a door in the cutaway isn't hidden with
+		# its wall: it is cut down to a low stub (frame and leaf, DOOR_CUT_H
+		# high, a little above the cut walls), so a closed door still reads as
+		# closed and an open one as open (the leaf keeps its swing).
+		visual.scale.y = DOOR_CUT_H / maxf(size3().y, 0.1) if _cut else 1.0
+		return
+	set_geometry_cut(visual, _cut)
 
 
 ## Cutaway for meshes: hidden from the camera but still casting shadows (as

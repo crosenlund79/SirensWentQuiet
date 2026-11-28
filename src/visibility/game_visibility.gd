@@ -31,6 +31,14 @@ extends Node
 ##
 ## F10 "Noise & visibility": reveal all (enabled = false), room boundaries
 ## (each room tinted, with a label), visibility diagnostics (a HUD line).
+##
+## Exp 012 (V): the fog of war (`fow`, fog_of_war.gd) sits on top: three
+## states (undiscovered / remembered / visible), the vision cone with line of
+## sight, the proximity sense. An enemy's rig shows only when its room isn't
+## hidden AND the fog of war sees it (checked every frame while it is on).
+## API for others: is_point_visible(world_pos), is_discovered(world_pos),
+## set_peek()/clear_peek() (observation holes; the rooms show while peeking).
+## Also the POI's fog boundary band (FogBand; at home FogBoundary has its own).
 
 const POLL := 0.15                     ## s between Eli's room look-ups and the enemies' check
 const DEBOUNCE := 0.25                 ## s after a structure change before re-applying
@@ -64,6 +72,8 @@ var _key := ""
 var _watched := {}
 var _runs := -1                        ## the provider's room finds (comfort.stats.rooms_runs) last seen
 var _stale := false                    ## the last apply used stale rooms: apply again soon
+var fow: FogOfWar                      ## Exp 012 (V): the fog of war
+var _peek_rooms := false               ## Exp 012 (V): room hiding suspended while peeking
 
 
 func setup(g: Node) -> void:
@@ -104,6 +114,42 @@ func setup(g: Node) -> void:
 				lv.connect(sig, _on_levels.bind(sig))
 	if game.has_signal("site_ready"):
 		game.connect("site_ready", _on_site)
+	fow = FogOfWar.new()               # Exp 012 (V)
+	add_child(fow)
+	fow.setup(game)
+	var pl = game.get("player")
+	if game.get("world") is PoiWorld and pl != null and "move_band" in pl:
+		pl.move_band = FogBand.for_poi()   # Exp 012 (V): slow down into the fog at a POI's edge too
+
+
+## Exp 012 (V) API: can Eli see this world point now (the fog of war's cone and
+## line of sight, Eli's storey)? True when the fog of war is off. For
+## highlights, markers and prompts that must not show through walls.
+func is_point_visible(p: Vector3) -> bool:
+	return fow == null or fow.is_point_visible(p)
+
+
+## Exp 012 (V) API: has Eli seen this spot before (remembered or visible)?
+func is_discovered(p: Vector3) -> bool:
+	return fow == null or fow.is_discovered(p)
+
+
+## Exp 012 (V): the observation holes' view (game_holes.gd): the fog of war
+## casts the hole's cone too, and the rooms aren't hidden while it lasts.
+func set_peek(origin: Vector3, dir: Vector3, half_deg: float, reach: float) -> void:
+	if fow != null:
+		fow.set_peek(origin, dir, half_deg, reach)
+	if enabled and not _peek_rooms:
+		_peek_rooms = true
+		set_enabled(false)
+
+
+func clear_peek() -> void:
+	if fow != null:
+		fow.clear_peek()
+	if _peek_rooms:
+		_peek_rooms = false
+		set_enabled(true)
 
 
 ## Re-applies at once (F10, tests).
@@ -220,6 +266,8 @@ func _process(delta: float) -> void:
 			_update_diag()
 	if _dirty and _since >= DEBOUNCE:
 		_apply()
+	if fow != null and fow.active():   # Exp 012 (V): enemies step in and out of sight every frame
+		_update_enemies()
 
 
 ## storey | Eli's room in the current rooms | build mode | on.
@@ -380,6 +428,8 @@ func _update_enemies() -> void:
 		if not states.is_empty() and a.storey == storey and _world != null:
 			var i := HouseRooms.room_index_at(_map, _world.nav, a.plan_pos(), 0)
 			hide = i >= 0 and states.get(i, RoomVisibility.FULL) == RoomVisibility.HIDDEN
+		if not hide and fow != null and fow.active():
+			hide = not fow.sees(a)         # Exp 012 (V): out of the cone, or no line of sight
 		var id := a.get_instance_id()
 		seen[id] = true
 		if a.rig == null:
@@ -427,7 +477,7 @@ func _build_overlay() -> void:
 			lab.position = Vector3(ctr.x, Levels.base_y(storey) + 1.4, ctr.y)
 			_labels.add_child(lab)
 		elif states.has(i):
-			c = Color(0, 0, 0, RoomVisibility.DIM[states[i]])
+			c = Color(0, 0, 0, RoomVisibility.DIM[states[i]] * (0.5 if fow != null and fow.active() else 1.0))   # Exp 012 (V): the fog of war darkens too
 		if c.a <= 0.01:
 			continue
 		quads += _add_cells(st, r["points"], c)

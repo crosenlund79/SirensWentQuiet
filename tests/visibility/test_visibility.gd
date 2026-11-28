@@ -102,6 +102,7 @@ func test_game_smoke_visibility_noise_and_stragglers() -> void:
 	var vis: Node = g.visibility
 	var w: HouseWorld = g.world
 	check(vis != null and g.noise != null, "the game has the visibility and noise helpers")
+	vis.fow.enabled = false          # Exp 012 (V): the room rules alone here (tests/e12/test_visibility.gd has the fog of war)
 	g.debug_teleport_player(LIVING_ROOM)
 	vis.refresh("test")
 	check(vis.here >= 0 and vis.states[vis.here] == RV.FULL, "Eli's room is fully visible (%s)" % vis.info())

@@ -8,6 +8,10 @@ extends Node3D
 ##   soft where it meets geometry, tinted by `set_night_amount`.
 ## - Walls: invisible boxes on physics layer 6 (lot_boundary). Only the player
 ##   collides with them; enemies walk in out of the fog.
+##   Exp 012 (V): no invisible wall at the lot edge any more (the user's §19):
+##   past it Eli slows gradually over FogBand.HOME_DEPTH m of fog (FogBand,
+##   the player's `move_band`), and the walls stand just beyond that band, a
+##   safety net he never reaches at walking speed. Turning back is immediate.
 ## - Look (Experiment 004, northern atmosphere): a cold palette (COLD) and
 ##   `set_aurora_tint(a)`, which greens the night bank under the northern lights.
 ## - Interaction: `prompt_text()` is non-empty while the player stands within
@@ -23,6 +27,7 @@ const WALL_LAYER := 1 << 5                ## physics layer 6
 const WALL_THICKNESS := 1.0
 const WALL_HEIGHT := 3.0
 const RETURN_INSET := 1.6                 ## return_point: this far inside the edge
+const WALL_OUTSET := FogBand.HOME_DEPTH + 0.3   ## Exp 012 (V): the safety walls stand this far past the lot edge
 const RETURN_CLEARANCE := 0.4
 
 const CARD_SHADER := preload("res://src/expedition/shaders/fog_card.gdshader")
@@ -77,6 +82,8 @@ var _invite := 0.0
 func setup(p: Node3D, env: Environment) -> void:
 	player = p
 	environment = env
+	if p != null and "move_band" in p:
+		p.set("move_band", FogBand.for_home())   # Exp 012 (V): slow down into the fog
 	if environment != null and use_volumetric:
 		_configure_environment()
 
@@ -93,10 +100,11 @@ func _ready() -> void:
 
 func _build_walls() -> void:
 	var t := WALL_THICKNESS
-	for r in [Rect2(LOT.position.x - t, LOT.position.y - t, LOT.size.x + 2 * t, t),
-			Rect2(LOT.position.x - t, LOT.end.y, LOT.size.x + 2 * t, t),
-			Rect2(LOT.position.x - t, LOT.position.y, t, LOT.size.y),
-			Rect2(LOT.end.x, LOT.position.y, t, LOT.size.y)]:
+	var L := LOT.grow(WALL_OUTSET)          # Exp 012 (V): beyond the slowing band
+	for r in [Rect2(L.position.x - t, L.position.y - t, L.size.x + 2 * t, t),
+			Rect2(L.position.x - t, L.end.y, L.size.x + 2 * t, t),
+			Rect2(L.position.x - t, L.position.y, t, L.size.y),
+			Rect2(L.end.x, L.position.y, t, L.size.y)]:
 		var body := StaticBody3D.new()
 		body.name = "LotWall"
 		body.collision_layer = WALL_LAYER

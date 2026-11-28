@@ -409,6 +409,7 @@ func _build() -> void:
 	_build_e12_s_audio_section(_tab("Audio"))   # Exp 012 (S)
 	_build_e12_g_section(_tab("Enemies"))   # Exp 012 (G)
 	_build_e12_l_section(_tab("POIs"))   # Exp 012 (L)
+	_build_e12_v_section(_tab("Debug"))   # Exp 012 (V)
 
 
 # --- Exp 012 (A): the tabbed shell --------------------------------------------
@@ -1562,3 +1563,34 @@ func _siege_call(method: String) -> void:
 		_say("Sieges only happen at home.", true)
 		return
 	_say(str(h.call(method)))
+
+
+# --- Exp 012 (V): the fog of war (src/visibility/fog_of_war.gd, game.visibility.fow) ------------
+
+func _build_e12_v_section(box: VBoxContainer) -> void:
+	var vis = game.get("visibility") if game != null else null
+	if vis == null or vis.get("fow") == null:
+		return
+	var fow: FogOfWar = vis.fow
+	box.add_child(UiTheme.make_section("Fog of war & vision"))
+	box.add_child(_grid(2, [["Fog of war on/off", func(): _say(fow.dev_toggle())],
+		["Reveal all (dev)", func(): _say(fow.dev_reveal_all())],
+		["Reset discovered", func(): _say(fow.dev_reset())],
+		["Vision debug overlay", func(): _say(fow.dev_toggle_debug())],
+		["Fog of war info", func(): _say(fow.info())]]))
+	var row := HBoxContainer.new()
+	var lab := UiTheme.make_caption("Vision cone %d°" % int(fow.cone_deg), 150, UiTheme.TEXT)
+	row.add_child(lab)
+	var sl := HSlider.new()
+	sl.name = "ConeSlider"
+	sl.min_value = 60
+	sl.max_value = 360
+	sl.step = 10
+	sl.value = fow.cone_deg
+	sl.focus_mode = Control.FOCUS_NONE
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.value_changed.connect(func(v: float):
+		fow.dev_set_cone(v)
+		lab.text = "Vision cone %d°" % int(v))
+	row.add_child(sl)
+	box.add_child(row)

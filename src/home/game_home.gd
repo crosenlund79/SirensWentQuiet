@@ -310,6 +310,8 @@ func _process(delta: float) -> void:
 func _save() -> void:
 	var d := electrical.to_dict()
 	d["fire"] = fireplace.lit if fireplace != null else true
+	if state.home.has("seen"):
+		d["seen"] = state.home["seen"]     # Exp 012 (V): the fog of war's memory lives here too
 	state.home = d
 
 
