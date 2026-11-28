@@ -500,8 +500,7 @@ func _rebuild_list() -> void:
 			cap = "overrun"
 		elif id == state.region.planned and origin == MapInfo.HOME:
 			cap = "planned"
-		elif not is_home and id != origin and PoiState.mostly_searched(state, id):
-			cap = "searched · " + cap         # Exp 012 (L, §28): informational only
+
 		var b := UiTheme.make_button("    " + name, cap)
 		b.custom_minimum_size.y = 32
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -526,6 +525,11 @@ func _rebuild_list() -> void:
 			if cl != null:
 				cl.add_theme_color_override("font_color", UiTheme.BAD)
 			b.tooltip_text = DailySites.OVERRUN_LINE
+		if not is_home and not overrun and id != origin and PoiState.mostly_searched(state, id):
+			b.tooltip_text = PoiState.mostly_line(state, id)        # Exp 012 (L, §28): informational only
+			if cl != null:
+				cl.text = "✓ " + cl.text
+				cl.add_theme_color_override("font_color", UiTheme.TEXT_FAINT)
 		b.pressed.connect(select.bind(id, true))
 		_list_box.add_child(b)
 		_list_buttons[id] = b

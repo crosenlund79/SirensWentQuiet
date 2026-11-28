@@ -366,3 +366,25 @@ func test_mostly_searched_at_eighty_percent() -> void:
 	var e: Array = map.markers.entries.filter(func(x): return x["id"] == "hardware")
 	check(not e.is_empty() and bool(e[0].get("mostly", false)), "the map marks it")
 	map.close()
+
+
+func test_inventory_rows_are_one_line_with_details_on_selection() -> void:
+	var s := GameState.new_run(6)
+	var inv: InventoryPanel = add(InventoryPanel.new())
+	inv.open(s)
+	await frames(3)
+	var row: Control = inv.find_child("Row_canned_food", true, false)
+	if not check(row != null, "a row"):
+		return
+	check(row.tooltip_text.contains(str(Items.DEFS["canned_food"]["desc"])), "the description is the tooltip")
+	check(row.find_children("*", "Label", true, false).all(func(l): return not (l as Label).text.contains(str(Items.DEFS["canned_food"]["desc"]))), "and not a paragraph in the row")
+	check(row.size.y <= ItemRows.ROW_H + 6.0, "one line (%.0f px)" % row.size.y)
+	var h0: float = inv._panel.size.y
+	(inv.use_button("canned_food") as Button).grab_focus()
+	await frames(1)
+	var det: Label = inv.find_child("Details", true, false)
+	check(det != null and det.text.contains("Canned food"), "selection shows the details: %s" % (det.text if det != null else "-"))
+	inv.show_tab("equipment")
+	await frames(2)
+	check(absf(inv._panel.size.y - h0) < 1.0 and absf(h0 - InventoryPanel.HEIGHT) < 1.0, "the same fixed size on every tab (%.0f)" % inv._panel.size.y)
+	inv.close()
