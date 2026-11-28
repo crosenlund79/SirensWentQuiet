@@ -235,7 +235,7 @@ This audit checks every requirement in the user's Experiment 012 message (record
 | New models don't break in hordes | COMPLETE | `test_characters` stress run |
 | The project launches | COMPLETE | Headless boot of the menu and the game |
 | An existing save loads | COMPLETE | **Lead:** a save written by the `playtest/exp011` build loads with Continue and re-saves |
-| Move, scavenge, fight, return home | COMPLETE | Existing suites (first week, scenarios) — FULL_SUITE |
+| Move, scavenge, fight, return home | COMPLETE | Full suite on the integrated branch: 672 passed, 1 failed (a test expectation, fixed), 1 skipped |
 | All four encounters from F10, with control returning | COMPLETE | `test_story` |
 | Story state survives saving | COMPLETE | `test_story` |
 | A siege starts and can be survived | PARTIAL | It starts (`test_siege`); survivability needs a human |

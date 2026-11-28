@@ -259,7 +259,7 @@ This file **records** decisions and approvals; it never grants them. Only the us
 
 ## Current approved objective: "The World Is Watching" (Experiment 012)
 
-**Status: Approved by the user's message of 2026-11-26 ("Experiment 012 — The World Is Watching", autonomous, delivery-oriented, minimal testing); in progress.** Branch `exp012/the-world-is-watching` from `exp011/faces-of-madness` (`1ed8ba2`); baseline and recovery point `playtest/exp011-faces-of-madness`. Record: `docs/experiment-012/ASSIGNMENT.md`; contracts: `docs/experiment-012/SPEC.md`.
+**Status: Approved by the user's message of 2026-11-26 ("Experiment 012 — The World Is Watching", autonomous, delivery-oriented, minimal testing). The first pass was interrupted by an API spending limit; the user's message of 2026-11-28 ("Experiment 012 — Completion Audit & Final Delivery") asked to audit, finish, verify and deliver it. Delivered 2026-11-28 on the branch and as `playtest/exp012-the-world-is-watching` with a Windows build artifact (report: `docs/experiment-012/REPORT.md`; audit: `docs/experiment-012/COMPLETION_AUDIT.md`); awaiting the user's playtest.** Branch `exp012/the-world-is-watching` from `exp011/faces-of-madness` (`1ed8ba2`); baseline and recovery point `playtest/exp011-faces-of-madness`. Record: `docs/experiment-012/ASSIGNMENT.md`; contracts: `docs/experiment-012/SPEC.md`.
 
 - **Scope (one combined milestone):**
   - Chapter One "Someone Is Watching": four Architect encounters (The Visitor, The Observer, The Warning, The Last Courtesy), the four-ropes aftermath, persistent story state, strict secrecy (including the main-menu audio leak);

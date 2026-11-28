@@ -2,7 +2,7 @@
 
 *Working title.* Present day, after something nobody can explain. The grid is gone, the radio is silent and nobody has heard from another sane human since the sirens went quiet. You still have the house.
 
-This repository holds **Experiment 011 — Faces of Madness** (handcrafted voxel people: Eli from Experiment 010 and every enemy), built on Experiment 009 (The World Never Stands Still), Experiment 008 (The First Week), Experiment 007 (The House Has Ears / Beyond the Front Door), Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
+This repository holds **Experiment 012 — The World Is Watching** (Chapter One of the story, coordinated sieges, fog of war, named enemies and their bodies), built on Experiment 011 (Faces of Madness: handcrafted voxel people), Experiment 009 (The World Never Stands Still), Experiment 008 (The First Week), Experiment 007 (The House Has Ears / Beyond the Front Door), Experiment 006 (Defensive Living), Experiment 005 (A House Worth Living In), Experiment 004 (Make This House a Home), Experiment 003 (Foundations of Survival) and Experiment 002 (The First Days). The house is your progression: scavenge, demolish, rebuild, reinforce, furnish, expand up to five levels and keep it running. It is a survival game about one house on one lot, ringed by dense fog. **Experiment 001** (three ways to build a destructible house) is kept as history under *Visual Experiments*.
 
 The loop: **wake → assess needs → plan on the map → scavenge → return home → build and prepare → survive the night → sleep → repeat.**
 
@@ -32,6 +32,11 @@ You wake on Day 1 at 07:00 with a loaded handgun and no spare rounds, a little f
   - A backpack carries half as much again.
   - A flashlight and a crowbar open places and choices on expeditions.
 - **Weapons:** handgun (9 mm, magazine) and shotgun (shells loaded one by one, a spread of pellets). The shotgun is found while scavenging.
+- **The World Is Watching (Experiment 012):**
+  - Someone is watching the house. Chapter One unfolds over the first weeks, at night, in Eli's own bedroom; after it, some nights the attackers come organised: they surround the house, block the doors and barricade Eli in. F10 → Story replays every scene; F10 → Enemies starts a siege.
+  - Whole hordes arrive at once. Psychos scream when they see Eli and charge; the scream draws others. Every psycho has a name, and the bodies stay where they fall and can be searched.
+  - You only see what Eli sees: fog of war, walls block sight, and his view follows where he looks. A faint pulse at the screen's edge warns of someone very close behind.
+  - Walk or drive across open land on the map; locked rooms are double-walled; loot windows keep their size; places that are mostly searched are marked. Settings → Graphics has Low/Medium/High/Ultra and a frame-rate display (F3).
 - **Faces of Madness (Experiments 010 and 011):** Eli and every enemy are handcrafted voxel people. The ordinary psychos are 30 different people (each keeps the same face when you come back or load), runners are starved and thin, brutes are about 2.4 m tall and duck through doors, and bombers are ordinary people wearing the glowing pack. Main menu → Visual Experiments → **D Character Showroom** (or F10 → Character) shows them all, side by side with Eli.
 - **The world never stands still (Experiment 009):**
   - Every day 4–6 places are open; the others are **overrun** ("too many hostiles to approach safely") and may open again later. Pine Woods is always open.
@@ -225,6 +230,7 @@ The logical names are listed in `docs/experiment-002/audio.md`, `docs/experiment
 
 ## Docs
 
+- `docs/experiment-012/REPORT.md`: the Experiment 012 report; `COMPLETION_AUDIT.md` (every requirement's status and evidence), `STORY.md` (the chapter's staging); `docs/audio/AUDIO_REQUIREMENTS.md` (missing recordings and triggers)
 - `docs/experiment-011/REPORT.md`: the Experiment 011 report (voxel people for every enemy, the showroom); `HUMANOIDS.md` (how to add a humanoid)
 - `docs/experiment-010/REPORT.md`: the Experiment 010 report (the handcrafted voxel Eli)
 - `docs/experiment-009/REPORT.md`: the Experiment 009 report (two-stage POI generation, archetypes, daily availability, exteriors, stashes, apartments, dormant psychos, loading; scenarios A–H)
