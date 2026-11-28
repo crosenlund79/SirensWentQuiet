@@ -490,7 +490,7 @@ func throw_ropes(from: Vector3, to: Vector3, count := 2, delay := 0.0) -> void:
 		tw.tween_interval(delay + 0.12 * i)
 		tw.tween_method(func(x: float) -> void:
 			if is_instance_valid(coil):
-				coil.position = from.lerp(land, x) + Vector3(0, sin(x * PI) * 0.55, 0)
+				coil.position = from.lerp(land, x) + Vector3(0, sin(x * PI) * 0.95, 0)
 				coil.rotation = Vector3(x * 5.0, x * 2.0, 0.0), 0.0, 1.0, dur)
 		tw.tween_property(coil, "scale", Vector3(0.6, 0.3, 0.6), 1.6)
 		tw.tween_callback(coil.queue_free)
