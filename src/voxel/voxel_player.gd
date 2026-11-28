@@ -27,6 +27,12 @@ var sprinting := false
 var _last_pos := Vector3.INF          ## Refinement 01: last frame's position, for the gait
 ## Refinement 01: the camera's yaw (rad); WASD moves relative to the screen.
 var move_yaw := 0.0
+## Exp 012 (§31): whether the gun's own light (weapon_light) shines by itself
+## at night. The demos keep it; the survival game turns it off and its one
+## beam is the flashlight in hand (GameHotbar), so Eli never starts with a
+## cone lit and a flashlight never adds a second one. The soft self light
+## (ambient night visibility around him) stays either way.
+var auto_beam := true
 ## Exp 010: which figure carries the player ("eli" / "original", GameSettings
 ## "character" + "eli_variant"); a settings change swaps it live (swap_rig).
 var character_key := ""
@@ -112,10 +118,19 @@ func plan_pos() -> Vector2:
 
 
 func set_night(t: float) -> void:
-	weapon_light.light_energy = 2.6 * t
-	weapon_light.visible = t > 0.01
+	weapon_light.light_energy = 2.6 * t if auto_beam else 0.0
+	weapon_light.visible = auto_beam and t > 0.01
 	self_light.light_energy = 0.5 * t
 	self_light.visible = t > 0.01
+
+
+## Exp 012 (§31): hands the beam to the equipment (see auto_beam); the self
+## light reaches a little further to keep the ambient night visibility.
+func use_handheld_beam() -> void:
+	auto_beam = false
+	weapon_light.visible = false
+	weapon_light.light_energy = 0.0
+	self_light.omni_range = 4.2
 
 
 func _physics_process(delta: float) -> void:

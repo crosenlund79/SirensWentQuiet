@@ -45,6 +45,8 @@ func setup(g: Node) -> void:
 	light.shadow_bias = 0.05
 	light.visible = false
 	game.add_child(light)
+	if game.player != null and game.player.has_method("use_handheld_beam"):
+		game.player.use_handheld_beam()       # Exp 012 (§31): this is Eli's only beam
 	reset()
 
 
@@ -166,6 +168,8 @@ func _apply_hand() -> void:
 		w.holstered = true
 	if id != "flashlight":
 		light_on = false
+	elif _hand != "flashlight":
+		light_on = true                       # Exp 012 (§31): taking the flashlight in hand switches it on
 	var rig: VoxelRig = game.player.rig if game.player != null else null
 	if rig != null:
 		var kind := ""
@@ -261,13 +265,29 @@ func _process(_delta: float) -> void:
 	if game == null or not game._ok:
 		return
 	if light.visible and game.player != null:
-		var rig: VoxelRig = game.player.rig
-		var from := rig.hand_global()
-		var to: Vector3 = game.player.aim_point
-		if from.distance_to(to) > 0.3:
-			light.global_position = from
-			light.look_at(to, Vector3.UP)
+		aim_beam()
 	_refresh_view(false)
+
+
+## Exp 012 (§31): the beam leaves the hand toward the aim point (Eli's facing
+## when the aim is too close to give a direction).
+func aim_beam() -> void:
+	var rig: VoxelRig = game.player.rig
+	var from := rig.hand_global()
+	var to: Vector3 = game.player.aim_point
+	if Vector2(to.x - from.x, to.z - from.z).length() < 0.6:
+		var f := -rig.global_transform.basis.z
+		to = from + Vector3(f.x, -0.35, f.z) * 4.0
+	light.global_position = from
+	light.look_at(to, Vector3.UP)
+
+
+## Exp 012 (§31): the lights that shine from Eli right now: the beams
+## ("flashlight", "weapon") and the ambient self light (F10, tests).
+func beams() -> Dictionary:
+	var p: Node = game.player
+	return {"flashlight": light.visible, "weapon": p != null and p.weapon_light.visible,
+		"self": p != null and p.self_light.visible, "count": int(light.visible) + int(p != null and p.weapon_light.visible)}
 
 
 func _refresh_view(_force: bool) -> void:
