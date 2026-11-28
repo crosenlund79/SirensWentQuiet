@@ -244,7 +244,7 @@ This audit checks every requirement in the user's Experiment 012 message (record
 | No duplicate flashlight | COMPLETE | `test_characters` |
 | Characters intact | COMPLETE | `test_characters` |
 | No story audio in menus | COMPLETE | `test_audio_leak`; exported-menu log |
-| The Windows build starts | BLOCKED | There is no Windows machine here; the build itself is from GitHub Actions — BUILD |
+| The Windows build starts | BLOCKED | There is no Windows machine here. The build succeeded on GitHub Actions (run 11, artifact 15244386250) |
 
 ## Unresolved items
 

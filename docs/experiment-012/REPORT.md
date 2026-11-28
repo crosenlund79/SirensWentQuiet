@@ -23,7 +23,7 @@ The first pass was cut off by an API spending limit. Every agent was then resume
 
 ## 1. Branch and commit
 
-`exp012/the-world-is-watching` at COMMIT; the checkpoint is at the same commit.
+The checkpoint `playtest/exp012-the-world-is-watching` and the build are at `10fc741`. The branch `exp012/the-world-is-watching` adds only this report's build link on top.
 
 ## 2. What is new
 
@@ -209,7 +209,7 @@ BLOCKED: starting the Windows build on Windows, since there is no Windows machin
 
 ## 16. Windows build
 
-BUILD
+GitHub Actions run 11 succeeded for `playtest/exp012-the-world-is-watching` (`10fc741`). Artifact `SirensWentQuiet-windows-10fc741…` (an 85 MB portable win-x64 ZIP with the EXE and all resources, kept until 2026-12-28): https://github.com/crosenlund79/SirensWentQuiet/actions/runs/46098273712/artifacts/15244386250 (run page: https://github.com/crosenlund79/SirensWentQuiet/actions/runs/46098273712). It wasn't started on Windows by Claude: there is no Windows machine here.
 
 ## Screenshots (`shots/`)
 
