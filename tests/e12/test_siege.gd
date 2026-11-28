@@ -108,24 +108,35 @@ func test_e12_siege_groups_tactics_goals_and_story() -> void:
 	var s: GameState = g.debug_state()
 	# eligibility: no story -> no siege; the documented keys (or StoryState)
 	check(not SiegeStory.eligible(s), "a fresh run is not siege-eligible")
-	if SiegeStory.story_state() == null:
+	var ss: Variant = SiegeStory.story_state()
+	if ss == null:
+		# without agent S's StoryState: the documented keys, read defensively
 		s.set_meta("story", {"ch1": {"done": [1, 2, 3], "next": 4, "siege_at": -1.0, "sieges": 0}})
 		check(not SiegeStory.eligible(s) and SiegeStory.introduced(s), "before Encounter 4: no siege (introduced)")
 		SiegeStory.ch1(s)["done"] = [1, 2, 3, 4]
 		SiegeStory.ch1(s)["siege_at"] = s.total_minutes + 60.0
 		check(not SiegeStory.eligible(s), "Encounter 4 done, the delay not over yet")
 		s.total_minutes += 61.0
-		check(SiegeStory.eligible(s), "eligible after the delay")
-		g.dev_trigger_invasion()
-		check(siege.active and siege.counted, "the invasion slot became an organised siege")
-		check_eq(SiegeStory.sieges(s), 1, "the siege was noted in the story state")
-		check(not SiegeStory.eligible(s), "and the next waits")
-		check_eq(g.last_toast, SiegeDirector.BANNER, "the organised banner")
 	else:
-		check_eq(siege.dev_siege().begins_with("Siege"), true, "F10 starts a siege")
+		# StoryState (agent S): Encounter 4 schedules the first siege after a delay
+		ss.complete(s, 4)
+		check(not SiegeStory.eligible(s) and SiegeStory.introduced(s), "Encounter 4 done, the delay not over yet")
+		ss.make_siege_eligible_now(s)
+	check(SiegeStory.eligible(s), "eligible after the delay")
+	g.dev_trigger_invasion()
+	check(siege.active and siege.counted, "the invasion slot became an organised siege")
+	check_eq(SiegeStory.sieges(s), 1, "the siege was noted in the story state")
+	check(not SiegeStory.eligible(s), "and the next waits")
+	check_eq(g.last_toast, SiegeDirector.BANNER, "the organised banner")
 	if not check(siege.active, "a siege runs"):
 		return
 	check(await _wait_until(func(): return not siege._pending, 30), "all members joined their groups")
+	if SiegeStory.introduced(s):
+		var w: Node = g.get_node_or_null("SiegeWatcher")
+		check(w != null and not w in g.debug_roster().enemies, "he watches from the fog: a figure, not an attacker")
+		if w != null:
+			var wp := Vector2(w.global_position.x, w.global_position.z)
+			check(not FogBoundary.LOT.has_point(wp), "out in the fog (%s)" % wp)
 	var d = g.debug_director()
 	check(d.all_spawned() and g.debug_roster().invaders_alive() == d.total, "the whole siege exists at once (%d)" % d.total)
 	check(siege.groups.size() >= 3, "3-4 approach groups (%d)" % siege.groups.size())
@@ -148,6 +159,8 @@ func test_e12_siege_groups_tactics_goals_and_story() -> void:
 			var e: AIEnemy = gr["members"][k]
 			var spot: Vector2 = siege._rally_spot(gr, k, (gr["members"] as Array).size())
 			e.global_position = Vector3(spot.x, 0, spot.y)
+	for gr in siege.groups:
+		gr["t"] = SiegeDirector.ENCIRCLE_MIN      # they have gathered long enough
 	siege.update(0.3)
 	siege.update(0.3)
 	var states := siege.groups.map(func(gr): return gr["state"])
@@ -164,6 +177,7 @@ func test_e12_siege_groups_tactics_goals_and_story() -> void:
 	siege.set_markers(false)
 	g.debug_kill_enemies()
 	check(await _wait_until(func(): return not siege.active, 120), "the siege ends with the invasion")
+	check(g.get_node_or_null("SiegeWatcher") == null or g.get_node("SiegeWatcher").is_queued_for_deletion(), "the watcher leaves with the siege")
 	check(not g.debug_director().active, "the invasion ended")
 
 
@@ -207,6 +221,14 @@ func test_e12_trap_barricade_in_a_doorway_and_destroyed() -> void:
 	# saved with the house (uid kept)
 	var saved: Array = world.save_data()["objects"]
 	check(saved.any(func(e): return str(e.get("uid", "")).begins_with(EnemyBarricades.UID_PREFIX)), "saved with the house")
+	var w2 := HouseWorld.new()
+	add(w2)
+	check(w2.load_data(world.save_data()), "the house loads back")
+	var back := EnemyBarricades.all_in(w2)
+	check(back.size() == 1 and back[0].hp == o.hp and not back[0].built, "the enemy barricade persists through a load")
+	EnemyBarricades.harden(w2)
+	check(back.size() == 1 and (back[0].body.collision_layer & EnemyBarricades.SHOT_LAYER) != 0, "and still stops bullets")
+	w2.queue_free()
 	# counterplay: bullets damage it, enough of them break it
 	var hp := o.hp
 	world.shoot(Vector3(1.0, 1.2, 1.0), Vector3(o.pos.x - 1.0, -0.4, o.pos.y - 1.0), [g.player])

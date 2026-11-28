@@ -24,7 +24,9 @@ extends Node
 ##             psychos with them; once it is open they pour in (pressure);
 ##   contain   psychos hold outside the outer exits (doors, open doorways,
 ##             breaches), covering Eli's escape routes;
-##   pressure  runners harass: they hunt Eli directly while the brutes push;
+##   pressure  runners (and the psychos once a breach is open) harass in
+##             waves: at Eli for HARASS_IN s or two blows, then FALL_BACK m
+##             off for HARASS_BACK s, and again; the brutes just push;
 ##   trap      when Eli (as they perceive him) stays in an inner room, the
 ##             nearest members go to its exits: at an empty doorway one works
 ##             for WORK_TIME s (hammering) and puts up a wooden barricade
@@ -59,7 +61,11 @@ const DISENGAGE := 10.0          ## m: and goes back to its post beyond this
 const RALLY_OUT := 3.2           ## m outside the house's wall line
 const RALLY_SPREAD := 3.5        ## m along the wall between rally spots
 const GATHER := 0.6              ## share of a group at its rally spots before it goes on
-const ENCIRCLE_MAX := 20.0       ## s at most before a group goes on to its tactic
+const ENCIRCLE_MIN := 8.0        ## s a group gathers at least (so the sides push together)
+const ENCIRCLE_MAX := 22.0       ## s at most before a group goes on to its tactic
+const HARASS_IN := 6.0           ## s a harasser goes at Eli (or until it landed two blows) ...
+const HARASS_BACK := 5.0         ## s ... before it falls back this long
+const FALL_BACK := 6.0           ## m from Eli it falls back to
 const HOLD_OUT := 1.6            ## m outside an outer exit
 const TRAP_AFTER := 4.0          ## s Eli stays (perceived) in an inner room before they trap it
 const FRESH := 25.0              ## s a sighting stays good enough for a trap
@@ -101,6 +107,7 @@ var _member := {}                ## enemy instance id -> {"enemy", "group", "tac
 var _markers: SiegeMarkers
 var _watcher: Node3D
 var _rng := RandomNumberGenerator.new()
+var _throttle_t := 0.0
 
 
 func setup(g: Node) -> void:
@@ -310,7 +317,13 @@ func end(reason := "") -> void:
 # --- per frame -------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
-	if game == null or not active:
+	if game == null:
+		return
+	if not active:
+		_throttle_t -= delta
+		if _throttle_t <= 0.0 and game.director.active:      # a normal invasion: far members stay cheap too
+			_throttle_t = 1.0
+			Director.throttle(game.roster.threats(), _eli())
 		return
 	if _pending:
 		var d = _director()
@@ -516,7 +529,7 @@ func _run_group(g: Dictionary, dt: float) -> void:
 				_post(e, spot, "encircle")
 				if e.plan_pos().distance_to(spot) < 2.0:
 					at += 1
-			if float(at) >= GATHER * members.size() or float(g["t"]) >= ENCIRCLE_MAX:
+			if (float(at) >= GATHER * members.size() and float(g["t"]) >= ENCIRCLE_MIN) or float(g["t"]) >= ENCIRCLE_MAX:
 				g["state"] = g["role"]
 				g["t"] = 0.0
 				_log("%s group (%d): %s" % [str(g["side"]).capitalize(), members.size(), g["role"]])
@@ -524,9 +537,41 @@ func _run_group(g: Dictionary, dt: float) -> void:
 			_run_breach(g)
 		"pressure":
 			for e in members:
-				_post(e, Vector2.INF, "pressure")
+				_harass(g, e, dt)
 		"contain":
 			_run_contain(g)
+
+
+## Pressure: runners and psychos harass in waves (go at Eli, land a blow or
+## two, fall back a few metres, come again); brutes just push.
+func _harass(g: Dictionary, e: AIEnemy, dt: float) -> void:
+	var m: Dictionary = _member.get(e.get_instance_id(), {})
+	if m.is_empty() or m.get("trap", false):
+		return
+	if e.kind == "brute":
+		_post(e, Vector2.INF, "pressure")
+		return
+	var h: Dictionary = m.get("harass", {})
+	if h.is_empty():
+		h = {"phase": "in", "t": 0.0, "sw": int(e.swings["player"])}
+		m["harass"] = h
+	h["t"] = float(h["t"]) + dt
+	if h["phase"] == "in":
+		_post(e, Vector2.INF, "pressure")
+		if int(e.swings["player"]) >= int(h["sw"]) + 2 or float(h["t"]) >= HARASS_IN:
+			var eli := _eli()
+			var away := (e.plan_pos() - eli).normalized()
+			if away == Vector2.ZERO:
+				away = ((g["rally"] as Vector2) - eli).normalized()
+			h["spot"] = _walkable_near(eli + away * FALL_BACK)
+			h["phase"] = "back"
+			h["t"] = 0.0
+	else:
+		_post(e, h["spot"], "pressure")
+		if float(h["t"]) >= HARASS_BACK:
+			h["phase"] = "in"
+			h["t"] = 0.0
+			h["sw"] = int(e.swings["player"])
 
 
 func _rally_spot(g: Dictionary, k: int, n: int) -> Vector2:
@@ -725,8 +770,8 @@ func _engage() -> void:
 	var nav := _world().nav
 	for m in _member.values():
 		var e: AIEnemy = m["enemy"]
-		if e.kind == "bomber" or m["post"] == Vector2.INF:
-			continue
+		if e.kind == "bomber" or m["post"] == Vector2.INF or m["tactic"] == "pressure":
+			continue                         # harassers come and go on their own rhythm
 		var d := e.plan_pos().distance_to(eli)
 		if not m["engaged"]:
 			var reach := ENGAGE_TRAP if m.get("trap", false) else ENGAGE
