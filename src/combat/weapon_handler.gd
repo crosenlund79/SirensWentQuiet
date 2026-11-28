@@ -54,6 +54,17 @@ var _reload_t := 0.0
 var _shown := "-"                 ## weapon whose look is on the rig ("-" = none applied yet)
 var _shown_gun: Node3D            ## Exp 010: the gun node it was applied to
 var _range_arg := -1              ## does world.shoot take a 5th (range) argument? -1 = not checked
+## Exp 013: aiming down the sights (RMB, set by the game): tighter spread,
+## steadier hold, softer kick; the rig raises the gun (EliRig.ads).
+var ads := false
+## Exp 013: F10 "Shot trajectories": every pellet's line stays drawn a moment.
+static var debug_traces := false
+var _cycle_left := 0.0            ## s until the pump / bolt works after a shot (0 = none pending)
+var _cycle_id := ""
+var _cycle_anim := 0.0            ## 0..1 through the pump / bolt stroke (0 = at rest)
+var _cycle_len := 0.0
+var _ads_blend := 0.0
+var last_shot := {}               ## Exp 013: {"origin", "muzzle", "dir", "dirs"} of the last trigger pull (tests, debug)
 
 
 func setup(s: GameState, w: Node, p: Node3D) -> void:
@@ -82,6 +93,8 @@ func tick(delta: float) -> void:
 		_advance_reload(delta)
 	if state != null and (current_id() != _shown or _gun() != _shown_gun):
 		_apply_visual()           # Exp 010: also after the player's rig was swapped
+	_tick_cycle(delta)
+	_tick_rig(delta)
 
 
 # --- queries ---------------------------------------------------------------------------
@@ -164,25 +177,33 @@ func try_fire(aim_point: Vector3) -> Dictionary:
 		return res
 	_cooldown = float(d["interval"])
 	shots += 1
-	var origin := _origin()
-	var dir := aim_point - origin
-	if Vector2(dir.x, dir.z).length() < 0.3:
-		dir = _facing()
-		dir.y = -0.3
-	dir = dir.normalized()
+	# Exp 013: every shot leaves the gun's real muzzle and flies level (at the
+	# gun's height) towards the aim, until something stops it (RANGE).
 	var muzzle := _muzzle_global(d)
+	var dir := shot_dir(aim_point, muzzle)
+	var origin := shot_origin(muzzle, dir)
 	var exclude := []
 	if player != null and player.has_method("get_rid"):
 		exclude.append(player.get_rid())
 	var hits := []
-	for pd in WeaponDefs.pellet_dirs(dir, int(d["pellets"]), float(d["spread"]), rng):
-		hits.append(_pellet(origin, pd, float(d["range"]), int(d["damage"]), exclude, muzzle))
+	var dirs := []
+	var spread := float(d.get("spread_ads", d["spread"])) if ads else float(d["spread"])
+	for pd in WeaponDefs.pellet_dirs(dir, int(d["pellets"]), spread, rng):
+		pd = Vector3(pd.x, pd.y * 0.35, pd.z).normalized()     # a flatter pattern: fewer pellets straight into the floor
+		dirs.append(pd)
+		hits.append(_pellet(origin, pd, float(d.get("range", WeaponDefs.RANGE)), int(d["damage"]), exclude, muzzle))
+	last_shot = {"origin": origin, "muzzle": muzzle, "dir": dir, "dirs": dirs, "id": id}
 	var fx = world.get("fx") if world != null else null
 	if fx != null:
 		fx.muzzle(muzzle)
-		fx.casing(muzzle - dir * float(d.get("casing_back", 0.15)), _side())
+		if str(d.get("eject", "fire")) == "fire":
+			_eject(d)
+	if str(d.get("eject", "fire")) == "cycle" and float(d.get("cycle", 0.0)) > 0.0:
+		_cycle_id = id
+		_cycle_left = float(d["cycle"])
 	if player != null and player.has_method("on_fired"):
 		player.on_fired()
+	_kick(d)
 	_play_first(d["fire_sound"], muzzle, float(d.get("fire_db", 0.0)))
 	_enemy_sounds(hits, muzzle)
 	res["ok"] = true
@@ -200,19 +221,8 @@ func _pellet(origin: Vector3, dir: Vector3, rng_m: float, dmg: int, exclude: Arr
 	if world == null or not world.has_method("shoot"):
 		return {"kind": "none", "pos": origin + dir * rng_m, "collider": null}
 	var r: Dictionary
-	if rng_m < Tuning.SHOT_RANGE - 0.01:
-		if _shoot_takes_range():
-			r = world.shoot(origin, dir, exclude, muzzle, rng_m)
-		else:
-			if world.has_method("aim_ray"):
-				var p: Vector3 = world.aim_ray(origin, dir)
-				if origin.distance_to(p) > rng_m:
-					var end := origin + dir * rng_m
-					var fx = world.get("fx")
-					if fx != null:
-						fx.tracer(muzzle, end)
-					return {"kind": "spent", "pos": end, "collider": null}
-			r = world.shoot(origin, dir, exclude, muzzle)
+	if _shoot_takes_range():
+		r = world.shoot(origin, dir, exclude, muzzle, rng_m)
 	else:
 		r = world.shoot(origin, dir, exclude, muzzle)
 	if str(r.get("kind", "")) == "enemy" and dmg > 1:
@@ -220,6 +230,8 @@ func _pellet(origin: Vector3, dir: Vector3, rng_m: float, dmg: int, exclude: Arr
 		for i in dmg - 1:
 			if is_instance_valid(e) and e.has_method("take_hit") and e.get("alive") != false:
 				e.take_hit(dir)
+	if debug_traces and world is Node3D:
+		ShotTraces.add(world as Node3D, muzzle, r.get("pos", origin + dir * rng_m), str(r.get("kind", "")))
 	return r
 
 
@@ -241,6 +253,98 @@ func _enemy_sounds(hits: Array, muzzle: Vector3) -> void:
 		Sfx.play("enemy/hit", h.get("pos", muzzle))
 		if e.get("alive") == false and e is Node3D:
 			Sfx.play("enemy/death", (e as Node3D).global_position)
+
+
+# --- Exp 013: aim, kick, the pump / bolt, the spent case ------------------------------------
+
+## The shot's direction: level (at the muzzle's height) from the muzzle to the
+## aim point's spot on the floor plan; the rig's facing when the aim is too close.
+func shot_dir(aim_point: Vector3, muzzle: Vector3) -> Vector3:
+	var to := aim_point - muzzle
+	to.y = 0.0
+	if to.length() < 0.4:
+		to = _facing()
+		to.y = 0.0
+	return to.normalized() if to.length() > 1e-4 else Vector3.FORWARD
+
+
+## Where the ray starts: on the line through the muzzle along `dir`, back at
+## the body's centre line, so a wall between Eli and his own muzzle (hugging
+## a wall) still stops the shot; Eli himself is excluded.
+func shot_origin(muzzle: Vector3, dir: Vector3) -> Vector3:
+	if player == null or not player.is_inside_tree():
+		return muzzle
+	var c := Vector3(player.global_position.x, muzzle.y, player.global_position.z)
+	var t := minf((c - muzzle).dot(dir), 0.0)
+	return muzzle + dir * t
+
+
+## The gun's kick on the rig (and how fast it settles); softer when aiming.
+func _kick(d: Dictionary) -> void:
+	var rig := _rig()
+	if rig == null:
+		return
+	var k := float(d.get("recoil", 1.0)) * (0.75 if ads else 1.0)
+	rig.set("recoil", k)
+	rig.set("recoil_recovery", float(d.get("recoil_recovery", 9.0)) * (1.25 if ads else 1.0))
+
+
+## The spent case (or shell) out of the ejection port, to the right.
+func _eject(d: Dictionary) -> void:
+	var fx = world.get("fx") if world != null else null
+	if fx == null:
+		return
+	var muzzle := _muzzle_global(d)
+	var back := _facing() * float(d.get("casing_back", 0.15))
+	if fx.has_method("casing_kind"):
+		fx.casing_kind(muzzle - back, _side(), str(d.get("casing", "pistol")))
+	else:
+		fx.casing(muzzle - back, _side())
+
+
+func _tick_cycle(delta: float) -> void:
+	if _cycle_id != "" and _cycle_id != current_id():
+		_cycle_id = ""                 # switched or holstered mid-cycle
+		_cycle_left = 0.0
+	if _cycle_left > 0.0:
+		_cycle_left -= delta
+		if _cycle_left <= 0.0 and _cycle_id != "":
+			var d := WeaponDefs.get_def(_cycle_id)
+			_cycle_len = maxf(float(d.get("cycle_time", 0.35)), 0.05)
+			_cycle_anim = 0.0001
+			_play_first(d.get("cycle_sound", []), _muzzle_global(d), -6.0)
+			_eject(d)
+			_cycle_id = ""
+	if _cycle_anim > 0.0:
+		_cycle_anim += delta / _cycle_len
+		if _cycle_anim >= 1.0:
+			_cycle_anim = 0.0
+
+
+## True while the pump / bolt is being worked after a shot (tests, the HUD).
+func cycling() -> bool:
+	return _cycle_left > 0.0 or _cycle_anim > 0.0
+
+
+## The rig's hold: aiming down the sights, the pump / bolt stroke, the reload tilt.
+func _tick_rig(delta: float) -> void:
+	_ads_blend = move_toward(_ads_blend, 1.0 if ads and current_id() != "" else 0.0, delta * 6.0)
+	var stroke := sin(PI * clampf(_cycle_anim, 0.0, 1.0)) if _cycle_anim > 0.0 else 0.0
+	var rig := _rig()
+	if rig != null:
+		rig.set("ads", _ads_blend)
+		rig.set("pump", stroke)
+		rig.set("work", 1.0 if is_reloading() else 0.0)
+	var gun := _gun()
+	var model := gun.get_node_or_null(MODEL_NAME) as Node3D if gun != null else null
+	if model != null:
+		var pump := model.get_node_or_null("Pump") as Node3D
+		if pump != null:
+			pump.position.y = float(pump.get_meta("rest_y", pump.position.y)) + 0.11 * stroke
+		var bolt := model.get_node_or_null("Bolt") as Node3D
+		if bolt != null:
+			bolt.position.y = float(bolt.get_meta("rest_y", bolt.position.y)) + 0.07 * stroke
+			bolt.rotation.y = -1.2 * minf(stroke * 2.0, 1.0)
 
 
 # --- reloading -------------------------------------------------------------------------
@@ -402,13 +506,17 @@ func _apply_visual() -> void:
 	var id := current_id()
 	var base := gun.get_child(0) as Node3D
 	var model := gun.get_node_or_null(MODEL_NAME) as Node3D
-	if id == "shotgun" and model == null:
-		model = shotgun_model()
+	if model != null and (id == "shotgun" or id == "rifle") and str(model.get_meta("weapon", "shotgun")) != id:
+		gun.remove_child(model)          # Exp 013: the long gun changed (shotgun <-> rifle)
+		model.free()
+		model = null
+	if (id == "shotgun" or id == "rifle") and model == null:
+		model = rifle_model() if id == "rifle" else shotgun_model()
 		gun.add_child(model)
 	if base != null and base != model:
 		base.visible = id == "handgun"
 	if model != null:
-		model.visible = id == "shotgun"
+		model.visible = id == "shotgun" or id == "rifle"
 	_shown = id
 	_shown_gun = gun
 
@@ -425,22 +533,57 @@ static func shotgun_model() -> Node3D:
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color(0.36, 0.23, 0.14)
 	wood.roughness = 0.8
+	root.set_meta("weapon", "shotgun")
 	for part in [
-		[Vector3(0.042, 0.62, 0.042), Vector3(0, -0.49, -0.005), metal],     # barrel
-		[Vector3(0.036, 0.5, 0.032), Vector3(0, -0.42, 0.036), metal],       # magazine tube
-		[Vector3(0.056, 0.2, 0.07), Vector3(0, -0.36, 0.045), wood],         # pump
-		[Vector3(0.055, 0.24, 0.08), Vector3(0, -0.08, 0.01), metal],        # receiver
-		[Vector3(0.045, 0.06, 0.1), Vector3(0, 0.0, 0.08), wood],            # grip
-		[Vector3(0.05, 0.3, 0.075), Vector3(0, 0.18, 0.04), wood],           # stock
+		[Vector3(0.042, 0.62, 0.042), Vector3(0, -0.49, -0.005), metal, ""],     # barrel
+		[Vector3(0.036, 0.5, 0.032), Vector3(0, -0.42, 0.036), metal, ""],       # magazine tube
+		[Vector3(0.058, 0.2, 0.074), Vector3(0, -0.36, 0.045), wood, "Pump"],    # pump (slides back, Exp 013)
+		[Vector3(0.055, 0.24, 0.08), Vector3(0, -0.08, 0.01), metal, ""],        # receiver
+		[Vector3(0.045, 0.06, 0.1), Vector3(0, 0.0, 0.08), wood, ""],            # grip
+		[Vector3(0.05, 0.3, 0.075), Vector3(0, 0.18, 0.04), wood, ""],           # stock
 	]:
-		var mi := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = part[0]
-		mi.mesh = box
-		mi.position = part[1]
-		mi.material_override = part[2]
-		root.add_child(mi)
+		_part(root, part[0], part[1], part[2], part[3])
 	return root
+
+
+## Exp 013: the hunting rifle in gun-node space (barrel along -Y to the muzzle
+## at y -0.92, a bolt handle on the right that works after each shot).
+static func rifle_model() -> Node3D:
+	var root := Node3D.new()
+	root.name = MODEL_NAME
+	root.set_meta("weapon", "rifle")
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color(0.12, 0.125, 0.13)
+	metal.roughness = 0.45
+	metal.metallic = 0.45
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.45, 0.28, 0.15)
+	wood.roughness = 0.75
+	for part in [
+		[Vector3(0.032, 0.62, 0.032), Vector3(0, -0.6, -0.008), metal, ""],      # long barrel
+		[Vector3(0.05, 0.46, 0.06), Vector3(0, -0.4, 0.03), wood, ""],           # fore-end
+		[Vector3(0.05, 0.22, 0.062), Vector3(0, -0.08, 0.004), metal, ""],       # receiver
+		[Vector3(0.022, 0.05, 0.05), Vector3(0.045, -0.05, 0.0), metal, "Bolt"], # bolt handle
+		[Vector3(0.035, 0.05, 0.03), Vector3(0, -0.1, 0.05), metal, ""],         # magazine
+		[Vector3(0.045, 0.07, 0.09), Vector3(0, 0.02, 0.075), wood, ""],         # grip
+		[Vector3(0.052, 0.32, 0.085), Vector3(0, 0.2, 0.045), wood, ""],         # stock
+		[Vector3(0.056, 0.03, 0.09), Vector3(0, 0.36, 0.045), metal, ""],        # butt plate
+	]:
+		_part(root, part[0], part[1], part[2], part[3])
+	return root
+
+
+static func _part(root: Node3D, size: Vector3, pos: Vector3, mat: Material, part_name: String) -> void:
+	var mi := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size
+	mi.mesh = box
+	mi.position = pos
+	mi.material_override = mat
+	if part_name != "":
+		mi.name = part_name
+		mi.set_meta("rest_y", pos.y)
+	root.add_child(mi)
 
 
 # --- sound -----------------------------------------------------------------------------

@@ -58,7 +58,7 @@ const EVENTS := {
 	"explosion": EXTREME,
 }
 ## Gunfire by weapon (handheld and agent S's turrets): weapon_level(id).
-const WEAPON_LEVELS := {"handgun": 4.0, "shotgun": 4.4}
+const WEAPON_LEVELS := {"handgun": 4.0, "shotgun": 4.4, "rifle": 4.6}
 const STOREY_DAMP := 0.5          ## radius factor between a basement and the storey above
 const LOG_MAX := 12
 

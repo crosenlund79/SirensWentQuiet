@@ -29,7 +29,7 @@ const NEED_LEVELS := [0, 25, 50, 100]
 const SUPPLY_PACKS := {
 	"food": {"canned_food": 3, "snacks": 2, "water": 4},
 	"ammo": {"ammo": 10},
-	"weapons": {"shotgun": 1, "shells": 10},
+	"weapons": {"shotgun": 1, "shells": 10, "rifle": 1, "rifle_rounds": 10},
 	"materials": {"wood": 20, "stone": 20, "iron": 10, "nails": 40, "scrap": 10},
 	"medical": {"bandage": 2, "medkit": 1},
 	"tools": {"hammer": 1, "crowbar": 1, "flashlight": 1, "backpack": 1},
@@ -198,6 +198,23 @@ func set_difficulty(level: String) -> void:
 	elif state != null:
 		state.set_difficulty(level)
 	_sync()
+
+
+## Exp 013: calls a game_dev.gd function and shows its line.
+func _dev_line(method: String, args: Array) -> void:
+	var t := _target(method)
+	if t == null:
+		_say("Not available here.", true)
+		return
+	_say(str(t.callv(method, args)))
+
+
+func _dev_add(id: String, n: int) -> void:
+	if state == null:
+		return
+	state.inventory.add(id, n)
+	state.changed.emit()
+	_say("+%d %s" % [n, Items.name_of(id).to_lower()])
 
 
 func fill_magazines() -> void:
@@ -583,6 +600,17 @@ func _build_supplies_section(box: VBoxContainer) -> void:
 		["+ 10 ammo", add_pack.bind("ammo")], ["+ Shotgun & shells", add_pack.bind("weapons")],
 		["Fill magazines", fill_magazines], ["+ Vest & gear", add_pack.bind("gear")],
 		["+ Materials", add_pack.bind("materials")], ["All tools", add_pack.bind("tools")],
+	]))
+	box.add_child(UiTheme.make_section("Weapons (Exp 013)"))
+	box.add_child(_grid(2, [
+		["Give shotgun", _dev_line.bind("dev_give_weapon", ["shotgun"])],
+		["Give rifle", _dev_line.bind("dev_give_weapon", ["rifle"])],
+		["Give handgun", _dev_line.bind("dev_give_weapon", ["handgun"])],
+		["Refill all ammo", _dev_line.bind("dev_refill_ammo", [])],
+		["+20 shells", _dev_add.bind("shells", 20)], ["+20 rifle rounds", _dev_add.bind("rifle_rounds", 20)],
+		["Shot trajectories", func():
+			WeaponHandler.debug_traces = not WeaponHandler.debug_traces
+			_say("Shot trajectories " + ("on" if WeaponHandler.debug_traces else "off"))],
 	]))
 	box.add_child(_grid(2, [
 		["+10 planks", add_pack.bind("wood")], ["+10 stone", add_pack.bind("stone")],

@@ -401,7 +401,21 @@ func flesh_hit(pos: Vector3, dir: Vector3, cloth: Color) -> void:
 
 
 func casing(pos: Vector3, side: Vector3) -> void:
-	debris(pos, side * _rng.randf_range(1.5, 2.5) + Vector3(0, _rng.randf_range(1.5, 2.5), 0), Color(0.78, 0.6, 0.25), 0.3, Vector3(0.5, 0.5, 1.0))
+	casing_kind(pos, side, "pistol")
+
+
+## Exp 013: a spent case out of the ejection port: "pistol" (a small brass
+## case), "rifle" (a long brass case), "shell" (a fat red shotgun shell).
+## They tumble, bounce and settle like debris and fade with it (pooled).
+func casing_kind(pos: Vector3, side: Vector3, kind := "pistol") -> void:
+	var vel := side * _rng.randf_range(1.6, 2.6) + Vector3(0, _rng.randf_range(1.6, 2.6), 0)
+	match kind:
+		"shell":
+			debris(pos, vel * 0.85, Color(0.72, 0.13, 0.1), 0.55, Vector3(0.62, 0.62, 1.5))
+		"rifle":
+			debris(pos, vel, Color(0.8, 0.62, 0.26), 0.36, Vector3(0.42, 0.42, 1.7))
+		_:
+			debris(pos, vel, Color(0.78, 0.6, 0.25), 0.3, Vector3(0.5, 0.5, 1.0))
 
 
 # --- simulation -----------------------------------------------------------------------

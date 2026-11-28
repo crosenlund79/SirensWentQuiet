@@ -257,3 +257,16 @@ These are 7–10 s takes. More variants would make §36 encounter 4 ("dense and 
 - all nineteen follower files: barking, howling, breathing, bin banging and bat impacts.
 
 They never play in the main menu or in random pools (`tests/e12/test_audio_leak.gd`).
+
+## Experiment 013: weapon recordings needed
+
+The guns work without these: each falls back to an existing sound (noted below). Drop the files into `assets/audio/_inbox/` with these names and they are picked up on the next start.
+
+| Event | Suggested filename | ElevenLabs prompt | Length | Type | Trigger | Fallback now | Priority |
+|---|---|---|---|---|---|---|---|
+| Rifle shot | `Weapon - Rifle Shot 01.wav` (02, 03) | "A single .308 bolt-action hunting rifle shot outdoors in a cold, quiet forest: a sharp, heavy crack with a long rolling echo off distant trees, no music, no voices." | 1.5–2.5 s | one-shot | each rifle shot | the shotgun shot | High |
+| Shotgun pump | `Weapon - Shotgun Pump 01.wav` (02) | "A pump-action 12-gauge shotgun being racked once, close up: a firm metallic slide back and forward, crisp clack-clack, a spent shell clattering away, dry studio sound." | 0.5–0.8 s | one-shot | the pump after each shotgun shot | the shell-load click | High |
+| Rifle bolt | `Weapon - Rifle Bolt 01.wav` (02) | "The bolt of a hunting rifle worked by hand, close up: lift, pull back, push forward, lock down; precise metallic clicks with a brass case ejecting, dry studio sound." | 0.6–0.9 s | one-shot | the bolt after each rifle shot | the reload-done click | High |
+| Rifle reload | `Weapon - Rifle Reload 01.wav` | "Opening a bolt-action rifle to load it: the bolt pulled back and held open, a soft metallic rattle, close up, dry." | 0.5–0.8 s | one-shot | starting a rifle reload | the generic reload | Medium |
+| Rifle round loaded | `Weapon - Rifle Round Load 01.wav` (02, 03) | "A single rifle cartridge pressed into a rifle's magazine with the thumb: a short brass click and slide, close up, dry studio sound." | 0.3–0.5 s | one-shot | each round going in | the shell-load click | Medium |
+| Spent case landing | `Foley - Brass Casing Drop 01.wav` (02–04) | "A single empty brass cartridge case bouncing twice on a wooden floor, tiny metallic tinkles, close up, quiet." | 0.4–0.8 s | one-shot | (not yet connected: a case settling) | none | Low |

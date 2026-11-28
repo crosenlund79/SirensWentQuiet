@@ -67,7 +67,7 @@ const BRINGABLE_TOOLS := BRINGABLE_GEAR       ## Experiment 002 name
 const WORN_GEAR := ["vest", "backpack"]
 ## Ammunition -> the weapon that fires it (SPEC-003 §2). Rounds only count
 ## when that weapon is equipped (reserve + magazines, GameState.rounds_carried).
-const AMMO_TYPES := {"ammo": "handgun", "shells": "shotgun"}
+const AMMO_TYPES := {"ammo": "handgun", "shells": "shotgun", "rifle_rounds": "rifle"}
 const SHELL_SHOTS := 2               ## a shell is worth two 9 mm rounds in a simulated fight
 const BACKPACK_BONUS := 0.5          ## fallback when the state has no carry_multiplier(): +50 % on stackable loot
 ## The vest's -35 % on injuries is applied by GameState.damage when the result
@@ -377,10 +377,10 @@ const LOCATIONS := {
 	# likely, the vest and a flashlight sometimes, a few supplies.
 	"gun_shop": {"profile": "weapons", "place": "gun shop", "danger": 1.4, "search": 140,
 		"mods": {"ammo": 1.3, "shells": 1.5, "shotgun": 1.6, "vest": 1.5},
-		"extra": [["shells", 1, 2, 0.35], ["snacks", 1, 2, 0.3], ["water", 1, 1, 0.25], ["backpack", 1, 1, 0.06]],
+		"extra": [["shells", 1, 2, 0.35], ["rifle_rounds", 2, 5, 0.4], ["rifle", 1, 1, 0.12], ["snacks", 1, 2, 0.3], ["water", 1, 1, 0.25], ["backpack", 1, 1, 0.06]],
 		# Exp 008 (H): the back room (the profile's table with the mods, plus a
 		# handgun now and then: it only matters once yours is gone)
-		"locked": [["ammo", 3, 8, 0.75], ["shells", 2, 5, 0.55], ["shotgun", 1, 1, 0.25], ["vest", 1, 1, 0.22], ["handgun", 1, 1, 0.15]],
+		"locked": [["ammo", 3, 8, 0.75], ["shells", 2, 5, 0.55], ["shotgun", 1, 1, 0.3], ["rifle", 1, 1, 0.35], ["rifle_rounds", 3, 8, 0.65], ["vest", 1, 1, 0.22], ["handgun", 1, 1, 0.15]],
 		"locked_name": "the back room", "locked_text": "The crowbar opened the back room's steel door.",
 		"events": {"gun_counter": 4, "armoury": 2, "lone_psycho": 2, "patrol": 2, "fog_bank": 1},
 		"prep": {"shots": 0.85}, "prep_shots": 3,

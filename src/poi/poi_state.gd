@@ -62,7 +62,7 @@ const PACK_BASE := 30.0
 const CARGO_CAP := 60.0
 const REFILL_MAX := 0.7
 const REFILL_MULT := 0.35
-const WEIGHTS := {"ammo": 0.1, "shells": 0.2, "nails": 0.05, "snacks": 0.5, "bandage": 0.3, "medkit": 1.0,
+const WEIGHTS := {"ammo": 0.1, "shells": 0.2, "rifle_rounds": 0.15, "nails": 0.05, "snacks": 0.5, "bandage": 0.3, "medkit": 1.0,
 	"stone": 2.0, "iron": 1.5, "scrap": 1.0, "wood": 1.0, "fuel": 3.0, "car_battery": 5.0}
 const STASH_MULT := 1.5           ## Exp 009 (G): the stash's roll of the locked table
 const GEAR_WEIGHT := 2.0          ## weapons, tools, gear

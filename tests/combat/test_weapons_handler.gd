@@ -134,6 +134,7 @@ func test_auto_reload_on_an_empty_trigger_pull() -> void:
 
 
 func test_shotgun_pellets_spread_and_one_round_per_pull() -> void:
+	# Exp 013: 8 pellets in an 11 degree cone (flattened vertically), a pump between shots
 	var s := _with_shotgun(0)
 	s.set_magazine("shotgun", 5)
 	var r := _rig(s)
@@ -144,21 +145,23 @@ func test_shotgun_pellets_spread_and_one_round_per_pull() -> void:
 	h.tick(WeaponHandler.SWITCH_DELAY)
 	var aim := Vector3(0, 1.3, -10)
 	var res := h.try_fire(aim)
+	var n := int(WeaponDefs.get_def("shotgun")["pellets"])
 	check(res["ok"], "fires")
-	check_eq(res["pellets"], 6, "six pellets")
-	check_eq(w.calls.size(), 6, "each through world.shoot")
+	check_eq(res["pellets"], n, "%d pellets" % n)
+	check_eq(w.calls.size(), n, "each through world.shoot")
 	check_eq(s.magazine("shotgun"), 4, "one shell")
-	var axis := (aim - Vector3(0, Tuning.MUZZLE_HEIGHT, 0)).normalized()
+	var axis: Vector3 = h.last_shot["dir"]
 	var max_dev := 0.0
 	for c in w.calls:
 		max_dev = maxf(max_dev, rad_to_deg((c[1] as Vector3).angle_to(axis)))
-	check(max_dev <= 4.5 + 1e-4, "inside the 9 degree cone (max %.2f)" % max_dev)
+	check(max_dev <= float(WeaponDefs.get_def("shotgun")["spread"]) * 0.5 + 1e-3, "inside the cone (max %.2f)" % max_dev)
 	check(max_dev > 0.5, "and spread out (max %.2f)" % max_dev)
-	check_eq(h.try_fire(aim)["reason"], "cooldown", "pump: 0.9 s")
-	h.tick(0.89)
+	var iv := float(WeaponDefs.get_def("shotgun")["interval"])
+	check_eq(h.try_fire(aim)["reason"], "cooldown", "pump: %.2f s" % iv)
+	h.tick(iv - 0.01)
 	check_eq(h.try_fire(aim)["reason"], "cooldown", "still")
 	h.tick(0.011)
-	check(h.try_fire(aim)["ok"], "after 0.9 s")
+	check(h.try_fire(aim)["ok"], "after the pump")
 
 
 func test_pellet_pattern_statistics() -> void:
@@ -187,35 +190,17 @@ func test_pellet_pattern_statistics() -> void:
 	check_eq(WeaponDefs.pellet_dirs(aim, 6, 9.0, a), WeaponDefs.pellet_dirs(aim, 6, 9.0, b), "deterministic for a seed")
 
 
-func test_shotgun_range_is_14_m() -> void:
-	var s := _with_shotgun(0)
-	s.set_magazine("shotgun", 5)
-	s.set_active_weapon_slot("secondary")
-	var r := _rig(s)
-	var h: WeaponHandler = r[0]
-	var w: FakeWorld = r[1]
-	w.far = 20.0
-	var res := h.try_fire(Vector3(0, 1.3, -30))
-	check(res["ok"], "fired")
-	check_eq(w.calls.size(), 0, "nothing within 14 m: no pellet reaches world.shoot")
-	check(res["hits"].all(func(x): return x["kind"] == "spent"), "all spent")
-	check(res["hits"].all(func(x): return absf((x["pos"] as Vector3).distance_to(Vector3(0, Tuning.MUZZLE_HEIGHT, 0)) - 14.0) < 1e-3), "spent at 14 m")
-	h.tick(1.0)
-	w.far = 13.0
-	h.try_fire(Vector3(0, 1.3, -30))
-	check_eq(w.calls.size(), 6, "within 14 m every pellet resolves")
-	s.set_active_weapon_slot("primary")
-	h.tick(1.0)
-	w.far = 39.0
-	h.try_fire(Vector3(0, 1.3, -30))
-	check_eq(w.calls.size(), 7, "the handgun reaches 40 m (HouseWorld's own range)")
-	# a world whose shoot() takes the range gets it directly
+func test_no_gun_has_a_short_range() -> void:
+	# Exp 013: every gun's ray is the same long reach; only obstructions stop it
+	for id in WeaponDefs.ids():
+		check_eq(float(WeaponDefs.get_def(id)["range"]), WeaponDefs.RANGE, "%s: the full range" % id)
 	var t := _with_shotgun(0)
 	t.set_magazine("shotgun", 5)
 	t.set_active_weapon_slot("secondary")
 	var r2 := _rig(t, RangedWorld.new())
 	(r2[0] as WeaponHandler).try_fire(Vector3(0, 1.3, -30))
-	check_eq((r2[1] as RangedWorld).ranges, [14.0, 14.0, 14.0, 14.0, 14.0, 14.0], "range passed as the 5th argument")
+	var ranges: Array = (r2[1] as RangedWorld).ranges
+	check(ranges.size() == int(WeaponDefs.get_def("shotgun")["pellets"]) and ranges.all(func(x): return x == WeaponDefs.RANGE), "every pellet gets the full range (%s)" % [ranges])
 
 
 func test_shotgun_reloads_shell_by_shell_and_firing_interrupts() -> void:
@@ -310,7 +295,7 @@ func test_switching() -> void:
 	check_eq(h.current()["id"], "handgun", "the unequipped shotgun leaves the hand")
 	check_eq(h.next(), "", "nothing to switch to")
 	check_eq(h.select_slot("secondary"), "Nothing in the secondary weapon slot.", "empty slot")
-	check_eq(h.switch_to("shotgun"), "Shotgun isn't equipped.", "owned but not equipped")
+	check_eq(h.switch_to("shotgun"), "Pump shotgun isn't equipped.", "owned but not equipped")
 
 
 func test_current_and_no_weapon() -> void:
@@ -364,7 +349,7 @@ func test_a_held_trigger_interrupts_only_when_the_next_shot_is_due() -> void:
 	var res := h.try_fire(Vector3(0, 1.3, -5))
 	check_eq(res["reason"], "cooldown", "the pump isn't ready yet")
 	check(h.is_reloading(), "so the reload goes on")
-	h.tick(0.4)
+	h.tick(float(WeaponDefs.get_def("shotgun")["interval"]) - 0.5 + 0.01)
 	check(h.try_fire(Vector3(0, 1.3, -5))["ok"], "now the trigger interrupts it and fires")
 	check(not h.is_reloading(), "reload stopped")
 	check_eq(s.magazine("shotgun"), 2, "one shell spent")

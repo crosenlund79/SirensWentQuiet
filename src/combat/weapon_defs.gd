@@ -11,7 +11,7 @@ extends RefCounted
 ##   damage       hits per pellet on an enemy (HouseWorld.shoot deals one; see `damage`)
 ##   pellets      rays per trigger pull, each through HouseWorld.shoot
 ##   spread       full cone angle in degrees; every pellet lies within spread / 2 of the aim line
-##   range        m; a pellet whose first hit lies beyond it is spent (a short tracer, no damage)
+##   range        m; the ray's length (Exp 013: RANGE for every gun)
 ##   reload       "magazine": the whole magazine after reload_time, firing is blocked meanwhile
 ##                "shell": one round per reload_time until full; firing interrupts it
 ##   reload_time  s (per magazine, or per shell)
@@ -22,19 +22,48 @@ extends RefCounted
 ##   sounds       optional {SOUNDS kind: [Sfx names]} tried before the shared
 ##                SOUNDS names (Exp 006 (R): the shotgun's own reload sound)
 
+## Exp 013 fields:
+##   range is the same long reach for every gun (RANGE): a shot flies until it
+##   hits something or leaves the area; spread is accuracy, not range
+##   spread_ads   cone while aiming down the sights (RMB)
+##   recoil       kick on the rig (VoxelRig/EliRig.recoil), recoil_recovery per s
+##   cam_kick     camera nudge per shot
+##   casing       "pistol" | "shell" | "rifle" (the spent case's look)
+##   eject        "fire": the case flies at the shot; "cycle": at the pump/bolt
+##   cycle        s after the shot when the pump/bolt works (0: none); cycle_time its length
+##   cycle_sound  Sfx names for the pump/bolt (first existing one plays)
+##   ads_move     walking speed factor while aiming
+
+const RANGE := 150.0                 ## m: leaves the area (HouseWorld.shoot clamps to 4 x SHOT_RANGE)
+
 const DEFS := {
 	"handgun": {
 		"name": "Handgun", "ammo": "ammo", "capacity": 12, "interval": 0.2, "damage": 1,
-		"pellets": 1, "spread": 1.0, "range": 40.0, "reload": "magazine", "reload_time": 1.4,
+		"pellets": 1, "spread": 2.4, "spread_ads": 0.7, "range": RANGE, "reload": "magazine", "reload_time": 1.4,
 		"muzzle": Vector3(0, -0.26, 0), "casing_back": 0.15,
+		"recoil": 0.8, "recoil_recovery": 12.0, "cam_kick": 0.18,
+		"casing": "pistol", "eject": "fire", "cycle": 0.0, "cycle_time": 0.0, "ads_move": 0.8,
 		"fire_sound": ["weapon/handgun_fire"], "fire_db": 0.0,
 	},
 	"shotgun": {
-		"name": "Shotgun", "ammo": "shells", "capacity": 5, "interval": 0.9, "damage": 1,
-		"pellets": 6, "spread": 9.0, "range": 14.0, "reload": "shell", "reload_time": 0.5,
-		"muzzle": Vector3(0, -0.8, -0.005), "casing_back": 0.6,
+		"name": "Pump shotgun", "ammo": "shells", "capacity": 5, "interval": 0.95, "damage": 1,
+		"pellets": 8, "spread": 11.0, "spread_ads": 7.5, "range": RANGE, "reload": "shell", "reload_time": 0.5,
+		"muzzle": Vector3(0, -0.8, -0.005), "casing_back": 0.45,
+		"recoil": 1.7, "recoil_recovery": 4.0, "cam_kick": 0.7,
+		"casing": "shell", "eject": "cycle", "cycle": 0.28, "cycle_time": 0.38, "ads_move": 0.75,
+		"cycle_sound": ["weapon/shotgun_pump", "weapon/shell_load"],
 		"fire_sound": ["weapon/shotgun_fire", "weapon/handgun_fire"], "fire_db": 3.0,
 		"sounds": {"reload_start": ["weapon/shotgun_reload"]},      # Exp 006 (R); falls back to weapon/reload
+	},
+	"rifle": {
+		"name": "Hunting rifle", "ammo": "rifle_rounds", "capacity": 5, "interval": 1.15, "damage": 3,
+		"pellets": 1, "spread": 3.0, "spread_ads": 0.25, "range": RANGE, "reload": "shell", "reload_time": 0.65,
+		"muzzle": Vector3(0, -0.92, -0.005), "casing_back": 0.55,
+		"recoil": 1.25, "recoil_recovery": 6.0, "cam_kick": 0.45,
+		"casing": "rifle", "eject": "cycle", "cycle": 0.35, "cycle_time": 0.45, "ads_move": 0.65,
+		"cycle_sound": ["weapon/rifle_bolt", "weapon/reload_done"],
+		"fire_sound": ["weapon/rifle_fire", "weapon/shotgun_fire", "weapon/handgun_fire"], "fire_db": 4.0,
+		"sounds": {"reload_start": ["weapon/rifle_reload"], "shell": ["weapon/rifle_load", "weapon/shell_load"]},
 	},
 }
 

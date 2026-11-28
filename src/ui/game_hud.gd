@@ -489,7 +489,7 @@ func _refresh_weapon(force: bool) -> void:
 
 
 static func _spare_name(ammo_id: String, n: int) -> String:
-	var word: String = {"ammo": "round", "shells": "shell"}.get(ammo_id, "round")
+	var word: String = {"ammo": "round", "shells": "shell", "rifle_rounds": "round"}.get(ammo_id, "round")
 	return word if n == 1 else word + "s"
 
 

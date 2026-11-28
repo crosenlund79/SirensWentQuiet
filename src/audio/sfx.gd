@@ -56,6 +56,12 @@ const DEFS := {
 	"weapon/dry_fire": {"pitch": 0.04, "cd": 0.12, "max": 1},
 	# Experiment 003: the shotgun, reloading and switching (WeaponHandler plays these).
 	"weapon/shotgun_fire": {"pitch": 0.03, "cd": 0.1, "max": 3},
+	# Exp 013: silent until the user's recordings map here (falls back per WeaponDefs)
+	"weapon/rifle_fire": {"pitch": 0.03, "cd": 0.1, "max": 2, "tpl": false},
+	"weapon/shotgun_pump": {"pitch": 0.04, "cd": 0.2, "max": 1, "tpl": false},
+	"weapon/rifle_bolt": {"pitch": 0.04, "cd": 0.2, "max": 1, "tpl": false},
+	"weapon/rifle_reload": {"pitch": 0.03, "cd": 0.3, "max": 1, "tpl": false},
+	"weapon/rifle_load": {"pitch": 0.05, "cd": 0.08, "max": 2, "tpl": false},
 	"weapon/reload": {"pitch": 0.03, "cd": 0.3, "max": 1},
 	"weapon/shotgun_reload": {"pitch": 0.03, "cd": 0.3, "max": 1, "tpl": false},   # Exp 006 (R): silent until a file maps here; the shotgun falls back to weapon/reload
 	"weapon/reload_done": {"pitch": 0.03, "cd": 0.1, "max": 1},

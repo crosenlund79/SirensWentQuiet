@@ -48,6 +48,12 @@ var _glance_goal := 0.0
 var _glance_t := 2.0
 var _aim_blend := 0.0
 var _two_blend := 0.0
+## Exp 013 (gunplay): set by WeaponHandler each frame
+var recoil_recovery := 9.0          ## recoil settles this much per s (per weapon)
+var ads := 0.0                      ## 0..1 aiming down the sights (RMB): the gun comes up, steadier
+var pump := 0.0                     ## 0..1 the pump / bolt stroke (the left hand works the pump)
+var work := 0.0                     ## 1 while reloading: the gun tilts down to load it
+var _work_blend := 0.0
 var preview_dir := Vector2.ZERO ## showroom: a move direction when the rig itself does not move
 static var _material: ShaderMaterial
 
@@ -251,7 +257,7 @@ func animate(delta: float) -> void:
 	pelvis.rotation = Vector3(-0.04 * run * _move, twist, 0.05 * shift * idle + 0.035 * sin(TAU * _phase) * _move * (1.0 - run))
 	# --- torso: lean, counter-twist, breathing ------------------------------------
 	var lean := (0.05 + 0.13 * run + 0.16 * sprint) * _move
-	lean += -stagger * 0.5 - recoil * 0.05 * (1.0 - _two_blend)
+	lean += -stagger * 0.5 - recoil * (0.05 * (1.0 - _two_blend) + 0.06 * _two_blend)   # Exp 013: long guns kick the shoulders back
 	torso.rotation = Vector3(-lean - 0.012 * breathe * idle + 0.04 * run * _move,
 		-twist * (1.6 - 0.9 * _aim_blend) + 0.12 * _two_blend,
 		-pelvis.rotation.z * 0.7)
@@ -272,7 +278,8 @@ func animate(delta: float) -> void:
 	_leg(1.0, fposmod(_phase + 0.5, 1.0), duty, reach, run, shift)
 	# --- arms ----------------------------------------------------------------------
 	_arms(delta, run, sprint, breathe)
-	recoil = maxf(recoil - delta * 9.0, 0.0)
+	recoil = maxf(recoil - delta * recoil_recovery, 0.0)
+	_work_blend = move_toward(_work_blend, work, delta * 5.0)
 	stagger = maxf(stagger - delta * 3.5, 0.0)
 	if _flash > 0.0:
 		set_flash(maxf(_flash - delta * 7.0, 0.0))
@@ -396,18 +403,18 @@ func _aim_pose(free_l: Array, free_r: Array) -> void:
 	var two := _two_blend
 	var ct := torso.transform
 	var chest_rig := pelvis.transform * ct
-	var pitch := clampf(aim_pitch, -0.9, 0.7)
-	var aim := Basis(Vector3.RIGHT, PI * 0.5 + pitch + recoil * (0.3 - 0.2 * two))
+	var pitch := clampf(aim_pitch, -0.9, 0.7) - 0.5 * _work_blend      # Exp 013: tilted down to reload
+	var aim := Basis(Vector3.RIGHT, PI * 0.5 + pitch + recoil * (0.3 - 0.2 * two) * (1.0 - 0.3 * ads))
 	var gb := chest_rig.basis.inverse() * aim         # gun basis in chest space
 	var gun_t: Transform3D
 	if two > 0.5:
 		# shouldered: the butt (gun space 0, 0.33, 0.04) in the right shoulder pocket
-		var pocket := Vector3(0.115, 0.36, -0.115) + Vector3(0.0, 0.0, 0.035) * recoil
+		var pocket := Vector3(0.115, 0.36 + 0.025 * ads, -0.115) + Vector3(0.0, 0.0, 0.035) * recoil
 		gun_t = Transform3D(gb, pocket - gb * Vector3(0.0, 0.33, 0.035))
 	else:
 		# pistol: both hands out in front, the gun swinging around the chest
-		var pivot := Vector3(0.05, 0.37, -0.02)
-		var off := Vector3(0.0, -0.44, 0.015) + Vector3(0.0, 0.05, 0.0) * recoil
+		var pivot := Vector3(0.05 - 0.03 * ads, 0.37 + 0.07 * ads, -0.02)          # Exp 013: ADS brings the pistol up to the eye line
+		var off := Vector3(0.0, -0.44 - 0.04 * ads, 0.015) + Vector3(0.0, 0.05, 0.0) * recoil
 		gun_t = Transform3D(gb, pivot + gb * off)
 	gun.transform = gun_t
 	# hand targets in gun space: [grip point, hand basis in gun space]
@@ -417,7 +424,7 @@ func _aim_pose(free_l: Array, free_r: Array) -> void:
 	var l_b: Basis
 	if two > 0.5:
 		r_grip = Vector3(0.0, 0.0, 0.075)
-		l_grip = Vector3(-0.004, -0.36, 0.06)
+		l_grip = Vector3(-0.004, -0.36 + 0.11 * pump, 0.06)          # Exp 013: works the pump
 		r_b = Basis(Vector3.RIGHT, -0.55)
 		l_b = Basis(Vector3.BACK, 0.5) * Basis(Vector3.UP, PI * 0.5)
 	else:

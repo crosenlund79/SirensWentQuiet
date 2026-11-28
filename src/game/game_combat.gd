@@ -47,6 +47,8 @@ func fire(aim: Vector3) -> Dictionary:
 	var r := weapons.try_fire(aim)
 	if r.get("ok", false):
 		game.shots_fired += 1
+		if game.camera != null:       # Exp 013: a modest kick per weapon
+			game.camera.nudge(float(WeaponDefs.get_def(str(r.get("id", ""))).get("cam_kick", 0.2)) * (0.7 if weapons.ads else 1.0))
 	return r
 
 

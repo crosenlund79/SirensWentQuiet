@@ -9,6 +9,10 @@ const BODY_TOP := 1.56
 
 var rig: VoxelRig
 var aim_point := Vector3.ZERO
+## Exp 013: where the cursor's ray crosses the gun's height (the game sets it
+## while aiming with the mouse; INF = use aim_point). Eli faces it and holds the
+## gun level at it, which is where his shots fly.
+var aim_flat := Vector3.INF
 var weapon_light: SpotLight3D
 var self_light: OmniLight3D
 var muzzle_light: OmniLight3D
@@ -151,13 +155,14 @@ func _physics_process(delta: float) -> void:
 	global_position.y = floor_y
 	velocity.y = 0.0
 	# Face the aim point.
-	var to := aim_point - global_position
+	var target := aim_flat if aim_flat.is_finite() else aim_point
+	var to := target - global_position
 	to.y = 0.0
 	if to.length() > 0.2:
 		var yaw := atan2(-to.x, -to.z)
 		rig.rotation.y = lerp_angle(rig.rotation.y, yaw, 1.0 - exp(-delta * 18.0))
 		var muzzle_h := Tuning.MUZZLE_HEIGHT
-		rig.aim_pitch = clampf(atan2(aim_point.y - floor_y - muzzle_h, to.length()), -0.9, 0.7)
+		rig.aim_pitch = 0.0 if aim_flat.is_finite() else clampf(atan2(aim_point.y - floor_y - muzzle_h, to.length()), -0.9, 0.7)
 	# Refinement 01: the gait follows how far the body really moved this frame
 	# (walls and furniture stop it), not the wanted velocity.
 	var moved := Vector2(global_position.x - _last_pos.x, global_position.z - _last_pos.z).length()

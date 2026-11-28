@@ -87,6 +87,39 @@ func dev_fill_magazines() -> int:
 	return n
 
 
+## Exp 013: gives weapon `id` with a full magazine and some rounds, puts it on
+## the quick bar and takes it in hand. Returns a line for F10.
+func dev_give_weapon(id: String) -> String:
+	var s: GameState = game.state
+	if not WeaponDefs.has(id):
+		return "No such weapon."
+	if s.inventory.count(id) <= 0:
+		s.inventory.add(id, 1)
+	s.inventory.add(WeaponDefs.ammo_of(id), 20)
+	s.set_magazine(id, WeaponDefs.capacity(id))
+	s.changed.emit()
+	var hb: Variant = game.get("bar")
+	if hb is Object and is_instance_valid(hb):
+		Hotbar.fill(hb.bar(), s)
+		var i := Hotbar.slot_of(hb.bar(), id)
+		if i >= 0:
+			hb.select(i)
+	return "%s in hand, %d %s" % [WeaponDefs.name_of(id), s.inventory.count(WeaponDefs.ammo_of(id)), Items.name_of(WeaponDefs.ammo_of(id)).to_lower()]
+
+
+## Exp 013: tops every owned gun's magazine and its reserve up to 30 rounds.
+func dev_refill_ammo() -> String:
+	var s: GameState = game.state
+	for id in WeaponDefs.ids():
+		if s.inventory.count(id) > 0:
+			s.set_magazine(id, WeaponDefs.capacity(id))
+			var ammo := WeaponDefs.ammo_of(id)
+			if s.inventory.count(ammo) < 30:
+				s.inventory.add(ammo, 30 - s.inventory.count(ammo))
+	s.changed.emit()
+	return "Magazines full, 30 spare rounds of each"
+
+
 func dev_kill_all() -> int:
 	return game.roster.kill_all()
 

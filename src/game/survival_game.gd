@@ -817,7 +817,7 @@ func _process(delta: float) -> void:
 		if boundary != null:
 			boundary.set_night_amount(n)
 		ambience.set_night_amount(n)
-	player.speed_scale = state.move_speed_scale()
+	player.speed_scale = state.move_speed_scale() * (float(WeaponDefs.get_def(combat.weapons.current_id()).get("ads_move", 1.0)) if combat.weapons.ads else 1.0)   # Exp 013: slower while aiming
 	player.move_yaw = camera.yaw          # Refinement 01: WASD follows the turned view
 	world.update_view(player.global_position, camera, delta)
 	listener.global_position = player.global_position + Vector3(0, 1.7, 0)
@@ -836,8 +836,16 @@ func _physics_process(_delta: float) -> void:
 		var o := camera.project_ray_origin(mp)
 		var dr := camera.project_ray_normal(mp)
 		player.aim_point = levels.aim_ray(o, dr) if levels != null else world.aim_ray(o, dr)   # the player's storey (Exp 007: a POI has one)
+		# Exp 013: the shots fly level at the gun's height, so the aim is where
+		# the cursor's ray crosses that height (not the floor or a wall top under it)
+		var gun_y: float = player.floor_y + Tuning.MUZZLE_HEIGHT
+		player.aim_flat = o + dr * ((gun_y - o.y) / dr.y) if absf(dr.y) > 1e-4 else player.aim_point
+	else:
+		player.aim_flat = Vector3.INF
+	# Exp 013: hold RMB to aim down the sights (build mode keeps RMB for itself)
+	combat.weapons.ads = _modal == "" and Input.is_action_pressed("secondary") and _can_fire()
 	if _trigger:
-		combat.fire(player.aim_point)      # the weapon owns the fire interval and the dry clicks
+		combat.fire(player.aim_flat if player.aim_flat.is_finite() else player.aim_point)      # the weapon owns the fire interval and the dry clicks
 
 
 ## All game input arrives here (game_input.gd), also while paused.

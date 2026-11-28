@@ -12,7 +12,7 @@ const SLOT := Vector2(68, 62)      # Exp 006 (U): room for the pixel font and 24
 const GAP := 6.0
 const MARGIN_BOTTOM := 18.0
 const SHORT := {
-	"handgun": "Handgun", "shotgun": "Shotgun", "canned_food": "Cans", "snacks": "Snacks", "water": "Water",
+	"handgun": "Handgun", "shotgun": "Shotgun", "rifle": "Rifle", "canned_food": "Cans", "snacks": "Snacks", "water": "Water",
 	"bandage": "Bandage", "medkit": "Medkit", "hammer": "Hammer", "crowbar": "Crowbar", "shovel": "Shovel",
 	"flashlight": "Light", "vest": "Vest", "backpack": "Pack",
 }

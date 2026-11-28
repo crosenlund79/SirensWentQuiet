@@ -25,7 +25,10 @@ const DEFS := {
 	"iron": {"name": "Iron", "category": "material", "desc": "Bars and plate: reinforcement and strong components.", "cap": 20, "cap_per_crate": 10},
 	"shells": {"name": "12-gauge shells", "category": "ammo", "desc": "For the shotgun. Heavy, loud, final."},
 	"handgun": {"name": "Handgun", "category": "weapon", "desc": "9 mm pistol. Reliable, quiet enough, a small magazine.", "cap": 1, "slot": "weapon"},
-	"shotgun": {"name": "Shotgun", "category": "weapon", "desc": "Pump shotgun: a wide, short-range blast. Slow to reload.", "cap": 1, "slot": "weapon"},
+	"shotgun": {"name": "Pump shotgun", "category": "weapon", "desc": "Pump-action 12-gauge: eight pellets, a heavy kick, a pump between shots. Loads shell by shell.", "cap": 1, "slot": "weapon"},
+	# --- Exp 013: the hunting rifle and its rounds ---
+	"rifle": {"name": "Hunting rifle", "category": "weapon", "desc": "Bolt-action hunting rifle: one accurate, heavy round, a bolt to work between shots. Loads round by round.", "cap": 1, "slot": "weapon"},
+	"rifle_rounds": {"name": ".308 rounds", "category": "ammo", "desc": "For the hunting rifle. Heavy and precise."},
 	"vest": {"name": "Protective vest", "category": "protective", "desc": "Equipped: blows and blasts hurt 35 % less.", "cap": 1, "slot": "body"},
 	"hammer": {"name": "Hammer", "category": "tool", "desc": "Needed to build and repair (kept at home).", "cap": 1, "slot": "tool"},
 	"shovel": {"name": "Shovel", "category": "tool", "desc": "Digs out a basement under the house (kept at home).", "cap": 1, "slot": "tool"},

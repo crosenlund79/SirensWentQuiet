@@ -21,7 +21,8 @@ const TABS := [["supplies", "Supplies"], ["equipment", "Equipment"], ["home", "H
 ## What each piece of gear does when equipped (Equipment and the expedition rules).
 const EFFECTS := {
 	"handgun": "9 mm · magazine 12 · quick",
-	"shotgun": "Shells · magazine 5 · 6 pellets, short range",
+	"shotgun": "Shells · tube 5 · 8 pellets, pump action",
+	"rifle": ".308 · 5 rounds · bolt action, accurate",
 	"vest": "Blows and blasts hurt 35 % less",
 	"backpack": "Carry half as much again from expeditions",
 	"flashlight": "Dark places: more options, less risk",

@@ -78,6 +78,12 @@ const RULES := [
 	{"name": "weapon/shotgun_fire", "all": ["shotgun", ["shot", "fire", "blast"]], "none": ["reload", "shell"], "kind": "oneshot", "db": -12.0},
 	{"name": "weapon/reload", "all": ["reload"], "none": ["done", "finish", "ready", "shell"], "kind": "oneshot", "db": -19.0},
 	{"name": "weapon/shotgun_reload", "all": ["shotgun", "reload"], "none": ["done", "finish", "ready", "shell"], "kind": "oneshot", "db": -19.0},   # Exp 006 (R)
+	# Exp 013: the rifle, the pump and the bolt
+	{"name": "weapon/rifle_fire", "all": ["rifle", ["shot", "fire", "gunshot"]], "none": ["reload", "bolt", "load"], "kind": "oneshot", "db": -11.0},
+	{"name": "weapon/shotgun_pump", "all": [["pump", "rack"]], "kind": "oneshot", "db": -16.0},
+	{"name": "weapon/rifle_bolt", "all": [["bolt", "cycle"]], "kind": "oneshot", "db": -16.0},
+	{"name": "weapon/rifle_reload", "all": ["rifle", "reload"], "none": ["done", "round", "load"], "kind": "oneshot", "db": -19.0},
+	{"name": "weapon/rifle_load", "all": ["rifle", ["round", "load", "cartridge"]], "none": ["reload", "fire", "shot"], "kind": "oneshot", "db": -20.0},
 	{"name": "weapon/reload_done", "all": ["reload", ["done", "finish", "ready"]], "kind": "oneshot", "db": -19.0},
 	{"name": "weapon/shell_load", "all": ["shell"], "kind": "oneshot", "db": -20.0},
 	{"name": "weapon/dry_fire", "all": [["dry", "empty"]], "kind": "oneshot", "db": -20.0},
