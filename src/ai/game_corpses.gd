@@ -191,7 +191,7 @@ func search(c: Corpse) -> void:
 	var first := not c.searched()
 	c.data["searched"] = true
 	if first:
-		Sfx.play_first(["poi/search", "door/open"], c.global_position + Vector3(0, 0.5, 0), -6.0)
+		Sfx.play_first(["poi/search", "poi/pickup"], c.global_position + Vector3(0, 0.5, 0), -6.0)
 	if c.items.is_empty():
 		game.toast("%s had nothing worth taking." % c.display_name if c.display_name != "" else "Nothing on the body.", "info")
 		cleanup()
