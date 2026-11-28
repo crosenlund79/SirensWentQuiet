@@ -174,7 +174,10 @@ func _flush_feed() -> void:
 
 ## What [E] can reach here (the game's _interactables).
 func interactables() -> Array:
-	return bodies.filter(func(c): return is_instance_valid(c) and not (c as Corpse).spent())
+	var pl: Variant = game.get("player") if game != null else null
+	var y: float = (pl as Node3D).global_position.y if pl is Node3D else 0.0
+	return bodies.filter(func(c): return is_instance_valid(c) and not (c as Corpse).spent() \
+		and absf((c as Corpse).global_position.y - y) < 1.5)       # on Eli's storey
 
 
 ## [E] on a body: the loot panel on its items (home: the storage panel; a POI:

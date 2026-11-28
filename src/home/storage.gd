@@ -29,7 +29,7 @@ const PROFILES := {
 	"drawers": {"holds": ["weapon", "ammo", "protective", "utility", "medical", "food", "water"], "for": "small personal things"},
 	"cabinet": {"holds": ["medical", "water", "utility"], "for": "medicine and toiletries"},
 	"pile": {"holds": [], "for": "whatever was inside"},
-	"body": {"holds": [], "for": "what they carried"},          # Exp 012 (E): a searched body (src/ai/corpse.gd)
+	"body": {"holds": ["-"], "for": "what they carried"},       # Exp 012 (E): a searched body (src/ai/corpse.gd): take only
 }
 ## Furniture type (SPEC §2 names, original or placed) -> [profile, capacity].
 ## Capacity 0 = unlimited (loot piles only).

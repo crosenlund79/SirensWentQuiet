@@ -1070,9 +1070,8 @@ func _interactables() -> Array:
 		l += balance.interactables()
 	if poi != null and is_instance_valid(poi) and poi.has_method("interactables"):
 		l += poi.interactables()           # Exp 007 (P): exits, containers, pickups
-	if corpses != null:
-		l += corpses.interactables()       # Exp 012 (E): bodies to search
-	return levels.interactables(l) if levels != null else l     # + stairs, by storey (L)
+	l = levels.interactables(l) if levels != null else l     # + stairs, by storey (L)
+	return l + corpses.interactables() if corpses != null else l     # Exp 012 (E): bodies to search (on Eli's storey)
 
 
 func _interact() -> void:
