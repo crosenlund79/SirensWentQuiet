@@ -76,7 +76,7 @@ const MAX_BARRICADES := 3        ## per siege
 const BREAK_IN_AFTER := 35.0     ## s after the trap before the brutes break into the room
 const ENTRANCES_EVERY := 2.0     ## s between entrance list refreshes
 const BANNER := "They're coming — organised."
-const MIN_MEMBERS := 7
+const MIN_MEMBERS := 6          ## (lead: 7 + one invasion ahead overwhelmed a prepared defender in testing)
 
 var game: Node
 var active := false              ## a siege is running
@@ -187,12 +187,12 @@ func on_invasion_start(kinds: Array, seed: int) -> Array:
 	return w
 
 
-## The siege's wave: the normal budget one invasion ahead, at least
+## The siege's wave: the normal budget of this invasion, at least
 ## MIN_MEMBERS, with at least one brute (to breach), two runners (to harass)
 ## and three psychos (to contain). Deterministic for the seed.
 static func compose(lv: String, inv: int, seed: int) -> Array:
-	var w: Array = Director.compose(lv, inv + 1, seed)
-	var cap := mini(Director.max_count(lv, inv + 1) + 2, Director.MAX_COUNT)
+	var w: Array = Director.compose(lv, inv, seed)
+	var cap := mini(Director.max_count(lv, inv) + 2, Director.MAX_COUNT)
 	while w.size() < MIN_MEMBERS:
 		w.append("psycho")
 	if not w.has("brute"):
