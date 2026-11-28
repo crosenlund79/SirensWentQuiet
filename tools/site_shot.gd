@@ -9,10 +9,15 @@ extends Node
 ## appearance seed each) in an arc 3..6 m in front of Eli; --kinds=a,b,..
 ## cycles their kinds (default psycho; --kind=brute is one kind),
 ## --enemy-at=x,y places the first one there.
+## Exp 012 (C): --zoom=m (camera distance), --flashlight (in hand, switched
+## on), --quality=low|medium|high|ultra, --self-shot [--settle=frames]
+## (the scene saves the shot itself once ready; give capture.sh a long time).
 
 const SCENE := "res://src/game/game.tscn"
 
 var game: Node
+var self_shot := false             ## Exp 012 (C): see _self_shot
+var settle := 90
 
 
 func _ready() -> void:
@@ -28,6 +33,9 @@ func _ready() -> void:
 	var first_seed := 0
 	var kinds: PackedStringArray = ["psycho"]
 	var enemy_at := Vector2.INF
+	var zoom := 0.0
+	var flashlight := false
+	var quality := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--site="):
 			site = a.trim_prefix("--site=")
@@ -55,6 +63,16 @@ func _ready() -> void:
 		elif a.begins_with("--enemy-at="):
 			var q := a.trim_prefix("--enemy-at=").split(",")
 			enemy_at = Vector2(float(q[0]), float(q[1]))
+		elif a.begins_with("--zoom="):       # Exp 012 (C): the camera distance (11 .. 32 m)
+			zoom = float(a.trim_prefix("--zoom="))
+		elif a == "--flashlight":             # Exp 012 (C): the flashlight from the bar in hand
+			flashlight = true
+		elif a.begins_with("--quality="):     # Exp 012 (C): a graphics preset (low|medium|high|ultra)
+			quality = a.trim_prefix("--quality=")
+		elif a == "--self-shot":
+			self_shot = true
+		elif a.begins_with("--settle="):     # frames before a --self-shot
+			settle = int(a.trim_prefix("--settle="))
 		elif a.begins_with("--weapon="):     # Exp 010: the shotgun in hand, or empty hands
 			weapon = a.trim_prefix("--weapon=")
 	var s := GameState.new_run(8008)
@@ -77,6 +95,10 @@ func _ready() -> void:
 	get_tree().current_scene = game
 	for i in 6:
 		await get_tree().process_frame
+	for i in 900:                          # Exp 012 (C): wait for a staged boot to finish
+		if bool(game.get("_ok")) and not bool(game.get("_staging")):
+			break
+		await get_tree().process_frame
 	if game.has_method("debug_kill_enemies"):
 		game.debug_kill_enemies()
 	if game.has_method("debug_state"):
@@ -91,6 +113,18 @@ func _ready() -> void:
 		game.combat.weapons.switch_to("shotgun")
 	elif weapon == "none":
 		game.combat.weapons.holstered = true
+	if zoom > 0.0:
+		game.camera.set_distance(zoom)
+	if flashlight:
+		game.debug_state().inventory.add("flashlight", 1)
+		var hb: Node = game.get("bar")
+		if hb != null:
+			Hotbar.fill(hb.bar(), game.debug_state())
+			var i := Hotbar.slot_of(hb.bar(), "flashlight")
+			if i >= 0:
+				hb.select(i)
+	if quality != "":
+		GameSettings.set_value("quality", quality)       # not saved: other runs keep their setting
 	if reveal and game.get("poi") != null:
 		game.poi.dev_reveal()
 	if enemies > 0:
@@ -111,6 +145,27 @@ func _ready() -> void:
 			game.debug_open(panel)
 		"search":
 			_open_search()
+	if self_shot:
+		await _self_shot()
+
+
+## Exp 012 (C): --self-shot takes the screenshot itself once the scene is set
+## up (plus `settle` frames) and quits: reliable on a loaded machine, where a
+## fixed capture time can come before the game has finished booting. Use a
+## long capture time with it (tools/capture.sh ... 900 --self-shot).
+func _self_shot() -> void:
+	for i in settle:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var out := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--out="):
+			out = a.trim_prefix("--out=")
+	var img := get_viewport().get_texture().get_image()
+	if img != null and out != "":
+		img.save_png(out)
+		print("captured ", out)
+	get_tree().quit(0)
 
 
 func _open_search() -> void:

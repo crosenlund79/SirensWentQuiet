@@ -77,7 +77,7 @@ func _draw() -> void:
 		var frame := UiTheme.ACCENT if sel and not holstered else Color(UiTheme.LINE, 0.2 if not sel else 0.45)
 		draw_rect(r.grow(-1.0 if sel else -0.5), frame, false, 2.0 if sel else 1.0)
 		var dim := 1.0 if owned else 0.38
-		draw_string(font, r.position + Vector2(5, 15), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT_DIM, 0.9))
+		draw_string(font, r.position + Vector2(5, 15), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(UiTheme.TEXT_DIM, 0.9))
 		if id == "":
 			continue
 		var col := Color(UiTheme.TEXT, dim)
@@ -87,11 +87,11 @@ func _draw() -> void:
 		var ir := Rect2(r.position + Vector2(SLOT.x * 0.5 - 12, 16), Vector2(24, 24))
 		UiIcons.paint(self, icon, Rect2(ir.position + Vector2(1, 1), ir.size), Color(0, 0, 0, 0.5 * dim))
 		UiIcons.paint(self, icon, ir, col)
-		draw_string(font, Vector2(r.position.x, r.end.y - 6), short_name(id), HORIZONTAL_ALIGNMENT_CENTER, SLOT.x, 16, col)
+		draw_string(font, Vector2(r.position.x, r.end.y - 6), short_name(id), HORIZONTAL_ALIGNMENT_CENTER, SLOT.x, 13, col)    # Exp 012: Inter metrics
 		var n := int(e.get("count", -1))
 		if n >= 0:
 			var nc := Color(UiTheme.TEXT, dim) if n > 0 else Color(UiTheme.WARN, 0.8)
-			draw_string(font, Vector2(r.position.x, r.position.y + 15), str(n), HORIZONTAL_ALIGNMENT_RIGHT, SLOT.x - 5, 16, nc)
+			draw_string(font, Vector2(r.position.x, r.position.y + 15), str(n), HORIZONTAL_ALIGNMENT_RIGHT, SLOT.x - 5, 14, nc)
 	if holstered:
-		draw_string_outline(font, Vector2(0, 11), "Hands empty  ·  X or 1-8 to take something", HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, 4, Color(0, 0, 0, 0.6))
-		draw_string(font, Vector2(0, 11), "Hands empty  ·  X or 1-8 to take something", HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(UiTheme.TEXT_DIM, 0.9))
+		draw_string_outline(font, Vector2(0, 11), "Hands empty  ·  X or 1-8 to take something", HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.6))
+		draw_string(font, Vector2(0, 11), "Hands empty  ·  X or 1-8 to take something", HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(UiTheme.TEXT_DIM, 0.9))

@@ -410,6 +410,7 @@ func _build() -> void:
 	_build_e12_g_section(_tab("Enemies"))   # Exp 012 (G)
 	_build_e12_l_section(_tab("POIs"))   # Exp 012 (L)
 	_build_e12_v_section(_tab("Debug"))   # Exp 012 (V)
+	_build_e12_c_section(_tab("Debug"))   # Exp 012 (C)
 
 
 # --- Exp 012 (A): the tabbed shell --------------------------------------------
@@ -1250,6 +1251,43 @@ func _build_internal_figure_section(box: VBoxContainer) -> void:
 		["Remove Architect", func():
 			_say("Architect figure removed" if ArchitectFigure.remove(game) else "No Architect figure here")]]))
 	box.add_child(UiTheme.make_caption("A silent, non-hostile preview figure. Not an enemy, never spawned, not saved.", WIDTH - 52, UiTheme.TEXT_FAINT))
+
+
+## Exp 012 (C): graphics presets, the frame-rate overlay, the humanoid
+## stress run (RigIntegrity), the flashlight's beams and the look cache.
+func _build_e12_c_section(box: VBoxContainer) -> void:
+	box.add_child(UiTheme.make_section("Graphics and characters", "-"))
+	var items := []
+	for q in GraphicsQuality.PRESETS:
+		items.append(["Quality: " + str(GraphicsQuality.NAMES[q]), func():
+			GraphicsQuality.set_preset(q)
+			_say("Graphics: %s" % GraphicsQuality.NAMES[q])])
+	items.append(["FPS display on/off", func():
+		GraphicsQuality.set_show_fps(not GraphicsQuality.show_fps())
+		_say("Frame rate %s · %s" % ["shown" if GraphicsQuality.show_fps() else "hidden", GraphicsQuality.fps_text()])])
+	items.append(["Stress humanoids", func():
+		if game == null or not is_instance_valid(game) or game.get("roster") == null:
+			_say("No game here", true)
+			return
+		var st := HumanoidStress.start(game, 3, 8.0)
+		st.finished.connect(func(t: String): _say(t, t.find("broken") >= 0 or t.find("NaN") >= 0))
+		_say("Stress run: 12 people for 8 s…")])
+	items.append(["Flashlight state", func(): _say(_e12_c_flashlight())])
+	items.append(["Look cache", func():
+		_say("Looks: %d built, %d building · built on the spot %d · stand-ins %d · last adopt %.0f ms, swap %.0f ms" % [
+			HumanoidSculpt._cache.size(), HumanoidSculpt.pending(), HumanoidSculpt.sync_builds, HumanoidLooks.stand_ins,
+			HumanoidSculpt.adopt_ms, HumanoidRig.swap_ms])])
+	box.add_child(_grid(2, items))
+
+
+func _e12_c_flashlight() -> String:
+	var b: Variant = game.get("bar") if game != null and is_instance_valid(game) else null
+	if b == null or not (b as Object).has_method("beams"):
+		return "No flashlight here"
+	var d: Dictionary = b.beams()
+	return "Beams: %d (flashlight %s, gun light %s) · in hand: %s · ambient self light %s" % [int(d["count"]),
+		"on" if d["flashlight"] else "off", "on" if d["weapon"] else "off", str(b.in_hand()) if str(b.in_hand()) != "" else "empty",
+		"on" if d["self"] else "off"]
 
 
 ## Exp 011: a non-hostile preview figure near Eli (not an enemy, not saved).

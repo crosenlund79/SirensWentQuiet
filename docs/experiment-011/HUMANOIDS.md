@@ -202,3 +202,29 @@ original figure), `--view=three|front|side|back|face|sheet|gameplay`,
 * `tools/people_stage.tscn` (capture stage: `--who=eli,brute:0,...`) puts
   figures of any size side by side; `tools/site_shot.tscn` takes
   `--kind=brute --enemy-at=x,y`.
+
+## Experiment 012 additions
+
+* **Rest pose every frame.** `HumanoidRig._rest_pose()` puts every bone back
+  at its skeleton offset (unit scale) before a frame's pose, in `animate()`
+  and in every `collapse()`. Styles and overlays may nudge a bone's
+  position additively (a shrug), never cumulatively. Breathing scales the
+  chest's mesh (`breathe_chest`), not the bone. The legs are solved again
+  after the overlays, and a non-finite pose resets (`_guard`).
+* **RigIntegrity** (`src/character/rig_integrity.gd`) measures a rig (bone
+  offset from rest, scale, NaN) and `stress()` drives rigs through every
+  state; `HumanoidStress` does it to live enemies in the game (F10 > Debug
+  > Stress humanoids). `tests/e12/test_characters.gd` runs it.
+* **No build on the spot in a running game.** While a game or the menu
+  siege runs (a roster `Warmer` is alive) and no loading screen is up, a rig
+  whose look isn't built wears a built stand-in of its archetype
+  (`HumanoidLooks.stand_in`), asks for its own look on a high-priority
+  worker, and changes into it in place (`adopt_pending`: new skeleton,
+  props moved over, `_after_bones()` hook for archetype extras). Showroom
+  and preview figures set `ready_look_only`. A queued background build is
+  never waited for. Behind a loading screen each archetype's first look is
+  built at once, so a stand-in always exists.
+* **Necks.** The head's neck narrows below the collar (Eli: `NECK_TUCK`;
+  people: below the pivot), and Eli's chest leaves the collar's opening
+  empty (`NECK_HOLE`), so a turning or bowing head doesn't cut skin through
+  the collar and scarf.

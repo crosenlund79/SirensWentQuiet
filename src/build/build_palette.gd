@@ -410,10 +410,10 @@ class BuildTile extends Button:
 		UiIcons.paint(self, icon_kind, Rect2(Vector2(6, 12), Vector2(24, 24)), Color(ic, a))
 		var x := 36.0
 		var w := size.x - x - 4.0
-		draw_string(font, Vector2(x, 20), _fit(font, title, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT, a))
+		draw_string(font, Vector2(x, 20), _fit(font, title, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(UiTheme.TEXT, a))
 		var y := 38.0
 		if cost.is_empty():
-			draw_string(font, Vector2(x, y), _fit(font, note, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(UiTheme.TEXT_FAINT, maxf(a, 0.7)))
+			draw_string(font, Vector2(x, y), _fit(font, note, w), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(UiTheme.TEXT_FAINT, maxf(a, 0.7)))
 		else:
 			for k in BuildPieces.COST_ORDER:
 				if not cost.has(k) or int(cost[k]) <= 0:
@@ -422,7 +422,7 @@ class BuildTile extends Button:
 				UiIcons.paint(self, k, Rect2(Vector2(x, y - 11), Vector2(12, 12)), Color(UiTheme.BAD if short else UiTheme.TEXT_DIM, maxf(a, 0.75)))
 				x += 14.0
 				var t := str(cost[k])
-				draw_string(font, Vector2(x, y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, UiTheme.BAD if short else Color(UiTheme.TEXT_DIM, maxf(a, 0.75)))
+				draw_string(font, Vector2(x, y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.BAD if short else Color(UiTheme.TEXT_DIM, maxf(a, 0.75)))
 				x += font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 7.0
 		if locked != "":
 			draw_rect(Rect2(Vector2(size.x - 19, 4), Vector2(16, 16)), Color(0, 0, 0, 0.55))
