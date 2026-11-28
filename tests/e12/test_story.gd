@@ -239,8 +239,8 @@ func test_the_watcher_appears_watches_and_walks_away() -> void:
 	var f: StoryFigure = st.figure
 	if not check(f != null, "he appears"):
 		return
-	var out: float = -FogBoundary.edge_distance(f.plan_pos())
-	check(out > 0.5, "beyond the lot edge (%.1f m out)" % out)
+	var edge: float = FogBoundary.edge_distance(f.plan_pos())
+	check(edge > 0.5 and edge < 2.5 and not HousePlan.FOOTPRINT.grow(1.0).has_point(f.plan_pos()), "out in the yard at the edge of the fog (%.1f m in)" % edge)
 	check(f.find_children("*", "AudioStreamPlayer3D", true, false).is_empty() and f.find_children("*", "AudioStreamPlayer", true, false).is_empty()
 		and not f in g.roster.enemies, "not an enemy, silent himself")
 	st._obs["seen"] = 2.0
@@ -260,3 +260,19 @@ func test_the_watcher_appears_watches_and_walks_away() -> void:
 	await frames(5)
 	check(st.figure == null, "gone once deep in the fog")
 	check(StoryState.is_done(s, 2), "encounter 2 recorded")
+
+
+## Leaving mid-scene (menu, load, quit): no story sound, no duck, no stage left.
+func test_leaving_mid_scene_cleans_up() -> void:
+	var g := await _boot()
+	var st: StoryDirector = g.story
+	st.speed = 1.0
+	st.trigger(4)
+	await frames(240)
+	check(st.running == 4 and st.stage.active, "the scene is on (%s)" % st.phase)
+	check(AudioMix.duck_db() < -1.0, "the game's ambience is ducked under it")
+	g.get_parent().remove_child(g)
+	g.queue_free()
+	await frames(3)
+	check(is_equal_approx(AudioMix.duck_db(), 0.0), "the duck is released")
+	check(tree.get_nodes_in_group(StoryAudio.GROUP).is_empty(), "no story audio left")

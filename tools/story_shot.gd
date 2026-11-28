@@ -35,7 +35,8 @@ func _ready() -> void:
 	var s: GameState = game.debug_state()
 	s.run["next_invasion_at"] = 30 * 1440.0
 	var st: StoryDirector = game.story
-	var hour := {"gas": 2.5, "warning": 2.5, "door": 2.5, "observer": 20.4, "bound": 8.0, "burn": 9.0}.get(moment, 2.5)
+	var hours := {"gas": 2.5, "warning": 2.5, "door": 2.5, "observer": 20.4, "bound": 8.0, "burn": 9.0}
+	var hour: float = float(hours.get(moment, 2.5))
 	s.total_minutes = 3 * 1440.0 + float(hour) * 60.0
 	game.time_scale = 0.0
 	await get_tree().process_frame
@@ -75,9 +76,12 @@ func _ready() -> void:
 			game.debug_teleport_player(fs)
 			game.player.aim_point = st.fire_mouth() + Vector3(0, 0.6, 0)
 			_lock(st)
+			st._frame_bed()
+			game.camera.snap()
 			_keep_throwing(st)
 	for i in 4:
 		await get_tree().physics_frame
+	print("story_shot: %s staged at %d ms" % [moment, Time.get_ticks_msec()])
 
 
 func _bed() -> void:
@@ -104,4 +108,4 @@ func _keep_throwing(st: StoryDirector) -> void:
 		st.stage.throw_ropes(game.player.rig.hand_global(), st.fire_mouth(), 2)
 		await get_tree().create_timer(0.45).timeout
 		st.stage.flare(st.fire_mouth())
-		await get_tree().create_timer(1.2).timeout
+		await get_tree().create_timer(0.5).timeout

@@ -36,7 +36,7 @@ const BURN := 9                                ## `running` while the ropes are 
 const NEAR := 7.5                              ## m: closer than this and the watcher walks away
 const WATCH := 45.0                            ## s he goes on watching after Eli's last thought
 const WALK := 1.5                              ## m/s, Eli walking to the fireplace by himself
-const EDGE_OUT := 1.3                          ## m outside the lot edge where the watcher stands
+const EDGE_IN := 1.4                           ## m inside the lot edge where the watcher stands (the fog begins there)
 
 var game: Node
 var state: GameState
@@ -547,6 +547,7 @@ func burn_ropes(prev := false) -> String:
 	phase = "thoughts"
 	overlay.hide_choice()
 	_lock_control("story")
+	_frame_bed()                                # the game camera closer
 	var lines: Array = StoryLines.THOUGHTS["burn"]
 	await _think(lines[0], 2.3)
 	overlay.say(lines[1], "thought", 2.6 / speed)
@@ -663,7 +664,8 @@ func _observer_process(delta: float) -> void:
 		spawn_observer(false)
 
 
-## He stands beyond the lot edge, in view, 9-18 m from Eli.
+## He stands out in the yard near the lot edge (outside the house, at the
+## edge of the fog), in view, 8.5-16 m from Eli.
 func spawn_observer(prev: bool) -> StoryFigure:
 	if figure != null:
 		return figure
@@ -682,7 +684,8 @@ func spawn_observer(prev: bool) -> StoryFigure:
 
 func observer_spot() -> Vector2:
 	var pp: Vector2 = game.player.plan_pos()
-	var lot := FogBoundary.LOT.grow(EDGE_OUT)
+	var lot := FogBoundary.LOT.grow(-EDGE_IN)
+	var keep_off := HousePlan.FOOTPRINT.grow(1.6)
 	var best := Vector2.INF
 	var best_score := INF
 	var pts: Array = []
@@ -697,16 +700,18 @@ func observer_spot() -> Vector2:
 		pts.append(Vector2(lot.end.x, y))
 		y += 1.5
 	for q in pts:
+		if keep_off.has_point(q):
+			continue
 		var d: float = (q as Vector2).distance_to(pp)
-		var seen := _on_screen(Vector3(q.x, 1.6, q.y))
-		var score := absf(d - 12.5) + (0.0 if seen else 60.0) + (0.0 if d <= 18.0 else 30.0) + (0.0 if d >= NEAR + 1.5 else 500.0) + _rng.randf() * 1.5
+		var seen := _on_screen(Vector3(q.x, 1.8, q.y), 70.0) and _on_screen(Vector3(q.x, 0.1, q.y), 70.0)
+		var score := absf(d - 11.0) + (0.0 if seen else 60.0) + _off_centre(Vector3(q.x, 1.0, q.y)) * 4.0 + (0.0 if d <= 16.0 else 30.0) + (0.0 if d >= NEAR + 1.0 else 500.0) + _rng.randf() * 1.5
 		if score < best_score:
 			best_score = score
 			best = q
 	return best
 
 
-func _on_screen(p: Vector3) -> bool:
+func _on_screen(p: Vector3, margin := 20.0) -> bool:
 	var cam: Variant = game.get("camera")
 	if not (cam is Camera3D) or not (cam as Camera3D).is_inside_tree():
 		return false
@@ -714,7 +719,17 @@ func _on_screen(p: Vector3) -> bool:
 		return false
 	var v := (cam as Camera3D).unproject_position(p)
 	var r := get_viewport().get_visible_rect()
-	return r.grow(-20.0).has_point(v)
+	return r.grow(-margin).has_point(v)
+
+
+## 0 at the centre of the screen .. ~1 at its edges (keeps him clear of the HUD corners).
+func _off_centre(p: Vector3) -> float:
+	var cam: Variant = game.get("camera")
+	if not (cam is Camera3D) or not (cam as Camera3D).is_inside_tree():
+		return 0.0
+	var r := get_viewport().get_visible_rect()
+	var v := (cam as Camera3D).unproject_position(p) - r.get_center()
+	return Vector2(v.x / maxf(r.size.x * 0.5, 1.0), v.y / maxf(r.size.y * 0.5, 1.0)).length()
 
 
 static func _outside(p: Vector2) -> float:

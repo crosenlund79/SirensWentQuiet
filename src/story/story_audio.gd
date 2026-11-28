@@ -17,7 +17,9 @@ extends Node
 ##   Architect followers - banging on tin trash can 1-4.wav   -> story/follower_bin
 ##   Architect followers - basebal bat hammers door ... 1-4   -> story/follower_bat
 ## AudioInbox holds every file with "architect" in its name back from the
-## generic pools (agent A guards that); this class scans them itself. A
+## generic pools and refuses them in clip() (agent A guards that); this class
+## scans them itself and loads each stream directly (stream_of: one place to
+## swap the loader), never through Sfx or AudioInbox.clip(). A
 ## creator file custom/audio/<logical name>.ogg|.wav replaces a whole name
 ## (the voice slots story/architect_warning_01..07 have no recording yet and
 ## play only from there).
@@ -31,7 +33,8 @@ extends Node
 
 signal impact(strength: float)          ## a bat impact on the bedroom door, now
 
-const GROUP := "story_audio"
+const GROUP := "story_audio"                  ## every story player (a guard may stop and free them)
+const HOST_GROUP := "story_audio_host"        ## the StoryAudio nodes themselves (never freed by a guard)
 const RESERVED := "architect"
 const FOLLOWERS := ["story/follower_bark", "story/follower_howl", "story/follower_breath", "story/follower_bin", "story/follower_bat"]
 ## File-name keywords of each follower name (lower case).
@@ -80,7 +83,7 @@ var _last_variant := {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	add_to_group(GROUP)
+	add_to_group(HOST_GROUP)
 	_rng.randomize()
 
 
@@ -448,10 +451,10 @@ static func stop_all(tree: SceneTree = null) -> void:
 	if tree == null:
 		tree = Engine.get_main_loop() as SceneTree
 	if tree != null:
+		for n in tree.get_nodes_in_group(HOST_GROUP):
+			(n as StoryAudio).stop()
 		for n in tree.get_nodes_in_group(GROUP):
-			if n is StoryAudio:
-				(n as StoryAudio).stop()
-			elif n is AudioStreamPlayer or n is AudioStreamPlayer3D:
+			if n is AudioStreamPlayer or n is AudioStreamPlayer3D:
 				n.call("stop")
 	release_duck()
 

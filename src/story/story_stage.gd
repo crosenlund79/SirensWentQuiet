@@ -35,6 +35,8 @@ var struggling := false
 var _gas_light: OmniLight3D
 var _gas_goal := 0.0
 var _hidden: Array = []                      ## [node, was_visible]
+var _unlit: Array = []                       ## [fixture, its prop_lit] (electric lamps switched dark)
+var _candles: Array = []                     ## [night light record, its "hidden", its geos] (candles blown out)
 var _jolt := 0.0
 var _jolt_t := 0.0
 var _rattle := 0.0
@@ -103,6 +105,15 @@ func restore() -> void:
 		if is_instance_valid(h[0]):
 			(h[0] as Node3D).visible = h[1]
 	_hidden.clear()
+	for u in _unlit:
+		if is_instance_valid(u[0]):
+			PropKit.set_lit(u[0], float(u[1]))
+	_unlit.clear()
+	for c in _candles:
+		var rec: Dictionary = c[0]
+		rec["hidden"] = c[1]
+		rec["geos"] = c[2]
+	_candles.clear()
 	_set_player_rig_visible(true)
 	built.clear()
 	struggling = false
@@ -202,6 +213,15 @@ func _make_door() -> void:
 		k.material_override = km
 		k.position = Vector3(-0.04, 0.0, side * (size.z * 0.5 + 0.02))
 		_door_knob.add_child(k)
+	# a faint glow on the hallway side, so the door's face reads in the dark room
+	var glow := OmniLight3D.new()
+	glow.name = "DoorGlow"
+	glow.light_color = Color(0.75, 0.8, 0.95)
+	glow.light_energy = 0.7
+	glow.omni_range = 2.4
+	glow.shadow_enabled = false
+	glow.position = Vector3(0.0, 1.3, 0.75)
+	door.add_child(glow)
 	built["door"] = door
 
 
@@ -232,6 +252,26 @@ func _dark(on: bool) -> void:
 		var on_player: bool = player is Node and (player as Node).is_ancestor_of(l)
 		if on_player or Vector2(p.x, p.z).distance_to(c) < DARK_RADIUS:
 			_hide(l)
+	# the lamps' glowing shades and bulbs (refresh_power only re-applies on a change)
+	var h: Variant = game.get("home")
+	if h != null and typeof(h.get("fixtures")) == TYPE_DICTIONARY:
+		for id in h.fixtures:
+			var n: Node3D = h.fixtures[id]
+			if is_instance_valid(n) and Vector2(n.global_position.x, n.global_position.z).distance_to(c) < DARK_RADIUS:
+				_unlit.append([n, float(n.get_meta("prop_lit", 1.0))])
+				PropKit.set_lit(n, 0.0)
+	# the candles (HouseWorld re-lights them every frame unless "hidden")
+	var w: Variant = game.get("world")
+	if w != null and typeof(w.get("night_lights")) == TYPE_ARRAY:
+		for rec in w.night_lights:
+			var node: Node3D = rec["node"]
+			if is_instance_valid(node) and Vector2(node.position.x, node.position.z).distance_to(c) < DARK_RADIUS:
+				_candles.append([rec, rec.get("hidden", false), rec["geos"]])
+				for gi in rec["geos"]:
+					if is_instance_valid(gi):
+						(gi as GeometryInstance3D).set_instance_shader_parameter("lit", 0.0)
+				rec["hidden"] = true
+				rec["geos"] = []
 	built["dark"] = true
 
 
@@ -438,8 +478,8 @@ func throw_ropes(from: Vector3, to: Vector3, count := 2, delay := 0.0) -> void:
 	for i in count:
 		var coil := MeshInstance3D.new()
 		var t := TorusMesh.new()
-		t.inner_radius = 0.05
-		t.outer_radius = 0.12
+		t.inner_radius = 0.08
+		t.outer_radius = 0.19
 		coil.mesh = t
 		coil.material_override = mat
 		coil.position = from
