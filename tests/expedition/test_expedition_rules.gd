@@ -151,7 +151,8 @@ func test_applying_results_keeps_inventory_valid() -> void:
 				var cap := s.inventory.cap(id)
 				check(cap == 0 or n <= cap, "cap respected for %s" % id)
 			for id in r["gained"]:
-				var expect := int(before.get(id, 0)) - int(r["consumed"].get(id, 0)) - int(r["lost"].get(id, 0)) + int(r["gained"][id])
+				# what is spent is taken from what is there (never below zero), then the gains are added
+				var expect := maxi(int(before.get(id, 0)) - int(r["consumed"].get(id, 0)) - int(r["lost"].get(id, 0)), 0) + int(r["gained"][id])
 				check_eq(s.inventory.count(id), expect, "gained %s applied in full" % id)
 			break
 
