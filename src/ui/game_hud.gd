@@ -260,8 +260,12 @@ func flash_damage(strength := 1.0) -> void:
 
 
 func toggle_fps() -> void:
-	show_fps = not show_fps
-	_fps.visible = show_fps
+	# Exp 012 (C): F3 switches the saved frame-rate overlay (GraphicsQuality);
+	# the HUD's own fps label stays hidden so there is one display
+	GraphicsQuality.set_show_fps(not GraphicsQuality.show_fps(), false)
+	show_fps = GraphicsQuality.show_fps()
+	_fps.visible = false
+	GraphicsQuality.apply()
 
 
 func toggle_help() -> void:
@@ -286,7 +290,7 @@ func debug_texts() -> Dictionary:
 		"prompt": _prompt_text, "prompt_visible": _prompt_card.visible,
 		"banner": _banner_label.text if _banner.visible else "",
 		"cheats_visible": _badge.visible, "cheats": _badge_list.text,
-		"warnings": warns, "toasts": toasts, "fps_visible": _fps.visible,
+		"warnings": warns, "toasts": toasts, "fps_visible": GraphicsQuality.show_fps(),
 		"bars": _bars.keys().map(func(k): return [k, (_bars[k] as UiStatBar).value]),
 		"flash": _flash.modulate.a,
 		"home_room": _home_room.text if _home_room != null else "",       # Exp 005 (C)

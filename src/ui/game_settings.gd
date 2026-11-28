@@ -11,7 +11,9 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 const BUSES := {"master": "Master", "sfx": "SFX", "ambient": "Ambient", "music": "Music"}
 const DEFAULTS := {"master": 0.8, "sfx": 0.8, "ambient": 0.7, "music": 0.6, "fullscreen": false,
-	"character": "eli", "eli_variant": 0}
+	"character": "eli", "eli_variant": 0, "quality": "high", "show_fps": false}
+## Exp 012 (C): "quality" is a GraphicsQuality preset (low, medium, high,
+## ultra) and "show_fps" the frame-rate overlay; both apply live.
 ## Exp 010: the player character ("eli" = the experimental Eli, "original" = the
 ## first voxel figure) and Eli's variation; read live by VoxelPlayer.
 const CHARACTERS := ["eli", "original"]
@@ -47,6 +49,14 @@ static func apply() -> void:
 		load_settings()
 	apply_audio()
 	apply_display()
+	apply_graphics()
+
+
+## Exp 012: the graphics preset and the frame-rate overlay (GraphicsQuality).
+static func apply_graphics() -> void:
+	if not _loaded:
+		load_settings()
+	GraphicsQuality.apply()
 
 
 static func apply_audio() -> void:
@@ -85,6 +95,10 @@ static func set_value(key: String, v: Variant) -> void:
 	values[key] = _sanitize(key, v)
 	if BUSES.has(key):
 		apply_audio()
+	elif key == "quality":
+		apply_graphics()
+	elif key == "show_fps":
+		pass                      # the overlay reads it every frame
 	else:
 		apply_display()
 
@@ -100,7 +114,9 @@ static func _sanitize(key: String, v: Variant) -> Variant:
 		return str(v) if CHARACTERS.has(str(v)) else DEFAULTS[key]
 	if key == "eli_variant":
 		return clampi(int(v), 0, 9) if typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT else 0
-	if key == "fullscreen":
+	if key == "quality":
+		return str(v) if str(v) in ["low", "medium", "high", "ultra"] else DEFAULTS[key]
+	if key == "fullscreen" or key == "show_fps":
 		if typeof(v) == TYPE_BOOL:
 			return v
 		return (typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT) and float(v) != 0.0

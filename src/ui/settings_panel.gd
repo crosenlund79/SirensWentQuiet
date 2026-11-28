@@ -33,6 +33,8 @@ const CONTROLS := [
 var _sliders := {}
 var _value_labels := {}
 var _fullscreen: UiToggle
+var _quality := {}                 ## Exp 012: preset -> its button
+var _fps_toggle: UiToggle
 
 
 func _init() -> void:
@@ -62,6 +64,7 @@ func open() -> void:
 	_fullscreen.name = "Fullscreen"
 	_fullscreen.toggled.connect(func(on: bool): GameSettings.set_value("fullscreen", on))
 	left.add_child(_fullscreen)
+	_build_graphics(left)           # Exp 012 (C)
 	_build_character(left)          # Exp 010
 	left.add_child(UiTheme.make_caption("Settings are saved when you leave this screen.", 400, UiTheme.TEXT_FAINT))
 
@@ -79,6 +82,47 @@ func open() -> void:
 	back.pressed.connect(_back)
 	box.add_child(_footer("Esc", "Back", [back]))
 	_show(_sliders["master"])
+
+
+## Exp 012 (C, §32-33): the graphics preset (applies live, see
+## GraphicsQuality) and the frame-rate overlay.
+func _build_graphics(box: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	row.name = "Quality"
+	row.add_theme_constant_override("separation", 6)
+	var l := UiTheme.make_label("Graphics", UiTheme.FONT_BODY - 1)
+	l.custom_minimum_size.x = 130
+	row.add_child(l)
+	_quality.clear()
+	for q in GraphicsQuality.PRESETS:
+		var b := UiTheme.make_tab(str(GraphicsQuality.NAMES[q]))
+		b.name = "Quality_" + q
+		b.custom_minimum_size.x = 62
+		b.pressed.connect(func():
+			GraphicsQuality.set_preset(q)
+			_show_quality())
+		row.add_child(b)
+		_quality[q] = b
+	box.add_child(row)
+	_show_quality()
+	_fps_toggle = UiTheme.make_toggle("Show frame rate", GraphicsQuality.show_fps())
+	_fps_toggle.name = "ShowFps"
+	_fps_toggle.toggled.connect(func(on: bool): GraphicsQuality.set_show_fps(on))
+	box.add_child(_fps_toggle)
+
+
+func _show_quality() -> void:
+	for q in _quality:
+		(_quality[q] as Button).set_pressed_no_signal(q == GraphicsQuality.preset())
+
+
+## Test/automation access: the preset buttons and the frame-rate toggle.
+func quality_button(q: String) -> Button:
+	return _quality.get(q)
+
+
+func fps_toggle() -> UiToggle:
+	return _fps_toggle
 
 
 ## Exp 010: the experimental character (Eli) or the original figure, and
