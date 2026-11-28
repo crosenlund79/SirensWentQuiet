@@ -243,7 +243,10 @@ static func scan(force := false) -> void:
 	if total > 0 or not _unknown.is_empty():
 		print("AudioInbox: %d files mapped to %d sounds, %d unknown or ambiguous" % [total, _files.size(), _unknown.size()])
 	for u in _unknown:
-		push_warning("AudioInbox: '%s' not used (%s)" % [u["path"], u["reason"]])
+		if not _reserved.has(u["path"]):            # Exp 012 (A): story files are expected, not a problem
+			push_warning("AudioInbox: '%s' not used (%s)" % [u["path"], u["reason"]])
+	if not _reserved.is_empty():
+		print("AudioInbox: %d story-only files held back for the story" % _reserved.size())
 
 
 static func roots() -> Array:
