@@ -161,8 +161,8 @@ func _on_enemy_died(e: VoxelEnemy, kind: String, cause: String) -> void:
 	_markers.erase(e.get_instance_id())
 	if kind == "bomber" and game.hud != null:
 		game.hud.alert("")
-		if cause == "shot":
-			game.toast("The bomber is down.", "good")
+		if cause == "shot" and game.get("corpses") == null:
+			game.toast("The bomber is down.", "good")     # (Exp 012: the named "Downed" toast says it)
 	if cause == "blast":
 		Sfx.play("enemy/death", e.global_position)
 
