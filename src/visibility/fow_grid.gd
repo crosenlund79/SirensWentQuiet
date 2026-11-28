@@ -221,31 +221,51 @@ func commit() -> int:
 
 func _ray(eye: Vector2, d: Vector2, reach: float) -> void:
 	rays += 1
-	var t := STEP
-	var ax := AREA.position.x
-	var ay := AREA.position.y
+	# Incremental march in cell units (no allocations, few calls: this is the hot loop).
 	var inv := 1.0 / CELL
+	var gx := (eye.x - AREA.position.x) * inv          # position in vis cells
+	var gy := (eye.y - AREA.position.y) * inv
+	var sx := d.x * STEP * inv
+	var sy := d.y * STEP * inv
 	var has_occ := occ_size != Vector2i.ZERO
 	var inv_o := 1.0 / OCC_CELL
-	while t <= reach:
-		var px := eye.x + d.x * t
-		var py := eye.y + d.y * t
-		var i := int(floor((px - ax) * inv))
-		var j := int(floor((py - ay) * inv))
-		if i < 0 or j < 0 or i >= w or j >= h:
+	var ox := (eye.x - occ_origin.x) * inv_o + 0.5     # position in occ cells (+0.5: round by truncating)
+	var oy := (eye.y - occ_origin.y) * inv_o + 0.5
+	var osx := d.x * STEP * inv_o
+	var osy := d.y * STEP * inv_o
+	var n := int(reach / STEP)
+	var skip := int(SKIP_NEAR / STEP)
+	var ow := occ_size.x
+	var oh := occ_size.y
+	for s in range(1, n + 1):
+		gx += sx
+		gy += sy
+		ox += osx
+		oy += osy
+		if gx < 0.0 or gy < 0.0:
+			steps += s
+			return
+		var i := int(gx)
+		var j := int(gy)
+		if i >= w or j >= h:
+			steps += s
 			return
 		var k := j * w + i
 		if vis[k] == 0:
 			vis[k] = 255
 			touched.append(k)
-		steps += 1
-		if has_occ and t > SKIP_NEAR:
-			var oi := int(round((px - occ_origin.x) * inv_o))
-			var oj := int(round((py - occ_origin.y) * inv_o))
-			if oi >= 0 and oj >= 0 and oi < occ_size.x and oj < occ_size.y and occ[oj * occ_size.x + oi] != 0:
-				_mark(Vector2(px + d.x * STEP, py + d.y * STEP))     # the far half of the wall itself
+		if has_occ and s > skip and ox >= 0.0 and oy >= 0.0:
+			var oi := int(ox)
+			var oj := int(oy)
+			if oi < ow and oj < oh and occ[oj * ow + oi] != 0:
+				var fx := int(gx + sx)                     # the far half of the wall itself
+				var fy := int(gy + sy)
+				if fx >= 0 and fy >= 0 and fx < w and fy < h and vis[fy * w + fx] == 0:
+					vis[fy * w + fx] = 255
+					touched.append(fy * w + fx)
+				steps += s
 				return
-		t += STEP
+	steps += n
 
 
 func _mark(p: Vector2) -> void:

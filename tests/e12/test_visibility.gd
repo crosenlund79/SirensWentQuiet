@@ -177,3 +177,78 @@ func test_game_memory_save_and_door_stub() -> void:
 	var wall: StaticBody3D = g.boundary.walls[3]
 	check(wall.position.x > FogBoundary.LOT.end.x + FogBand.HOME_DEPTH, "no invisible wall at the lot edge (%.1f)" % wall.position.x)
 	check(g.player.move_band is FogBand, "the player slows in the band")
+	# Walking into the fog: slower and slower, never a wall; back out at once.
+	g.debug_kill_enemies()
+	g.debug_teleport_player(Vector2(FogBoundary.LOT.end.x - 1.0, 6.0))
+	await physics_frames(2)
+	var x0: float = g.player.global_position.x
+	Input.action_press("move_right")
+	await seconds(0.5)
+	var x_half: float = g.player.global_position.x
+	await seconds(3.0)
+	var x_deep: float = g.player.global_position.x
+	await seconds(1.0)
+	var x_end: float = g.player.global_position.x
+	Input.action_release("move_right")
+	check(x_deep > FogBoundary.LOT.end.x + 0.5, "he walks into the fog band (%.2f)" % x_deep)
+	check(x_end - x_deep < (x_half - x0) * 0.5, "deep in it he barely moves on (%.2f m in 1 s vs %.2f m in the first 0.5 s)" % [x_end - x_deep, x_half - x0])
+	check(x_end < FogBoundary.LOT.end.x + FogBand.HOME_DEPTH, "never reaching the safety wall (%.2f)" % x_end)
+	Input.action_press("move_left")
+	await seconds(0.5)
+	Input.action_release("move_left")
+	var back_x: float = g.player.global_position.x
+	check(x_end - back_x > (x_half - x0) * 0.7, "turning back is immediate (%.2f m in 0.5 s)" % (x_end - back_x))
+
+
+func test_game_poi_memory_and_items() -> void:
+	SaveGame.path_override = SAVE
+	var s := GameState.new_run(1212)
+	s.total_minutes = 11 * 60.0
+	s.region.discover("convenience")
+	GameLaunch.seed = 1212
+	GameLaunch.site = "convenience"
+	GameLaunch.mode = "carry"
+	GameLaunch.carry = {"state": s.to_dict(), "home": {}, "travel": {"to": "convenience", "car": false, "minutes": 0, "depart_at": s.total_minutes, "leg": "out"}}
+	var g: Node = (load(SCENE) as PackedScene).instantiate()
+	g.stay_in_scene = true
+	g.skip_intro = true
+	g.fade_time = 0.02
+	g.aim_with_mouse = false
+	add(g)
+	tree.current_scene = g
+	for i in 120:
+		await frames(1)
+		if g.get("world") is PoiWorld and not (g.world as PoiWorld).record.is_empty():
+			break
+	await frames(3)
+	check(g.world is PoiWorld, "at the POI")
+	if not (g.world is PoiWorld):
+		GameLaunch.site = "home"
+		return
+	var w: PoiWorld = g.world
+	var fow: FogOfWar = g.visibility.fow
+	g.debug_kill_enemies()
+	check(g.player.move_band is FogBand, "the POI's edge slows him too")
+	fow.refresh()
+	var hidden := 0
+	for sp in w.spots_of("pickup") + w.spots_of("container"):
+		if not sp.visible:
+			hidden += 1
+	var spots: int = (w.spots_of("pickup") + w.spots_of("container")).size()
+	check(spots == 0 or hidden > 0, "items and containers in unexplored rooms are hidden (%d of %d)" % [hidden, spots])
+	var before := fow.grid.discovered_count()
+	check(before > 0 and before < fow.grid.w * fow.grid.h / 2, "a POI starts mostly undiscovered (%d cells)" % before)
+	# Look round from inside the building.
+	var b: Rect2 = w.building_rect()
+	for k in 4:
+		_face(g, b.get_center(), k * PI * 0.5)
+		fow.refresh()
+	check(fow.grid.discovered_count() > before, "looking round discovers more")
+	fow._store_seen()
+	check(w.record.has("seen"), "the memory is in the visit record")
+	var back := FowGrid.new()
+	check(back.load_seen(JSON.parse_string(JSON.stringify(w.record["seen"])), fow.key), "it loads back with the same key (%s)" % fow.key)
+	check(back.disc == fow.grid.disc, "the same cells")
+	print("    fog of war at a POI: %s" % fow.info())
+	GameLaunch.site = "home"
+	GameLaunch.carry = {}

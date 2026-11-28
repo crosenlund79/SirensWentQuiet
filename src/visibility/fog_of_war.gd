@@ -62,7 +62,7 @@ const HOME_KNOWN := Rect2(-4.8, -3.8, 23.6, 16.6)   ## FogBoundary.LOT grown by 
 ## Looks (day -> night), linear colours (the pass is unshaded, then tonemapped).
 const MEMORY_DAY := Color(0.022, 0.026, 0.036)
 const MEMORY_NIGHT := Color(0.003, 0.004, 0.008)
-const FOG_DAY := Color(0.05, 0.055, 0.065)
+const FOG_DAY := Color(0.03, 0.034, 0.042)
 const FOG_NIGHT := Color(0.006, 0.008, 0.014)
 
 var game: Node
@@ -338,9 +338,9 @@ func _update_look() -> void:
 		return
 	_look = look
 	_mat.set_shader_parameter("memory_color", _rgb(MEMORY_DAY.lerp(MEMORY_NIGHT, n)))
-	_mat.set_shader_parameter("memory_alpha", lerpf(0.6, 0.66, n) * (0.3 if building else 1.0))
+	_mat.set_shader_parameter("memory_alpha", lerpf(0.64, 0.68, n) * (0.3 if building else 1.0))
 	_mat.set_shader_parameter("fog_color", _rgb(FOG_DAY.lerp(FOG_NIGHT, n)))
-	_mat.set_shader_parameter("fog_alpha", lerpf(0.93, 0.96, n))
+	_mat.set_shader_parameter("fog_alpha", lerpf(0.965, 0.975, n))
 
 
 static func _rgb(c: Color) -> Vector3:

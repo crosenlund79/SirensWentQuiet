@@ -87,12 +87,14 @@ func test_walls_block_the_player_but_not_enemies() -> void:
 	var south := _body(Vector2(10.0, LOT.end.y - 1.5), 1 << 2, 32)
 	await physics_frames(2)
 	await _push(player, Vector3.RIGHT, 45)
-	check(player.global_position.x <= LOT.end.x - Tuning.PLAYER_RADIUS + 0.05, "player stopped at the east edge (x %.2f)" % player.global_position.x)
-	check(player.global_position.x > LOT.end.x - 0.7, "and reached the prompt band (x %.2f)" % player.global_position.x)
+	# Exp 012 (V): the safety walls stand past the slowing fog band (FogBand), not at the lot edge.
+	var edge := LOT.end.x + FogBoundary.WALL_OUTSET
+	check(player.global_position.x <= edge - Tuning.PLAYER_RADIUS + 0.05, "player stopped at the safety wall past the band (x %.2f)" % player.global_position.x)
+	check(player.global_position.x > LOT.end.x, "a bare body (no FogBand) gets past the lot edge into the band (x %.2f)" % player.global_position.x)
 	await _push(enemy, Vector3.RIGHT, 45)
 	check(enemy.global_position.x > LOT.end.x + 1.0, "enemies walk through the lot boundary (x %.2f)" % enemy.global_position.x)
 	await _push(south, Vector3.BACK, 45)
-	check(south.global_position.z <= LOT.end.y - Tuning.PLAYER_RADIUS + 0.05, "a body with only mask 32 stops at the south edge (z %.2f)" % south.global_position.z)
+	check(south.global_position.z <= LOT.end.y + FogBoundary.WALL_OUTSET - Tuning.PLAYER_RADIUS + 0.05, "a body with only mask 32 stops at the south safety wall (z %.2f)" % south.global_position.z)
 
 
 func test_return_point_is_free_and_near() -> void:

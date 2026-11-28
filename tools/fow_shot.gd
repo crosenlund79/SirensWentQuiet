@@ -60,6 +60,8 @@ func _ready() -> void:
 		await get_tree().process_frame
 		_stand(end, false)
 	print("FOW ", fow.info())
+	if game.world is PoiWorld:
+		print("FOW site: building %s entry %s rooms %s" % [game.world.building_rect(), game.world.entry_point(), (game.world as PoiWorld).rooms().map(func(r): return r.get("rect", r))])
 	print("FOW enemies: ", game.roster.enemies.map(func(e): return "%s %s" % [e.plan_pos(), e.rig.visible]))
 	# Shoot it ourselves once everything is in place (capture.gd's timer is only a fallback: pass a long --at).
 	var out := ""
