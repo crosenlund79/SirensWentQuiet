@@ -206,6 +206,7 @@ func _bind(d: Dictionary) -> void:
 	display_name = str(d.get("name", ""))
 	name = "Corpse_" + (display_name.replace(" ", "_") if display_name != "" else kind)
 	add_to_group(GROUP)
+	add_to_group("fow_remember")      # Exp 012 (V): unseen until Eli has seen where it lies
 	visual = Node3D.new()
 	visual.name = "Visual"
 	add_child(visual)

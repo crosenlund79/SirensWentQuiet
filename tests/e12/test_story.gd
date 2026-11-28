@@ -156,7 +156,7 @@ func test_previews_change_nothing() -> void:
 	var st: StoryDirector = g.story
 	g.time_scale = 0.0                 # the clock stands still between the previews too
 	await frames(2)
-	var before := JSON.stringify(s.to_dict())
+	var before := JSON.stringify(_sans_seen(s.to_dict()))
 	var house := JSON.stringify(g.world.save_data())
 	for n in [1, 3, 4]:
 		var r: String = await st.preview_encounter(n)
@@ -165,7 +165,7 @@ func test_previews_change_nothing() -> void:
 	var rb: String = await st.burn_ropes(true)
 	check(rb.contains("previewed"), rb)
 	_control_back(g, "preview burning")
-	check_eq(JSON.stringify(s.to_dict()), before, "the state (story, inventory, clock) is unchanged")
+	check_eq(JSON.stringify(_sans_seen(s.to_dict())), before, "the state (story, inventory, clock) is unchanged")
 	check_eq(JSON.stringify(g.world.save_data()), house, "the house is unchanged")
 	check(s.inventory.count("rope") == 0 and not st.ropes_pending(), "no ropes from a preview")
 
@@ -276,3 +276,11 @@ func test_leaving_mid_scene_cleans_up() -> void:
 	await frames(3)
 	check(is_equal_approx(AudioMix.duck_db(), 0.0), "the duck is released")
 	check(tree.get_nodes_in_group(StoryAudio.GROUP).is_empty(), "no story audio left")
+
+
+## The fog of war's discovered-area memory may grow while a preview plays
+## (Eli looks around); it is not story progress.
+func _sans_seen(d: Dictionary) -> Dictionary:
+	if d.get("home") is Dictionary:
+		(d["home"] as Dictionary).erase("seen")
+	return d

@@ -843,6 +843,7 @@ func _place_watcher() -> void:
 				best = q
 	var f := ArchitectFigure.new()
 	f.name = "SiegeWatcher"
+	f.add_to_group("fow_dynamic")          # drawn only while Eli can see him (Exp 012 (V))
 	f.target = game.player
 	game.add_child(f)
 	f.global_position = Vector3(best.x, 0.0, best.y)

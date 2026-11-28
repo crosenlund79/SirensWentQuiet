@@ -672,6 +672,7 @@ func spawn_observer(prev: bool) -> StoryFigure:
 	var spot := observer_spot()
 	figure = StoryFigure.new()
 	figure.name = "StoryWatcher"
+	figure.add_to_group("fow_dynamic")     # drawn only while Eli can see him (Exp 012 (V))
 	figure.target = game.player
 	game.add_child(figure)
 	figure.global_position = Vector3(spot.x, 0.0, spot.y)
@@ -711,6 +712,12 @@ func observer_spot() -> Vector2:
 	return best
 
 
+## Eli's own sight (the fog of war's cone and line of sight; true when it is off).
+func _eli_sees(p: Vector3) -> bool:
+	var v: Variant = game.get("visibility") if game != null else null
+	return not (v is Object and is_instance_valid(v) and v.has_method("is_point_visible")) or bool(v.call("is_point_visible", p))
+
+
 func _on_screen(p: Vector3, margin := 20.0) -> bool:
 	var cam: Variant = game.get("camera")
 	if not (cam is Camera3D) or not (cam as Camera3D).is_inside_tree():
@@ -747,7 +754,7 @@ func _observer_step(delta: float) -> void:
 		return
 	var pp: Vector2 = game.player.plan_pos()
 	var dist := pp.distance_to(f.plan_pos())
-	var vis := _on_screen(f.head_point()) and dist < 26.0
+	var vis := _on_screen(f.head_point()) and dist < 26.0 and _eli_sees(f.head_point())
 	if vis:
 		o["seen"] = float(o["seen"]) + delta
 	if not o["howl"] and t > 6.0:
