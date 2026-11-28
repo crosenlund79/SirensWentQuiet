@@ -390,6 +390,6 @@ func _corpse(delta: float) -> void:
 
 # --- Exp 012 (E): identity --------------------------------------------------------------
 
-## "Psycho", "Runner", "Brute" or "Bomber" (the Architect is never an AIEnemy).
+## "Psycho", "Runner", "Brute" or "Bomber" (the story's watcher is never an AIEnemy).
 func kind_label() -> String:
 	return HumanNames.kind_label(kind)

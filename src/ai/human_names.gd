@@ -4,7 +4,7 @@ extends RefCounted
 ## psycho, the runner, the brute and the bomber) was somebody, with a first
 ## and a last name from large pools: Thomas Whitaker, Helen Crawford, Walter
 ## Briggs, Margaret Ellis. A plausible North-American / Northern-European mix
-## for a cold northern town. No secret story identities, and the Architect is
+## for a cold northern town. No secret story identities, and the story's watcher is
 ## never an AIEnemy, so he never gets one here.
 ##
 ## The name depends only on the appearance seed (AIEnemy.appearance) and the

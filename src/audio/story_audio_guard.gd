@@ -27,16 +27,16 @@ static func stop_all(tree: SceneTree = null) -> int:
 	calls += 1
 	if tree == null:
 		tree = Engine.get_main_loop() as SceneTree
+	var n := playing_count(tree) if tree != null else 0     # what was playing (StoryAudio may stop some first)
 	_call_story_stop()
 	_busy = false
-	var n := 0
 	if tree == null:
 		last_stopped = 0
 		return 0
 	for node in tree.get_nodes_in_group(GROUP):
 		if not is_instance_valid(node):
 			continue
-		n += _stop_players(node)
+		_stop_players(node)
 		if node.get_parent() == tree.root and not node.is_queued_for_deletion():
 			node.queue_free()
 	last_stopped = n
