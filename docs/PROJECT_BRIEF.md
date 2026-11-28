@@ -273,6 +273,14 @@ This file **records** decisions and approvals; it never grants them. Only the us
 - **Delivery:** a Windows x64 portable ZIP through GitHub Actions (explicitly required) and a playtest checkpoint.
 - **Out of scope:** merges to `main`; generated or synthesised audio; a generic Architect voice; resolving the Architect mystery.
 
+## Current approved objective: "Every Shot Counts" (Experiment 013)
+
+**Status: Approved by the user's message of 2026-11-28 ("Experiment 013 — Every Shot Counts", rapid delivery, minimal testing). Delivered 2026-11-28 on `exp013/every-shot-counts` and as `playtest/exp013-every-shot-counts` (`877681d`) with a Windows build artifact; awaiting the user's playtest.** From Experiment 012 (`a1ebc16`).
+
+- **Scope:** the shot calculation fixed (from the muzzle, level, full range for every gun); a pump-action shotgun; a bolt-action hunting rifle; RMB aim down the sights; per-weapon recoil; ejected cases and shells; F10 weapon tools; missing weapon recordings listed in `docs/audio/AUDIO_REQUIREMENTS.md`.
+- **Workflow decision (user, 2026-11-28):** rapid delivery with only essential sanity checks; no broad audits, full suites or parallel verification agents unless asked.
+- **Out of scope:** scopes, unrelated fixes, merges to `main`.
+
 ## Earlier Experiment 004 directive (approved, not started)
 
 **Status: Approved by the user's directive of 2026-11-24 ("Immediate Directive + Experiment 004 — A House to Live In"). Not started: the user's later message of 2026-11-24 asked to finish Experiment 003, publish the checkpoint, write `docs/HANDOFF_EXP004.md` and stop; Experiment 004 continues in a fresh session.**
