@@ -2,8 +2,7 @@ class_name UiTheme
 extends RefCounted
 ## One visual language for every menu, panel and HUD element (SPEC §8). Owner: U.
 ##
-## Exp 006 (U), the voxel-friendly overhaul: the Pixel Operator font (CC0,
-## assets/fonts/pixel_operator/), square panels with a hard drop shadow,
+## Exp 006 (U), the voxel-friendly overhaul: square panels with a hard drop shadow,
 ## dark muted slate backgrounds, warm off-white text, one amber accent (the
 ## siren), pixel icons (UiIcons) and the same button everywhere. Other
 ## modules use these helpers instead of styling their own controls; see
@@ -16,14 +15,15 @@ extends RefCounted
 ##   box.add_child(UiTheme.make_key_hint("E", "Search"))
 ##   box.add_child(UiTheme.make_icon_label("water", "Water 3"))   # Exp 006
 ##
-## Type sizes: pixel fonts stay crisp only at whole multiples of their design
-## size (PixelOperator: 16 px; PixelOperator8: 8 px). px() snaps any size to
-## 16 or 32 (48 for huge), so older call sites asking for 13 or 22 still get
-## a clean size. Roles: "regular" (PixelOperator, text), "bold" (emphasis),
-## "heading" (PixelOperator8 at 16 = 2x: titles), "caps" (PixelOperatorSC:
-## section rules), "mono" (numbers in tables). Antialiasing and hinting are
-## off in the fonts' import settings, so under the canvas_items stretch the
-## glyphs are rasterised at the window's scale with hard edges.
+## Exp 012 (C, §34): the type is Inter (SIL Open Font License 1.1,
+## assets/fonts/inter/, LICENSE.txt beside it), a clean modern sans-serif,
+## replacing Pixel Operator (its files stay in assets/fonts/pixel_operator/).
+## Roles: "regular" (Inter Regular, text), "medium", "bold" (SemiBold:
+## emphasis), "heading" (Bold: titles), "caps" (SemiBold, tracked: section
+## rules, upper case), "mono" (Regular with tabular figures: numbers in
+## tables). If the files are missing, a SystemFont with common sans-serif
+## families, then the engine's font. px() keeps a requested size (at least
+## 12), so call sites asking for 13 or 22 get that size.
 ##
 ## A whole modal screen with scrim, fade and Esc handling: extend UiModal.
 
@@ -55,24 +55,28 @@ const SECTION_ICONS := {
 }
 
 # --- metrics ------------------------------------------------------------------
-## Exp 006: Pixel Operator sizes (see px()). LARGE and TITLE are nominal:
-## make_label renders LARGE in bold at 16, make_title renders the heading face.
-const FONT_SMALL := 16
-const FONT_BODY := 16
-const FONT_LARGE := 20
-const FONT_TITLE := 22
-const FONT_BIG := 32
+## Exp 012: sizes for Inter (larger x-height than the pixel font's 16 px).
+## make_label renders LARGE in SemiBold, make_title the heading face.
+const FONT_SMALL := 14
+const FONT_BODY := 15
+const FONT_LARGE := 18
+const FONT_TITLE := 21
+const FONT_BIG := 30
 const PAD := 18          ## panel content margin
 const GAP := 10          ## vertical rhythm between rows
 const RADIUS := 0        ## Exp 006: square, pixel-style corners
 const BUTTON_HEIGHT := 38
 const FADE_IN := 0.16    ## seconds; every panel uses the same fades
 const FADE_OUT := 0.12
-const FONT_DIR := "res://assets/fonts/pixel_operator/"
+const FONT_DIR := "res://assets/fonts/inter/"
 const FONT_FILES := {
-	"regular": "PixelOperator.ttf", "bold": "PixelOperator-Bold.ttf", "heading": "PixelOperator8.ttf",
-	"heading_bold": "PixelOperator8-Bold.ttf", "caps": "PixelOperatorSC.ttf", "mono": "PixelOperatorMono.ttf",
+	"regular": "Inter-Regular.woff2", "medium": "Inter-Medium.woff2", "bold": "Inter-SemiBold.woff2",
+	"heading": "Inter-Bold.woff2", "heading_bold": "Inter-Bold.woff2", "caps": "Inter-SemiBold.woff2",
+	"mono": "Inter-Regular.woff2",
 }
+## Exp 012: the fallback when the bundled files are missing (SystemFont).
+const SYSTEM_FAMILIES := ["Inter", "Segoe UI", "Noto Sans", "Helvetica Neue", "Arial", "DejaVu Sans", "Liberation Sans", "sans-serif"]
+const ROLE_WEIGHT := {"regular": 400, "medium": 500, "bold": 600, "heading": 700, "heading_bold": 700, "caps": 600, "mono": 400}
 
 static var _theme: Theme
 static var _fonts := {}
@@ -245,38 +249,46 @@ static func button_style(state: String) -> StyleBoxFlat:
 	return sb
 
 
-## Upper case with wide tracking: the "small caps" heading face. Exp 006:
-## Pixel Operator with whole-pixel letter spacing (about half the old value).
+## Upper case with wider tracking (the period line, small headings).
 static func tracked_font(spacing := 2) -> Font:
 	if not _fonts.has(spacing):
 		var f := FontVariation.new()
-		f.base_font = font("regular")
+		f.base_font = font("medium")
 		f.spacing_glyph = clampi(spacing / 2, 1, 3)
 		_fonts[spacing] = f
 	return _fonts[spacing]
 
 
-## Exp 006: the Pixel Operator faces by role ("regular", "bold", "heading",
-## "heading_bold", "caps", "mono"); the engine's font if a file is missing.
+## Exp 012: the Inter faces by role ("regular", "medium", "bold", "heading",
+## "heading_bold", "caps", "mono"); a SystemFont of common sans-serif
+## families if a file is missing, then the engine's font.
 static func font(role := "regular") -> Font:
 	if _font_cache.has(role):
 		return _font_cache[role]
 	var path: String = FONT_DIR + str(FONT_FILES.get(role, FONT_FILES["regular"]))
 	var f: Font = load(path) as Font if ResourceLoader.exists(path) else null
 	if f == null:
-		f = ThemeDB.fallback_font
+		var sf := SystemFont.new()
+		sf.font_names = PackedStringArray(SYSTEM_FAMILIES)
+		sf.font_weight = int(ROLE_WEIGHT.get(role, 400))
+		sf.fallbacks = [ThemeDB.fallback_font]
+		f = sf
+	if role == "mono" or role == "caps":
+		var v := FontVariation.new()
+		v.base_font = f
+		if role == "mono":
+			# tabular figures: columns of numbers line up
+			v.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("tnum"): 1}
+		else:
+			v.spacing_glyph = 1
+		f = v
 	_font_cache[role] = f
 	return f
 
 
-## Exp 006: a crisp pixel-font size for `size`: 16 (1x) below 26, 32 (2x)
-## below 40, else 48 (3x).
+## Exp 012: the requested size (at least 12 px; Inter needs no pixel grid).
 static func px(size: int) -> int:
-	if size < 26:
-		return 16
-	if size < 40:
-		return 32
-	return 48
+	return clampi(size, 12, 96)
 
 
 ## Exp 006: a texture of a UiIcons icon for Button.icon / TextureRect.
@@ -301,13 +313,13 @@ static func make_card() -> PanelContainer:
 	return p
 
 
-## Panel heading: small caps in the accent colour.
-## Exp 006: PixelOperator8 at 16 (2x; 24 = 3x for sizes from 30 up).
+## Panel heading: upper case in the accent colour (Exp 012: Inter Bold,
+## 18 px; 26 for sizes from 30 up).
 static func make_title(text: String, size := FONT_TITLE) -> Label:
 	var l := Label.new()
 	l.text = text.to_upper()
 	l.add_theme_font_override("font", font("heading"))
-	l.add_theme_font_size_override("font_size", 24 if size >= 30 else 16)
+	l.add_theme_font_size_override("font_size", 26 if size >= 30 else 18)
 	l.add_theme_color_override("font_color", ACCENT)
 	l.add_theme_color_override("font_shadow_color", SHADOW)
 	l.add_theme_constant_override("shadow_offset_x", 2)
@@ -329,9 +341,10 @@ static func make_section(text: String, icon := "") -> HBoxContainer:
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(ic)
 	var l := Label.new()
-	l.text = text            # Exp 006: true small caps (PixelOperatorSC)
+	l.text = text
+	l.uppercase = true                  # Exp 012: tracked upper case (Inter SemiBold)
 	l.add_theme_font_override("font", font("caps"))
-	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_font_size_override("font_size", 12)
 	l.add_theme_color_override("font_color", TEXT_DIM)
 	row.add_child(l)
 	var line := HSeparator.new()
@@ -343,8 +356,7 @@ static func make_section(text: String, icon := "") -> HBoxContainer:
 	return row
 
 
-## Exp 006: `size` snaps to a crisp pixel size (px()); 18-25 render in bold
-## at 16 (emphasis: FONT_LARGE).
+## `size` in px (px()); 18-25 render in SemiBold (emphasis: FONT_LARGE).
 static func make_label(text: String, size := FONT_BODY, color := TEXT) -> Label:
 	var l := Label.new()
 	l.text = text
